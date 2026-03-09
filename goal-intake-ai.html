@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ManifestMyStory — Goal Discovery</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f4f1eb;
+    --surface: #ffffff;
+    --ink: #1c1a16;
+    --ink-muted: #7a7468;
+    --ink-faint: #b8b3a8;
+    --accent: #2d6a4f;
+    --accent-light: #e8f4ee;
+    --accent-mid: #52b788;
+    --gold: #9a6f0a;
+    --gold-bg: #fdf6e3;
+    --gold-border: #e8d08a;
+    --border: #e4dfd5;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 300;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+
+  /* TOP BAR */
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.85rem 1.5rem;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    gap: 1rem;
+  }
+  .logo { font-family: 'DM Serif Display', serif; font-size: 1.1rem; color: var(--ink); }
+  .logo span { color: var(--accent); }
+  .progress-wrap { flex: 1; max-width: 320px; }
+  .progress-meta { display: flex; justify-content: space-between; margin-bottom: 0.3rem; }
+  .progress-label { font-size: 0.68rem; color: var(--ink-muted); }
+  .progress-pct { font-size: 0.68rem; color: var(--accent); font-weight: 500; }
+  .progress-track { height: 3px; background: var(--border); border-radius: 99px; overflow: hidden; }
+  .progress-fill {
+    height: 100%; background: linear-gradient(to right, var(--accent), var(--accent-mid));
+    border-radius: 99px; width: 0%;
+    transition: width 0.8s cubic-bezier(0.34,1.2,0.64,1);
+  }
+  .phase-badge {
+    font-size: 0.68rem; background: var(--accent-light); color: var(--accent);
+    padding: 0.28rem 0.75rem; border-radius: 99px; font-weight: 500; white-space: nowrap;
+  }
+
+  /* LAYOUT */
+  .main { display: flex; flex: 1; overflow: hidden; max-width: 1060px; width: 100%; margin: 0 auto; padding: 1.25rem; gap: 1.25rem; }
+
+  /* SIDEBAR */
+  .sidebar { width: 210px; flex-shrink: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+  .sidebar-title { font-size: 0.63rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 0.4rem; padding-left: 0.65rem; }
+
+  .topic-item {
+    display: flex; align-items: center; gap: 0.55rem; padding: 0.5rem 0.65rem;
+    border-radius: 7px; font-size: 0.8rem; color: var(--ink-faint);
+    border: 1px solid transparent; transition: all 0.3s;
+  }
+  .topic-item.covered { color: var(--accent); }
+  .topic-item.covered .t-dot { background: var(--accent); }
+  .topic-item.active { background: var(--surface); border-color: var(--border); color: var(--ink); box-shadow: 0 1px 5px rgba(0,0,0,0.05); }
+  .topic-item.active .t-dot { background: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
+  .t-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-faint); flex-shrink: 0; transition: all 0.3s; }
+
+  .sidebar-divider { height: 1px; background: var(--border); margin: 0.4rem 0; }
+
+  .captured-box {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 9px;
+    padding: 0.9rem; display: flex; flex-direction: column; gap: 0.5rem; flex: 1; overflow: hidden;
+  }
+  .captured-title { font-size: 0.63rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-faint); }
+  .captured-list { overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 0.4rem; }
+  .captured-list::-webkit-scrollbar { width: 2px; }
+  .captured-list::-webkit-scrollbar-thumb { background: var(--border); }
+  .captured-item { font-size: 0.73rem; color: var(--ink-muted); line-height: 1.4; padding-left: 0.6rem; border-left: 2px solid var(--accent-light); }
+  .captured-item strong { display: block; font-size: 0.63rem; font-weight: 500; color: var(--accent); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 0.1rem; }
+  .nothing-yet { font-size: 0.73rem; color: var(--ink-faint); font-style: italic; }
+
+  /* CHAT */
+  .chat-wrap { flex: 1; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+  .chat-messages {
+    flex: 1; overflow-y: auto; display: flex; flex-direction: column;
+    gap: 0.85rem; padding-bottom: 0.5rem; scroll-behavior: smooth;
+  }
+  .chat-messages::-webkit-scrollbar { width: 3px; }
+  .chat-messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+
+  /* BUBBLES */
+  .msg-row { display: flex; gap: 0.6rem; align-items: flex-end; animation: fadeUp 0.3s ease both; }
+  .msg-row.user { flex-direction: row-reverse; }
+  @keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+
+  .avatar { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; flex-shrink: 0; }
+  .avatar.bot { background: var(--accent); color: #fff; font-family: 'DM Serif Display', serif; font-size: 0.9rem; }
+  .avatar.user { background: var(--border); color: var(--ink-muted); }
+
+  .bubble {
+    max-width: 76%; padding: 0.8rem 1rem; border-radius: 14px;
+    font-size: 0.875rem; line-height: 1.7;
+  }
+  .msg-row.bot .bubble {
+    background: var(--surface); border: 1px solid var(--border);
+    border-bottom-left-radius: 3px; box-shadow: 0 1px 5px rgba(0,0,0,0.04);
+  }
+  .msg-row.user .bubble { background: var(--accent); color: #fff; border-bottom-right-radius: 3px; }
+
+  /* Science callout inside bubble */
+  .sci { margin-top: 0.65rem; padding: 0.55rem 0.8rem; background: var(--gold-bg); border-left: 2px solid var(--gold-border); border-radius: 4px; font-size: 0.76rem; color: var(--gold); line-height: 1.55; }
+  .sci b { font-weight: 500; }
+
+  /* Quick reply chips */
+  .chips { display: flex; flex-wrap: wrap; gap: 0.45rem; margin-top: 0.7rem; }
+  .chip {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 99px;
+    padding: 0.35rem 0.85rem; font-size: 0.77rem; color: var(--ink);
+    cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.2s;
+  }
+  .chip:hover { border-color: var(--accent); background: var(--accent-light); color: var(--accent); }
+
+  /* Typing */
+  .typing-row { display: flex; gap: 0.6rem; align-items: flex-end; animation: fadeUp 0.2s ease both; }
+  .typing-bub {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; border-bottom-left-radius: 3px;
+    padding: 0.85rem 1rem; display: flex; gap: 4px; align-items: center;
+  }
+  .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--ink-faint); animation: tb 1.1s ease-in-out infinite; }
+  .dot:nth-child(2) { animation-delay: 0.18s; }
+  .dot:nth-child(3) { animation-delay: 0.36s; }
+  @keyframes tb { 0%,60%,100%{transform:translateY(0);opacity:.4} 30%{transform:translateY(-4px);opacity:1} }
+
+  /* Completion card */
+  .complete-card {
+    background: var(--gold-bg); border: 1px solid var(--gold-border); border-radius: 12px;
+    padding: 1.1rem 1.25rem; max-width: 76%;
+  }
+  .complete-card h3 { font-family: 'DM Serif Display', serif; font-size: 1.1rem; color: var(--ink); margin-bottom: 0.4rem; }
+  .complete-card p { font-size: 0.82rem; color: var(--ink-muted); line-height: 1.6; margin-bottom: 0.85rem; }
+  .complete-btn {
+    display: inline-flex; align-items: center; gap: 0.4rem;
+    background: var(--accent); color: #fff; border: none; border-radius: 8px;
+    padding: 0.6rem 1.3rem; font-size: 0.82rem; font-family: 'DM Sans', sans-serif;
+    font-weight: 500; cursor: pointer; transition: all 0.2s;
+  }
+  .complete-btn:hover { background: #235840; }
+  .complete-btn svg { width: 13px; height: 13px; }
+
+  /* INPUT */
+  .input-area {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 0.65rem 0.65rem 0.65rem 1rem;
+    display: flex; align-items: flex-end; gap: 0.55rem;
+    margin-top: 0.85rem; box-shadow: 0 2px 10px rgba(0,0,0,0.04); flex-shrink: 0;
+  }
+  textarea {
+    flex: 1; border: none; outline: none; resize: none;
+    font-family: 'DM Sans', sans-serif; font-size: 0.875rem; font-weight: 300;
+    color: var(--ink); background: transparent; line-height: 1.55;
+    max-height: 130px; min-height: 22px;
+  }
+  textarea::placeholder { color: var(--ink-faint); }
+  textarea:disabled { opacity: 0.5; }
+  .send-btn {
+    width: 36px; height: 36px; border-radius: 9px; background: var(--accent);
+    border: none; cursor: pointer; display: grid; place-items: center;
+    flex-shrink: 0; transition: all 0.2s;
+  }
+  .send-btn:hover:not(:disabled) { background: #235840; transform: scale(1.05); }
+  .send-btn:disabled { background: var(--border); cursor: not-allowed; transform: none; }
+  .send-btn svg { width: 14px; height: 14px; color: #fff; }
+  .input-hint { font-size: 0.65rem; color: var(--ink-faint); text-align: center; margin-top: 0.4rem; flex-shrink: 0; }
+
+  @media (max-width: 680px) { .sidebar { display: none; } .main { padding: 0.75rem; } .progress-wrap { max-width: 130px; } }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="logo">Manifest<span>MyStory</span></div>
+  <div class="progress-wrap">
+    <div class="progress-meta">
+      <span class="progress-label">Goal Discovery</span>
+      <span class="progress-pct" id="pctLabel">0%</span>
+    </div>
+    <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+  </div>
+  <div class="phase-badge" id="phaseBadge">Getting Started</div>
+</div>
+
+<div class="main">
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sidebar-title">Topics</div>
+    <div class="topic-item active" id="t-start"><div class="t-dot"></div><span>Getting Started</span></div>
+    <div class="topic-item" id="t-identity"><div class="t-dot"></div><span>Identity & Purpose</span></div>
+    <div class="topic-item" id="t-daily"><div class="t-dot"></div><span>Daily Life</span></div>
+    <div class="topic-item" id="t-feelings"><div class="t-dot"></div><span>Feelings</span></div>
+    <div class="topic-item" id="t-evening"><div class="t-dot"></div><span>Evening & Close</span></div>
+    <div class="sidebar-divider"></div>
+    <div class="captured-box">
+      <div class="captured-title">Captured So Far</div>
+      <div class="captured-list" id="capturedList">
+        <span class="nothing-yet">Your vision will appear here…</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- CHAT -->
+  <div class="chat-wrap">
+    <div class="chat-messages" id="chatMessages"></div>
+    <div class="input-area">
+      <textarea id="userInput" placeholder="Share your answer here…" rows="1" disabled></textarea>
+      <button class="send-btn" id="sendBtn" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>
+        </svg>
+      </button>
+    </div>
+    <div class="input-hint">Enter to send · Shift+Enter for new line</div>
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────────────────
+// THE SYSTEM PROMPT — this is the brain of the conversation
+// ─────────────────────────────────────────────────────────
+const SYSTEM_PROMPT = `You are a warm, deeply perceptive life coach helping someone create their personal manifestation story for ManifestMyStory.com. Your job is to have a genuine, flowing conversation that draws out a vivid and specific picture of the person's ideal future life — and the obstacles they are ready to leave behind.
+
+IMPORTANT: You are NOT following a script. You are having a real conversation. Let it breathe, follow the person's energy, and go where it naturally leads. Never march through a checklist. Never ask multiple questions at once.
+
+YOUR VERY FIRST MESSAGE:
+Welcome them warmly and personally. Then ask one open question: "Before we dive in — do you already have some goals or a vision for your ideal life written down? Even rough notes or a list? If so, share whatever you have and we'll build from there. If you're starting fresh, just tell me — what do you most want to accomplish in your life right now?"
+
+IF THEY SHARE GOALS OR A VISION ALREADY:
+Treat this as gold. Read it carefully. Reflect back what you heard with genuine warmth — not a summary, a real response. Then naturally explore the gaps: sensory details, emotional texture, daily rhythms, relationships. Follow what they're most excited about. Don't re-ask things they've already answered.
+
+IF THEY ARE STARTING FRESH:
+Ask them what they want to accomplish — across the different areas of their life. Start open and let them lead. Go deeper on whatever they respond to most.
+
+THE AREAS OF LIFE TO NAVIGATE CONVERSATIONALLY (not a list to complete — a map to explore naturally):
+Love & Relationships · Health & Body · Work & Purpose · Financial Abundance · Home & Environment · Spirituality & Inner Life · Growth & Learning · Community & Contribution · Recreation & Travel · Virtues & Values · Daily Rhythms · Emotional Texture
+
+HOW TO BEHAVE:
+- This is a CONVERSATION, not an intake form — follow energy, not order
+- Follow the person's lead — where they are most alive, go deeper
+- Push gently past vague answers: "I want to be successful" → "What does that look like on a Tuesday morning for you?" / "I want financial freedom" → "What does that actually let you do or feel that you can't right now?"
+- Pull for sensory specificity — what they see, hear, smell, feel, taste in this future life
+- Reflect their exact words back — this shows you are truly listening
+- Be warm and real — like a thoughtful friend who genuinely cares, not a clinical intake process
+- Occasionally share a brief insight about why a specific detail matters for manifestation — 2-3 times only, never formulaic
+- You don't need to cover every topic. You need enough vivid, specific detail to write a story so personal that when they hear it, they feel they are already living that life.
+
+CRITICALLY — ALSO EXPLORE OBSTACLES BEFORE WRAPPING UP:
+Before ending the conversation, gently ask about what is currently hard, scary, or stuck in their life. This is essential — not optional. The most powerful stories don't just show a beautiful life, they show a life where the person's current struggles are quietly, obviously, completely behind them.
+
+Ask it naturally — something like: "Before I write your story, I want to ask something important. What's actually hard for you right now? What worries you, feels stuck, or are you most afraid won't change?"
+
+Then for each struggle they share, ask: "What would tell you — beyond any doubt — that this is behind you? What scene or moment could only exist once this is already solved?"
+
+These answers shape the most emotionally powerful parts of the story. The proof moments will be woven into the story naturally — never naming the original fear, only showing its absence through ease, freedom, and action.
+
+PROGRESS TRACKING:
+After each of your messages, on a NEW LINE output EXACTLY this format (no spaces, no variation):
+PROGRESS:{"pct":NUMBER,"phase":"PHASE_NAME","covered":["topic1","topic2"]}
+
+Where:
+- pct is 0-100 (how complete the discovery feels)
+- phase is one of: "Getting Started", "Identity & Purpose", "Daily Life", "Feelings & Experiences", "Obstacles & Breakthroughs", "Complete"
+- covered is an array of topics covered so far from: ["identity","daily","feelings","obstacles","evening"]
+
+CAPTURED DATA:
+When you learn something concrete and specific about the user's vision, output on a NEW LINE:
+CAPTURE:{"label":"SHORT_LABEL","value":"what they said in 1-2 sentences"}
+
+Use these labels: Identity, Purpose, Values, Location, Home, Morning, Work, Relationships, Feelings, Joy, Evening, Dreams, Obstacle, Proof
+
+Example outputs after your message text:
+PROGRESS:{"pct":25,"phase":"Identity & Purpose","covered":["identity"]}
+CAPTURE:{"label":"Location","value":"A coastal town in Portugal, close to the ocean"}
+CAPTURE:{"label":"Obstacle","value":"Financial stress — always feeling behind, never enough"}
+CAPTURE:{"label":"Proof","value":"Booking a last-minute trip without checking the bank balance"}
+
+THE GOAL OF THIS CONVERSATION:
+By the end, you should know enough to write a story so specific, so emotionally true, and so sensory-rich that when the person listens to it, they feel: "Yes. That is exactly my life. That is already me."
+
+Wrap up naturally when you have enough — tell them warmly that you have everything you need, and their story will be ready shortly.`;
+
+// ─────────────────────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────────────────────
+const conversationHistory = [];
+const capturedData = {};
+let isWaiting = false;
+let conversationComplete = false;
+
+// ─────────────────────────────────────────────────────────
+// DOM
+// ─────────────────────────────────────────────────────────
+const chatEl    = document.getElementById('chatMessages');
+const textarea  = document.getElementById('userInput');
+const sendBtn   = document.getElementById('sendBtn');
+
+textarea.addEventListener('input', () => {
+  sendBtn.disabled = textarea.value.trim() === '' || isWaiting;
+  textarea.style.height = 'auto';
+  textarea.style.height = Math.min(textarea.scrollHeight, 130) + 'px';
+});
+
+textarea.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (!sendBtn.disabled) handleSend(); }
+});
+sendBtn.addEventListener('click', handleSend);
+
+// ─────────────────────────────────────────────────────────
+// RENDER HELPERS
+// ─────────────────────────────────────────────────────────
+function scrollBottom() { requestAnimationFrame(() => { chatEl.scrollTop = chatEl.scrollHeight; }); }
+
+function addUserBubble(text) {
+  const row = document.createElement('div');
+  row.className = 'msg-row user';
+  row.innerHTML = `
+    <div class="avatar user">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="8" r="4"/><path d="M4 20c0-3.3 3.6-6 8-6s8 2.7 8 6"/>
+      </svg>
+    </div>
+    <div class="bubble">${escHtml(text)}</div>`;
+  chatEl.appendChild(row);
+  scrollBottom();
+}
+
+function addBotBubble(html, chips) {
+  const row = document.createElement('div');
+  row.className = 'msg-row bot';
+  let chipsHtml = '';
+  if (chips && chips.length) {
+    chipsHtml = `<div class="chips">${chips.map(c => `<button class="chip" onclick="useChip(this,'${escHtml(c)}')">${escHtml(c)}</button>`).join('')}</div>`;
+  }
+  row.innerHTML = `<div class="avatar bot">M</div><div class="bubble">${html}${chipsHtml}</div>`;
+  chatEl.appendChild(row);
+  scrollBottom();
+  return row;
+}
+
+let typingEl = null;
+function showTyping() {
+  typingEl = document.createElement('div');
+  typingEl.className = 'typing-row';
+  typingEl.innerHTML = `<div class="avatar bot">M</div><div class="typing-bub"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>`;
+  chatEl.appendChild(typingEl);
+  scrollBottom();
+}
+function hideTyping() { if (typingEl) { typingEl.remove(); typingEl = null; } }
+
+function setInputEnabled(on) {
+  textarea.disabled = !on;
+  sendBtn.disabled = !on || textarea.value.trim() === '';
+  if (on) textarea.focus();
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function useChip(btn, text) {
+  // Disable all chips in that bubble
+  btn.closest('.chips').querySelectorAll('.chip').forEach(c => c.disabled = true);
+  textarea.value = text;
+  handleSend();
+}
+
+// ─────────────────────────────────────────────────────────
+// SIDEBAR UPDATES
+// ─────────────────────────────────────────────────────────
+function updateProgress(pct, phase, covered) {
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('pctLabel').textContent = pct + '%';
+  document.getElementById('phaseBadge').textContent = phase;
+
+  // Topic indicators
+  const map = {
+    'identity': 't-identity',
+    'daily':    't-daily',
+    'feelings': 't-feelings',
+    'evening':  't-evening',
+  };
+  // Reset all
+  ['t-start','t-identity','t-daily','t-feelings','t-evening'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.className = 'topic-item';
+  });
+  // Mark covered
+  (covered || []).forEach(key => {
+    const id = map[key];
+    if (id) { const el = document.getElementById(id); if (el) el.classList.add('covered'); }
+  });
+  // Mark active based on phase
+  const activeMap = {
+    'Getting Started':       't-start',
+    'Identity & Purpose':    't-identity',
+    'Daily Life':            't-daily',
+    'Feelings & Experiences':'t-feelings',
+    'Evening & Close':       't-evening',
+    'Complete':              't-evening',
+  };
+  const activeId = activeMap[phase] || 't-start';
+  const activeEl = document.getElementById(activeId);
+  if (activeEl && !activeEl.classList.contains('covered')) activeEl.classList.add('active');
+}
+
+function addCapture(label, value) {
+  capturedData[label] = value;
+  refreshCaptured();
+}
+
+function refreshCaptured() {
+  const el = document.getElementById('capturedList');
+  const entries = Object.entries(capturedData);
+  if (entries.length === 0) {
+    el.innerHTML = '<span class="nothing-yet">Your vision will appear here…</span>';
+    return;
+  }
+  el.innerHTML = entries.map(([label, value]) =>
+    `<div class="captured-item"><strong>${escHtml(label)}</strong>${escHtml(value.length > 80 ? value.slice(0,80)+'…' : value)}</div>`
+  ).join('');
+  el.scrollTop = el.scrollHeight;
+}
+
+// ─────────────────────────────────────────────────────────
+// PARSE BOT RESPONSE — extract metadata lines, return clean text
+// ─────────────────────────────────────────────────────────
+function parseResponse(raw) {
+  const lines = raw.split('\n');
+  const textLines = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('PROGRESS:')) {
+      try {
+        const data = JSON.parse(trimmed.slice(9));
+        updateProgress(data.pct || 0, data.phase || '', data.covered || []);
+        if (data.phase === 'Complete') conversationComplete = true;
+      } catch(e) {}
+    } else if (trimmed.startsWith('CAPTURE:')) {
+      try {
+        const data = JSON.parse(trimmed.slice(8));
+        if (data.label && data.value) addCapture(data.label, data.value);
+      } catch(e) {}
+    } else {
+      textLines.push(line);
+    }
+  }
+
+  return textLines.join('\n').trim();
+}
+
+// Light markdown → HTML (bold, italic, line breaks)
+function formatText(text) {
+  return text
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    .replace(/\n\n/g, '</p><p>')
+    .replace(/\n/g, '<br>')
+    .replace(/^/, '<p>').replace(/$/, '</p>');
+}
+
+// ─────────────────────────────────────────────────────────
+// SEND MESSAGE TO CLAUDE API
+// ─────────────────────────────────────────────────────────
+async function sendToAI(userMessage) {
+  if (userMessage) {
+    conversationHistory.push({ role: 'user', content: userMessage });
+  }
+
+  showTyping();
+  setInputEnabled(false);
+
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        system: SYSTEM_PROMPT,
+        messages: conversationHistory
+      })
+    });
+
+    if (!response.ok) throw new Error(`API ${response.status}`);
+
+    const data = await response.json();
+    const rawText = data.content?.map(b => b.text || '').join('') || '';
+    const cleanText = parseResponse(rawText);
+
+    // Store assistant turn (keep raw for context, display clean)
+    conversationHistory.push({ role: 'assistant', content: rawText });
+
+    hideTyping();
+
+    if (conversationComplete) {
+      showCompletionCard(cleanText);
+    } else {
+      // Detect if response suggests quick options
+      const chips = extractChips(cleanText);
+      addBotBubble(formatText(cleanText), chips);
+    }
+
+  } catch (err) {
+    console.error('API error:', err);
+    hideTyping();
+    // Friendly fallback
+    addBotBubble(`<em>I'm having a moment of connection trouble. Please check your network and try again — your answers so far are safe.</em>`);
+  }
+
+  setInputEnabled(true);
+}
+
+// Detect yes/no type questions and offer chips
+function extractChips(text) {
+  const lower = text.toLowerCase();
+  if (lower.includes('already have') && lower.includes('goals')) {
+    return ['Yes, I have my goals ready', "Let's explore together"];
+  }
+  if (lower.includes('would you like') && lower.includes('tell me more')) {
+    return ['Tell me more', "Let's move on"];
+  }
+  return [];
+}
+
+// ─────────────────────────────────────────────────────────
+// COMPLETION
+// ─────────────────────────────────────────────────────────
+function showCompletionCard(botText) {
+  // Show final bot message first
+  addBotBubble(formatText(botText));
+
+  setTimeout(() => {
+    const row = document.createElement('div');
+    row.className = 'msg-row bot';
+    row.style.animationDelay = '0.15s';
+    row.innerHTML = `<div class="avatar bot">M</div>
+    <div class="complete-card">
+      <h3>✦ Your vision is captured</h3>
+      <p>I have everything I need to write your personal manifestation story — a rich, sensory, first-person narrative set on a perfect day in your future life.</p>
+      <button class="complete-btn" onclick="goToStory()">
+        Generate My Story
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+      </button>
+    </div>`;
+    chatEl.appendChild(row);
+    scrollBottom();
+    updateProgress(100, 'Complete', ['identity','daily','feelings','evening']);
+    document.getElementById('phaseBadge').textContent = 'Complete ✓';
+  }, 800);
+}
+
+function goToStory() {
+  // In real app, pass capturedData via sessionStorage to story-generation screen
+  sessionStorage.setItem('capturedGoals', JSON.stringify(capturedData));
+  window.location.href = 'story-generation.html';
+}
+
+// ─────────────────────────────────────────────────────────
+// HANDLE USER SEND
+// ─────────────────────────────────────────────────────────
+function handleSend() {
+  const val = textarea.value.trim();
+  if (!val || isWaiting) return;
+
+  textarea.value = '';
+  textarea.style.height = 'auto';
+  sendBtn.disabled = true;
+
+  addUserBubble(val);
+  sendToAI(val);
+}
+
+// ─────────────────────────────────────────────────────────
+// INIT — kick off the conversation
+// ─────────────────────────────────────────────────────────
+sendToAI(null); // No user message — AI speaks first
+</script>
+</body>
+</html>

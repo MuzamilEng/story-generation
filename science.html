@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ManifestMyStory — The Science</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital,wght@0,400;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&family=Lora:ital,wght@0,400;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#f4f1eb;--surface:#fff;--ink:#1c1a16;--ink-muted:#7a7468;
+    --ink-faint:#b8b3a8;--accent:#2d6a4f;--accent-light:#e8f4ee;
+    --accent-mid:#52b788;--gold:#9a6f0a;--gold-bg:#fdf6e3;
+    --gold-border:#e8d08a;--border:#e4dfd5;--red:#c0392b;--red-light:#fdf0ef;
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+  html{scroll-behavior:smooth;}
+  body{background:var(--bg);color:var(--ink);font-family:'DM Sans',sans-serif;font-weight:300;line-height:1.7;}
+
+  /* NAV */
+  nav{position:sticky;top:0;z-index:50;background:rgba(244,241,235,0.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--border);padding:0.85rem 2rem;display:flex;align-items:center;justify-content:space-between;}
+  .logo{font-family:'DM Serif Display',serif;font-size:1.1rem;color:var(--ink);text-decoration:none;}
+  .logo span{color:var(--accent);}
+  .nav-links{display:flex;align-items:center;gap:2rem;}
+  .nav-links a{font-size:0.78rem;color:var(--ink-muted);text-decoration:none;transition:color 0.2s;}
+  .nav-links a:hover{color:var(--accent);}
+  .nav-cta{font-size:0.75rem;background:var(--accent);color:#fff;padding:0.42rem 1rem;border-radius:6px;text-decoration:none;font-weight:500;transition:all 0.2s;}
+  .nav-cta:hover{background:#235840;}
+
+  /* HERO */
+  .hero{max-width:780px;margin:0 auto;padding:5rem 2rem 3.5rem;text-align:center;}
+  .hero-eyebrow{font-size:0.62rem;letter-spacing:0.18em;text-transform:uppercase;color:var(--accent);margin-bottom:1rem;display:flex;align-items:center;justify-content:center;gap:0.5rem;}
+  .hero-eyebrow::before,.hero-eyebrow::after{content:'';width:30px;height:1px;background:var(--accent);opacity:0.4;}
+  .hero-title{font-family:'DM Serif Display',serif;font-size:clamp(2.2rem,5vw,3.8rem);color:var(--ink);line-height:1.1;margin-bottom:1rem;}
+  .hero-title em{font-style:italic;color:var(--accent);}
+  .hero-sub{font-size:1rem;color:var(--ink-muted);line-height:1.75;max-width:580px;margin:0 auto 2rem;}
+  .hero-divider{width:60px;height:2px;background:linear-gradient(to right,var(--accent),var(--accent-mid));border-radius:99px;margin:0 auto;}
+
+  /* SECTIONS */
+  .section{max-width:780px;margin:0 auto;padding:4rem 2rem;}
+  .section-eyebrow{font-size:0.62rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--accent);margin-bottom:0.6rem;}
+  .section-title{font-family:'DM Serif Display',serif;font-size:clamp(1.6rem,3.5vw,2.4rem);color:var(--ink);line-height:1.2;margin-bottom:1.25rem;}
+  .section-title em{font-style:italic;color:var(--accent);}
+  .prose{font-size:0.95rem;color:var(--ink-muted);line-height:1.85;margin-bottom:1.25rem;}
+  .prose strong{color:var(--ink);font-weight:500;}
+
+  /* PULL QUOTE */
+  .pull-quote{border-left:3px solid var(--accent);padding:1rem 1.5rem;margin:2rem 0;background:var(--accent-light);border-radius:0 10px 10px 0;}
+  .pull-quote p{font-family:'Lora',serif;font-style:italic;font-size:1.05rem;color:var(--ink);line-height:1.7;}
+  .pull-quote cite{display:block;font-size:0.72rem;color:var(--ink-muted);margin-top:0.5rem;font-style:normal;letter-spacing:0.05em;}
+
+  /* SCIENCE CARDS */
+  .science-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin:2rem 0;}
+  .sci-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.4rem;}
+  .sci-card-icon{font-size:1.5rem;margin-bottom:0.65rem;}
+  .sci-card-title{font-family:'DM Serif Display',serif;font-size:1.05rem;color:var(--ink);margin-bottom:0.4rem;}
+  .sci-card-body{font-size:0.8rem;color:var(--ink-muted);line-height:1.65;}
+  .sci-card.gold{background:var(--gold-bg);border-color:var(--gold-border);}
+  .sci-card.gold .sci-card-title{color:var(--gold);}
+
+  /* SECTION DIVIDER */
+  .section-rule{max-width:780px;margin:0 auto;padding:0 2rem;}
+  .section-rule hr{border:none;border-top:1px solid var(--border);}
+
+  /* ── INTERACTIVE EXERCISE ── */
+  .exercise-wrap{background:var(--ink);border-radius:20px;overflow:hidden;margin:3rem 0;}
+
+  .ex-header{padding:2.5rem 2.5rem 1.5rem;text-align:center;}
+  .ex-badge{display:inline-flex;align-items:center;gap:0.4rem;background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.7);font-size:0.65rem;letter-spacing:0.15em;text-transform:uppercase;padding:0.3rem 0.8rem;border-radius:99px;margin-bottom:1.1rem;}
+  .ex-title{font-family:'DM Serif Display',serif;font-size:clamp(1.5rem,3.5vw,2.2rem);color:#fff;line-height:1.2;margin-bottom:0.6rem;}
+  .ex-title em{font-style:italic;color:var(--accent-mid);}
+  .ex-sub{font-size:0.85rem;color:rgba(255,255,255,0.55);line-height:1.7;max-width:480px;margin:0 auto;}
+
+  /* STEPS */
+  .ex-steps{padding:0 2.5rem 2.5rem;}
+  .ex-step{display:none;animation:fadeUp 0.4s ease both;}
+  .ex-step.active{display:block;}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:translateY(0);}}
+
+  /* ROOM ILLUSTRATION */
+  .room-wrap{position:relative;border-radius:14px;overflow:hidden;margin-bottom:1.5rem;background:#1e1a14;border:1px solid rgba(255,255,255,0.08);}
+  .room-img{width:100%;display:block;font-size:0;}
+
+  /* SVG room scene */
+  .room-svg{width:100%;height:220px;display:block;}
+
+  .highlight-overlay{position:absolute;inset:0;pointer-events:none;}
+  .red-glow{opacity:0;transition:opacity 0.6s;}
+  .brown-glow{opacity:0;transition:opacity 0.6s;}
+  .room-wrap.show-red .red-glow{opacity:1;}
+  .room-wrap.show-brown .brown-glow{opacity:1;}
+
+  /* INSTRUCTION CARD */
+  .ex-instruction{background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:1.5rem;margin-bottom:1.25rem;}
+  .ex-instruction-num{font-size:0.62rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--accent-mid);margin-bottom:0.5rem;}
+  .ex-instruction-text{font-family:'Lora',serif;font-size:1.05rem;color:#fff;line-height:1.7;font-style:italic;}
+  .ex-instruction-text strong{font-style:normal;color:var(--accent-mid);}
+
+  /* TIMER */
+  .timer-circle-wrap{display:flex;justify-content:center;margin:1.25rem 0;}
+  .timer-circle{position:relative;width:80px;height:80px;}
+  .timer-svg{transform:rotate(-90deg);}
+  .timer-track{fill:none;stroke:rgba(255,255,255,0.1);stroke-width:4;}
+  .timer-prog{fill:none;stroke:var(--accent-mid);stroke-width:4;stroke-linecap:round;stroke-dasharray:220;stroke-dashoffset:220;transition:stroke-dashoffset 1s linear;}
+  .timer-num{position:absolute;inset:0;display:grid;place-items:center;font-family:'DM Serif Display',serif;font-size:1.6rem;color:#fff;}
+
+  /* EYES CLOSED */
+  .eyes-closed-card{background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:2rem;text-align:center;margin-bottom:1.25rem;}
+  .eyes-icon{font-size:3rem;margin-bottom:0.75rem;display:block;}
+  .eyes-title{font-family:'DM Serif Display',serif;font-size:1.3rem;color:#fff;margin-bottom:0.4rem;}
+  .eyes-sub{font-size:0.83rem;color:rgba(255,255,255,0.55);line-height:1.65;}
+
+  /* RECALL INPUT */
+  .recall-label{font-size:0.73rem;color:rgba(255,255,255,0.6);margin-bottom:0.5rem;display:block;}
+  .recall-input{width:100%;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:10px;padding:0.75rem 1rem;font-family:'DM Sans',sans-serif;font-size:0.88rem;color:#fff;outline:none;resize:none;height:90px;transition:border-color 0.2s;}
+  .recall-input::placeholder{color:rgba(255,255,255,0.25);}
+  .recall-input:focus{border-color:var(--accent-mid);}
+
+  /* REVEAL */
+  .reveal-card{border-radius:14px;padding:1.75rem;margin-bottom:1.25rem;text-align:center;}
+  .reveal-card.red{background:rgba(192,57,43,0.15);border:1px solid rgba(192,57,43,0.3);}
+  .reveal-card.brown{background:rgba(139,94,26,0.15);border:1px solid rgba(139,94,26,0.3);}
+  .reveal-num{font-family:'DM Serif Display',serif;font-size:3.5rem;line-height:1;margin-bottom:0.3rem;}
+  .reveal-card.red .reveal-num{color:#e74c3c;}
+  .reveal-card.brown .reveal-num{color:#c4813a;}
+  .reveal-label-text{font-size:0.78rem;color:rgba(255,255,255,0.6);letter-spacing:0.05em;}
+  .reveal-insight{font-family:'Lora',serif;font-style:italic;font-size:0.95rem;color:rgba(255,255,255,0.8);line-height:1.7;margin-top:1rem;}
+
+  /* EXERCISE NAV */
+  .ex-nav{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;}
+  .ex-dots{display:flex;gap:0.4rem;}
+  .ex-dot{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,0.2);transition:all 0.3s;cursor:pointer;}
+  .ex-dot.active{background:var(--accent-mid);width:20px;border-radius:99px;}
+  .ex-btn{display:flex;align-items:center;gap:0.4rem;padding:0.65rem 1.25rem;border-radius:9px;font-size:0.82rem;font-family:'DM Sans',sans-serif;font-weight:500;cursor:pointer;transition:all 0.2s;border:none;}
+  .ex-btn.primary{background:var(--accent);color:#fff;}
+  .ex-btn.primary:hover{background:#235840;}
+  .ex-btn.ghost{background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.7);border:1px solid rgba(255,255,255,0.12);}
+  .ex-btn.ghost:hover{background:rgba(255,255,255,0.15);}
+  .ex-btn svg{width:13px;height:13px;}
+  .ex-btn.big{padding:0.8rem 1.75rem;font-size:0.88rem;width:100%;justify-content:center;}
+
+  /* AFTER EXERCISE — KEY INSIGHT */
+  .insight-banner{background:linear-gradient(135deg,#1a3d2b 0%,var(--accent) 100%);border-radius:16px;padding:2.5rem;text-align:center;margin:3rem 0;}
+  .insight-icon{font-size:2.5rem;margin-bottom:1rem;}
+  .insight-title{font-family:'DM Serif Display',serif;font-size:clamp(1.4rem,3vw,2rem);color:#fff;margin-bottom:0.75rem;line-height:1.2;}
+  .insight-title em{font-style:italic;color:var(--accent-mid);}
+  .insight-body{font-size:0.88rem;color:rgba(255,255,255,0.75);line-height:1.8;max-width:520px;margin:0 auto 1.5rem;}
+  .insight-cta{display:inline-flex;align-items:center;gap:0.4rem;background:#fff;color:var(--accent);border:none;border-radius:9px;padding:0.75rem 1.75rem;font-size:0.85rem;font-family:'DM Sans',sans-serif;font-weight:500;cursor:pointer;transition:all 0.2s;text-decoration:none;}
+  .insight-cta:hover{background:var(--accent-light);}
+  .insight-cta svg{width:14px;height:14px;}
+
+  /* HOW IT WORKS STEPS */
+  .how-steps{display:flex;flex-direction:column;gap:0;position:relative;margin:2rem 0;}
+  .how-steps::before{content:'';position:absolute;left:19px;top:20px;bottom:20px;width:1px;background:var(--border);}
+  .how-step{display:flex;gap:1.25rem;padding:1.25rem 0;}
+  .how-step-num{width:40px;height:40px;border-radius:50%;background:var(--surface);border:1px solid var(--border);display:grid;place-items:center;flex-shrink:0;font-family:'DM Serif Display',serif;font-size:1rem;color:var(--accent);position:relative;z-index:1;}
+  .how-step-body{}
+  .how-step-title{font-family:'DM Serif Display',serif;font-size:1.05rem;color:var(--ink);margin-bottom:0.3rem;}
+  .how-step-text{font-size:0.82rem;color:var(--ink-muted);line-height:1.7;}
+
+  /* FIGURE-GROUND */
+  .illusion-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin:2.5rem 0;}
+  .illusion-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:1.5rem;display:flex;flex-direction:column;gap:0.85rem;}
+  .illusion-label{font-size:0.6rem;letter-spacing:0.13em;text-transform:uppercase;color:var(--ink-faint);}
+  .illusion-title{font-family:'DM Serif Display',serif;font-size:1.1rem;color:var(--ink);}
+  .illusion-desc{font-size:0.79rem;color:var(--ink-muted);line-height:1.6;}
+  .illusion-desc strong{color:var(--ink);font-weight:500;}
+  .illusion-wrap{background:var(--bg);border:1px solid var(--border);border-radius:10px;overflow:hidden;display:flex;align-items:center;justify-content:center;padding:1rem;}
+  .illusion-svg{width:100%;max-width:280px;display:block;margin:0 auto;}
+  .illusion-toggle-row{display:flex;justify-content:center;}
+  .illusion-btn{display:flex;align-items:center;gap:0.4rem;padding:0.55rem 1.1rem;background:var(--ink);color:#fff;border:none;border-radius:8px;font-size:0.78rem;font-family:'DM Sans',sans-serif;font-weight:500;cursor:pointer;transition:all 0.2s;}
+  .illusion-btn:hover{background:var(--accent);}
+  .illusion-btn.revealed{background:var(--accent);}
+  .illusion-btn svg{width:13px;height:13px;}
+  .illusion-answer{display:none;flex-direction:column;gap:0.5rem;padding:0.9rem;background:var(--bg);border-radius:8px;border:1px solid var(--border);}
+  .illusion-answer.show{display:flex;animation:fadeUp 0.3s ease both;}
+  .answer-what{display:flex;align-items:center;gap:0.5rem;font-size:0.78rem;color:var(--ink);font-weight:400;}
+  .answer-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+  .answer-dot.black{background:var(--ink);}
+  .answer-dot.green{background:var(--accent);}
+  .answer-dot.gold{background:var(--gold);}
+  .answer-insight{font-size:0.76rem;color:var(--ink-muted);line-height:1.6;padding-top:0.35rem;border-top:1px solid var(--border);margin-top:0.1rem;font-style:italic;}
+
+  .figground-insight{display:flex;align-items:flex-start;gap:1.25rem;background:linear-gradient(135deg,#1a3d2b 0%,var(--accent) 100%);border-radius:14px;padding:1.75rem 2rem;margin-top:1.5rem;}
+  .fgi-icon{font-size:1.8rem;flex-shrink:0;margin-top:2px;}
+  .fgi-title{font-family:'DM Serif Display',serif;font-size:1.15rem;color:#fff;margin-bottom:0.5rem;}
+  .fgi-text{font-size:0.84rem;color:rgba(255,255,255,0.75);line-height:1.75;}
+  .fgi-text em{font-style:italic;color:#fff;}
+
+  @media(max-width:640px){.illusion-grid{grid-template-columns:1fr;}.figground-insight{flex-direction:column;gap:0.75rem;}}
+
+  /* RESEARCH REFS */
+  .research-grid{display:flex;flex-direction:column;gap:0.75rem;margin:1.5rem 0;}
+  .research-item{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1rem 1.2rem;display:flex;gap:0.85rem;align-items:flex-start;}
+  .research-icon{width:32px;height:32px;border-radius:8px;background:var(--accent-light);display:grid;place-items:center;flex-shrink:0;color:var(--accent);}
+  .research-icon svg{width:15px;height:15px;}
+  .research-title{font-size:0.82rem;font-weight:500;color:var(--ink);margin-bottom:0.2rem;}
+  .research-body{font-size:0.76rem;color:var(--ink-muted);line-height:1.6;}
+
+  /* FINAL CTA */
+  .final-cta{text-align:center;padding:5rem 2rem;max-width:580px;margin:0 auto;}
+  .final-cta-title{font-family:'DM Serif Display',serif;font-size:clamp(1.8rem,4vw,2.8rem);color:var(--ink);line-height:1.15;margin-bottom:0.75rem;}
+  .final-cta-title em{font-style:italic;color:var(--accent);}
+  .final-cta-sub{font-size:0.88rem;color:var(--ink-muted);line-height:1.7;margin-bottom:2rem;}
+  .final-cta-btn{display:inline-flex;align-items:center;gap:0.5rem;background:var(--accent);color:#fff;border:none;border-radius:10px;padding:0.9rem 2.2rem;font-size:0.9rem;font-family:'DM Sans',sans-serif;font-weight:500;cursor:pointer;transition:all 0.2s;box-shadow:0 4px 18px rgba(45,106,79,0.22);text-decoration:none;}
+  .final-cta-btn:hover{background:#235840;transform:translateY(-1px);}
+  .final-cta-btn svg{width:15px;height:15px;}
+
+  footer{border-top:1px solid var(--border);padding:2rem;text-align:center;font-size:0.72rem;color:var(--ink-faint);}
+  footer a{color:var(--accent);text-decoration:none;}
+
+  @media(max-width:640px){.science-grid{grid-template-columns:1fr;}.ex-steps{padding:0 1.25rem 1.5rem;}.ex-header{padding:2rem 1.25rem 1rem;}.nav-links{display:none;}}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a href="manifest.html" class="logo">Manifest<span>MyStory</span></a>
+  <div class="nav-links">
+    <a href="manifest.html">← Home</a>
+    <a href="#exercise">Try the Exercise</a>
+    <a href="#figure-ground">Figure-Ground</a>
+    <a href="#how">How It Works</a>
+    <a href="#research">The Research</a>
+  </div>
+  <a href="goal-intake-ai.html" class="nav-cta">Create My Story — Free</a>
+</nav>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-eyebrow">Neuroscience & Manifestation</div>
+  <h1 class="hero-title">Your brain only finds<br><em>what it's looking for.</em></h1>
+  <p class="hero-sub">There is a system in your brain that acts as a filter for all of reality — deciding what you notice, what you ignore, and ultimately what you believe is possible. Understanding it changes everything.</p>
+  <div class="hero-divider"></div>
+</div>
+
+<!-- SECTION 1: RAS INTRO -->
+<div class="section">
+  <div class="section-eyebrow">The Filter in Your Brain</div>
+  <h2 class="section-title">You are surrounded by more<br>than you can possibly <em>see.</em></h2>
+  <p class="prose">Right now, your five senses are receiving approximately <strong>11 million bits of information per second</strong>. The sounds in the room, the feeling of your clothes, the temperature of the air, the light hitting objects at the edge of your vision. Your conscious mind can process roughly <strong>40 to 50 bits</strong> of that per second.</p>
+  <p class="prose">Something has to decide what makes the cut. That something is the <strong>Reticular Activating System</strong> — a network of neurons at the base of your brainstem that acts as your brain's filter, gatekeeper, and priority engine. It scans the flood of incoming information and passes through only what it has been programmed to consider relevant.</p>
+
+  <div class="pull-quote">
+    <p>"The RAS is essentially your brain's search engine. It only surfaces results that match your existing beliefs and focus — everything else is invisible to you, even when it's right in front of your eyes."</p>
+    <cite>— Neuroscience research on selective attention and the reticular activating system</cite>
+  </div>
+
+  <p class="prose">This is not a flaw. It's a remarkable efficiency system — your brain cannot consciously process everything, so it filters based on what it believes matters. The profound implication is this: <strong>change what you're programmed to look for, and you change what you see in the world around you.</strong></p>
+</div>
+
+<div class="section-rule"><hr></div>
+
+<!-- INTERACTIVE EXERCISE -->
+<div class="section" id="exercise">
+  <div class="section-eyebrow">Try It Yourself</div>
+  <h2 class="section-title">Your brain deletes things<br><em>right in front of you.</em></h2>
+  <p class="prose">This isn't subtle filtering. This is your brain completely erasing something obvious — a large, moving creature — while you're focused on something else. This is one of the most famous experiments in the history of cognitive science. It will happen to most of you right now.</p>
+
+  <div class="exercise-wrap">
+    <div class="ex-header">
+      <div class="ex-badge">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Interactive Exercise · ~2 minutes
+      </div>
+      <h3 class="ex-title">The Selective<br><em>Attention Test</em></h3>
+      <p class="ex-sub">Watch the video. Follow the instruction at the start. Don't read ahead — the experiment only works once.</p>
+    </div>
+
+    <div class="ex-steps">
+
+      <!-- STEP 1: WATCH THE VIDEO -->
+      <div class="ex-step active" id="step1">
+        <div class="ex-instruction">
+          <div class="ex-instruction-num">Your task — read this first</div>
+          <div class="ex-instruction-text">Count how many times the players in <strong>white shirts</strong> pass the basketball. Focus only on the white team. Press play when ready.</div>
+        </div>
+
+        <!-- YOUTUBE EMBED -->
+        <div style="position:relative;padding-bottom:56.25%;height:0;border-radius:12px;overflow:hidden;margin:1.25rem 0;background:#000;">
+          <iframe
+            id="gorillaVideo"
+            src="https://www.youtube.com/embed/vJG698U2Mvo?rel=0&modestbranding=1&color=white"
+            title="Selective Attention Test — Daniel Simons & Christopher Chabris"
+            style="position:absolute;top:0;left:0;width:100%;height:100%;border:none;"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowfullscreen>
+          </iframe>
+        </div>
+
+        <p style="font-size:0.72rem;color:rgba(255,255,255,0.35);text-align:center;margin-bottom:1.25rem;">
+          Video by <a href="https://www.dansimons.com" target="_blank" rel="noopener" style="color:rgba(255,255,255,0.45);">Daniel Simons</a> &amp; Christopher Chabris · Used with permission per <a href="https://www.dansimons.com/videos.html" target="_blank" rel="noopener" style="color:rgba(255,255,255,0.45);">dansimons.com</a>
+        </p>
+
+        <div class="ex-nav">
+          <div class="ex-dots">
+            <div class="ex-dot active"></div>
+            <div class="ex-dot"></div>
+            <div class="ex-dot"></div>
+          </div>
+          <button class="ex-btn primary" onclick="goStep(2)">
+            I finished watching
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="13" height="13"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- STEP 2: DID YOU SEE IT? -->
+      <div class="ex-step" id="step2">
+        <div class="eyes-closed-card">
+          <span class="eyes-icon">🦍</span>
+          <div class="eyes-title">Before the reveal —</div>
+          <div class="eyes-sub">While counting passes, did you notice anything unusual in the video?</div>
+        </div>
+        <div style="display:flex;gap:1rem;margin-top:1.25rem;justify-content:center;flex-wrap:wrap;">
+          <button class="ex-btn primary" style="min-width:130px;justify-content:center;" onclick="gorillaAnswer(true)">Yes, I noticed something</button>
+          <button class="ex-btn ghost" style="min-width:160px;justify-content:center;" onclick="gorillaAnswer(false)">No, nothing unusual</button>
+        </div>
+      </div>
+
+      <!-- STEP 3: REVEAL -->
+      <div class="ex-step" id="step3">
+        <div class="reveal-card red" id="gorillaRevealCard">
+          <div class="reveal-num" id="gorillaRevealNum" style="font-size:3rem;">🦍</div>
+          <div class="reveal-label-text" id="gorillaRevealLabel">A GORILLA WALKED THROUGH THE SCENE</div>
+          <div class="reveal-insight" id="gorillaRevealInsight">Midway through the video, a person in a full gorilla suit walked into the middle of the frame, stopped, beat their chest, and walked out. They were visible for 9 full seconds. About half of all people who watch this video — focused on counting passes — never see it. Your brain erased it completely. Not because you weren't paying attention. Because you were paying attention to the wrong thing.</div>
+        </div>
+
+        <div class="ex-nav" style="margin-top:1.25rem;">
+          <div class="ex-dots">
+            <div class="ex-dot"></div>
+            <div class="ex-dot"></div>
+            <div class="ex-dot active"></div>
+          </div>
+          <button class="ex-btn primary" onclick="showGorillaInsight()">
+            What this means for you
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="13" height="13"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </div>
+      </div>
+
+    </div><!-- /ex-steps -->
+  </div><!-- /exercise-wrap -->
+
+  <!-- KEY INSIGHT -->
+  <div class="insight-banner" id="insightBanner" style="display:none">
+    <div class="insight-icon">🧠</div>
+    <h3 class="insight-title">This is happening<br><em>in your life right now.</em></h3>
+    <p class="insight-body">The gorilla was always there. Obvious, large, beating its chest. But your brain had a task — and it deleted everything else. The opportunities, connections, and moments that could build your ideal life work exactly the same way. They're present in your world right now. Your brain just isn't programmed to notice them yet. When you listen to your story every day, you're giving your brain a new task. And suddenly, what was invisible becomes impossible to miss.</p>
+    <a href="goal-intake-ai.html" class="insight-cta">
+      Start Programming My Brain
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+    </a>
+  </div>
+</div>
+
+<div class="section-rule"><hr></div>
+
+
+<!-- FIGURE-GROUND SECTION -->
+<div class="section" id="figure-ground">
+  <div class="section-eyebrow">Figure-Ground Perception</div>
+  <h2 class="section-title">What you see depends entirely<br>on <em>what you're looking for.</em></h2>
+  <p class="prose">The gorilla experiment showed you how your brain can erase something completely obvious. This next example shows something equally striking — two completely different realities existing in the exact same image, simultaneously. Which one you see first depends entirely on your prior programming.</p>
+  <p class="prose">This phenomenon is called <strong>figure-ground perception</strong> — the brain's tendency to separate a scene into a dominant "figure" and a background. Most people default to seeing the same thing. But the other picture was always there.</p>
+
+  <!-- ILLUSION CARDS -->
+  <div class="illusion-grid">
+
+    <!-- ILLUSION 1: RUBIN'S VASE -->
+    <div class="illusion-card">
+      <div class="illusion-label">Illusion 1 of 2</div>
+      <h3 class="illusion-title">The Vase & The Faces</h3>
+      <p class="illusion-desc">Most people immediately see the <strong>black shapes</strong>. But look at the white space between them — there is a second image hiding in plain sight.</p>
+
+      <div class="illusion-wrap" id="rubinWrap">
+        <svg class="illusion-svg" viewBox="0 0 300 320" xmlns="http://www.w3.org/2000/svg">
+          <!-- White background -->
+          <rect width="300" height="320" fill="white"/>
+          <!-- Left face (black silhouette) -->
+          <path d="
+            M 0,0
+            L 0,320
+            L 75,320
+            L 75,295
+            Q 78,280 82,265
+            Q 86,248 84,235
+            Q 82,220 78,210
+            Q 72,195 70,178
+            Q 67,158 72,140
+            Q 78,118 88,100
+            Q 98,82 108,68
+            Q 118,54 124,42
+            Q 130,28 130,10
+            L 130,0
+            Z
+          " fill="#1c1a16"/>
+          <!-- Right face (black silhouette, mirrored) -->
+          <path d="
+            M 300,0
+            L 300,320
+            L 225,320
+            L 225,295
+            Q 222,280 218,265
+            Q 214,248 216,235
+            Q 218,220 222,210
+            Q 228,195 230,178
+            Q 233,158 228,140
+            Q 222,118 212,100
+            Q 202,82 192,68
+            Q 182,54 176,42
+            Q 170,28 170,10
+            L 170,0
+            Z
+          " fill="#1c1a16"/>
+          <!-- Highlight overlays — shown when toggled -->
+          <!-- Face highlight (left) -->
+          <path class="face-highlight" d="M 0,0 L 0,320 L 75,320 L 75,295 Q 78,280 82,265 Q 86,248 84,235 Q 82,220 78,210 Q 72,195 70,178 Q 67,158 72,140 Q 78,118 88,100 Q 98,82 108,68 Q 118,54 124,42 Q 130,28 130,10 L 130,0 Z" fill="rgba(192,57,43,0.25)" style="opacity:0;transition:opacity 0.4s;"/>
+          <!-- Face highlight (right) -->
+          <path class="face-highlight" d="M 300,0 L 300,320 L 225,320 L 225,295 Q 222,280 218,265 Q 214,248 216,235 Q 218,220 222,210 Q 228,195 230,178 Q 233,158 228,140 Q 222,118 212,100 Q 202,82 192,68 Q 182,54 176,42 Q 170,28 170,0 Z" fill="rgba(192,57,43,0.25)" style="opacity:0;transition:opacity 0.4s;"/>
+          <!-- Vase highlight (white space) -->
+          <path class="vase-highlight" d="M 130,0 Q 130,28 124,42 Q 118,54 108,68 Q 98,82 88,100 Q 78,118 72,140 Q 67,158 70,178 Q 72,195 78,210 Q 82,220 84,235 Q 86,248 82,265 Q 78,280 75,295 L 75,320 L 225,320 L 225,295 Q 222,280 218,265 Q 214,248 216,235 Q 218,220 222,210 Q 228,195 230,178 Q 233,158 228,140 Q 222,118 212,100 Q 202,82 192,68 Q 182,54 176,42 Q 170,28 170,0 Z" fill="rgba(45,106,79,0.3)" style="opacity:0;transition:opacity 0.5s;"/>
+          <!-- Label: appears in reveal mode -->
+          <text class="reveal-label-face" x="38" y="160" text-anchor="middle" font-family="DM Sans" font-size="11" fill="rgba(192,57,43,0.9)" style="opacity:0;transition:opacity 0.4s;">Face</text>
+          <text class="reveal-label-face" x="262" y="160" text-anchor="middle" font-family="DM Sans" font-size="11" fill="rgba(192,57,43,0.9)" style="opacity:0;transition:opacity 0.4s;">Face</text>
+          <text class="reveal-label-vase" x="150" y="200" text-anchor="middle" font-family="DM Sans" font-size="13" fill="rgba(45,106,79,1)" font-weight="500" style="opacity:0;transition:opacity 0.5s;">Vase</text>
+        </svg>
+      </div>
+
+      <div class="illusion-toggle-row">
+        <button class="illusion-btn" id="rubinBtn" onclick="revealRubin()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          Reveal the hidden image
+        </button>
+      </div>
+      <div class="illusion-answer" id="rubinAnswer">
+        <div class="answer-what"><span class="answer-dot black"></span>Black = Two human faces looking at each other</div>
+        <div class="answer-what"><span class="answer-dot green"></span>White = A symmetrical vase or goblet</div>
+        <div class="answer-insight">Once you see both, you can never un-see them. Your brain will now alternate. This is exactly what happens when you reprogram your RAS — what was invisible becomes obvious.</div>
+      </div>
+    </div>
+
+    <!-- ILLUSION 2: DUCK / RABBIT -->
+    <div class="illusion-card">
+      <div class="illusion-label">Illusion 2 of 2</div>
+      <h3 class="illusion-title">The Duck & The Rabbit</h3>
+      <p class="illusion-desc">This classic illusion — published in 1892 — shows the same outline can produce two completely different animals depending on what your brain is primed to find.</p>
+
+      <div class="illusion-wrap" id="duckWrap">
+        <svg class="illusion-svg" viewBox="0 0 300 220" xmlns="http://www.w3.org/2000/svg">
+          <rect width="300" height="220" fill="white"/>
+          <!-- Duck/Rabbit ambiguous figure -->
+          <!-- Main body -->
+          <ellipse cx="155" cy="130" rx="85" ry="62" fill="#1c1a16"/>
+          <!-- Head -->
+          <ellipse cx="90" cy="88" rx="52" ry="46" fill="#1c1a16"/>
+          <!-- Duck bill / Rabbit ears (the ambiguous part) -->
+          <!-- Left protrusion — duck bill facing left OR base of rabbit ears -->
+          <path d="
+            M 42,72
+            Q 18,68 8,78
+            Q 0,88 8,100
+            Q 18,110 42,106
+            Q 55,102 62,95
+            Q 55,84 42,72
+            Z
+          " fill="#1c1a16"/>
+          <!-- Rabbit ears (pointing up-right) — or duck head feather -->
+          <path d="
+            M 108,48
+            Q 112,20 118,4
+            Q 122,0 126,2
+            Q 130,6 128,22
+            Q 124,42 120,58
+            Q 114,54 108,48
+            Z
+          " fill="#1c1a16"/>
+          <path d="
+            M 122,52
+            Q 130,24 138,8
+            Q 142,2 146,4
+            Q 150,8 148,24
+            Q 144,46 136,62
+            Q 130,58 122,52
+            Z
+          " fill="#1c1a16"/>
+          <!-- Eye -->
+          <circle cx="78" cy="82" r="7" fill="white"/>
+          <circle cx="78" cy="82" r="3.5" fill="#1c1a16"/>
+          <!-- Highlight overlays -->
+          <ellipse class="duck-highlight" cx="155" cy="130" rx="85" ry="62" fill="rgba(45,106,79,0.2)" style="opacity:0;transition:opacity 0.4s;"/>
+          <ellipse class="duck-highlight" cx="90" cy="88" rx="52" ry="46" fill="rgba(45,106,79,0.2)" style="opacity:0;transition:opacity 0.4s;"/>
+          <path class="duck-highlight" d="M 42,72 Q 18,68 8,78 Q 0,88 8,100 Q 18,110 42,106 Q 55,102 62,95 Q 55,84 42,72 Z" fill="rgba(45,106,79,0.35)" style="opacity:0;transition:opacity 0.4s;"/>
+          <path class="rabbit-highlight" d="M 108,48 Q 112,20 118,4 Q 122,0 126,2 Q 130,6 128,22 Q 124,42 120,58 Q 114,54 108,48 Z" fill="rgba(154,111,10,0.3)" style="opacity:0;transition:opacity 0.4s;"/>
+          <path class="rabbit-highlight" d="M 122,52 Q 130,24 138,8 Q 142,2 146,4 Q 150,8 148,24 Q 144,46 136,62 Q 130,58 122,52 Z" fill="rgba(154,111,10,0.3)" style="opacity:0;transition:opacity 0.4s;"/>
+          <!-- Labels -->
+          <text class="reveal-duck" x="195" y="135" text-anchor="middle" font-family="DM Sans" font-size="12" fill="rgba(45,106,79,1)" font-weight="500" style="opacity:0;transition:opacity 0.4s;">Duck body</text>
+          <text class="reveal-duck" x="32" y="88" text-anchor="middle" font-family="DM Sans" font-size="10" fill="rgba(45,106,79,1)" style="opacity:0;transition:opacity 0.4s;">Bill →</text>
+          <text class="reveal-rabbit" x="148" y="30" text-anchor="middle" font-family="DM Sans" font-size="10" fill="rgba(154,111,10,1)" style="opacity:0;transition:opacity 0.4s;">↑ Ears</text>
+        </svg>
+      </div>
+
+      <div class="illusion-toggle-row">
+        <button class="illusion-btn" id="duckBtn" onclick="revealDuck()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          Reveal both animals
+        </button>
+      </div>
+      <div class="illusion-answer" id="duckAnswer">
+        <div class="answer-what"><span class="answer-dot green"></span>Facing left = A duck (bill on the left)</div>
+        <div class="answer-what"><span class="answer-dot gold"></span>Facing right = A rabbit (ears pointing up)</div>
+        <div class="answer-insight">In 1899, psychologist Joseph Jastrow used this to prove that perception is not passive — it is shaped entirely by what the mind expects to find.</div>
+      </div>
+    </div>
+
+  </div><!-- /illusion-grid -->
+
+  <!-- THE CONNECTION -->
+  <div class="figground-insight">
+    <div class="fgi-icon">🔑</div>
+    <div class="fgi-body">
+      <h3 class="fgi-title">This is why your story matters.</h3>
+      <p class="fgi-text">The opportunities, connections, and moments that will build your ideal life are already present in your world — just like the vase was always in the image. Your brain simply isn't programmed to notice them yet. When you listen to your story every day, you're not wishing for things to appear. You're training your brain to finally <em>see</em> what was always there.</p>
+    </div>
+  </div>
+
+</div><!-- /figure-ground section -->
+
+<!-- HOW MANIFESTMYSTORY WORKS -->
+<div class="section" id="how">
+  <div class="section-eyebrow">The Mechanism</div>
+  <h2 class="section-title">How listening to your story<br><em>reprograms your RAS.</em></h2>
+  <p class="prose">Understanding the exercise above makes the ManifestMyStory method easy to understand. It isn't magic — it's applied neuroscience. Here is exactly what happens when you listen to your story every morning and night.</p>
+
+  <div class="how-steps">
+    <div class="how-step">
+      <div class="how-step-num">1</div>
+      <div class="how-step-body">
+        <div class="how-step-title">You describe your future in vivid detail</div>
+        <div class="how-step-text">The goal discovery conversation extracts not just what you want, but where you are, how you feel, who surrounds you, what your mornings smell like. Sensory specificity is critical — the brain processes rich imagery differently from abstract goals.</div>
+      </div>
+    </div>
+    <div class="how-step">
+      <div class="how-step-num">2</div>
+      <div class="how-step-body">
+        <div class="how-step-title">Your story is written in first person, present tense</div>
+        <div class="how-step-text">Research in cognitive psychology shows the brain responds most strongly to first-person, present-tense language. "I wake up feeling at peace" activates different neural patterns than "I want to feel at peace someday." The story is written as if your future is already your reality.</div>
+      </div>
+    </div>
+    <div class="how-step">
+      <div class="how-step-num">3</div>
+      <div class="how-step-body">
+        <div class="how-step-title">You hear it in your own voice</div>
+        <div class="how-step-text">Studies on self-affirmation show that hearing positive statements in your own voice produces significantly stronger neurological activation than hearing them in a stranger's voice. Your brain recognizes and trusts your own voice at a biological level — making the audio more effective than any professionally narrated recording.</div>
+      </div>
+    </div>
+    <div class="how-step">
+      <div class="how-step-num">4</div>
+      <div class="how-step-body">
+        <div class="how-step-title">You listen at the two most receptive moments of your day</div>
+        <div class="how-step-text">The hypnagogic state just before sleep and the hypnopompic state just after waking are periods of elevated neuroplasticity — your brain is literally more receptive to new programming during these windows. Listening at these moments is not a preference, it's a neurological strategy.</div>
+      </div>
+    </div>
+    <div class="how-step">
+      <div class="how-step-num">5</div>
+      <div class="how-step-body">
+        <div class="how-step-title">Repetition builds new neural pathways</div>
+        <div class="how-step-text">Neurons that fire together wire together. Each listening session strengthens the neural patterns associated with your vision. Over 21–30 days, what began as imagination starts to feel familiar, possible, and eventually inevitable. Your RAS begins filtering reality to surface what you've been programming it to find.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section-rule"><hr></div>
+
+<!-- RESEARCH -->
+<div class="section" id="research">
+  <div class="section-eyebrow">Supporting Research</div>
+  <h2 class="section-title">The science this<br><em>practice is built on.</em></h2>
+  <p class="prose">ManifestMyStory is grounded in several well-established areas of neuroscience and cognitive psychology research.</p>
+
+  <div class="research-grid">
+    <div class="research-item">
+      <div class="research-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></div>
+      <div>
+        <div class="research-title">Mental Simulation & Neuroplasticity</div>
+        <div class="research-body">Research by neuroscientist Alvaro Pascual-Leone demonstrated that mental rehearsal of piano sequences produced the same cortical changes as physical practice. The brain does not fully distinguish between a vividly imagined experience and a real one — a finding replicated across dozens of studies in sports psychology and motor learning.</div>
+      </div>
+    </div>
+    <div class="research-item">
+      <div class="research-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
+      <div>
+        <div class="research-title">The Reticular Activating System</div>
+        <div class="research-body">The RAS, a network of neurons in the brainstem, is well-documented as the brain's attentional filter. Research in selective attention — including the famous "invisible gorilla" studies by Simons & Chabris — demonstrates how profoundly our prior programming shapes what we literally see in the world around us.</div>
+      </div>
+    </div>
+    <div class="research-item">
+      <div class="research-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></div>
+      <div>
+        <div class="research-title">Self-Affirmation & Voice Recognition</div>
+        <div class="research-body">Studies published in Psychological Science show that self-affirmations — particularly those heard in one's own voice — activate the ventromedial prefrontal cortex, a region associated with self-relevance and positive valuation. This effect is substantially stronger when the voice is recognized as one's own.</div>
+      </div>
+    </div>
+    <div class="research-item">
+      <div class="research-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+      <div>
+        <div class="research-title">Sleep-State Neurological Receptivity</div>
+        <div class="research-body">Research on sleep architecture shows that the hypnagogic (pre-sleep) and hypnopompic (post-waking) states are associated with elevated theta wave activity — a brain state linked to heightened suggestibility, memory consolidation, and the integration of new beliefs. These windows are neurologically distinct from normal waking consciousness.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="pull-quote" style="margin-top:2rem">
+    <p>"We are what we repeatedly think. And what we repeatedly think, we begin to see. And what we see, we act upon. Neuroscience is simply confirming what philosophers have known for centuries."</p>
+  </div>
+</div>
+
+<!-- FINAL CTA -->
+<div class="final-cta">
+  <h2 class="final-cta-title">Ready to program your<br><em>brain for your future?</em></h2>
+  <p class="final-cta-sub">Your manifestation story takes 15 minutes to create and a lifetime to benefit from. Start with your goals — the rest follows.</p>
+  <a href="goal-intake-ai.html" class="final-cta-btn">
+    Create My Story — It's Free
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+  </a>
+</div>
+
+<footer>
+  <p>© 2026 ManifestMyStory · <a href="#">Privacy</a> · <a href="#">Terms</a> · <a href="manifest.html">Home</a></p>
+</footer>
+
+<script>
+// ── FIGURE-GROUND REVEALS ──
+function revealRubin() {
+  const btn = document.getElementById('rubinBtn');
+  const answer = document.getElementById('rubinAnswer');
+  const svg = document.getElementById('rubinWrap').querySelector('svg');
+  // Show highlights
+  svg.querySelectorAll('.face-highlight').forEach(el => el.style.opacity = '1');
+  svg.querySelectorAll('.vase-highlight').forEach(el => el.style.opacity = '1');
+  svg.querySelectorAll('.reveal-label-face').forEach(el => el.style.opacity = '1');
+  svg.querySelectorAll('.reveal-label-vase').forEach(el => el.style.opacity = '1');
+  btn.classList.add('revealed');
+  btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="13" height="13"><polyline points="20 6 9 17 4 12"/></svg> Both images revealed`;
+  btn.disabled = true;
+  answer.classList.add('show');
+}
+
+function revealDuck() {
+  const btn = document.getElementById('duckBtn');
+  const answer = document.getElementById('duckAnswer');
+  const svg = document.getElementById('duckWrap').querySelector('svg');
+  svg.querySelectorAll('.duck-highlight').forEach(el => el.style.opacity = '1');
+  svg.querySelectorAll('.rabbit-highlight').forEach(el => el.style.opacity = '1');
+  svg.querySelectorAll('.reveal-duck').forEach(el => el.style.opacity = '1');
+  svg.querySelectorAll('.reveal-rabbit').forEach(el => el.style.opacity = '1');
+  btn.classList.add('revealed');
+  btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="13" height="13"><polyline points="20 6 9 17 4 12"/></svg> Both animals revealed`;
+  btn.disabled = true;
+  answer.classList.add('show');
+}
+
+
+// ── GORILLA EXPERIMENT ──
+function goStep(n) {
+  document.querySelectorAll('.ex-step').forEach(s => s.classList.remove('active'));
+  document.getElementById('step' + n).classList.add('active');
+  document.querySelector('.exercise-wrap').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function gorillaAnswer(didSee) {
+  const card  = document.getElementById('gorillaRevealCard');
+  const num   = document.getElementById('gorillaRevealNum');
+  const label = document.getElementById('gorillaRevealLabel');
+  const ins   = document.getElementById('gorillaRevealInsight');
+
+  if (didSee) {
+    card.style.background   = 'rgba(45,160,80,0.15)';
+    card.style.borderColor  = 'rgba(45,160,80,0.4)';
+    num.textContent  = '✓';
+    num.style.color  = '#2da050';
+    label.textContent = 'YOU SAW THE GORILLA — GREAT AWARENESS';
+    ins.textContent = "You were in the minority. Roughly half of all first-time viewers, focused on counting passes, never notice the gorilla at all. Even knowing this, many people still don't see it a second time. This is inattentional blindness — the same mechanism that filters out the opportunities and people your RAS hasn't been programmed to find yet.";
+  }
+  goStep(3);
+}
+
+function showGorillaInsight() {
+  const banner = document.getElementById('insightBanner');
+  banner.style.display = 'block';
+  banner.style.animation = 'fadeUp 0.5s ease both';
+  banner.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+</script>
+</body>
+</html>

@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ManifestMyStory — Record Your Voice</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&family=Lora:ital,wght@0,400;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f4f1eb;
+    --surface: #fff;
+    --ink: #1c1a16;
+    --ink-muted: #7a7468;
+    --ink-faint: #b8b3a8;
+    --accent: #2d6a4f;
+    --accent-light: #e8f4ee;
+    --accent-mid: #52b788;
+    --gold: #9a6f0a;
+    --gold-bg: #fdf6e3;
+    --gold-border: #e8d08a;
+    --border: #e4dfd5;
+    --red: #c0392b;
+    --red-light: #fdf0ef;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 300;
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+  }
+
+  /* TOP BAR */
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0.85rem 1.5rem; background: var(--surface);
+    border-bottom: 1px solid var(--border); flex-shrink: 0; gap: 1rem;
+    position: sticky; top: 0; z-index: 50;
+  }
+  .logo { font-family: 'DM Serif Display', serif; font-size: 1.1rem; color: var(--ink); }
+  .logo span { color: var(--accent); }
+  .steps-row { display: flex; align-items: center; }
+  .step-item {
+    display: flex; align-items: center; gap: 0.4rem;
+    font-size: 0.72rem; color: var(--ink-faint);
+    padding: 0 0.85rem; position: relative;
+  }
+  .step-item.done { color: var(--accent); }
+  .step-item.active { color: var(--ink); font-weight: 500; }
+  .step-item:not(:last-child)::after { content: '›'; position: absolute; right: -2px; color: var(--ink-faint); }
+  .step-num {
+    width: 20px; height: 20px; border-radius: 50%; display: grid;
+    place-items: center; font-size: 0.65rem; font-weight: 500;
+    border: 1px solid var(--border); color: var(--ink-faint); flex-shrink: 0;
+  }
+  .step-item.done .step-num { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .step-item.active .step-num { background: var(--ink); border-color: var(--ink); color: #fff; }
+  .top-right { display: flex; gap: 0.65rem; align-items: center; }
+  .ghost-btn {
+    font-size: 0.75rem; color: var(--ink-muted); background: none;
+    border: 1px solid var(--border); padding: 0.38rem 0.85rem;
+    border-radius: 6px; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.2s;
+  }
+  .ghost-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* PAGE */
+  .page {
+    flex: 1; display: flex; align-items: flex-start; justify-content: center;
+    padding: 3rem 1.5rem 4rem; gap: 2rem;
+  }
+
+  /* LEFT COLUMN */
+  .left-col { width: 300px; flex-shrink: 0; display: flex; flex-direction: column; gap: 1.25rem; }
+
+  .info-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 1.5rem;
+  }
+  .info-card-title {
+    font-family: 'DM Serif Display', serif; font-size: 1.1rem; color: var(--ink);
+    margin-bottom: 0.4rem;
+  }
+  .info-card-sub { font-size: 0.82rem; color: var(--ink-muted); line-height: 1.65; margin-bottom: 1.1rem; }
+
+  .tip-list { display: flex; flex-direction: column; gap: 0.75rem; }
+  .tip-row { display: flex; gap: 0.65rem; align-items: flex-start; }
+  .tip-icon {
+    width: 28px; height: 28px; border-radius: 8px; background: var(--accent-light);
+    display: grid; place-items: center; flex-shrink: 0; margin-top: 1px;
+    color: var(--accent);
+  }
+  .tip-icon svg { width: 13px; height: 13px; }
+  .tip-text { font-size: 0.79rem; color: var(--ink-muted); line-height: 1.55; }
+  .tip-text strong { color: var(--ink); font-weight: 500; display: block; margin-bottom: 0.1rem; }
+
+  .sample-script {
+    background: var(--gold-bg); border: 1px solid var(--gold-border);
+    border-radius: 12px; padding: 1.25rem;
+  }
+  .sample-script-label {
+    font-size: 0.62rem; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--gold); margin-bottom: 0.65rem; font-weight: 500;
+  }
+  .sample-script p {
+    font-family: 'Lora', serif; font-style: italic; font-size: 0.84rem;
+    color: var(--ink); line-height: 1.75;
+  }
+
+  /* CENTER COLUMN */
+  .center-col { flex: 1; max-width: 540px; display: flex; flex-direction: column; gap: 1.5rem; }
+
+  /* RECORDER CARD */
+  .recorder-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 16px; overflow: hidden;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+  }
+
+  .rec-top {
+    padding: 2rem 2rem 1.5rem;
+    text-align: center;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* MIC BUTTON */
+  .mic-ring {
+    width: 100px; height: 100px; border-radius: 50%;
+    margin: 0 auto 1.5rem;
+    display: grid; place-items: center;
+    position: relative;
+    cursor: pointer;
+    transition: transform 0.2s;
+  }
+  .mic-ring:hover { transform: scale(1.04); }
+  .mic-ring-bg {
+    position: absolute; inset: 0; border-radius: 50%;
+    background: var(--accent-light);
+    border: 2px solid var(--accent);
+    transition: all 0.3s;
+  }
+  .mic-ring.recording .mic-ring-bg {
+    background: var(--red-light);
+    border-color: var(--red);
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+  .mic-ring.has-recording .mic-ring-bg {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(192,57,43,0.2); }
+    50% { box-shadow: 0 0 0 16px rgba(192,57,43,0); }
+  }
+  .mic-icon { position: relative; z-index: 1; color: var(--accent); transition: color 0.3s; }
+  .mic-ring.recording .mic-icon { color: var(--red); }
+  .mic-ring.has-recording .mic-icon { color: #fff; }
+  .mic-icon svg { width: 32px; height: 32px; }
+
+  .rec-status {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.3rem; color: var(--ink); margin-bottom: 0.3rem;
+  }
+  .rec-hint { font-size: 0.8rem; color: var(--ink-muted); line-height: 1.55; }
+
+  /* TIMER */
+  .timer-row {
+    display: flex; align-items: center; justify-content: center;
+    gap: 1.5rem; padding: 1.25rem 2rem;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg);
+  }
+  .timer-display {
+    font-family: 'DM Serif Display', serif;
+    font-size: 2.2rem; color: var(--ink); letter-spacing: 0.04em;
+    min-width: 90px; text-align: center;
+    transition: color 0.3s;
+  }
+  .timer-display.recording { color: var(--red); }
+  .timer-label { font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-faint); }
+  .timer-target {
+    text-align: center;
+  }
+  .timer-target-val {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.1rem; color: var(--ink-muted);
+  }
+
+  /* WAVEFORM */
+  .waveform-wrap {
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--border);
+    height: 72px;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    overflow: hidden;
+  }
+  .wave-bar {
+    flex: 1; background: var(--border); border-radius: 2px;
+    min-width: 2px; max-width: 6px;
+    transition: height 0.1s ease, background 0.3s;
+    height: 4px;
+  }
+  .wave-bar.active { background: var(--accent); }
+  .wave-bar.recorded { background: var(--accent-light); }
+
+  /* CONTROLS */
+  .rec-controls {
+    padding: 1.25rem 1.5rem;
+    display: flex; align-items: center; justify-content: center; gap: 0.75rem;
+  }
+
+  .ctrl-btn {
+    display: flex; align-items: center; gap: 0.4rem;
+    padding: 0.6rem 1.25rem; border-radius: 8px;
+    font-size: 0.8rem; font-family: 'DM Sans', sans-serif; font-weight: 400;
+    cursor: pointer; transition: all 0.2s; border: 1px solid var(--border);
+  }
+  .ctrl-btn svg { width: 14px; height: 14px; }
+  .ctrl-btn.secondary { background: var(--bg); color: var(--ink-muted); }
+  .ctrl-btn.secondary:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  .ctrl-btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 500; }
+  .ctrl-btn.primary:hover:not(:disabled) { background: #235840; }
+  .ctrl-btn.danger { background: var(--red-light); color: var(--red); border-color: #f0b0aa; }
+  .ctrl-btn.danger:hover:not(:disabled) { background: var(--red); color: #fff; }
+  .ctrl-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* PLAYBACK */
+  .playback-card {
+    background: var(--accent-light); border: 1px solid rgba(82,183,136,0.3);
+    border-radius: 12px; padding: 1rem 1.25rem;
+    display: none;
+    align-items: center; gap: 1rem;
+  }
+  .playback-card.visible { display: flex; animation: fadeUp 0.3s ease both; }
+  @keyframes fadeUp { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+
+  .play-pause {
+    width: 38px; height: 38px; border-radius: 50%; background: var(--accent);
+    border: none; cursor: pointer; display: grid; place-items: center; flex-shrink: 0;
+    transition: all 0.2s; color: #fff;
+  }
+  .play-pause:hover { background: #235840; transform: scale(1.05); }
+  .play-pause svg { width: 14px; height: 14px; }
+
+  .pb-info { flex: 1; min-width: 0; }
+  .pb-title { font-size: 0.78rem; font-weight: 500; color: var(--accent); margin-bottom: 0.2rem; }
+  .pb-progress { height: 3px; background: rgba(45,106,79,0.2); border-radius: 99px; overflow: hidden; margin-bottom: 0.3rem; }
+  .pb-fill { height: 100%; background: var(--accent); border-radius: 99px; width: 0%; transition: width 0.3s linear; }
+  .pb-time { font-size: 0.7rem; color: var(--accent); opacity: 0.7; }
+
+  .pb-redo {
+    font-size: 0.72rem; color: var(--accent); background: none; border: none;
+    cursor: pointer; font-family: 'DM Sans', sans-serif; white-space: nowrap;
+    text-decoration: underline; text-underline-offset: 2px; transition: opacity 0.2s;
+  }
+  .pb-redo:hover { opacity: 0.7; }
+
+  /* SUBMIT AREA */
+  .submit-area {
+    display: none; flex-direction: column; gap: 0.75rem;
+  }
+  .submit-area.visible { display: flex; animation: fadeUp 0.4s 0.1s ease both; }
+
+  .submit-note {
+    display: flex; align-items: flex-start; gap: 0.6rem;
+    background: var(--gold-bg); border: 1px solid var(--gold-border);
+    border-radius: 10px; padding: 0.85rem 1rem; font-size: 0.79rem;
+    color: var(--ink-muted); line-height: 1.55;
+  }
+  .submit-note svg { width: 16px; height: 16px; color: var(--gold); flex-shrink: 0; margin-top: 1px; }
+
+  .submit-btn {
+    display: flex; align-items: center; justify-content: center; gap: 0.5rem;
+    background: var(--accent); color: #fff; border: none; border-radius: 10px;
+    padding: 0.85rem; font-size: 0.88rem; font-family: 'DM Sans', sans-serif;
+    font-weight: 500; cursor: pointer; transition: all 0.2s;
+    box-shadow: 0 4px 16px rgba(45,106,79,0.2);
+  }
+  .submit-btn:hover { background: #235840; transform: translateY(-1px); box-shadow: 0 6px 20px rgba(45,106,79,0.25); }
+  .submit-btn svg { width: 16px; height: 16px; }
+
+  @media (max-width: 860px) { .left-col { display: none; } .page { justify-content: center; } }
+  @media (max-width: 560px) { .steps-row { display: none; } .page { padding: 1.5rem 1rem 3rem; } }
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="logo">Manifest<span>MyStory</span></div>
+  <div class="steps-row">
+    <div class="step-item done">
+      <div class="step-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>Goals
+    </div>
+    <div class="step-item done">
+      <div class="step-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>Your Story
+    </div>
+    <div class="step-item active"><div class="step-num">3</div>Voice Sample</div>
+    <div class="step-item"><div class="step-num">4</div>Your Audio</div>
+  </div>
+  <div class="top-right">
+    <button class="ghost-btn" onclick="skipVoice()">Skip for now</button>
+  </div>
+</div>
+
+<!-- PAGE -->
+<div class="page">
+
+  <!-- LEFT: TIPS -->
+  <div class="left-col">
+    <div class="info-card">
+      <div class="info-card-title">Recording tips</div>
+      <div class="info-card-sub">A clean 60-second sample is all we need to clone your voice accurately.</div>
+      <div class="tip-list">
+        <div class="tip-row">
+          <div class="tip-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></div>
+          <div class="tip-text"><strong>Quiet environment</strong>Find a room with minimal echo and background noise. Close doors and windows.</div>
+        </div>
+        <div class="tip-row">
+          <div class="tip-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/></svg></div>
+          <div class="tip-text"><strong>Phone or laptop mic is fine</strong>You don't need special equipment. Hold your device 8–12 inches from your mouth.</div>
+        </div>
+        <div class="tip-row">
+          <div class="tip-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+          <div class="tip-text"><strong>Read naturally</strong>Speak at a normal pace, as if you're reading to yourself. Relaxed and clear wins over slow and stiff.</div>
+        </div>
+        <div class="tip-row">
+          <div class="tip-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
+          <div class="tip-text"><strong>You can re-record</strong>Don't worry about perfection. Listen back and re-record as many times as you need.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sample-script">
+      <div class="sample-script-label">📖 Read this script</div>
+      <p>I wake each morning with a quiet sense of purpose — knowing exactly who I am and where I'm headed. My days are filled with meaningful work, deep connection, and the kind of joy that doesn't need a reason. I am healthy, free, and fully alive to the beauty of the life I've built. Everything I once dreamed of is now simply the life I live.</p>
+    </div>
+  </div>
+
+  <!-- CENTER: RECORDER -->
+  <div class="center-col">
+
+    <!-- RECORDER CARD -->
+    <div class="recorder-card">
+
+      <!-- MIC + STATUS -->
+      <div class="rec-top">
+        <div class="mic-ring" id="micRing" onclick="handleMicClick()">
+          <div class="mic-ring-bg"></div>
+          <div class="mic-icon">
+            <svg id="micSvg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8"/>
+            </svg>
+          </div>
+        </div>
+        <div class="rec-status" id="recStatus">Tap to start recording</div>
+        <div class="rec-hint" id="recHint">Read the sample script on the left at a natural pace for 60 seconds</div>
+      </div>
+
+      <!-- TIMER -->
+      <div class="timer-row">
+        <div>
+          <div class="timer-label">Recorded</div>
+          <div class="timer-display" id="timerDisplay">0:00</div>
+        </div>
+        <div style="width:1px;height:36px;background:var(--border)"></div>
+        <div class="timer-target" style="text-align:center">
+          <div class="timer-label">Target</div>
+          <div class="timer-target-val">1:00</div>
+        </div>
+        <div style="width:1px;height:36px;background:var(--border)"></div>
+        <div>
+          <div class="timer-label">Quality</div>
+          <div class="timer-target-val" id="qualityLabel" style="font-size:0.82rem;color:var(--ink-faint)">—</div>
+        </div>
+      </div>
+
+      <!-- WAVEFORM -->
+      <div class="waveform-wrap" id="waveformWrap"></div>
+
+      <!-- CONTROLS -->
+      <div class="rec-controls" id="recControls">
+        <button class="ctrl-btn secondary" id="btnRetake" disabled onclick="retake()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 .49-4"/></svg>
+          Re-record
+        </button>
+        <button class="ctrl-btn primary" id="btnRecord" onclick="handleMicClick()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>
+          Start Recording
+        </button>
+      </div>
+
+    </div>
+
+    <!-- PLAYBACK -->
+    <div class="playback-card" id="playbackCard">
+      <button class="play-pause" id="playPauseBtn" onclick="togglePlayback()">
+        <svg id="playIcon" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+      </button>
+      <div class="pb-info">
+        <div class="pb-title">Your voice sample · <span id="pbDuration">—</span></div>
+        <div class="pb-progress"><div class="pb-fill" id="pbFill"></div></div>
+        <div class="pb-time" id="pbTime">0:00</div>
+      </div>
+      <button class="pb-redo" onclick="retake()">Re-record</button>
+    </div>
+
+    <!-- SUBMIT -->
+    <div class="submit-area" id="submitArea">
+      <div class="submit-note">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span>Your voice sample will be used <strong>only</strong> to generate your personal audio story. It is never shared, sold, or used for any other purpose.</span>
+      </div>
+      <button class="submit-btn" onclick="submitAndContinue()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4"/></svg>
+        Generate My Audio Story
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ── STATE ──
+let recState    = 'idle';   // idle | recording | stopped
+let timerInt    = null;
+let waveInt     = null;
+let seconds     = 0;
+let waveAnim    = null;
+let playbackInt = null;
+let pbSeconds   = 0;
+let isPlaying   = false;
+let recordedDuration = 0;
+
+// ── BUILD WAVEFORM BARS ──
+const waveWrap = document.getElementById('waveformWrap');
+const NUM_BARS = 60;
+for (let i = 0; i < NUM_BARS; i++) {
+  const bar = document.createElement('div');
+  bar.className = 'wave-bar';
+  waveWrap.appendChild(bar);
+}
+const bars = Array.from(waveWrap.querySelectorAll('.wave-bar'));
+
+function setBarHeights(heights) {
+  bars.forEach((b, i) => { b.style.height = (heights[i] || 4) + 'px'; });
+}
+
+// ── TIMER ──
+function fmtTime(s) {
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  return `${m}:${sec.toString().padStart(2,'0')}`;
+}
+
+function startTimer() {
+  seconds = 0;
+  timerInt = setInterval(() => {
+    seconds++;
+    document.getElementById('timerDisplay').textContent = fmtTime(seconds);
+    // Quality label
+    let q = '—', qColor = 'var(--ink-faint)';
+    if (seconds >= 10 && seconds < 30) { q = 'Building…'; qColor = 'var(--gold)'; }
+    if (seconds >= 30 && seconds < 50) { q = 'Good'; qColor = 'var(--accent)'; }
+    if (seconds >= 50) { q = 'Excellent ✓'; qColor = 'var(--accent)'; }
+    const ql = document.getElementById('qualityLabel');
+    ql.textContent = q; ql.style.color = qColor;
+
+    // Auto-stop at 90s
+    if (seconds >= 90) stopRecording();
+  }, 1000);
+}
+
+function stopTimer() { clearInterval(timerInt); }
+
+// ── ANIMATED WAVEFORM during recording ──
+function startWaveAnim() {
+  waveAnim = setInterval(() => {
+    const newHeights = bars.map((b, i) => {
+      // Shift existing heights left and add new random bar on right
+      const prev = parseFloat(b.style.height) || 4;
+      if (i < bars.length - 1) return parseFloat(bars[i+1].style.height) || 4;
+      return Math.random() * 42 + 4;
+    });
+    bars.forEach((b, i) => {
+      b.style.height = newHeights[i] + 'px';
+      b.className = 'wave-bar active';
+    });
+  }, 80);
+}
+
+function stopWaveAnim() {
+  clearInterval(waveAnim);
+  // Freeze bars as recorded (greyed)
+  bars.forEach(b => b.classList.replace('active', 'recorded'));
+}
+
+// ── RECORDING FLOW ──
+function handleMicClick() {
+  if (recState === 'idle') startRecording();
+  else if (recState === 'recording') stopRecording();
+}
+
+function startRecording() {
+  recState = 'recording';
+
+  // UI
+  document.getElementById('micRing').classList.add('recording');
+  document.getElementById('recStatus').textContent = 'Recording… tap to stop';
+  document.getElementById('recHint').textContent = 'Speak clearly at a relaxed, natural pace';
+  document.getElementById('recHint').style.color = 'var(--red)';
+  document.getElementById('timerDisplay').classList.add('recording');
+  document.getElementById('btnRecord').innerHTML = `<svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><rect x="4" y="4" width="16" height="16" rx="2"/></svg> Stop`;
+  document.getElementById('btnRecord').classList.remove('primary');
+  document.getElementById('btnRecord').classList.add('danger');
+
+  startTimer();
+  startWaveAnim();
+}
+
+function stopRecording() {
+  recState = 'stopped';
+  recordedDuration = seconds;
+
+  stopTimer();
+  stopWaveAnim();
+
+  // UI
+  document.getElementById('micRing').classList.remove('recording');
+  document.getElementById('micRing').classList.add('has-recording');
+  document.getElementById('micSvg').innerHTML = `<polyline points="20 6 9 17 4 12"/>`;
+  document.getElementById('recStatus').textContent = 'Recording saved';
+  document.getElementById('recHint').textContent = `${fmtTime(recordedDuration)} recorded — listen back below, then continue`;
+  document.getElementById('recHint').style.color = 'var(--accent)';
+  document.getElementById('timerDisplay').classList.remove('recording');
+
+  document.getElementById('btnRecord').innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="20 6 9 17 4 12"/></svg> Saved`;
+  document.getElementById('btnRecord').disabled = true;
+  document.getElementById('btnRetake').disabled = false;
+
+  // Show playback
+  showPlayback();
+}
+
+function showPlayback() {
+  document.getElementById('pbDuration').textContent = fmtTime(recordedDuration);
+  document.getElementById('playbackCard').classList.add('visible');
+  document.getElementById('submitArea').classList.add('visible');
+}
+
+// ── SIMULATED PLAYBACK ──
+function togglePlayback() {
+  if (!isPlaying) {
+    isPlaying = true;
+    pbSeconds = 0;
+    document.getElementById('playIcon').innerHTML = `<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>`;
+    playbackInt = setInterval(() => {
+      pbSeconds++;
+      const pct = Math.min((pbSeconds / recordedDuration) * 100, 100);
+      document.getElementById('pbFill').style.width = pct + '%';
+      document.getElementById('pbTime').textContent = fmtTime(pbSeconds);
+      if (pbSeconds >= recordedDuration) stopPlayback();
+    }, 1000);
+  } else {
+    stopPlayback();
+  }
+}
+
+function stopPlayback() {
+  isPlaying = false;
+  clearInterval(playbackInt);
+  document.getElementById('playIcon').innerHTML = `<polygon points="5,3 19,12 5,21"/>`;
+}
+
+// ── RETAKE ──
+function retake() {
+  stopPlayback();
+  recState = 'idle';
+  seconds = 0;
+  pbSeconds = 0;
+  recordedDuration = 0;
+
+  document.getElementById('micRing').classList.remove('recording','has-recording');
+  document.getElementById('micSvg').innerHTML = `<path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8"/>`;
+  document.getElementById('recStatus').textContent = 'Tap to start recording';
+  document.getElementById('recHint').textContent = 'Read the sample script on the left at a natural pace for 60 seconds';
+  document.getElementById('recHint').style.color = '';
+  document.getElementById('timerDisplay').textContent = '0:00';
+  document.getElementById('timerDisplay').classList.remove('recording');
+  document.getElementById('qualityLabel').textContent = '—';
+  document.getElementById('qualityLabel').style.color = '';
+
+  document.getElementById('btnRecord').innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg> Start Recording`;
+  document.getElementById('btnRecord').disabled = false;
+  document.getElementById('btnRecord').classList.remove('danger');
+  document.getElementById('btnRecord').classList.add('primary');
+  document.getElementById('btnRetake').disabled = true;
+
+  document.getElementById('playbackCard').classList.remove('visible');
+  document.getElementById('submitArea').classList.remove('visible');
+  document.getElementById('pbFill').style.width = '0%';
+  document.getElementById('pbTime').textContent = '0:00';
+
+  // Reset wave bars
+  bars.forEach(b => { b.style.height = '4px'; b.className = 'wave-bar'; });
+}
+
+function skipVoice()         { window.location.href = 'audio-download.html'; }
+function submitAndContinue() { window.location.href = 'audio-download.html'; }
+</script>
+</body>
+</html>
