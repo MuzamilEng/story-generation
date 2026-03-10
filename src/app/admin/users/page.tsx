@@ -47,9 +47,11 @@ export default function UserManagement() {
       });
 
       if (response.ok) {
-        setUsers(users.map(user =>
-          user.id === userId ? { ...user, role: newRole } : user
-        ));
+        setUsers(
+          users.map((user) =>
+            user.id === userId ? { ...user, role: newRole } : user,
+          ),
+        );
       }
     } catch (error) {
       console.error("Failed to update user role:", error);
@@ -67,9 +69,11 @@ export default function UserManagement() {
       });
 
       if (response.ok) {
-        setUsers(users.map(user =>
-          user.id === userId ? { ...user, isActive: !currentStatus } : user
-        ));
+        setUsers(
+          users.map((user) =>
+            user.id === userId ? { ...user, isActive: !currentStatus } : user,
+          ),
+        );
       }
     } catch (error) {
       console.error("Failed to update user status:", error);
@@ -77,7 +81,11 @@ export default function UserManagement() {
   };
 
   if (loading) {
-    return <div style={{ textAlign: "center", padding: "32px" }}>Loading users...</div>;
+    return (
+      <div style={{ textAlign: "center", padding: "32px" }}>
+        Loading users...
+      </div>
+    );
   }
 
   return (
@@ -89,45 +97,109 @@ export default function UserManagement() {
         </p>
       </div>
 
-      <div style={{
-        backgroundColor: "white",
-        border: "1px solid #e5e5e5",
-        borderRadius: "12px",
-        overflow: "hidden",
-        boxShadow: "0 1px 3px rgba(0,0,0,0.1)"
-      }}>
+      <div
+        style={{
+          backgroundColor: "white",
+          border: "1px solid #e5e5e5",
+          borderRadius: "12px",
+          overflow: "hidden",
+          boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+        }}
+      >
         <div style={{ padding: "20px", borderBottom: "1px solid #e5e5e5" }}>
           <h3 style={{ fontSize: "18px", fontWeight: 600 }}>All Users</h3>
-          <p style={{ fontSize: "12px", color: "#737373" }}>A list of all registered users and their current status.</p>
+          <p style={{ fontSize: "12px", color: "#737373" }}>
+            A list of all registered users and their current status.
+          </p>
         </div>
 
         <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "14px" }}>
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              fontSize: "14px",
+            }}
+          >
             <thead>
-              <tr style={{ borderBottom: "1px solid #e5e5e5", textAlign: "left" }}>
-                <th style={{ padding: "12px 16px", fontWeight: 500, color: "#737373" }}>Name</th>
-                <th style={{ padding: "12px 16px", fontWeight: 500, color: "#737373" }}>Email</th>
-                <th style={{ padding: "12px 16px", fontWeight: 500, color: "#737373" }}>Role</th>
-                <th style={{ padding: "12px 16px", fontWeight: 500, color: "#737373" }}>Status</th>
-                <th style={{ padding: "12px 16px", fontWeight: 500, color: "#737373" }}>Created</th>
-                <th style={{ padding: "12px 16px", fontWeight: 500, color: "#737373" }}>Actions</th>
+              <tr
+                style={{ borderBottom: "1px solid #e5e5e5", textAlign: "left" }}
+              >
+                <th
+                  style={{
+                    padding: "12px 16px",
+                    fontWeight: 500,
+                    color: "#737373",
+                  }}
+                >
+                  Name
+                </th>
+                <th
+                  style={{
+                    padding: "12px 16px",
+                    fontWeight: 500,
+                    color: "#737373",
+                  }}
+                >
+                  Email
+                </th>
+                <th
+                  style={{
+                    padding: "12px 16px",
+                    fontWeight: 500,
+                    color: "#737373",
+                  }}
+                >
+                  Role
+                </th>
+                <th
+                  style={{
+                    padding: "12px 16px",
+                    fontWeight: 500,
+                    color: "#737373",
+                  }}
+                >
+                  Status
+                </th>
+                <th
+                  style={{
+                    padding: "12px 16px",
+                    fontWeight: 500,
+                    color: "#737373",
+                  }}
+                >
+                  Created
+                </th>
+                <th
+                  style={{
+                    padding: "12px 16px",
+                    fontWeight: 500,
+                    color: "#737373",
+                  }}
+                >
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody>
               {users.map((user) => (
                 <tr key={user.id} style={{ borderBottom: "1px solid #f4f4f4" }}>
-                  <td style={{ padding: "12px 16px", fontWeight: 500 }}>{user.name || "N/A"}</td>
+                  <td style={{ padding: "12px 16px", fontWeight: 500 }}>
+                    {user.full_name || "N/A"}
+                  </td>
                   <td style={{ padding: "12px 16px" }}>{user.email}</td>
                   <td style={{ padding: "12px 16px" }}>
                     <select
                       value={user.role}
-                      onChange={(e) => updateUserRole(user.id, e.target.value as UserRole)}
+                      onChange={(e) =>
+                        updateUserRole(user.id, e.target.value as UserRole)
+                      }
                       style={{
                         padding: "6px 12px",
                         borderRadius: "6px",
                         border: "1px solid #e5e5e5",
                         backgroundColor: "white",
-                        fontSize: "14px"
+                        fontSize: "14px",
                       }}
                     >
                       <option value={UserRole.USER}>User</option>
@@ -136,14 +208,16 @@ export default function UserManagement() {
                     </select>
                   </td>
                   <td style={{ padding: "12px 16px" }}>
-                    <span style={{
-                      padding: "4px 8px",
-                      borderRadius: "12px",
-                      fontSize: "12px",
-                      fontWeight: 500,
-                      backgroundColor: user.isActive ? "#dcfce7" : "#f1f5f9",
-                      color: user.isActive ? "#166534" : "#475569"
-                    }}>
+                    <span
+                      style={{
+                        padding: "4px 8px",
+                        borderRadius: "12px",
+                        fontSize: "12px",
+                        fontWeight: 500,
+                        backgroundColor: user.isActive ? "#dcfce7" : "#f1f5f9",
+                        color: user.isActive ? "#166534" : "#475569",
+                      }}
+                    >
                       {user.isActive ? "Active" : "Inactive"}
                     </span>
                   </td>
@@ -159,7 +233,7 @@ export default function UserManagement() {
                         border: "1px solid #e5e5e5",
                         backgroundColor: "white",
                         cursor: "pointer",
-                        fontSize: "12px"
+                        fontSize: "12px",
                       }}
                     >
                       {user.isActive ? "Deactivate" : "Activate"}

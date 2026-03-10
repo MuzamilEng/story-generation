@@ -40,12 +40,12 @@ export const authOptions: NextAuthOptions = {
           return null
         }
 
-        if (!user.password) {
+        if (!user.password_hash) {
           console.log('[AUTH] User has no password (OAuth user):', credentials.email)
           return null
         }
 
-        const isPasswordValid = await compare(credentials.password, user.password)
+        const isPasswordValid = await compare(credentials.password, user.password_hash)
 
         if (!isPasswordValid) {
           console.log('[AUTH] Invalid password for:', credentials.email)
@@ -63,9 +63,9 @@ export const authOptions: NextAuthOptions = {
         return {
           id: user.id,
           email: user.email,
-          name: user.name,
+          name: user.full_name,
           role: user.role || 'USER',
-          image: user.image,
+          image: user.avatar_url,
         }
       }
     })

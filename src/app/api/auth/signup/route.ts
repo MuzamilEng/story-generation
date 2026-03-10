@@ -31,14 +31,14 @@ export async function POST(request: NextRequest) {
     // Create user
     const user = await prisma.user.create({
       data: {
-        name,
+        full_name: name,
         email,
-        password: hashedPassword,
+        password_hash: hashedPassword,
       }
     })
 
     // Return user without password
-    const { password: _, ...userWithoutPassword } = user
+    const { password_hash: _, ...userWithoutPassword } = user
 
     return NextResponse.json({
       message: "User created successfully",
