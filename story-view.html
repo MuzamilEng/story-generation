@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ManifestMyStory — My Story</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&family=Lora:ital,wght@0,400;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#f4f1eb; --surface:#fff; --ink:#1c1a16; --ink-muted:#7a7468;
+    --ink-faint:#b8b3a8; --accent:#2d6a4f; --accent-light:#e8f4ee;
+    --accent-mid:#52b788; --gold:#9a6f0a; --gold-bg:#fdf6e3;
+    --gold-border:#e8d08a; --border:#e4dfd5; --red:#c0392b; --red-light:#fdf0ef;
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+  html,body{min-height:100%;}
+  body{background:var(--bg);color:var(--ink);font-family:'DM Sans',sans-serif;font-weight:300;display:flex;flex-direction:column;min-height:100vh;}
+
+  /* TOP NAV */
+  .topbar{display:flex;align-items:center;justify-content:space-between;padding:0.85rem 1.75rem;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;gap:1rem;}
+  .logo{font-family:'DM Serif Display',serif;font-size:1.1rem;color:var(--ink);text-decoration:none;}
+  .logo span{color:var(--accent);}
+  .topbar-nav{display:flex;align-items:center;gap:0.25rem;}
+  .nav-link{font-size:0.78rem;color:var(--ink-muted);text-decoration:none;padding:0.35rem 0.7rem;border-radius:7px;transition:all 0.15s;}
+  .nav-link:hover{color:var(--ink);background:var(--bg);}
+  .nav-link.active{color:var(--accent);font-weight:500;}
+  .topbar-right{display:flex;align-items:center;gap:0.85rem;}
+  .new-story-btn{display:flex;align-items:center;gap:0.4rem;padding:0.48rem 1rem;background:var(--accent);color:#fff;border:none;border-radius:8px;font-size:0.78rem;font-family:'DM Sans',sans-serif;font-weight:500;cursor:pointer;transition:all 0.2s;text-decoration:none;}
+  .new-story-btn:hover{background:#235840;}
+  .new-story-btn svg{width:13px;height:13px;}
+  .avatar-btn{width:32px;height:32px;border-radius:50%;background:var(--accent);color:#fff;border:none;cursor:pointer;font-size:0.75rem;font-weight:500;font-family:'DM Sans',sans-serif;display:grid;place-items:center;}
+
+  /* PAGE */
+  .page{flex:1;max-width:740px;margin:0 auto;width:100%;padding:2rem 1.75rem 5rem;}
+
+  .back-link{display:inline-flex;align-items:center;gap:0.35rem;font-size:0.75rem;color:var(--ink-muted);text-decoration:none;margin-bottom:1.25rem;transition:color 0.15s;}
+  .back-link:hover{color:var(--accent);}
+  .back-link svg{width:13px;height:13px;}
+
+  /* STORY HEADER */
+  .story-header{background:linear-gradient(135deg,#1a3d2b 0%,var(--accent) 100%);border-radius:14px;padding:1.6rem 1.8rem;color:#fff;margin-bottom:1.5rem;position:relative;overflow:hidden;}
+  .story-header::before{content:'';position:absolute;top:-40px;right:-40px;width:160px;height:160px;border-radius:50%;background:rgba(255,255,255,0.04);}
+  .story-header::after{content:'';position:absolute;bottom:-20px;left:-20px;width:90px;height:90px;border-radius:50%;background:rgba(255,255,255,0.03);}
+  .sh-eyebrow{font-size:0.58rem;letter-spacing:0.16em;text-transform:uppercase;color:rgba(255,255,255,0.45);margin-bottom:0.5rem;position:relative;z-index:1;}
+  .sh-title{font-family:'DM Serif Display',serif;font-style:italic;font-size:1.6rem;color:#fff;line-height:1.25;margin-bottom:0.85rem;position:relative;z-index:1;}
+  .sh-title-input{font-family:'DM Serif Display',serif;font-style:italic;font-size:1.6rem;color:#fff;line-height:1.25;margin-bottom:0.85rem;position:relative;z-index:1;background:rgba(255,255,255,0.1);border:1.5px solid rgba(255,255,255,0.3);border-radius:8px;padding:0.4rem 0.6rem;width:100%;outline:none;display:none;}
+  .sh-title-input::placeholder{color:rgba(255,255,255,0.4);}
+  .sh-meta{display:flex;align-items:center;gap:1rem;position:relative;z-index:1;flex-wrap:wrap;}
+  .sh-meta-pill{display:flex;align-items:center;gap:0.3rem;font-size:0.68rem;color:rgba(255,255,255,0.55);}
+  .sh-meta-pill svg{width:11px;height:11px;}
+  .sh-actions{display:flex;align-items:center;gap:0.6rem;margin-top:1.1rem;position:relative;z-index:1;flex-wrap:wrap;}
+  .sh-btn{display:flex;align-items:center;gap:0.4rem;padding:0.45rem 0.9rem;border-radius:8px;font-size:0.75rem;font-family:'DM Sans',sans-serif;font-weight:500;cursor:pointer;transition:all 0.15s;border:none;}
+  .sh-btn.play{background:#fff;color:var(--accent);}
+  .sh-btn.play:hover{background:rgba(255,255,255,0.9);}
+  .sh-btn.download{background:rgba(255,255,255,0.12);color:#fff;border:1px solid rgba(255,255,255,0.25);}
+  .sh-btn.download:hover{background:rgba(255,255,255,0.2);}
+  .sh-btn.edit{background:rgba(255,255,255,0.12);color:#fff;border:1px solid rgba(255,255,255,0.25);}
+  .sh-btn.edit:hover{background:rgba(255,255,255,0.2);}
+  .sh-btn.regen{background:rgba(255,255,255,0.12);color:#fff;border:1px solid rgba(255,255,255,0.25);}
+  .sh-btn.regen:hover{background:rgba(255,255,255,0.2);}
+  .sh-btn svg{width:13px;height:13px;}
+
+  /* EDIT TOOLBAR (hidden until edit mode) */
+  .edit-toolbar{display:none;align-items:center;justify-content:space-between;gap:0.75rem;background:var(--surface);border:1px solid var(--gold-border);border-radius:10px;padding:0.75rem 1rem;margin-bottom:1.25rem;}
+  .edit-toolbar.visible{display:flex;}
+  .edit-note{font-size:0.78rem;color:var(--gold);display:flex;align-items:center;gap:0.4rem;}
+  .edit-note svg{width:13px;height:13px;}
+  .edit-toolbar-btns{display:flex;gap:0.5rem;}
+  .toolbar-btn{padding:0.42rem 0.9rem;border-radius:7px;font-size:0.75rem;font-family:'DM Sans',sans-serif;cursor:pointer;transition:all 0.15s;border:none;}
+  .toolbar-btn.save{background:var(--accent);color:#fff;font-weight:500;}
+  .toolbar-btn.save:hover{background:#235840;}
+  .toolbar-btn.cancel{background:none;border:1px solid var(--border);color:var(--ink-muted);}
+  .toolbar-btn.cancel:hover{border-color:var(--ink-muted);}
+
+  /* STORY BODY */
+  .story-body-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:1.25rem;}
+  .story-body-head{padding:0.85rem 1.4rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+  .story-body-label{font-size:0.7rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-muted);}
+  .word-count{font-size:0.7rem;color:var(--ink-faint);}
+
+  /* READ MODE */
+  .story-text{padding:1.75rem 1.8rem;font-family:'Lora',serif;font-style:italic;font-size:1rem;color:var(--ink);line-height:1.9;white-space:pre-wrap;}
+
+  /* EDIT MODE */
+  .story-textarea{display:none;width:100%;padding:1.75rem 1.8rem;font-family:'Lora',serif;font-style:italic;font-size:1rem;color:var(--ink);line-height:1.9;border:none;outline:none;resize:none;background:var(--surface);min-height:500px;}
+  .story-textarea:focus{background:#fffef9;}
+
+  /* EDIT HISTORY */
+  .history-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:1.25rem;}
+  .history-head{padding:0.85rem 1.4rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+  .history-label{font-size:0.7rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-muted);}
+  .history-row{padding:0.8rem 1.4rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:1rem;}
+  .history-row:last-child{border-bottom:none;}
+  .history-left{display:flex;align-items:center;gap:0.65rem;}
+  .history-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+  .history-dot.current{background:var(--accent);}
+  .history-dot.old{background:var(--border);}
+  .history-version{font-size:0.8rem;color:var(--ink);}
+  .history-date{font-size:0.7rem;color:var(--ink-faint);margin-top:0.1rem;}
+  .history-right{display:flex;align-items:center;gap:0.5rem;}
+  .history-badge{font-size:0.65rem;padding:0.15rem 0.5rem;border-radius:99px;background:var(--accent-light);color:var(--accent);}
+  .history-restore{font-size:0.72rem;color:var(--ink-muted);background:none;border:1px solid var(--border);padding:0.25rem 0.6rem;border-radius:6px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.15s;}
+  .history-restore:hover{border-color:var(--accent);color:var(--accent);}
+
+  /* REGEN PANEL */
+  .regen-card{background:var(--gold-bg);border:1px solid var(--gold-border);border-radius:14px;padding:1.2rem 1.4rem;margin-bottom:1.25rem;display:none;}
+  .regen-card.visible{display:block;}
+  .regen-title{font-size:0.82rem;font-weight:500;color:var(--gold);margin-bottom:0.3rem;display:flex;align-items:center;gap:0.4rem;}
+  .regen-title svg{width:13px;height:13px;}
+  .regen-sub{font-size:0.78rem;color:var(--ink-muted);margin-bottom:0.85rem;line-height:1.6;}
+  .regen-textarea{width:100%;padding:0.75rem;border:1.5px solid var(--gold-border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:0.82rem;color:var(--ink);background:#fff;outline:none;resize:none;min-height:80px;transition:border-color 0.15s;}
+  .regen-textarea:focus{border-color:var(--gold);}
+  .regen-actions{display:flex;gap:0.6rem;margin-top:0.75rem;}
+  .regen-btn{padding:0.45rem 1rem;border-radius:7px;font-size:0.75rem;font-family:'DM Sans',sans-serif;cursor:pointer;transition:all 0.15s;border:none;}
+  .regen-btn.go{background:var(--gold);color:#fff;font-weight:500;}
+  .regen-btn.go:hover{background:#7d5a08;}
+  .regen-btn.close-regen{background:none;border:1px solid var(--border);color:var(--ink-muted);}
+  .regen-btn.close-regen:hover{border-color:var(--ink-muted);}
+
+  /* AUDIO PANEL */
+  .audio-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:1.25rem;}
+  .audio-head{background:linear-gradient(120deg,#1a3d2b,var(--accent));padding:1rem 1.25rem;display:flex;align-items:center;justify-content:space-between;}
+  .audio-head-label{font-size:0.6rem;letter-spacing:0.14em;text-transform:uppercase;color:rgba(255,255,255,0.5);}
+  .audio-head-title{font-family:'DM Serif Display',serif;font-style:italic;font-size:0.95rem;color:#fff;margin-top:0.15rem;}
+  .audio-dl-btn{display:flex;align-items:center;gap:0.35rem;padding:0.4rem 0.85rem;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);border-radius:7px;font-size:0.73rem;color:#fff;font-family:'DM Sans',sans-serif;cursor:pointer;transition:all 0.15s;text-decoration:none;}
+  .audio-dl-btn:hover{background:rgba(255,255,255,0.2);}
+  .audio-dl-btn svg{width:12px;height:12px;}
+  .audio-controls{padding:1rem 1.25rem;display:flex;flex-direction:column;gap:0.75rem;}
+  .progress-row{display:flex;align-items:center;gap:0.75rem;}
+  .time-label{font-size:0.68rem;color:var(--ink-faint);white-space:nowrap;width:32px;}
+  .time-label.right{text-align:right;}
+  .progress-track{flex:1;height:4px;background:var(--border);border-radius:99px;cursor:pointer;position:relative;}
+  .progress-fill{height:100%;background:var(--accent);border-radius:99px;width:34%;}
+  .controls-row{display:flex;align-items:center;justify-content:center;gap:1rem;}
+  .ctrl-btn{background:none;border:none;cursor:pointer;color:var(--ink-muted);display:grid;place-items:center;transition:color 0.15s;padding:0.25rem;}
+  .ctrl-btn:hover{color:var(--ink);}
+  .ctrl-btn svg{width:18px;height:18px;}
+  .ctrl-btn.play-pause{width:42px;height:42px;background:var(--accent);color:#fff;border-radius:50%;transition:all 0.2s;}
+  .ctrl-btn.play-pause:hover{background:#235840;transform:scale(1.05);}
+  .ctrl-btn.play-pause svg{width:16px;height:16px;}
+  .ctrl-btn.loop-btn.on{color:var(--accent);}
+  .audio-note{font-size:0.7rem;color:var(--ink-faint);text-align:center;padding:0 1.25rem 0.85rem;}
+  .audio-note a{color:var(--accent);}
+
+  .toast{position:fixed;bottom:2rem;left:50%;transform:translateX(-50%) translateY(80px);background:var(--ink);color:#fff;padding:0.7rem 1.2rem;border-radius:99px;font-size:0.78rem;transition:transform 0.3s;white-space:nowrap;z-index:100;}
+  .toast.show{transform:translateX(-50%) translateY(0);}
+
+  @media(max-width:520px){
+    .topbar-nav{display:none;}
+    .sh-actions{flex-direction:column;align-items:flex-start;}
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="logo" href="manifest.html">Manifest<span>MyStory</span></a>
+  <nav class="topbar-nav">
+    <a class="nav-link active" href="dashboard.html">My Stories</a>
+    <a class="nav-link" href="account-settings.html">Settings</a>
+  </nav>
+  <div class="topbar-right">
+    <a class="new-story-btn" href="goal-intake-ai.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      New Story
+    </a>
+    <button class="avatar-btn">MZ</button>
+  </div>
+</header>
+
+<main class="page">
+
+  <a class="back-link" href="dashboard.html">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+    Back to My Stories
+  </a>
+
+  <!-- STORY HEADER -->
+  <div class="story-header">
+    <div class="sh-eyebrow">Story 1 · Created January 12, 2026</div>
+    <div class="sh-title" id="storyTitle">A Day in the Life of My Highest Self</div>
+    <input class="sh-title-input" id="storyTitleInput" value="A Day in the Life of My Highest Self" placeholder="Story title..." />
+    <div class="sh-meta">
+      <div class="sh-meta-pill">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        6 min 42 sec audio
+      </div>
+      <div class="sh-meta-pill">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        <span id="storyWordCount">847 words</span>
+      </div>
+      <div class="sh-meta-pill">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        34 plays
+      </div>
+      <div class="sh-meta-pill">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        6 downloads
+      </div>
+    </div>
+    <div class="sh-actions">
+      <button class="sh-btn play" onclick="togglePlay()">
+        <svg id="playIconH" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        <svg id="pauseIconH" viewBox="0 0 24 24" fill="currentColor" style="display:none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+        <span id="playLabelH">Play Audio</span>
+      </button>
+      <a class="sh-btn download" href="#" download="a-day-in-the-life-of-my-highest-self.mp3" onclick="handleDownload(event)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Download MP3
+      </a>
+      <button class="sh-btn edit" id="editToggleBtn" onclick="toggleEditMode()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        Edit Story
+      </button>
+      <button class="sh-btn regen" onclick="toggleRegen()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.65"/></svg>
+        Regenerate
+      </button>
+    </div>
+  </div>
+
+  <!-- EDIT TOOLBAR (shown in edit mode) -->
+  <div class="edit-toolbar" id="editToolbar">
+    <div class="edit-note">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      Editing story text. Your audio will not change until you regenerate.
+    </div>
+    <div class="edit-toolbar-btns">
+      <button class="toolbar-btn cancel" onclick="cancelEdit()">Discard Changes</button>
+      <button class="toolbar-btn save" onclick="saveEdit()">Save Changes</button>
+    </div>
+  </div>
+
+  <!-- REGENERATE PANEL -->
+  <div class="regen-card" id="regenCard">
+    <div class="regen-title">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.65"/></svg>
+      Regenerate this story
+    </div>
+    <div class="regen-sub">Tell us what to change and we'll rewrite your story with the same goals in mind. Your current version will be saved to history so you can always go back.</div>
+    <textarea class="regen-textarea" id="regenPrompt" placeholder="e.g. Make it more emotionally vivid. Focus more on my family life. Add a morning exercise scene..."></textarea>
+    <div class="regen-actions">
+      <button class="regen-btn go" onclick="confirmRegen()">
+        Regenerate Story
+      </button>
+      <button class="regen-btn close-regen" onclick="toggleRegen()">Cancel</button>
+    </div>
+  </div>
+
+  <!-- STORY TEXT -->
+  <div class="story-body-card">
+    <div class="story-body-head">
+      <div class="story-body-label" id="storyBodyLabel">Story Text</div>
+      <div class="word-count" id="wordCountDisplay">847 words</div>
+    </div>
+
+    <!-- READ MODE -->
+    <div class="story-text" id="storyText">Morning light filters through the curtains of my home in the hills. I stretch without an alarm — my body knows when it's ready. The day ahead is full, but it's mine completely.
+
+I walk barefoot to the kitchen. The coffee is already made — I set it the night before, a small ritual that tells me tomorrow is worth preparing for. I stand at the window and look out at the garden. The roses are in bloom. I planted them two years ago, during the season when everything felt uncertain, and now they bloom every spring without asking permission.
+
+My phone is face-down on the counter. It will stay that way until I've had an hour to myself.
+
+By eight, I'm at my desk. Not the desk I used to have — the one wedged against a closet wall, where I hunched over spreadsheets I didn't believe in. This desk faces a window. There are books on either side of me. A candle. A glass of water. The work I do now is work that came from me, shaped by me, and every morning I am a little amazed that this is real.
+
+The emails can wait. I read for twenty minutes first. This is non-negotiable.
+
+At ten I take a call with a collaborator in Madrid. We are building something together that neither of us could build alone. After the call I sit for a moment in the quiet and feel the particular satisfaction of people who know their purpose and are living it.
+
+Lunch is unhurried. I eat outside. The neighbor's dog wanders over, as it always does, and I scratch behind his ears and think about nothing in particular.
+
+In the afternoon, I do the creative work — the kind that requires full presence, the kind I used to save for weekends and then never actually do. Now it is simply part of Tuesday. I lose track of time. When I look up, two hours have passed and I feel accomplished in a way that is different from busy. This is the feeling I once chased everywhere and could never quite catch.
+
+By five, I am done. I close the laptop with intention. I do not check it again.
+
+My partner and I cook dinner together. We talk about small things — something funny that happened, something we're curious about, a plan we're quietly excited for. The kitchen smells like garlic and something roasting. This is, I think, what abundance actually looks like: not the number in an account, but the quality of a Tuesday.
+
+Later, I read again before bed. The book is good. I fall asleep before the chapter ends.
+
+Tomorrow I will do this again. And the day after. Not because I have to. Because I built a life I actually want to live inside of — and every morning I wake up and it is still here.</div>
+
+    <!-- EDIT MODE -->
+    <textarea class="story-textarea" id="storyTextarea" oninput="updateWordCount(this.value)">Morning light filters through the curtains of my home in the hills. I stretch without an alarm — my body knows when it's ready. The day ahead is full, but it's mine completely.
+
+I walk barefoot to the kitchen. The coffee is already made — I set it the night before, a small ritual that tells me tomorrow is worth preparing for. I stand at the window and look out at the garden. The roses are in bloom. I planted them two years ago, during the season when everything felt uncertain, and now they bloom every spring without asking permission.
+
+My phone is face-down on the counter. It will stay that way until I've had an hour to myself.
+
+By eight, I'm at my desk. Not the desk I used to have — the one wedged against a closet wall, where I hunched over spreadsheets I didn't believe in. This desk faces a window. There are books on either side of me. A candle. A glass of water. The work I do now is work that came from me, shaped by me, and every morning I am a little amazed that this is real.
+
+The emails can wait. I read for twenty minutes first. This is non-negotiable.
+
+At ten I take a call with a collaborator in Madrid. We are building something together that neither of us could build alone. After the call I sit for a moment in the quiet and feel the particular satisfaction of people who know their purpose and are living it.
+
+Lunch is unhurried. I eat outside. The neighbor's dog wanders over, as it always does, and I scratch behind his ears and think about nothing in particular.
+
+In the afternoon, I do the creative work — the kind that requires full presence, the kind I used to save for weekends and then never actually do. Now it is simply part of Tuesday. I lose track of time. When I look up, two hours have passed and I feel accomplished in a way that is different from busy. This is the feeling I once chased everywhere and could never quite catch.
+
+By five, I am done. I close the laptop with intention. I do not check it again.
+
+My partner and I cook dinner together. We talk about small things — something funny that happened, something we're curious about, a plan we're quietly excited for. The kitchen smells like garlic and something roasting. This is, I think, what abundance actually looks like: not the number in an account, but the quality of a Tuesday.
+
+Later, I read again before bed. The book is good. I fall asleep before the chapter ends.
+
+Tomorrow I will do this again. And the day after. Not because I have to. Because I built a life I actually want to live inside of — and every morning I wake up and it is still here.</textarea>
+  </div>
+
+  <!-- EDIT HISTORY -->
+  <div class="history-card">
+    <div class="history-head">
+      <div class="history-label">Version History</div>
+    </div>
+    <div class="history-row">
+      <div class="history-left">
+        <div class="history-dot current"></div>
+        <div>
+          <div class="history-version">Version 3 — Current</div>
+          <div class="history-date">Edited March 7, 2026 · 847 words</div>
+        </div>
+      </div>
+      <div class="history-right">
+        <span class="history-badge">Current</span>
+      </div>
+    </div>
+    <div class="history-row">
+      <div class="history-left">
+        <div class="history-dot old"></div>
+        <div>
+          <div class="history-version">Version 2 — Regenerated</div>
+          <div class="history-date">February 14, 2026 · 792 words</div>
+        </div>
+      </div>
+      <div class="history-right">
+        <button class="history-restore" onclick="showToast('Version 2 restored')">Restore</button>
+      </div>
+    </div>
+    <div class="history-row">
+      <div class="history-left">
+        <div class="history-dot old"></div>
+        <div>
+          <div class="history-version">Version 1 — Original</div>
+          <div class="history-date">January 12, 2026 · 761 words</div>
+        </div>
+      </div>
+      <div class="history-right">
+        <button class="history-restore" onclick="showToast('Version 1 restored')">Restore</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- AUDIO FILE -->
+  <div class="audio-card">
+    <div class="audio-head">
+      <div>
+        <div class="audio-head-label">Audio File · MP3 · 9.2 MB</div>
+        <div class="audio-head-title">A Day in the Life of My Highest Self</div>
+      </div>
+      <a class="audio-dl-btn" href="#" download onclick="handleDownload(event)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Download MP3
+      </a>
+    </div>
+    <div class="audio-controls">
+      <div class="progress-row">
+        <span class="time-label">2:18</span>
+        <div class="progress-track" onclick="seekAudio(event, this)">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+        <span class="time-label right">6:42</span>
+      </div>
+      <div class="controls-row">
+        <button class="ctrl-btn" onclick="skipTime(-15)" title="Back 15s">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.65"/></svg>
+        </button>
+        <button class="ctrl-btn play-pause" id="mainPlayBtn" onclick="togglePlay()">
+          <svg id="playIcon" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          <svg id="pauseIcon" viewBox="0 0 24 24" fill="currentColor" style="display:none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+        </button>
+        <button class="ctrl-btn" onclick="skipTime(15)" title="Forward 15s">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-.49-3.65"/></svg>
+        </button>
+        <button class="ctrl-btn loop-btn" id="loopBtn" onclick="toggleLoop()" title="Loop">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="audio-note">Audio file is saved to your account. <a href="#">Re-generate audio</a> if you've updated your story text.</div>
+  </div>
+
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  let editMode = false;
+  let isPlaying = false;
+  let isLooping = false;
+  let originalText = '';
+  let originalTitle = '';
+
+  function toggleEditMode() {
+    editMode = !editMode;
+    const storyText = document.getElementById('storyText');
+    const storyTextarea = document.getElementById('storyTextarea');
+    const editToolbar = document.getElementById('editToolbar');
+    const editToggleBtn = document.getElementById('editToggleBtn');
+    const titleEl = document.getElementById('storyTitle');
+    const titleInput = document.getElementById('storyTitleInput');
+
+    if (editMode) {
+      // Save originals for cancel
+      originalText = storyTextarea.value;
+      originalTitle = titleInput.value;
+
+      // Switch to edit mode
+      storyText.style.display = 'none';
+      storyTextarea.style.display = 'block';
+      storyTextarea.style.height = storyTextarea.scrollHeight + 'px';
+      storyTextarea.focus();
+
+      titleEl.style.display = 'none';
+      titleInput.style.display = 'block';
+      titleInput.focus();
+
+      editToolbar.classList.add('visible');
+      editToggleBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Stop Editing`;
+      editToggleBtn.style.background = 'rgba(255,255,255,0.25)';
+    } else {
+      cancelEdit();
+    }
+  }
+
+  function saveEdit() {
+    const storyText = document.getElementById('storyText');
+    const storyTextarea = document.getElementById('storyTextarea');
+    const titleEl = document.getElementById('storyTitle');
+    const titleInput = document.getElementById('storyTitleInput');
+    const editToolbar = document.getElementById('editToolbar');
+    const editToggleBtn = document.getElementById('editToggleBtn');
+
+    // Apply changes
+    storyText.textContent = storyTextarea.value;
+    titleEl.textContent = titleInput.value;
+
+    // Exit edit mode
+    storyText.style.display = 'block';
+    storyTextarea.style.display = 'none';
+    titleEl.style.display = 'block';
+    titleInput.style.display = 'none';
+    editToolbar.classList.remove('visible');
+    editToggleBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Edit Story`;
+    editToggleBtn.style.background = '';
+    editMode = false;
+
+    showToast('✓ Story saved — your audio file is unchanged');
+    // TODO: developer — save storyTextarea.value and titleInput.value to database here
+  }
+
+  function cancelEdit() {
+    const storyText = document.getElementById('storyText');
+    const storyTextarea = document.getElementById('storyTextarea');
+    const titleEl = document.getElementById('storyTitle');
+    const titleInput = document.getElementById('storyTitleInput');
+    const editToolbar = document.getElementById('editToolbar');
+    const editToggleBtn = document.getElementById('editToggleBtn');
+
+    // Revert
+    storyTextarea.value = originalText;
+    titleInput.value = originalTitle;
+
+    storyText.style.display = 'block';
+    storyTextarea.style.display = 'none';
+    titleEl.style.display = 'block';
+    titleInput.style.display = 'none';
+    editToolbar.classList.remove('visible');
+    editToggleBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Edit Story`;
+    editToggleBtn.style.background = '';
+    editMode = false;
+  }
+
+  function updateWordCount(text) {
+    const count = text.trim().split(/\s+/).filter(w => w.length > 0).length;
+    document.getElementById('wordCountDisplay').textContent = count + ' words';
+    document.getElementById('storyWordCount').textContent = count + ' words';
+  }
+
+  function toggleRegen() {
+    const card = document.getElementById('regenCard');
+    card.classList.toggle('visible');
+    if (card.classList.contains('visible')) {
+      document.getElementById('regenPrompt').focus();
+      card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }
+
+  function confirmRegen() {
+    const prompt = document.getElementById('regenPrompt').value.trim();
+    if (!prompt) {
+      showToast('Please describe what you want to change');
+      return;
+    }
+    showToast('✨ Regenerating your story...');
+    document.getElementById('regenCard').classList.remove('visible');
+    document.getElementById('regenPrompt').value = '';
+    // TODO: developer — call Claude API with existing story goals + regenPrompt, save result as new version
+  }
+
+  function togglePlay() {
+    isPlaying = !isPlaying;
+    document.getElementById('playIcon').style.display = isPlaying ? 'none' : 'block';
+    document.getElementById('pauseIcon').style.display = isPlaying ? 'block' : 'none';
+    document.getElementById('playIconH').style.display = isPlaying ? 'none' : 'block';
+    document.getElementById('pauseIconH').style.display = isPlaying ? 'block' : 'none';
+    document.getElementById('playLabelH').textContent = isPlaying ? 'Pause' : 'Play Audio';
+    // TODO: developer — wire to <audio> element with R2 signed URL
+  }
+
+  function toggleLoop() {
+    isLooping = !isLooping;
+    document.getElementById('loopBtn').classList.toggle('on', isLooping);
+    showToast(isLooping ? '🔁 Looping on' : 'Loop off');
+  }
+
+  function skipTime(s) {
+    // TODO: developer — wire to audio.currentTime
+    console.log('Skip', s, 's');
+  }
+
+  function seekAudio(e, track) {
+    const rect = track.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    document.getElementById('progressFill').style.width = (pct * 100) + '%';
+    // TODO: developer — audio.currentTime = pct * audio.duration
+  }
+
+  function handleDownload(e) {
+    // TODO: developer — replace href with R2 signed URL for this story's audio file
+    e.preventDefault();
+    showToast('📥 Download will work once audio URL is wired by developer');
+  }
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 3200);
+  }
+</script>
+</body>
+</html>

@@ -4,7 +4,7 @@ import React, { useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 
-import DashboardContent from "./components/dashboard-components/DAshboardContent";
+import DashboardContent from "./components/dashboard-components/DashboardContent";
 import Layout from "./components/dashboard-components/Layout";
 
 const Dashboard = () => {
