@@ -1,4 +1,6 @@
-import { requireAdmin } from "@/lib/role-middleware";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { UserRole } from "@/lib/roles";
 import { redirect } from "next/navigation";
 
 export default async function AdminLayout({
@@ -6,10 +8,10 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // This will run on the server side and redirect if not admin
-  const result = await requireAdmin(new Request("http://localhost:3000/admin"));
+  // Check admin role directly via session on the server side
+  const session = await getServerSession(authOptions);
 
-  if (result) {
+  if (!session?.user || session.user.role !== UserRole.ADMIN) {
     redirect("/unauthorized");
   }
 
@@ -40,9 +42,7 @@ export default async function AdminLayout({
           </nav>
         </div>
       </div>
-      <div className="p-6">
-        {children}
-      </div>
+      <div className="p-6">{children}</div>
     </div>
   );
 }
