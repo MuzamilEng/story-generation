@@ -1,4 +1,4 @@
-# Purposify - Authentication Setup Guide
+# ManifestMyStory - Authentication Setup Guide
 
 A Next.js application with NextAuth.js authentication and Prisma ORM integration with PostgreSQL.
 
@@ -25,7 +25,7 @@ Create a `.env.local` file in the root directory with the following variables:
 
 ```env
 # Database
-DATABASE_URL="postgresql://username:password@localhost:5432/purposify_db"
+DATABASE_URL="postgresql://username:password@localhost:5432/ManifestMyStory_db"
 
 # NextAuth
 NEXTAUTH_URL="http://localhost:3000"
@@ -43,19 +43,22 @@ NEXTAUTH_SECRET="your-super-secret-key-here-change-in-production"
 ### 2. Database Setup
 
 1. **Create PostgreSQL Database**:
+
    ```sql
-   CREATE DATABASE purposify_db;
-   CREATE USER purposify_user WITH ENCRYPTED PASSWORD 'your_password';
-   GRANT ALL PRIVILEGES ON DATABASE purposify_db TO purposify_user;
+   CREATE DATABASE ManifestMyStory_db;
+   CREATE USER ManifestMyStory_user WITH ENCRYPTED PASSWORD 'your_password';
+   GRANT ALL PRIVILEGES ON DATABASE ManifestMyStory_db TO ManifestMyStory_user;
    ```
 
 2. **Run Database Migrations**:
+
    ```bash
    # Make sure your .env.local is configured first
    ./setup-db.sh
    ```
 
    Or run manually:
+
    ```bash
    npx prisma migrate dev --name init
    npx prisma generate
@@ -78,20 +81,22 @@ Visit `http://localhost:3000` to see your application.
 ## 👥 User Roles & Permissions
 
 ### Roles
+
 - **User**: Basic user with access to dashboard and content management
 - **Moderator**: Enhanced user with analytics access and content deletion permissions
 - **Admin**: Full system access including user management and admin panel
 
 ### Permissions by Role
-| Permission | User | Moderator | Admin |
-|------------|------|-----------|-------|
-| View Dashboard | ✅ | ✅ | ✅ |
-| Manage Content | ✅ | ✅ | ✅ |
-| View Analytics | ❌ | ✅ | ✅ |
-| Delete Content | ❌ | ✅ | ✅ |
-| Manage Users | ❌ | ❌ | ✅ |
-| Access Admin Panel | ❌ | ❌ | ✅ |
-| Manage Settings | ❌ | ❌ | ✅ |
+
+| Permission         | User | Moderator | Admin |
+| ------------------ | ---- | --------- | ----- |
+| View Dashboard     | ✅   | ✅        | ✅    |
+| Manage Content     | ✅   | ✅        | ✅    |
+| View Analytics     | ❌   | ✅        | ✅    |
+| Delete Content     | ❌   | ✅        | ✅    |
+| Manage Users       | ❌   | ❌        | ✅    |
+| Access Admin Panel | ❌   | ❌        | ✅    |
+| Manage Settings    | ❌   | ❌        | ✅    |
 
 ## 🔐 Authentication Flow
 
