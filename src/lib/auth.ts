@@ -1,5 +1,5 @@
 import { NextAuthOptions } from "next-auth"
-import { PrismaAdapter } from "@auth/prisma-adapter"
+import { PrismaAdapter } from "@next-auth/prisma-adapter"
 import CredentialsProvider from "next-auth/providers/credentials"
 import GoogleProvider from "next-auth/providers/google"
 import { compare } from "bcryptjs"
@@ -9,7 +9,7 @@ export const authOptions: NextAuthOptions = {
   // ✅ MUST include secret
   secret: process.env.NEXTAUTH_SECRET,
 
-  adapter: PrismaAdapter(prisma) as any,
+  adapter: PrismaAdapter(prisma),
 
   providers: [
     GoogleProvider({
@@ -118,53 +118,6 @@ export const authOptions: NextAuthOptions = {
 
     async signIn({ user, account, profile }) {
       console.log('[AUTH] SignIn attempt:', user.email, 'Provider:', account?.provider)
-
-      if (account?.provider === "google") {
-        try {
-          const existingUser = await prisma.user.findUnique({
-            where: { email: user.email! }
-          })
-
-          if (!existingUser) {
-            console.log('[AUTH] Creating new Google user:', user.email)
-            await prisma.user.create({
-              data: {
-                email: user.email!,
-                name: user.name,
-                image: user.image,
-                emailVerified: new Date(),
-                role: 'USER',
-              }
-            })
-          } else {
-            console.log('[AUTH] Updating existing Google user:', user.email)
-            const updateData: any = {
-              emailVerified: new Date(),
-            }
-
-            if (!existingUser.name && user.name) {
-              updateData.name = user.name
-            }
-
-            if (!existingUser.image && user.image) {
-              updateData.image = user.image
-            }
-
-            if (!existingUser.role) {
-              updateData.role = 'USER'
-            }
-
-            await prisma.user.update({
-              where: { id: existingUser.id },
-              data: updateData
-            })
-          }
-          return true
-        } catch (error) {
-          console.error("[AUTH] Google OAuth error:", error)
-          return false
-        }
-      }
       return true
     },
 

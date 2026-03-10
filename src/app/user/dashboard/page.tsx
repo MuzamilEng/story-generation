@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { signOut, useSession } from 'next-auth/react';
 import { format, formatDistanceToNow } from 'date-fns';
 import styles from '../../styles/Dashboard.module.css';
 
@@ -259,6 +260,12 @@ const ActivityRow: React.FC<ActivityRowProps> = ({ activity }) => {
 
 const Dashboard: React.FC = () => {
     const router = useRouter();
+    const { data: session } = useSession();
+
+    const userName = session?.user?.name || 'User';
+    const userEmail = session?.user?.email || 'user@example.com';
+    const userInitials = userName.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase() || 'U';
+    const firstName = userName.split(' ')[0] || 'User';
 
     useEffect(() => {
         document.title = "ManifestMyStory — My Dashboard";
@@ -440,13 +447,13 @@ const Dashboard: React.FC = () => {
                             onClick={toggleDropdown}
                             aria-label="Account menu"
                         >
-                            JD
+                            {userInitials}
                         </button>
 
                         <div className={`${styles.avatarDropdown} ${dropdownOpen ? styles.open : ''}`}>
                             <div className={styles.ddUser}>
-                                <div className={styles.ddName}>Jane Doe</div>
-                                <div className={styles.ddEmail}>jane.doe@example.com</div>
+                                <div className={styles.ddName}>{userName}</div>
+                                <div className={styles.ddEmail}>{userEmail}</div>
                             </div>
 
                             <div
@@ -461,7 +468,7 @@ const Dashboard: React.FC = () => {
 
                             <div
                                 className={styles.ddItem}
-                                onClick={() => router.push('/login')}
+                                onClick={() => signOut({ callbackUrl: '/auth/signin' })}
                                 style={{ color: 'var(--red)' }}
                             >
                                 <LogoutIcon />
@@ -477,7 +484,7 @@ const Dashboard: React.FC = () => {
                 <div className={styles.greeting}>
                     <div className={styles.greetingEyebrow}>Good morning</div>
                     <h1 className={styles.greetingTitle}>
-                        Welcome back, <em>Jane.</em>
+                        Welcome back, <em>{firstName}.</em>
                     </h1>
                     <p className={styles.greetingSub}>
                         Your story is waiting. Take a few minutes to listen — your future self is already living this.
