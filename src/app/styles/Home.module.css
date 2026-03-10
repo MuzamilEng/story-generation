@@ -28,7 +28,7 @@
     top: 0;
     left: 0;
     right: 0;
-    z-index: 100;
+    z-index: 201;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -48,10 +48,16 @@
     font-size: 1.15rem;
     color: var(--ink);
     text-decoration: none;
+    transition: opacity 0.2s;
 }
 
 .navLogo span {
     color: var(--accent);
+}
+
+.navLogoHidden {
+    opacity: 0;
+    pointer-events: none;
 }
 
 .navLinks {
@@ -96,6 +102,200 @@
 
 .navCta:hover {
     background: #235840;
+}
+
+.navCtaDesktop {
+    display: inline-flex;
+}
+
+/* BURGER BUTTON */
+.burger {
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    gap: 5px;
+    width: 36px;
+    height: 36px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 6px;
+    transition: background 0.2s;
+    position: relative;
+    z-index: 202;
+}
+
+.burger:hover {
+    background: var(--accent-light);
+}
+
+.burger span {
+    display: block;
+    height: 2px;
+    width: 100%;
+    background: var(--ink);
+    border-radius: 2px;
+    transition: transform 0.3s, opacity 0.3s, width 0.3s;
+    transform-origin: center;
+}
+
+.burgerOpen span:nth-child(1) {
+    transform: translateY(7px) rotate(45deg);
+}
+
+.burgerOpen span:nth-child(2) {
+    opacity: 0;
+    width: 0;
+}
+
+.burgerOpen span:nth-child(3) {
+    transform: translateY(-7px) rotate(-45deg);
+}
+
+/* MOBILE MENU OVERLAY */
+.mobileMenuOverlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(28, 26, 22, 0.45);
+    z-index: 199;
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.mobileMenuOverlayVisible {
+    opacity: 1;
+}
+
+/* MOBILE DRAWER */
+.mobileMenu {
+    display: none;
+    position: fixed;
+    top: 0;
+    right: 0;
+    height: 100dvh;
+    width: min(82vw, 320px);
+    background: var(--surface);
+    z-index: 200;
+    transform: translateX(100%);
+    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: -4px 0 24px rgba(0, 0, 0, 0.1);
+    overflow-y: auto;
+    flex-direction: column;
+}
+
+.mobileMenuOpen {
+    transform: translateX(0);
+}
+
+.mobileMenuHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.1rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    background: var(--surface);
+    z-index: 1;
+}
+
+.mobileMenuClose {
+    background: none;
+    border: none;
+    font-size: 1rem;
+    color: var(--ink-muted);
+    cursor: pointer;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    transition: background 0.2s, color 0.2s;
+}
+
+.mobileMenuClose:hover {
+    background: var(--accent-light);
+    color: var(--accent);
+}
+
+.mobileMenuNav {
+    display: flex;
+    flex-direction: column;
+    padding: 1rem 0 2rem;
+}
+
+.mobileMenuSection {
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    padding: 0.9rem 1.25rem 0.35rem;
+    margin: 0;
+}
+
+.mobileMenuLink {
+    font-size: 0.92rem;
+    color: var(--ink);
+    text-decoration: none;
+    padding: 0.7rem 1.25rem;
+    transition: background 0.15s, color 0.15s;
+    border-radius: 0;
+}
+
+.mobileMenuLink:hover {
+    background: var(--accent-light);
+    color: var(--accent);
+}
+
+.mobileMenuDivider {
+    height: 1px;
+    background: var(--border);
+    margin: 0.75rem 1.25rem;
+}
+
+.mobileMenuCta {
+    display: block;
+    margin: 0.5rem 1.25rem 0;
+    background: var(--accent);
+    color: #fff;
+    text-align: center;
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    text-decoration: none;
+    font-size: 0.88rem;
+    font-weight: 500;
+    transition: background 0.2s;
+}
+
+.mobileMenuCta:hover {
+    background: #235840;
+}
+
+/* RESPONSIVE — show burger & drawer on mobile */
+@media (max-width: 768px) {
+    .burger {
+        display: flex;
+    }
+
+    .navCtaDesktop {
+        display: none;
+    }
+
+    .navLinks {
+        display: none;
+    }
+
+    .mobileMenuOverlay {
+        display: block;
+    }
+
+    .mobileMenu {
+        display: flex;
+    }
 }
 
 /* HERO */
