@@ -11,10 +11,14 @@ export async function middleware(req: NextRequest) {
     const isPublicUserPath = PUBLIC_USER_PATHS.some((p) => pathname.startsWith(p));
 
     if (!isPublicUserPath && pathname.startsWith('/user/')) {
-        const token = await getToken({
-            req,
-            secret: process.env.NEXTAUTH_SECRET,
-        });
+        // Safety guard: if secret is missing on Vercel, don't crash the edge function
+        if (!process.env.NEXTAUTH_SECRET) {
+            console.error('[middleware] NEXTAUTH_SECRET is not set — skipping auth check');
+            return NextResponse.next();
+        }
+
+        // Let getToken auto-read NEXTAUTH_SECRET from env
+        const token = await getToken({ req });
 
         if (!token) {
             const signInUrl = new URL('/auth/signin', req.url);
