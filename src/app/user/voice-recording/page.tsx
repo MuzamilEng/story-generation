@@ -294,12 +294,12 @@ const VoiceRecording: React.FC = () => {
     };
 
     const handleSkip = () => {
-        router.push('/audio-download');
+        router.push('/user/audio-download');
     };
 
     const handleSubmit = () => {
         // In production, upload the recorded audio
-        router.push('/audio-download');
+        router.push('/user/audio-download');
     };
 
     const formatTime = (s: number): string => {

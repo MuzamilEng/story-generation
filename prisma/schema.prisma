@@ -10,11 +10,42 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// User Roles Enum
+// Enums
 enum UserRole {
   USER
   MODERATOR
   ADMIN
+}
+
+enum AuthProvider {
+  email
+  google
+  apple
+}
+
+enum Plan {
+  free
+  single
+  standard
+  power
+}
+
+enum StoryStatus {
+  draft
+  approved
+  audio_ready
+}
+
+enum VersionSource {
+  original
+  edited
+  regenerated
+}
+
+enum EventType {
+  play
+  download
+  sample_play
 }
 
 // NextAuth.js Models
@@ -46,20 +77,145 @@ model Session {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String    @unique
-  emailVerified DateTime?
-  image         String?
-  password      String?
-  role          UserRole  @default(USER)
-  isActive      Boolean   @default(true)
-  lastLogin     DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id                      String         @id @default(cuid())
+  email                   String         @unique @map("email")
+  password_hash           String?
+  full_name               String         @map("full_name")
+  avatar_url              String?        @map("avatar_url")
+  auth_provider           AuthProvider   @default(email) @map("auth_provider")
+  plan                    Plan           @default(free)
+  plan_started_at         DateTime?      @map("plan_started_at")
+  plan_renewed_at         DateTime?      @map("plan_renewed_at")
+  stories_this_month      Int            @default(0) @map("stories_this_month")
+  audio_mins_this_month   Decimal        @default(0) @map("audio_mins_this_month")
+  total_stories_ever      Int            @default(0) @map("total_stories_ever")
+  total_audio_plays       Int            @default(0) @map("total_audio_plays")
+  total_downloads         Int            @default(0) @map("total_downloads")
+  streak_days             Int            @default(0) @map("streak_days")
+  streak_last_date        DateTime?      @map("streak_last_date")
+  voice_model_id          String?        @map("voice_model_id")
+  voice_sample_url        String?        @map("voice_sample_url")
+  emailVerified           DateTime?      @map("email_verified")
+  role                    UserRole       @default(USER)
+  isActive                Boolean        @default(true) @map("is_active")
+  lastLogin               DateTime?      @map("last_login")
+  createdAt               DateTime       @default(now()) @map("created_at")
+  updatedAt               DateTime       @updatedAt @map("updated_at")
 
-  accounts Account[]
-  sessions Session[]
+  // Relations
+  accounts        Account[]
+  sessions        Session[]
+  stories         Story[]
+  playEvents      PlayEvent[]
+
+  @@index([email])
+  @@map("users")
+}
+
+model Story {
+  id                      String         @id @default(cuid())
+  userId                  String         @map("user_id")
+  title                   String         @db.VarChar(200)
+  status                  StoryStatus
+  goal_intake_json        Json           @map("goal_intake_json")
+  story_text_draft        String?        @db.Text @map("story_text_draft")
+  story_text_approved     String?        @db.Text @map("story_text_approved")
+  word_count              Int?           @map("word_count")
+  audio_url               String?        @db.Text @map("audio_url")
+  audio_r2_key            String?        @db.Text @map("audio_r2_key")
+  audio_duration_secs     Int?           @map("audio_duration_secs")
+  audio_file_size_bytes   BigInt?        @map("audio_file_size_bytes")
+  audio_version           Int            @default(0) @map("audio_version")
+  version                 Int            @default(1)
+  elevenlabs_history_id   String?        @db.VarChar(100) @map("elevenlabs_history_id")
+  play_count              Int            @default(0) @map("play_count")
+  download_count          Int            @default(0) @map("download_count")
+  createdAt               DateTime       @default(now()) @map("created_at")
+  updatedAt               DateTime       @updatedAt @map("updated_at")
+  approved_at             DateTime?      @map("approved_at")
+  audio_generated_at      DateTime?      @map("audio_generated_at")
+
+  // Relations
+  user            User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  versions        StoryVersion[]
+  audioVersions   StoryAudioVersion[]
+  playEvents      PlayEvent[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("stories")
+}
+
+model StoryVersion {
+  id            String         @id @default(cuid())
+  storyId       String         @map("story_id")
+  version       Int
+  title         String         @db.Text
+  body          String         @db.Text
+  word_count    Int            @map("word_count")
+  source        VersionSource
+  regen_prompt  String?        @db.Text @map("regen_prompt")
+  created_at    DateTime       @default(now()) @map("created_at")
+
+  // Relations
+  story Story @relation(fields: [storyId], references: [id], onDelete: Cascade)
+
+  @@unique([storyId, version])
+  @@index([storyId])
+  @@index([created_at])
+  @@map("story_versions")
+}
+
+model StoryAudioVersion {
+  id            String   @id @default(cuid())
+  storyId       String   @map("story_id")
+  audio_version Int      @map("audio_version")
+  r2_key        String   @db.Text @map("r2_key")
+  duration_s    Int?     @map("duration_s")
+  size_bytes    Int?     @map("size_bytes")
+  created_at    DateTime @default(now()) @map("created_at")
+
+  // Relations
+  story Story @relation(fields: [storyId], references: [id], onDelete: Cascade)
+
+  @@unique([storyId, audio_version])
+  @@index([storyId])
+  @@index([created_at])
+  @@map("story_audio_versions")
+}
+
+model PlayEvent {
+  id            String    @id @default(cuid())
+  userId        String    @map("user_id")
+  storyId       String    @map("story_id")
+  event_type    EventType @map("event_type")
+  duration_secs Int?      @map("duration_secs")
+  created_at    DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  story Story @relation(fields: [storyId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([storyId])
+  @@index([event_type])
+  @@index([created_at])
+  @@map("play_events")
+}
+
+model PlanLimit {
+  id                      String   @id @default(cuid())
+  plan                    Plan     @unique
+  max_library_stories     Int      @map("max_library_stories")
+  stories_per_month       Int?     @map("stories_per_month")
+  audio_mins_per_month    Int?     @map("audio_mins_per_month")
+  audio_length_secs       Int      @map("audio_length_secs")
+  audio_length_desc       String   @map("audio_length_desc")
+  created_at              DateTime @default(now()) @map("created_at")
+  updated_at              DateTime @updatedAt @map("updated_at")
+
+  @@map("plan_limits")
 }
 
 model VerificationToken {

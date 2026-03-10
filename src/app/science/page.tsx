@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import styles from '../../styles/Science.module.css';
+import styles from '../styles/Science.module.css';
 import {
     ArrowIcon,
     CheckIcon,
@@ -13,12 +13,12 @@ import {
     BookIcon,
     UsersIcon,
     InfoIcon
-} from '../../components/icons/ScienceIcons';
+} from '../components/icons/ScienceIcons';
 import type {
     ScienceCard as IScienceCard,
     ResearchItem as IResearchItem,
     HowItWorksStep as IHowItWorksStep
-} from '../../types/science';
+} from '../types/science';
 
 // Navigation Component
 const Navigation: React.FC = () => {
@@ -46,7 +46,7 @@ const Navigation: React.FC = () => {
                 </a>
             </div>
 
-            <Link href="/goal-intake-ai" className={styles.navCta}>
+            <Link href="/user/story" className={styles.navCta}>
                 Create My Story — Free
             </Link>
         </nav>
@@ -242,7 +242,7 @@ const GorillaExperiment: React.FC = () => {
                     <p className={styles.insightBody}>
                         The gorilla was always there. Obvious, large, beating its chest. But your brain had a task — and it deleted everything else. The opportunities, connections, and moments that could build your ideal life work exactly the same way. They're present in your world right now. Your brain just isn't programmed to notice them yet. When you listen to your story every day, you're giving your brain a new task. And suddenly, what was invisible becomes impossible to miss.
                     </p>
-                    <Link href="/goal-intake-ai" className={styles.insightCta}>
+                    <Link href="/user/goal-intake-ai" className={styles.insightCta}>
                         Start Programming My Brain
                         <ArrowIcon />
                     </Link>
@@ -631,7 +631,7 @@ const Science: React.FC = () => {
                 <p className={styles.finalCtaSub}>
                     Your manifestation story takes 15 minutes to create and a lifetime to benefit from. Start with your goals — the rest follows.
                 </p>
-                <Link href="/goal-intake-ai" className={styles.finalCtaBtn}>
+                <Link href="/user/goal-intake-ai" className={styles.finalCtaBtn}>
                     Create My Story — It's Free
                     <ArrowIcon />
                 </Link>

@@ -625,7 +625,7 @@ Tomorrow I will do this again. And the day after. Not because I have to. Because
     };
 
     const handleNewStory = () => {
-        router.push('/goal-intake-ai');
+        router.push('/user/goal-intake-ai');
     };
 
     return (

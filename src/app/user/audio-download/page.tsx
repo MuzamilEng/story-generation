@@ -461,7 +461,7 @@ const AudioReady: React.FC = () => {
                     <div className={styles.nextCards}>
                         <div
                             className={styles.nextCard}
-                            onClick={() => router.push('/goal-intake-ai')}
+                            onClick={() => router.push('/user/goal-intake-ai')}
                         >
                             <div className={styles.nextCardIcon}>
                                 <StarIcon />
@@ -479,7 +479,7 @@ const AudioReady: React.FC = () => {
 
                         <div
                             className={styles.nextCard}
-                            onClick={() => router.push('/dashboard')}
+                            onClick={() => router.push('/user/dashboard')}
                         >
                             <div className={styles.nextCardIcon}>
                                 <ChartIcon />
@@ -526,7 +526,7 @@ const AudioReady: React.FC = () => {
                             <Link href="/manifest" className={styles.homeCta}>
                                 ← Return Home
                             </Link>
-                            <Link href="/goal-intake-ai" className={styles.homeCtaOutline}>
+                            <Link href="/user/goal-intake-ai" className={styles.homeCtaOutline}>
                                 Create another story
                             </Link>
                         </div>

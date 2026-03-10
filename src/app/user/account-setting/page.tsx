@@ -30,10 +30,13 @@ const TopBar: React.FC<TopBarProps> = ({ onNewStory }) => (
         </Link>
 
         <nav className={styles.topbarNav}>
-            <Link href="/dashboard" className={styles.navLink}>
-                My Stories
+            <Link href="/user/dashboard" className={styles.navLink}>
+                My Dashboard
             </Link>
-            <Link href="/account-settings" className={`${styles.navLink} ${styles.active}`}>
+            <Link href="/science" className={styles.navLink}>
+                The Science
+            </Link>
+            <Link href="/user/account-setting" className={`${styles.navLink} ${styles.active}`}>
                 Settings
             </Link>
         </nav>
@@ -288,7 +291,7 @@ const AccountSettings: React.FC = () => {
     };
 
     const handleNewStory = () => {
-        router.push('/goal-intake-ai');
+        router.push('/user/goal-intake-ai');
     };
 
     const handlePlaySample = () => {
@@ -332,7 +335,7 @@ const AccountSettings: React.FC = () => {
 
                 <main className={styles.page}>
                     {/* Back Link */}
-                    <Link href="/dashboard" className={styles.backLink}>
+                    <Link href="/user/dashboard" className={styles.backLink}>
                         <ArrowLeftIcon />
                         Back to Dashboard
                     </Link>

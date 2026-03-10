@@ -386,6 +386,7 @@ Later, in bed, I feel the day settle into me. It was not extraordinary by any me
         if (isEditing) {
             setIsEditing(false);
         }
+        router.push('/user/voice-recording');
     };
 
     const handleUnapprove = () => {
@@ -393,7 +394,7 @@ Later, in bed, I feel the day settle into me. It was not extraordinary by any me
     };
 
     const handleRecordVoice = () => {
-        router.push('/voice-recording');
+        router.push('/user/voice-recording');
     };
 
     const handleToggleCheck = (id: string) => {

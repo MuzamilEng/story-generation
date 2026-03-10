@@ -422,21 +422,24 @@ const Dashboard: React.FC = () => {
         <div className={styles.container}>
             {/* TOP NAV */}
             <header className={styles.topbar}>
-                <Link href="/manifest" className={styles.logo}>
+                <Link href="/" className={styles.logo}>
                     Manifest<span>MyStory</span>
                 </Link>
 
                 <nav className={styles.topbarNav}>
-                    <Link href="/dashboard" className={`${styles.navLink} ${styles.active}`}>
+                    <Link href="/user/dashboard" className={`${styles.navLink} ${styles.active}`}>
                         My Dashboard
                     </Link>
                     <Link href="/science" className={styles.navLink}>
                         The Science
                     </Link>
+                    <Link href="/user/account-setting" className={styles.navLink}>
+                        Settings
+                    </Link>
                 </nav>
 
                 <div className={styles.topbarRight}>
-                    <Link href="/goal-intake-ai" className={styles.newStoryBtn}>
+                    <Link href="/user/story" className={styles.newStoryBtn}>
                         <PlusIcon />
                         New story
                     </Link>
@@ -458,7 +461,7 @@ const Dashboard: React.FC = () => {
 
                             <div
                                 className={styles.ddItem}
-                                onClick={() => alert('Account settings — coming soon')}
+                                onClick={() => router.push('/user/account-setting')}
                             >
                                 <UserIcon />
                                 Account settings
@@ -642,7 +645,7 @@ const Dashboard: React.FC = () => {
                     ))}
 
                     {/* Empty slot for new story */}
-                    <Link href="/goal-intake-ai" className={styles.storySlot}>
+                    <Link href="/user/goal-intake-ai" className={styles.storySlot}>
                         <div className={styles.storySlotIcon}>
                             <PlusIcon />
                         </div>

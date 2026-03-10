@@ -1,7 +1,9 @@
 'use client'
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import styles from '../../styles/GoalDiscovery.module.css';
+import Link from 'next/link';
 import { SendIcon, UserIcon, ArrowIcon } from '../../components/icons/ChatIcons';
 import {
     Message,
@@ -132,6 +134,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, onChipClick }) =
 
 const GoalDiscovery: React.FC = () => {
     const router = useRouter();
+    const { data: session } = useSession();
 
     useEffect(() => {
         document.title = "ManifestMyStory — Goal Discovery";
@@ -296,16 +299,23 @@ const GoalDiscovery: React.FC = () => {
     const handleGenerateStory = useCallback(() => {
         // Store captured data for next page
         sessionStorage.setItem('capturedGoals', JSON.stringify(capturedData));
-        router.push('/story-generation');
-    }, [capturedData, router]);
+
+        if (session) {
+            // Logged in: go directly to story creation
+            router.push('/user/story');
+        } else {
+            // Not logged in: go to signup then continue to story
+            router.push('/auth/signup?next=/user/story');
+        }
+    }, [capturedData, router, session]);
 
     return (
         <div className={styles.container}>
             {/* Top Bar */}
             <header className={styles.topbar}>
-                <div className={styles.logo}>
+                <Link href="/" className={styles.logo}>
                     Manifest<span>MyStory</span>
-                </div>
+                </Link>
 
                 <div className={styles.progressWrap}>
                     <div className={styles.progressMeta}>
@@ -320,8 +330,19 @@ const GoalDiscovery: React.FC = () => {
                     </div>
                 </div>
 
-                <div className={styles.phaseBadge}>
-                    {progress.phase}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div className={styles.phaseBadge}>
+                        {progress.phase}
+                    </div>
+                    {session ? (
+                        <Link href="/user/dashboard" style={{ fontSize: '13px', opacity: 0.7, textDecoration: 'none' }}>
+                            Dashboard →
+                        </Link>
+                    ) : (
+                        <Link href="/auth/signin" style={{ fontSize: '13px', opacity: 0.7, textDecoration: 'none' }}>
+                            Sign In
+                        </Link>
+                    )}
                 </div>
             </header>
 

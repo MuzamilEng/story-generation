@@ -356,16 +356,16 @@ const Subscription: React.FC = () => {
                     </Link>
 
                     <nav className={styles.topbarNav}>
-                        <Link href="/dashboard" className={`${styles.navLink} ${styles.active}`}>
+                        <Link href="/user/dashboard" className={`${styles.navLink} ${styles.active}`}>
                             My Stories
                         </Link>
-                        <Link href="/account-settings" className={styles.navLink}>
+                        <Link href="/user/account-setting" className={styles.navLink}>
                             Settings
                         </Link>
                     </nav>
 
                     <div className={styles.topbarRight}>
-                        <Link href="/goal-intake-ai" className={styles.newStoryBtn}>
+                        <Link href="/user/goal-intake-ai" className={styles.newStoryBtn}>
                             <PlusIcon />
                             New Story
                         </Link>
@@ -375,7 +375,7 @@ const Subscription: React.FC = () => {
 
                 <main className={styles.page}>
                     {/* Back Link */}
-                    <Link href="/account-settings" className={styles.backLink}>
+                    <Link href="/user/account-setting" className={styles.backLink}>
                         <ArrowLeftIcon />
                         Back to Account Settings
                     </Link>

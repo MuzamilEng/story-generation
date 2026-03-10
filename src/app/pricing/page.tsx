@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import styles from '../../styles/Pricing.module.css';
+import styles from '../styles/Pricing.module.css';
 import {
     CheckIcon,
     XIcon,
@@ -13,8 +13,8 @@ import {
     BoltIcon,
     ArrowIcon,
     ChevronIcon
-} from '../../components/icons/PricingIcons';
-import { BillingPeriod, Plan, FeatureComparison, FAQ } from '../../types/pricing';
+} from '../components/icons/PricingIcons';
+import { BillingPeriod, Plan, FeatureComparison, FAQ } from '../types/pricing';
 
 // Step Item Component
 interface StepItemProps {
@@ -224,7 +224,7 @@ const ComparisonTable: React.FC<ComparisonTableProps> = ({ isOpen, onToggle }) =
     );
 };
 
-const Pricing: React.FC = () => {
+const PricingPage: React.FC = () => {
     const router = useRouter();
 
     useEffect(() => {
@@ -240,6 +240,7 @@ const Pricing: React.FC = () => {
             }
         };
     }, []);
+
     const [billing, setBilling] = useState<BillingPeriod>('monthly');
     const [compareOpen, setCompareOpen] = useState(false);
     const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
@@ -374,25 +375,11 @@ const Pricing: React.FC = () => {
     };
 
     const handlePlanSelect = (planId: string) => {
-        const isAnnual = billing === 'annual';
-
-        // TODO: Wire up actual payment processing
         if (planId === 'free') {
-            router.push('/dashboard');
+            router.push('/user/dashboard');
         } else {
-            // For paid plans, navigate to voice recording
-            router.push('/voice-recording');
-        }
-    };
-
-    const getPriceDisplay = (plan: Plan) => {
-        if (plan.id === 'free') return '$0';
-        if (plan.id === 'single') return '$4.99';
-
-        if (billing === 'monthly') {
-            return `$${plan.monthlyPrice}/mo`;
-        } else {
-            return `$${plan.annualPrice}/mo`;
+            // For paid plans, go to voice recording to complete the flow
+            router.push('/user/voice-recording');
         }
     };
 
@@ -400,12 +387,14 @@ const Pricing: React.FC = () => {
         <div className={styles.container}>
             {/* TOP BAR */}
             <header className={styles.topbar}>
-                <div className={styles.logo}>
+                <Link href="/" className={styles.logo}>
                     Manifest<span>MyStory</span>
-                </div>
-                <div className={styles.topbarRight}>
-                    Signed in as <span className={styles.userEmail}>sarah.johnson@example.com</span>
-                </div>
+                </Link>
+                <nav style={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
+                    <Link href="/#how" style={{ fontSize: '14px', textDecoration: 'none', opacity: 0.7 }}>How it works</Link>
+                    <Link href="/pricing" style={{ fontSize: '14px', textDecoration: 'none', fontWeight: 500 }}>Pricing</Link>
+                    <Link href="/user/goal-intake-ai" style={{ fontSize: '14px', textDecoration: 'none', background: 'var(--accent)', color: '#fff', padding: '8px 16px', borderRadius: '8px' }}>Get Started</Link>
+                </nav>
             </header>
 
             {/* PROGRESS STEPS */}
@@ -516,4 +505,4 @@ const Pricing: React.FC = () => {
     );
 };
 
-export default Pricing;
+export default PricingPage;

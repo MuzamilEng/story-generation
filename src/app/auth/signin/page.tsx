@@ -1,7 +1,7 @@
 'use client'
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { signIn } from 'next-auth/react';
 import styles from '../../styles/SignIn.module.css';
 import {
@@ -68,6 +68,8 @@ const FieldError: React.FC<FieldErrorProps> = ({ show, message }) => (
 
 const SignIn: React.FC = () => {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const nextUrl = searchParams.get('next') || '/user/dashboard';
 
   useEffect(() => {
     document.title = "ManifestMyStory — Sign In";
@@ -150,7 +152,7 @@ const SignIn: React.FC = () => {
         setShowAlert(true);
         setIsLoading(false);
       } else {
-        router.push('/user/dashboard');
+        router.push(nextUrl);
       }
     } catch (error) {
       setShowAlert(true);
@@ -400,4 +402,10 @@ const SignIn: React.FC = () => {
   );
 };
 
-export default SignIn;
+const SignInPage: React.FC = () => (
+  <Suspense fallback={<div />}>
+    <SignIn />
+  </Suspense>
+);
+
+export default SignInPage;
