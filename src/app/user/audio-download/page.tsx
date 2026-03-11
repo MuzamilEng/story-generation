@@ -1,10 +1,10 @@
 'use client'
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import styles from '../../styles/AudioReady.module.css';
 
-// Icon Components
+// Icon Components (kept as they were)
 const CheckIcon = () => (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
         <polyline points="20 6 9 17 4 12" />
@@ -25,10 +25,10 @@ const PlayIcon = () => (
 );
 
 const PauseIcon = () => (
-    <>
+    <svg viewBox="0 0 24 24" fill="currentColor">
         <rect x="6" y="4" width="4" height="16" />
         <rect x="14" y="4" width="4" height="16" />
-    </>
+    </svg>
 );
 
 const SkipBackIcon = () => (
@@ -43,6 +43,7 @@ const SkipForwardIcon = () => (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
         <polyline points="23 4 23 10 17 10" />
         <path d="M20.49 15a9 9 0 1 1-.49-4.95" />
+        <text x="8" y="16" fontSize="7" fill="currentColor" stroke="none">15</text>
     </svg>
 );
 
@@ -114,8 +115,23 @@ interface WaveformBar {
     played: boolean;
 }
 
-const AudioReady: React.FC = () => {
+const AudioReadyContent: React.FC = () => {
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const storyId = searchParams.get('storyId');
+
+    const [story, setStory] = useState<any>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [isPlaying, setIsPlaying] = useState(false);
+    const [currentTime, setCurrentTime] = useState(0);
+    const [duration, setDuration] = useState(0);
+    const [volume, setVolume] = useState(85);
+    const [showDownloadPrompt, setShowDownloadPrompt] = useState(false);
+    const [waveformBars, setWaveformBars] = useState<WaveformBar[]>([]);
+
+    const audioRef = useRef<HTMLAudioElement>(null);
+    const waveformCount = 80;
+
     useEffect(() => {
         document.title = "ManifestMyStory — Your Audio is Ready";
         const link = document.createElement('link');
@@ -130,102 +146,152 @@ const AudioReady: React.FC = () => {
         };
     }, []);
 
-    const [isPlaying, setIsPlaying] = useState(false);
-    const [currentTime, setCurrentTime] = useState(0);
-    const [volume, setVolume] = useState(85);
-    const [showDownloadPrompt, setShowDownloadPrompt] = useState(false);
-    const [waveformBars, setWaveformBars] = useState<WaveformBar[]>([]);
-
-    const totalDuration = 384; // 6:24 in seconds
-    const waveformCount = 80;
-    const intervalRef = useRef<NodeJS.Timeout | null>(null);
+    useEffect(() => {
+        const fetchStory = async () => {
+            if (!storyId) {
+                setIsLoading(false);
+                return;
+            }
+            try {
+                const res = await fetch(`/api/user/stories/${storyId}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    setStory(data);
+                }
+            } catch (err) {
+                console.error("Failed to fetch story", err);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchStory();
+    }, [storyId]);
 
     useEffect(() => {
-        // Generate random waveform heights
+        // Generate random-ish waveform heights
         const heights = Array.from({ length: waveformCount }, () => Math.random() * 32 + 4);
         setWaveformBars(heights.map(height => ({ height, played: false })));
     }, []);
 
     useEffect(() => {
-        // Update played bars based on current time
-        const playedBars = Math.floor((currentTime / totalDuration) * waveformCount);
+        if (!duration) return;
+        const playedBars = Math.floor((currentTime / duration) * waveformCount);
         setWaveformBars(prev =>
             prev.map((bar, index) => ({
                 ...bar,
                 played: index < playedBars
             }))
         );
-    }, [currentTime, totalDuration, waveformCount]);
-
-    useEffect(() => {
-        if (isPlaying) {
-            intervalRef.current = setInterval(() => {
-                setCurrentTime(prev => {
-                    if (prev >= totalDuration) {
-                        setIsPlaying(false);
-                        return totalDuration;
-                    }
-                    return prev + 1;
-                });
-            }, 1000);
-        } else if (intervalRef.current) {
-            clearInterval(intervalRef.current);
-        }
-
-        return () => {
-            if (intervalRef.current) {
-                clearInterval(intervalRef.current);
-            }
-        };
-    }, [isPlaying, totalDuration]);
+    }, [currentTime, duration]);
 
     const formatTime = (seconds: number): string => {
-        const mins = Math.floor(seconds / 60);
-        const secs = seconds % 60;
-        return `${mins}:${secs.toString().padStart(2, '0')}`;
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        const s = Math.floor(seconds % 60);
+        if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+        return `${m}:${s.toString().padStart(2, '0')}`;
     };
 
     const togglePlay = () => {
+        if (!audioRef.current) return;
+        if (isPlaying) {
+            audioRef.current.pause();
+        } else {
+            audioRef.current.play();
+        }
         setIsPlaying(!isPlaying);
     };
 
     const skip = (seconds: number) => {
-        setCurrentTime(prev => Math.max(0, Math.min(totalDuration, prev + seconds)));
+        if (!audioRef.current) return;
+        audioRef.current.currentTime = Math.max(0, Math.min(duration, audioRef.current.currentTime + seconds));
     };
 
     const seekTo = (e: React.MouseEvent<HTMLDivElement>) => {
+        if (!audioRef.current || !duration) return;
         const bar = e.currentTarget;
         const rect = bar.getBoundingClientRect();
         const pct = (e.clientX - rect.left) / rect.width;
-        setCurrentTime(Math.floor(pct * totalDuration));
+        audioRef.current.currentTime = pct * duration;
     };
 
     const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setVolume(parseInt(e.target.value));
+        const newVol = parseInt(e.target.value);
+        setVolume(newVol);
+        if (audioRef.current) {
+            audioRef.current.volume = newVol / 100;
+        }
     };
 
-    const simulateDownload = () => {
+    const handleMetadata = () => {
+        if (audioRef.current) {
+            setDuration(audioRef.current.duration);
+        }
+    };
+
+    const handleTimeUpdate = () => {
+        if (audioRef.current) {
+            setCurrentTime(audioRef.current.currentTime);
+        }
+    };
+
+    const handleDownload = async () => {
+        if (!story?.audio_url) return;
+
         const confirmed = window.confirm(
             "Once you download your audio file, the purchase is final and non-refundable.\n\nHappy with how it sounds? Click OK to download."
         );
 
         if (!confirmed) return;
 
-        setShowDownloadPrompt(true);
+        // Trigger real download
+        try {
+            const response = await fetch(story.audio_url);
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `MyStory_${storyId}.mp3`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
 
-        // Scroll to download prompt
-        setTimeout(() => {
-            document.getElementById('postDownload')?.scrollIntoView({
-                behavior: 'smooth',
-                block: 'nearest'
-            });
-        }, 2500);
+            setShowDownloadPrompt(true);
+            setTimeout(() => {
+                document.getElementById('postDownload')?.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'nearest'
+                });
+            }, 1000);
+        } catch (err) {
+            console.error("Download failed", err);
+            alert("Download failed. Please try again.");
+        }
     };
 
-    const progressPercentage = (currentTime / totalDuration) * 100;
+    const progressPercentage = duration > 0 ? (currentTime / duration) * 100 : 0;
+
+    if (isLoading) {
+        return <div className={styles.container}><div style={{ padding: '100px', textAlign: 'center' }}>Preparing your story...</div></div>;
+    }
+
+    if (!story && !isLoading) {
+        return <div className={styles.container}><div style={{ padding: '100px', textAlign: 'center' }}>Story not found.</div></div>;
+    }
 
     return (
         <div className={styles.container}>
+            {story?.audio_url && (
+                <audio
+                    ref={audioRef}
+                    src={story.audio_url}
+                    onLoadedMetadata={handleMetadata}
+                    onTimeUpdate={handleTimeUpdate}
+                    onEnded={() => setIsPlaying(false)}
+                />
+            )}
+
             {/* TOP BAR */}
             <div className={styles.topbar}>
                 <div className={styles.logo}>
@@ -261,8 +327,10 @@ const AudioReady: React.FC = () => {
                 <div className={styles.playerCard}>
                     <div className={styles.playerTop}>
                         <div className={styles.playerEyebrow}>Your Personal Audio Story</div>
-                        <div className={styles.playerTitle}>A Day in the Life of My Highest Self</div>
-                        <div className={styles.playerMeta}>13 min 42 sec · Generated just now</div>
+                        <div className={styles.playerTitle}>{story?.title || 'A Day in the Life of My Highest Self'}</div>
+                        <div className={styles.playerMeta}>
+                            {formatTime(duration || 0)} · Generated {new Date(story?.audio_generated_at || story?.updatedAt).toLocaleDateString()}
+                        </div>
                         <div className={styles.waveformDisplay}>
                             {waveformBars.map((bar, index) => (
                                 <div
@@ -284,7 +352,7 @@ const AudioReady: React.FC = () => {
                             </div>
                             <div className={styles.timeRow}>
                                 <span>{formatTime(currentTime)}</span>
-                                <span>{formatTime(totalDuration)}</span>
+                                <span>{formatTime(duration)}</span>
                             </div>
                         </div>
 
@@ -343,7 +411,7 @@ const AudioReady: React.FC = () => {
                         </div>
                         <button
                             className={styles.dlBtn}
-                            onClick={simulateDownload}
+                            onClick={handleDownload}
                         >
                             <DownloadIcon />
                             Download
@@ -497,7 +565,7 @@ const AudioReady: React.FC = () => {
 
                         <div
                             className={styles.nextCard}
-                            onClick={() => router.push('/science')}
+                            onClick={() => router.push('/user/account-setting')}
                         >
                             <div className={styles.nextCardIcon}>
                                 <BookIcon />
@@ -523,8 +591,8 @@ const AudioReady: React.FC = () => {
                             Listen to your story every morning and every night. Your brain will start to notice what it's been programmed to see.
                         </p>
                         <div className={styles.postDownloadActions}>
-                            <Link href="/manifest" className={styles.homeCta}>
-                                ← Return Home
+                            <Link href="/user/dashboard" className={styles.homeCta}>
+                                ← Go to Dashboard
                             </Link>
                             <Link href="/user/goal-intake-ai" className={styles.homeCtaOutline}>
                                 Create another story
@@ -534,6 +602,14 @@ const AudioReady: React.FC = () => {
                 )}
             </div>
         </div>
+    );
+};
+
+const AudioReady: React.FC = () => {
+    return (
+        <Suspense fallback={<div className={styles.container}>Loading...</div>}>
+            <AudioReadyContent />
+        </Suspense>
     );
 };
 

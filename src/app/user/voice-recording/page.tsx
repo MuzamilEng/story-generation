@@ -1,8 +1,8 @@
 'use client'
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import styles from '../../styles/VoiceRecording.module.css';
 import {
     CheckIcon,
@@ -126,13 +126,14 @@ const TimerDisplay: React.FC<TimerDisplayProps> = ({ seconds, isRecording }) => 
 // Playback Component
 interface PlaybackProps {
     duration: number;
+    audioUrl: string | null;
     onReRecord: () => void;
 }
 
-const Playback: React.FC<PlaybackProps> = ({ duration, onReRecord }) => {
+const Playback: React.FC<PlaybackProps> = ({ duration, audioUrl, onReRecord }) => {
     const [isPlaying, setIsPlaying] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
-    const intervalRef = useRef<NodeJS.Timeout | null>(null);
+    const audioRef = useRef<HTMLAudioElement>(null);
 
     const formatTime = (s: number): string => {
         const mins = Math.floor(s / 60);
@@ -141,35 +142,39 @@ const Playback: React.FC<PlaybackProps> = ({ duration, onReRecord }) => {
     };
 
     useEffect(() => {
-        if (isPlaying) {
-            intervalRef.current = setInterval(() => {
-                setCurrentTime(prev => {
-                    if (prev >= duration) {
-                        setIsPlaying(false);
-                        return 0;
-                    }
-                    return prev + 1;
-                });
-            }, 1000);
-        } else if (intervalRef.current) {
-            clearInterval(intervalRef.current);
-        }
+        const audio = audioRef.current;
+        if (!audio) return;
+
+        const updateTime = () => setCurrentTime(Math.floor(audio.currentTime));
+        const handleEnded = () => {
+            setIsPlaying(false);
+            setCurrentTime(0);
+        };
+
+        audio.addEventListener('timeupdate', updateTime);
+        audio.addEventListener('ended', handleEnded);
 
         return () => {
-            if (intervalRef.current) {
-                clearInterval(intervalRef.current);
-            }
+            audio.removeEventListener('timeupdate', updateTime);
+            audio.removeEventListener('ended', handleEnded);
         };
-    }, [isPlaying, duration]);
+    }, []);
 
     const togglePlayback = () => {
+        if (!audioRef.current) return;
+        if (isPlaying) {
+            audioRef.current.pause();
+        } else {
+            audioRef.current.play();
+        }
         setIsPlaying(!isPlaying);
     };
 
-    const progressPercentage = (currentTime / duration) * 100;
+    const progressPercentage = duration > 0 ? (currentTime / duration) * 100 : 0;
 
     return (
         <div className={`${styles.playbackCard} ${styles.visible}`}>
+            {audioUrl && <audio ref={audioRef} src={audioUrl} preload="auto" />}
             <button className={styles.playPause} onClick={togglePlayback}>
                 {isPlaying ? <PauseIcon /> : <PlayIcon />}
             </button>
@@ -189,9 +194,11 @@ const Playback: React.FC<PlaybackProps> = ({ duration, onReRecord }) => {
     );
 };
 
-// Main Component
-const VoiceRecording: React.FC = () => {
+// Content Component
+const VoiceRecordingContent: React.FC = () => {
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const storyId = searchParams.get('storyId');
 
     useEffect(() => {
         document.title = "ManifestMyStory — Record Your Voice";
@@ -206,8 +213,22 @@ const VoiceRecording: React.FC = () => {
     const [seconds, setSeconds] = useState(0);
     const [quality, setQuality] = useState({ text: '—', color: 'var(--ink-faint)' });
     const [recordedDuration, setRecordedDuration] = useState(0);
+    const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+    const [audioUrl, setAudioUrl] = useState<string | null>(null);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const timerRef = useRef<NodeJS.Timeout | null>(null);
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const streamRef = useRef<MediaStream | null>(null);
+    const audioChunksRef = useRef<Blob[]>([]);
+
+    useEffect(() => {
+        return () => {
+            if (streamRef.current) {
+                streamRef.current.getTracks().forEach(track => track.stop());
+            }
+        };
+    }, []);
 
     const tips: TipItem[] = [
         {
@@ -269,12 +290,48 @@ const VoiceRecording: React.FC = () => {
         };
     }, [recState]);
 
-    const startRecording = () => {
-        setRecState('recording');
-        setSeconds(0);
+    const startRecording = async () => {
+        try {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                alert('Recording is not supported in this browser.');
+                return;
+            }
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            streamRef.current = stream;
+
+            const mediaRecorder = new MediaRecorder(stream);
+            mediaRecorderRef.current = mediaRecorder;
+            audioChunksRef.current = [];
+
+            mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    audioChunksRef.current.push(event.data);
+                }
+            };
+
+            mediaRecorder.onstop = () => {
+                const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+                const url = URL.createObjectURL(blob);
+                setAudioBlob(blob);
+                setAudioUrl(url);
+            };
+
+            mediaRecorder.start();
+            setRecState('recording');
+            setSeconds(0);
+        } catch (err) {
+            console.error('Error accessing microphone:', err);
+            alert('Cannot access microphone. Please ensure you have given permission in your browser.');
+        }
     };
 
     const stopRecording = () => {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+            mediaRecorderRef.current.stop();
+        }
+        if (streamRef.current) {
+            streamRef.current.getTracks().forEach(track => track.stop());
+        }
         setRecState('stopped');
         setRecordedDuration(seconds);
     };
@@ -291,15 +348,43 @@ const VoiceRecording: React.FC = () => {
         setRecState('idle');
         setSeconds(0);
         setRecordedDuration(0);
+        setAudioBlob(null);
+        if (audioUrl) {
+            URL.revokeObjectURL(audioUrl);
+            setAudioUrl(null);
+        }
     };
 
     const handleSkip = () => {
-        router.push('/user/audio-download');
+        router.push(`/user/audio-download${storyId ? '?storyId=' + storyId : ''}`);
     };
 
-    const handleSubmit = () => {
-        // In production, upload the recorded audio
-        router.push('/user/audio-download');
+    const handleSubmit = async () => {
+        if (!audioBlob) return;
+        setIsSubmitting(true);
+        try {
+            const formData = new FormData();
+            formData.append('audio', audioBlob, 'sample.webm');
+            if (storyId) {
+                formData.append('storyId', storyId);
+            }
+
+            const res = await fetch('/api/user/audio/generate', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+            if (data.success) {
+                router.push(`/user/audio-download?storyId=${data.storyId}`);
+            } else {
+                alert('Audio generation failed: ' + (data.error || 'Unknown error'));
+            }
+        } catch (e) {
+            console.error(e);
+            alert('Failed to request audio generation.');
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     const formatTime = (s: number): string => {
@@ -464,10 +549,10 @@ const VoiceRecording: React.FC = () => {
                             </div>
                         </div>
 
-                        {/* PLAYBACK */}
                         {recState === 'stopped' && (
                             <Playback
                                 duration={recordedDuration}
+                                audioUrl={audioUrl}
                                 onReRecord={handleRetake}
                             />
                         )}
@@ -482,9 +567,17 @@ const VoiceRecording: React.FC = () => {
                                     </span>
                                 </div>
 
-                                <button className={styles.submitBtn} onClick={handleSubmit}>
-                                    <MicIcon />
-                                    Generate My Audio Story
+                                <button className={styles.submitBtn} onClick={handleSubmit} disabled={isSubmitting}>
+                                    {isSubmitting ? (
+                                        <>
+                                            Generating...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <MicIcon />
+                                            Generate My Audio Story
+                                        </>
+                                    )}
                                 </button>
                             </div>
                         )}
@@ -492,6 +585,14 @@ const VoiceRecording: React.FC = () => {
                 </div>
             </div>
         </>
+    );
+};
+
+const VoiceRecording: React.FC = () => {
+    return (
+        <Suspense fallback={<div>Loading...</div>}>
+            <VoiceRecordingContent />
+        </Suspense>
     );
 };
 

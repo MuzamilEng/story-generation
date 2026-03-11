@@ -202,16 +202,6 @@ const StoryContent: React.FC = () => {
                 { label: 'Goals', status: 'done' as const },
                 { label: 'Your Story', status: 'active' as const },
                 { label: 'Account', status: 'pending' as const },
-                { label: 'Plan', status: 'pending' as const },
-                { label: 'Voice Recording', status: 'pending' as const },
-                { label: 'Your Audio', status: 'pending' as const },
-            ];
-        }
-        if (!isPaid) {
-            return [
-                { label: 'Goals', status: 'done' as const },
-                { label: 'Your Story', status: 'active' as const },
-                { label: 'Plan', status: 'pending' as const },
                 { label: 'Voice Recording', status: 'pending' as const },
                 { label: 'Your Audio', status: 'pending' as const },
             ];
@@ -382,10 +372,8 @@ const StoryContent: React.FC = () => {
         // Logic for next step
         if (!isLoggedIn) {
             router.push('/auth/signup?next=/user/story');
-        } else if (!isPaid) {
-            router.push('/pricing');
         } else {
-            router.push('/user/voice-recording');
+            router.push(`/user/voice-recording?storyId=${storyId}`);
         }
     };
 
@@ -394,7 +382,7 @@ const StoryContent: React.FC = () => {
     };
 
     const handleRecordVoice = () => {
-        router.push('/user/voice-recording');
+        router.push(`/user/voice-recording?storyId=${storyId}`);
     };
 
     const handleToggleCheck = (id: string) => {

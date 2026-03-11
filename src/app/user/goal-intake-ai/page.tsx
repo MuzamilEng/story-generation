@@ -399,16 +399,6 @@ const GoalDiscovery: React.FC = () => {
                 { label: 'Goals', status: 'active' as const },
                 { label: 'Your Story', status: 'pending' as const },
                 { label: 'Account', status: 'pending' as const },
-                { label: 'Plan', status: 'pending' as const },
-                { label: 'Voice Recording', status: 'pending' as const },
-                { label: 'Your Audio', status: 'pending' as const },
-            ];
-        }
-        if (!isPaid) {
-            return [
-                { label: 'Goals', status: 'active' as const },
-                { label: 'Your Story', status: 'pending' as const },
-                { label: 'Plan', status: 'pending' as const },
                 { label: 'Voice Recording', status: 'pending' as const },
                 { label: 'Your Audio', status: 'pending' as const },
             ];
