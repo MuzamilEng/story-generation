@@ -14,6 +14,29 @@ import {
     SYSTEM_PROMPT
 } from '../../types/goal-discovery';
 
+// Step Item Component
+interface StepItemProps {
+    number: number;
+    label: string;
+    status: 'done' | 'active' | 'pending';
+}
+
+const StepItem: React.FC<StepItemProps> = ({ number, label, status }) => (
+    <div className={`${styles.stepItem} ${styles[status]}`}>
+        <div className={styles.stepNum}>
+            {status === 'done' ? <CheckIcon /> : number}
+        </div>
+        {label}
+    </div>
+);
+
+// Define your icons if needed or import them
+const CheckIcon = () => (
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="3">
+        <polyline points="20 6 9 17 4 12" />
+    </svg>
+);
+
 // Typing animation component
 const TypingIndicator: React.FC = () => (
     <div className={`${styles.msgRow} ${styles.bot}`}>
@@ -32,15 +55,21 @@ interface TopicItemProps {
     label: string;
     isActive: boolean;
     isCovered: boolean;
+    onClick: (id: string, label: string) => void;
 }
 
-const TopicItem: React.FC<TopicItemProps> = ({ id, label, isActive, isCovered }) => {
+const TopicItem: React.FC<TopicItemProps> = ({ id, label, isActive, isCovered, onClick }) => {
     let className = styles.topicItem;
     if (isCovered) className += ` ${styles.covered}`;
     if (isActive) className += ` ${styles.active}`;
 
     return (
-        <div className={className} id={`t-${id}`}>
+        <div
+            className={className}
+            id={`t-${id}`}
+            onClick={() => onClick(id, label)}
+            style={{ cursor: 'pointer' }}
+        >
             <div className={styles.tDot}></div>
             <span>{label}</span>
         </div>
@@ -134,7 +163,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, onChipClick }) =
 
 const GoalDiscovery: React.FC = () => {
     const router = useRouter();
-    const { data: session } = useSession();
+    const { data: session, status: authStatus } = useSession();
 
     useEffect(() => {
         document.title = "ManifestMyStory — Goal Discovery";
@@ -184,47 +213,49 @@ const GoalDiscovery: React.FC = () => {
 
     // Parse bot response for metadata
     const parseResponse = useCallback((raw: string): string => {
-        const lines = raw.split('\n');
-        const textLines: string[] = [];
+        let cleanText = raw;
 
-        for (const line of lines) {
-            const trimmed = line.trim();
-
-            if (trimmed.startsWith('PROGRESS:')) {
-                try {
-                    const data = JSON.parse(trimmed.slice(9)) as ProgressData;
-                    setProgress({
-                        pct: data.pct || 0,
-                        phase: data.phase || progress.phase,
-                        covered: data.covered || []
-                    });
-                    if (data.phase === 'Complete') {
-                        setIsComplete(true);
-                    }
-                } catch (e) {
-                    console.error('Error parsing progress:', e);
+        // 1. Extract PROGRESS data
+        const progressMatch = cleanText.match(/PROGRESS:(\{.*?\})/);
+        if (progressMatch) {
+            try {
+                const data = JSON.parse(progressMatch[1]) as ProgressData;
+                setProgress(prev => ({
+                    pct: data.pct !== undefined ? data.pct : prev.pct,
+                    phase: data.phase || prev.phase,
+                    covered: data.covered || prev.covered
+                }));
+                if (data.phase === 'Complete' || data.pct >= 100) {
+                    setIsComplete(true);
                 }
-            }
-            else if (trimmed.startsWith('CAPTURE:')) {
-                try {
-                    const data = JSON.parse(trimmed.slice(8)) as CaptureData;
-                    if (data.label && data.value) {
-                        setCapturedData(prev => ({
-                            ...prev,
-                            [data.label]: data.value
-                        }));
-                    }
-                } catch (e) {
-                    console.error('Error parsing capture:', e);
-                }
-            }
-            else {
-                textLines.push(line);
+                // Remove the progress line from the clean text
+                cleanText = cleanText.replace(progressMatch[0], '');
+            } catch (e) {
+                console.error('Error parsing progress JSON:', e);
             }
         }
 
-        return textLines.join('\n').trim();
-    }, [progress.phase]);
+        // 2. Extract all CAPTURE data (could be multiple)
+        const captureRegex = /CAPTURE:(\{.*?\})/g;
+        let match;
+        while ((match = captureRegex.exec(cleanText)) !== null) {
+            try {
+                const data = JSON.parse(match[1]) as CaptureData;
+                if (data.label && data.value) {
+                    setCapturedData(prev => ({
+                        ...prev,
+                        [data.label]: data.value
+                    }));
+                }
+                // Mark for removal below
+            } catch (e) {
+                console.error('Error parsing capture JSON:', e);
+            }
+        }
+
+        // Clean up the text: remove all CAPTURE lines and extra whitespace
+        return cleanText.replace(/CAPTURE:\{.*?\}/g, '').trim();
+    }, []);
 
     // Send message to AI
     const sendToAI = useCallback(async (userMessage?: string) => {
@@ -239,17 +270,12 @@ const GoalDiscovery: React.FC = () => {
         setIsWaiting(true);
 
         try {
-            const response = await fetch('https://api.anthropic.com/v1/messages', {
+            const response = await fetch('/api/user/chat', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    // Add your API key here or via environment variable
-                    'x-api-key': process.env.NEXT_PUBLIC_ANTHROPIC_API_KEY || '',
                 },
                 body: JSON.stringify({
-                    model: 'claude-3-sonnet-20240229',
-                    max_tokens: 1000,
-                    system: SYSTEM_PROMPT,
                     messages: newMessages.map(({ role, content }) => ({ role, content }))
                 })
             });
@@ -259,7 +285,7 @@ const GoalDiscovery: React.FC = () => {
             }
 
             const data = await response.json();
-            const rawText = data.content?.[0]?.text || '';
+            const rawText = data.text || '';
             const cleanText = parseResponse(rawText);
 
             newMessages.push({ role: 'assistant', content: cleanText });
@@ -296,18 +322,90 @@ const GoalDiscovery: React.FC = () => {
         sendToAI(text);
     }, [isWaiting, sendToAI]);
 
-    const handleGenerateStory = useCallback(() => {
-        // Store captured data for next page
-        sessionStorage.setItem('capturedGoals', JSON.stringify(capturedData));
+    const handleTopicClick = useCallback((id: string, label: string) => {
+        if (isWaiting) return;
 
-        if (session) {
-            // Logged in: go directly to story creation
-            router.push('/user/story');
-        } else {
-            // Not logged in: go to signup then continue to story
+        // 1. Immediate visual feedback: update progress even before AI responds
+        const topicIndex = TOPICS.findIndex(t => t.id === id);
+        const targetPct = Math.max(progress.pct, (topicIndex + 1) * 15);
+
+        setProgress(prev => ({
+            pct: targetPct,
+            phase: TOPICS[topicIndex].phase,
+            covered: prev.covered.includes(id) ? prev.covered : [...prev.covered, id]
+        }));
+
+        // 2. Tell the AI to focus there
+        const prompt = `I'd like to dive into ${label} next.`;
+        sendToAI(prompt);
+    }, [isWaiting, sendToAI, progress.pct]);
+
+    const handleGenerateStory = useCallback(async () => {
+        // Prepare goal data
+        const goalData = capturedData;
+
+        // If not logged in: store in session storage first then go through signup
+        if (!session) {
+            sessionStorage.setItem('capturedGoals', JSON.stringify(goalData));
             router.push('/auth/signup?next=/user/story');
+            return;
+        }
+
+        // Logged in: save directly to database
+        try {
+            const response = await fetch('/api/user/stories', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ goals: goalData })
+            });
+            const data = await response.json();
+            if (data.storyId) {
+                router.push(`/user/story?id=${data.storyId}`);
+            } else {
+                // Fallback if API fails
+                sessionStorage.setItem('capturedGoals', JSON.stringify(goalData));
+                router.push('/user/story');
+            }
+        } catch (error) {
+            console.error('Error saving story goals:', error);
+            // Fallback
+            sessionStorage.setItem('capturedGoals', JSON.stringify(goalData));
+            router.push('/user/story');
         }
     }, [capturedData, router, session]);
+
+    const isPaid = session?.user?.plan && session.user.plan !== 'free';
+
+    // Dynamic steps
+    const getSteps = () => {
+        if (authStatus !== 'authenticated') {
+            return [
+                { label: 'Goals', status: 'active' as const },
+                { label: 'Your Story', status: 'pending' as const },
+                { label: 'Account', status: 'pending' as const },
+                { label: 'Plan', status: 'pending' as const },
+                { label: 'Voice Recording', status: 'pending' as const },
+                { label: 'Your Audio', status: 'pending' as const },
+            ];
+        }
+        if (!isPaid) {
+            return [
+                { label: 'Goals', status: 'active' as const },
+                { label: 'Your Story', status: 'pending' as const },
+                { label: 'Plan', status: 'pending' as const },
+                { label: 'Voice Recording', status: 'pending' as const },
+                { label: 'Your Audio', status: 'pending' as const },
+            ];
+        }
+        return [
+            { label: 'Goals', status: 'active' as const },
+            { label: 'Your Story', status: 'pending' as const },
+            { label: 'Voice Recording', status: 'pending' as const },
+            { label: 'Your Audio', status: 'pending' as const },
+        ];
+    };
+
+    const steps = getSteps();
 
     return (
         <div className={styles.container}>
@@ -316,6 +414,12 @@ const GoalDiscovery: React.FC = () => {
                 <Link href="/" className={styles.logo}>
                     Manifest<span>MyStory</span>
                 </Link>
+
+                <div className={styles.stepsRow}>
+                    {steps.map((step, idx) => (
+                        <StepItem key={idx} number={idx + 1} label={step.label} status={step.status} />
+                    ))}
+                </div>
 
                 <div className={styles.progressWrap}>
                     <div className={styles.progressMeta}>
@@ -330,10 +434,22 @@ const GoalDiscovery: React.FC = () => {
                     </div>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                     <div className={styles.phaseBadge}>
                         {progress.phase}
                     </div>
+
+                    {/* Show Generate Story button very early if they've shared anything useful */}
+                    {!isComplete && progress.pct >= 40 && (
+                        <button
+                            className={styles.headerProceedBtn}
+                            onClick={handleGenerateStory}
+                        >
+                            Generate My Story
+                            <ArrowIcon />
+                        </button>
+                    )}
+
                     {session ? (
                         <Link href="/user/dashboard" style={{ fontSize: '13px', opacity: 0.7, textDecoration: 'none' }}>
                             Dashboard →
@@ -358,6 +474,7 @@ const GoalDiscovery: React.FC = () => {
                             label={topic.label}
                             isActive={progress.phase === topic.phase}
                             isCovered={progress.covered.includes(topic.id)}
+                            onClick={handleTopicClick}
                         />
                     ))}
 
@@ -375,6 +492,18 @@ const GoalDiscovery: React.FC = () => {
                             )}
                         </div>
                     </div>
+
+                    {/* Sidebar finish button shown even earlier */}
+                    {!isComplete && progress.pct >= 30 && (
+                        <button
+                            className={styles.finishEarlyBtn}
+                            onClick={handleGenerateStory}
+                            title="Click here whenever you feel ready to see your story"
+                        >
+                            <span>Ready to see your story?</span>
+                            <strong>Finish & Generate →</strong>
+                        </button>
+                    )}
                 </aside>
 
                 {/* Chat Area */}

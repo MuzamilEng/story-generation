@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import styles from '../styles/Pricing.module.css';
+import { useSession } from 'next-auth/react';
 import {
     CheckIcon,
     XIcon,
@@ -226,6 +227,7 @@ const ComparisonTable: React.FC<ComparisonTableProps> = ({ isOpen, onToggle }) =
 
 const PricingPage: React.FC = () => {
     const router = useRouter();
+    const { data: session, status: authStatus } = useSession();
 
     useEffect(() => {
         document.title = "ManifestMyStory — Choose Your Plan";
@@ -370,6 +372,39 @@ const PricingPage: React.FC = () => {
         }
     ];
 
+    const isLoggedIn = authStatus === 'authenticated';
+    const isPaid = session?.user?.plan && session.user.plan !== 'free';
+
+    const getSteps = () => {
+        if (!isLoggedIn) {
+            return [
+                { label: 'Goals', status: 'done' as const },
+                { label: 'Your Story', status: 'done' as const },
+                { label: 'Account', status: 'done' as const },
+                { label: 'Plan', status: 'active' as const },
+                { label: 'Voice Recording', status: 'pending' as const },
+                { label: 'Your Audio', status: 'pending' as const },
+            ];
+        }
+        if (!isPaid) {
+            return [
+                { label: 'Goals', status: 'done' as const },
+                { label: 'Your Story', status: 'done' as const },
+                { label: 'Plan', status: 'active' as const },
+                { label: 'Voice Recording', status: 'pending' as const },
+                { label: 'Your Audio', status: 'pending' as const },
+            ];
+        }
+        return [
+            { label: 'Goals', status: 'done' as const },
+            { label: 'Your Story', status: 'done' as const },
+            { label: 'Voice Recording', status: 'pending' as const },
+            { label: 'Your Audio', status: 'pending' as const },
+        ];
+    };
+
+    const steps = getSteps();
+
     const handleBillingToggle = (type: BillingPeriod) => {
         setBilling(type);
     };
@@ -378,18 +413,23 @@ const PricingPage: React.FC = () => {
         if (planId === 'free') {
             router.push('/user/dashboard');
         } else {
-            // For paid plans, go to voice recording to complete the flow
             router.push('/user/voice-recording');
         }
     };
 
     return (
         <div className={styles.container}>
-            {/* TOP BAR */}
             <header className={styles.topbar}>
                 <Link href="/" className={styles.logo}>
                     Manifest<span>MyStory</span>
                 </Link>
+
+                <div className={styles.stepsRow}>
+                    {steps.map((step, idx) => (
+                        <StepItem key={idx} number={idx + 1} label={step.label} status={step.status} />
+                    ))}
+                </div>
+
                 <nav style={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
                     <Link href="/#how" style={{ fontSize: '14px', textDecoration: 'none', opacity: 0.7 }}>How it works</Link>
                     <Link href="/pricing" style={{ fontSize: '14px', textDecoration: 'none', fontWeight: 500 }}>Pricing</Link>
@@ -397,20 +437,7 @@ const PricingPage: React.FC = () => {
                 </nav>
             </header>
 
-            {/* PROGRESS STEPS */}
-            <div className={styles.stepsBar}>
-                <div className={styles.stepsRow}>
-                    <StepItem number={1} label="Your Goals" status="done" />
-                    <StepItem number={2} label="Your Story" status="done" />
-                    <StepItem number={3} label="Free Sample" status="done" />
-                    <StepItem number={4} label="Account" status="done" />
-                    <StepItem number={5} label="Choose Plan" status="active" />
-                    <StepItem number={6} label="Full Audio" status="pending" />
-                </div>
-            </div>
-
             <main className={styles.page}>
-                {/* PAGE HEADER */}
                 <div className={styles.pageHeader}>
                     <div className={styles.pageEyebrow}>You've heard what's possible</div>
                     <h1 className={styles.pageTitle}>
@@ -422,7 +449,6 @@ const PricingPage: React.FC = () => {
                     </p>
                 </div>
 
-                {/* FREE SAMPLE REMINDER BANNER */}
                 <div className={styles.previewBanner}>
                     <div className={styles.previewBannerIcon}>
                         <PlayIcon />
@@ -432,7 +458,6 @@ const PricingPage: React.FC = () => {
                     </div>
                 </div>
 
-                {/* BILLING TOGGLE */}
                 <div className={styles.billingToggle}>
                     <button
                         className={`${styles.toggleOpt} ${billing === 'monthly' ? styles.active : ''}`}
@@ -448,7 +473,6 @@ const PricingPage: React.FC = () => {
                     </button>
                 </div>
 
-                {/* PLANS GRID */}
                 <div className={styles.plansGrid}>
                     {plans.map(plan => (
                         <PlanCard
@@ -460,7 +484,6 @@ const PricingPage: React.FC = () => {
                     ))}
                 </div>
 
-                {/* UPGRADE CREDIT NOTE */}
                 <div className={styles.upgradeNote}>
                     <div className={styles.upgradeNoteInner}>
                         <InfoIcon />
@@ -470,13 +493,11 @@ const PricingPage: React.FC = () => {
                     </div>
                 </div>
 
-                {/* COMPARISON TABLE */}
                 <ComparisonTable
                     isOpen={compareOpen}
                     onToggle={() => setCompareOpen(!compareOpen)}
                 />
 
-                {/* GUARANTEE */}
                 <div className={styles.guarantee}>
                     <div className={styles.guaranteeIcon}>🛡️</div>
                     <div className={styles.guaranteeText}>
@@ -487,7 +508,6 @@ const PricingPage: React.FC = () => {
                     </div>
                 </div>
 
-                {/* FAQ */}
                 <div className={styles.faqSection}>
                     <div className={styles.faqTitle}>Common questions</div>
 

@@ -46,6 +46,64 @@
     color: var(--accent);
 }
 
+.stepsRow {
+    display: flex;
+    align-items: center;
+    gap: 0;
+}
+
+.stepItem {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.72rem;
+    color: var(--ink-faint);
+    padding: 0 0.85rem;
+    position: relative;
+}
+
+.stepItem.done {
+    color: var(--accent);
+}
+
+.stepItem.active {
+    color: var(--ink);
+    font-weight: 500;
+}
+
+.stepItem:not(:last-child)::after {
+    content: '›';
+    position: absolute;
+    right: -2px;
+    color: var(--ink-faint);
+    font-size: 0.85rem;
+}
+
+.stepNum {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-size: 0.65rem;
+    font-weight: 500;
+    flex-shrink: 0;
+    border: 1px solid var(--border);
+    color: var(--ink-faint);
+}
+
+.stepItem.done .stepNum {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+}
+
+.stepItem.active .stepNum {
+    background: var(--ink);
+    border-color: var(--ink);
+    color: #fff;
+}
+
 .progressWrap {
     flex: 1;
     max-width: 320px;
@@ -513,6 +571,80 @@
     text-align: center;
     margin-top: 0.4rem;
     flex-shrink: 0;
+}
+
+
+.headerProceedBtn {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 0.4rem 0.9rem;
+    border-radius: 7px;
+    font-size: 0.72rem;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    transition: all 0.2s;
+    animation: pulse 2s infinite;
+}
+
+.headerProceedBtn:hover {
+    background: #235840;
+    transform: translateY(-1px);
+}
+
+.headerProceedBtn svg {
+    width: 11px;
+    height: 11px;
+}
+
+@keyframes pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(45, 106, 79, 0.4);
+    }
+
+    70% {
+        box-shadow: 0 0 0 10px rgba(45, 106, 79, 0);
+    }
+
+    100% {
+        box-shadow: 0 0 0 0 rgba(45, 106, 79, 0);
+    }
+}
+
+.finishEarlyBtn {
+    margin-top: auto;
+    background: var(--surface);
+    border: 1.5px dashed var(--border);
+    border-radius: 10px;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.35rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    width: 100%;
+}
+
+.finishEarlyBtn:hover {
+    border-color: var(--accent);
+    background: var(--accent-light);
+}
+
+.finishEarlyBtn span {
+    font-size: 0.65rem;
+    color: var(--ink-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.finishEarlyBtn strong {
+    font-size: 0.8rem;
+    color: var(--accent);
+    font-weight: 500;
 }
 
 /* Responsive */

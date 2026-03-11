@@ -1,8 +1,9 @@
 'use client'
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import styles from '../../styles/Story.module.css';
 import {
     CheckIcon,
@@ -153,47 +154,57 @@ const ApproveBanner: React.FC<ApproveBannerProps> = ({ onEditMore, onRecordVoice
     </div>
 );
 
-// Main Story Component
-const Story: React.FC = () => {
+const StoryContent: React.FC = () => {
+    const { data: session, status: authStatus } = useSession();
     const router = useRouter();
-    const [isGenerating, setIsGenerating] = useState(true);
+    const searchParams = useSearchParams();
+    const storyIdFromUrl = searchParams.get('id');
+
+    const isLoggedIn = authStatus === 'authenticated';
+    const isPaid = session?.user?.plan && session.user.plan !== 'free';
+
+    const [isGenerating, setIsGenerating] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [isApproved, setIsApproved] = useState(false);
     const [storyText, setStoryText] = useState('');
     const [wordCount, setWordCount] = useState(0);
     const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({});
     const [activeStep, setActiveStep] = useState(0);
+    const [userAnswers, setUserAnswers] = useState<UserAnswers | null>(null);
+    const [storyId, setStoryId] = useState<string | null>(storyIdFromUrl);
+
+    // Dynamic steps based on logic
+    const getSteps = () => {
+        if (!isLoggedIn) {
+            return [
+                { label: 'Goals', status: 'done' as const },
+                { label: 'Your Story', status: 'active' as const },
+                { label: 'Account', status: 'pending' as const },
+                { label: 'Plan', status: 'pending' as const },
+                { label: 'Voice Recording', status: 'pending' as const },
+                { label: 'Your Audio', status: 'pending' as const },
+            ];
+        }
+        if (!isPaid) {
+            return [
+                { label: 'Goals', status: 'done' as const },
+                { label: 'Your Story', status: 'active' as const },
+                { label: 'Plan', status: 'pending' as const },
+                { label: 'Voice Recording', status: 'pending' as const },
+                { label: 'Your Audio', status: 'pending' as const },
+            ];
+        }
+        return [
+            { label: 'Goals', status: 'done' as const },
+            { label: 'Your Story', status: 'active' as const },
+            { label: 'Voice Recording', status: 'pending' as const },
+            { label: 'Your Audio', status: 'pending' as const },
+        ];
+    };
+
+    const steps = getSteps();
 
     const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-    useEffect(() => {
-        document.title = "ManifestMyStory — Your Story";
-
-        // Add font stylesheet
-        const fontLink = document.createElement('link');
-        fontLink.href = "https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&family=Lora:ital,wght@0,400;0,500;1,400;1,500&display=swap";
-        fontLink.rel = "stylesheet";
-        document.head.appendChild(fontLink);
-    }, []);
-
-    // Mock user answers (in real app, would come from sessionStorage/context)
-    const userAnswers: UserAnswers = {
-        identity: "A thriving entrepreneur and devoted father living a life of purpose, health, and deep connection",
-        purpose: "To build businesses that create real value while being fully present for the people I love",
-        values: "Integrity, freedom, family, creativity, and service",
-        location: "A sun-filled coastal town in southern Portugal, minutes from the ocean",
-        home: "A whitewashed villa with terracotta floors, an open kitchen that smells of fresh bread and espresso, surrounded by lemon trees",
-        morning: "I wake naturally at 6am, meditate for 20 minutes on the terrace with a view of the sea, then journal and move my body before the rest of the house stirs",
-        work: "Building my digital business from a quiet home office — deep work in the mornings, creative collaboration in the afternoons",
-        people: "My partner, our two children, a close circle of friends who challenge and inspire me, and a growing team I genuinely love working with",
-        emotions: "Deeply peaceful, quietly confident, and profoundly grateful — alive in a way I used to only dream about",
-        joy: "The sound of my kids laughing downstairs, the cold ocean on my skin in the morning, the feeling after finishing deep work",
-        challenges: "I navigate obstacles with calm clarity — I know who I am, and setbacks feel like information, not failure",
-        evening: "A slow family dinner, a walk along the coast as the sun sets, and reading before bed",
-        reflection: "Gratitude for the ordinary beauty of the day. Pride in showing up fully. Excitement for what's still unfolding.",
-        dreams: "A life that keeps expanding — more depth, more impact, more presence",
-        categories: ["❤️ Love", "💪 Health", "💰 Abundance", "🎯 Work", "🏡 Home", "🌍 Travel"]
-    };
 
     const generationSteps: GenerationStep[] = [
         { id: 'gstep1', label: 'Analysing your vision & goals', delay: 0 },
@@ -212,146 +223,108 @@ const Story: React.FC = () => {
         { id: 'length', text: '5–8 minutes to read aloud' }
     ];
 
-    // Build prompt for AI
-    const buildPrompt = useCallback((answers: UserAnswers): string => {
-        let obstacleSection = '';
-        const obstacles = [];
-        if (answers.obstacle1) obstacles.push({ struggle: answers.obstacle1, proof: answers.proof1 || '' });
-        if (answers.obstacle2) obstacles.push({ struggle: answers.obstacle2, proof: answers.proof2 || '' });
-        if (answers.obstacle3) obstacles.push({ struggle: answers.obstacle3, proof: answers.proof3 || '' });
+    useEffect(() => {
+        document.title = "ManifestMyStory — Your Story";
 
-        if (obstacles.length > 0) {
-            obstacleSection = `\n\nCURRENT OBSTACLES & PROOF MOMENTS:\nFor each obstacle below, weave a specific proof moment into the story — a scene or action that could ONLY exist if this struggle is already completely resolved. Never name the obstacle directly. Never say "I used to..." Just show its absence through ease, freedom, and natural action.\n`;
-            obstacles.forEach(o => {
-                obstacleSection += `- Struggle: "${o.struggle}"${o.proof ? ` → Proof moment: "${o.proof}"` : ' → Infer an appropriate proof moment from the context'}\n`;
-            });
+        const fontLink = document.createElement('link');
+        fontLink.href = "https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&family=Lora:ital,wght@0,400;0,500;1,400;1,500&display=swap";
+        fontLink.rel = "stylesheet";
+        document.head.appendChild(fontLink);
+    }, []);
+
+    const generate = useCallback(async (id: string) => {
+        setIsGenerating(true);
+        setActiveStep(0);
+
+        // UI simulation of steps
+        for (let i = 0; i < generationSteps.length; i++) {
+            setActiveStep(i);
+            await new Promise(r => setTimeout(r, 1500));
         }
 
-        return `You are a gifted narrative writer creating a deeply personal first-person manifestation story for ManifestMyStory.com.
-
-This story will be professionally narrated by an AI voice and listened to by the user every morning and every night as a tool for rewiring their subconscious mind toward their ideal life.
-
-THE STORY IS: "A Day in Alignment With My Highest Self" — one complete, perfect day from waking to sleeping. Written as if it is already real and already happening. Not a dream. Not a wish. A memory of a day that has not happened yet, told in the present tense.
-
-WORD COUNT & PACING:
-- Target exactly 700-800 words — no shorter, no longer
-- This will be narrated at a measured, emotionally present pace of approximately 120 words per minute
-- At this pace, 700-800 words = 6-7 minutes of deeply immersive listening
-- Every sentence should breathe. Write for the voice, not the eye.
-
-CRITICAL WRITING REQUIREMENTS:
-- First person, present tense throughout: "I wake," "I feel," "I walk" — never future tense, never "I will"
-- Deeply sensory in every scene: sight, sound, smell, feel, touch — engage all senses throughout
-- Emotionally alive: capture how it FEELS to live this life — the quiet pride, deep peace, aliveness, gratitude
-- Emotional arc: peaceful morning → engaged purposeful day → deep evening gratitude. The listener should feel genuine thankfulness that this is their life.
-- Specific and personal: use the exact details given — their city, home, people, work. No generic placeholders.
-- Natural spoken rhythm: every sentence must flow when read aloud. Write as a warm, present voice speaking into someone's ear.
-- Weave in all life dimensions naturally: love, health, work, financial abundance, community, spirituality, growth, recreation — as moments in a lived day, not a checklist
-- Weave in values and purpose without stating them — show through action, choice, and feeling
-- Arc: waking → morning practices → full day including work and relationships → evening → sleep
-- End with a sense of deep rightness — they are exactly where they are meant to be, and they know it
-
-THE OBSTACLE PROOF PRINCIPLE — CRITICAL:
-Each obstacle listed below must be addressed with a proof moment — a specific scene that could ONLY exist if that struggle is fully, completely behind them. The obstacle is never named or referenced. Only its absence is shown through natural action and ease. These moments carry quiet but powerful emotional weight — a feeling of freedom in a place where there used to be fear.
-
-Examples of how this works:
-- Financial anxiety → "I book us on a last-minute flight without a second thought. I don't even check the balance. There's always enough."
-- Career struggle → "My calendar has three things on it today and I chose every single one of them."
-- Health struggle → "My body moves the way I always knew it could — strong, light, easy."
-- Loneliness → "She reaches for my hand across the table. We don't need words."
-- Feeling stuck → "I decline the meeting with a calm no. My time is mine. I know exactly what it's worth."
-- Parenting guilt → "My son asks if I can stay and play. I close the laptop without a moment's hesitation. Yes. Always yes now."
-
-THE TONE:
-Warm. Grounded. Real. Quietly joyful. Not mystical. Not a motivational speech.
-The person should listen with their eyes closed and feel: "Yes. That is me. That is already my life."
-Write like a beautifully crafted memoir entry: intimate, present, unhurried. The reader has arrived.
-
-WHAT TO AVOID:
-- Never use "I manifest," "I am attracting," or any law-of-attraction language
-- Never directly reference any original struggle ("I used to worry about..." — never)
-- No chapter headings, section labels, bullet points — pure flowing prose only
-- No preamble or title — begin directly with the first line of the story
-- Do not open with the literal words "I wake up" — find a more evocative entry
-
-THEIR VISION:
-Identity: ${answers.identity}
-Core Purpose: ${answers.purpose}
-Values: ${answers.values}
-Where they live: ${answers.location}
-Their home: ${answers.home}
-Morning routine: ${answers.morning}
-Work/creative life: ${answers.work}
-Key relationships: ${answers.people}
-Financial abundance: ${answers.abundance || 'Not specified'}
-Health & body: ${answers.health || 'Not specified'}
-Spirituality & inner life: ${answers.spirit || 'Not specified'}
-How they feel each day: ${answers.emotions}
-Small joyful moments: ${answers.joy}
-Community & contribution: ${answers.community || 'Not specified'}
-Recreation & travel: ${answers.travel || 'Not specified'}
-How they handle challenges: ${answers.challenges}
-Evening routine: ${answers.evening}
-End of day reflection: ${answers.reflection}
-Dreams and intentions: ${answers.dreams}${obstacleSection}
-
-Write the story now. Begin directly with the first line — no preamble, no title, no intro.`;
-    }, []);
-
-    // Demo story fallback
-    const getDemoStory = useCallback((): string => {
-        return `I open my eyes before my alarm has a chance to sound. The room is quiet except for the low hum of the sea beyond the open window — that familiar rhythm that has become the backdrop of my whole life here. Pale morning light falls across the terracotta floor in long, warm strips, and for a moment I simply lie still and let the gratitude wash through me. This is my life. This is actually my life.
-
-I rise without effort, the way I always do now. There is no resistance in the morning anymore, no heaviness I used to carry. I walk barefoot across the cool tiles and step onto the terrace, and there it is — the Atlantic stretching wide and silver under the early sun. I settle into my chair, close my eyes, and let my breath slow. Twenty minutes of stillness that feel like drinking something essential. By the time I open my journal, my mind is clear in a way I spent years trying to manufacture and now simply wake into.
-
-The smell of coffee drifts from inside. My partner is up, moving quietly through the kitchen, and I can hear the low, contented sounds of our home beginning its day. The kids are still asleep. This hour is mine, and I hold it like something precious.
-
-I move through my morning practice — some stretching on the terrace, a cold rinse, a slow breakfast of fruit and yogurt with espresso so dark and rich it still surprises me. By eight o'clock I am at my desk, the window open to the garden, and I am working. Not grinding. Working — which is a different thing entirely. There is a project I have been turning over in my mind for weeks and today something opens in it. I write for two hours without looking up, and when I finally do, I feel that deep animal satisfaction of having made something that wasn't there before.
-
-Midmorning, a call with my team. I watch their faces on screen — smart, motivated people who genuinely believe in what we're building — and I feel the particular pride of having created something that takes on a life of its own. We solve a problem together. It takes twenty minutes and we are all better for it.
-
-Lunch is long, the way it should be. My partner and I eat outside under the fig tree and we talk — really talk — about nothing important and everything that matters. This is one of those small moments I could not have imagined would mean so much: just this, sitting in dappled shade with someone I love, unhurried.
-
-The afternoon has its own shape. I swim. The cold water closes over me and I feel completely, electrically present — every cell of my body awake. I float on my back and look up at the blue sky and think: I built this. Not the sea, not the sky, but the life that puts me here.
-
-The children are home by four. The house fills with noise and laughter and the particular energy of small people who have strong feelings about everything. I am not distracted, not half-present with one eye on a screen. I am just here. We kick a ball in the garden until dinner.
-
-We eat together as a family, slowly, the way families should. After the children are in bed I walk along the coast road with my partner, the sun going down in long bands of orange and pink. We barely need to speak. Everything that needs to be said has been said, or doesn't need saying at all.
-
-Later, in bed, I feel the day settle into me. It was not extraordinary by any measure the outside world would recognize. No headline, no milestone. But it was full — full in a way I used to ache for and now simply live. I carry that fullness into sleep, and I dream about tomorrow.`;
-    }, []);
-
-    // Simulate generation steps
-    useEffect(() => {
-        if (!isGenerating) return;
-
-        const timers: NodeJS.Timeout[] = [];
-
-        generationSteps.forEach((step, index) => {
-            const timer = setTimeout(() => {
-                setActiveStep(index);
-            }, step.delay);
-            timers.push(timer);
-        });
-
-        // Simulate API call completion
-        const completionTimer = setTimeout(() => {
+        try {
+            const res = await fetch(`/api/user/stories/${id}/generate`, {
+                method: 'POST'
+            });
+            const data = await res.json();
+            if (data.storyText) {
+                setStoryText(data.storyText);
+            }
+        } catch (e) {
+            console.error("Generation failed", e);
+        } finally {
             setIsGenerating(false);
-            setStoryText(getDemoStory());
-        }, 5000);
+        }
+    }, [generationSteps]);
 
-        timers.push(completionTimer);
+    const saveAndGenerate = useCallback(async (goals: UserAnswers) => {
+        try {
+            const res = await fetch('/api/user/stories', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ goals })
+            });
+            const data = await res.json();
+            if (data.storyId) {
+                setStoryId(data.storyId);
+                generate(data.storyId);
+                sessionStorage.removeItem('capturedGoals');
+            }
+        } catch (e) {
+            console.error("Failed to save goals", e);
+        }
+    }, [generate]);
 
-        return () => timers.forEach(t => clearTimeout(t));
-    }, [isGenerating, generationSteps, getDemoStory]);
+    useEffect(() => {
+        const init = async () => {
+            let currentId = storyIdFromUrl || storyId;
 
-    // Update word count when story changes
+            // 1. Check session storage for goals
+            const storedGoals = sessionStorage.getItem('capturedGoals');
+            let goals: UserAnswers | null = null;
+            if (storedGoals) {
+                try {
+                    goals = JSON.parse(storedGoals);
+                    setUserAnswers(goals);
+                } catch (e) {
+                    console.error("Failed to parse stored goals", e);
+                }
+            }
+
+            // 2. Load or Save
+            if (currentId) {
+                try {
+                    const res = await fetch(`/api/user/stories/${currentId}`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data.story_text_draft) {
+                            setStoryText(data.story_text_draft);
+                            setIsGenerating(false);
+                        } else {
+                            generate(currentId);
+                        }
+                        if (data.goal_intake_json) {
+                            setUserAnswers(data.goal_intake_json);
+                        }
+                    }
+                } catch (e) {
+                    console.error("Failed to fetch story", e);
+                }
+            } else if (goals) {
+                saveAndGenerate(goals);
+            }
+        };
+
+        if (storyIdFromUrl || !storyId) {
+            init();
+        }
+    }, [storyIdFromUrl, generate, saveAndGenerate, storyId]);
+
     useEffect(() => {
         const count = storyText.trim().split(/\s+/).filter(Boolean).length;
         setWordCount(count);
     }, [storyText]);
 
-    // Adjust textarea height
     useEffect(() => {
         if (textareaRef.current) {
             textareaRef.current.style.height = 'auto';
@@ -371,14 +344,9 @@ Later, in bed, I feel the day settle into me. It was not extraordinary by any me
     };
 
     const handleRegenerate = () => {
-        setIsApproved(false);
-        setIsGenerating(true);
-        setActiveStep(0);
-        // In real app, would call API here
-        setTimeout(() => {
-            setIsGenerating(false);
-            setStoryText(getDemoStory());
-        }, 5000);
+        if (storyId) {
+            generate(storyId);
+        }
     };
 
     const handleApprove = () => {
@@ -386,7 +354,15 @@ Later, in bed, I feel the day settle into me. It was not extraordinary by any me
         if (isEditing) {
             setIsEditing(false);
         }
-        router.push('/user/voice-recording');
+
+        // Logic for next step
+        if (!isLoggedIn) {
+            router.push('/auth/signup?next=/user/story');
+        } else if (!isPaid) {
+            router.push('/pricing');
+        } else {
+            router.push('/user/voice-recording');
+        }
     };
 
     const handleUnapprove = () => {
@@ -404,44 +380,52 @@ Later, in bed, I feel the day settle into me. It was not extraordinary by any me
         }));
     };
 
-    return (
-        <>
-
-
+    if (!userAnswers && !isGenerating) {
+        return (
             <div className={styles.container}>
-                {/* TOP BAR */}
-                <header className={styles.topbar}>
-                    <Link href="/" className={styles.logo}>
-                        Manifest<span>MyStory</span>
+                <div style={{ padding: '40px', textAlign: 'center' }}>
+                    <h2>No story data found.</h2>
+                    <p>Please complete the goal discovery first.</p>
+                    <Link href="/user/goal-intake-ai" className={styles.primaryBtn}>
+                        Start Discovery
                     </Link>
+                </div>
+            </div>
+        );
+    }
 
-                    <div className={styles.stepsRow}>
-                        <StepItem number={1} label="Goals" status="done" />
-                        <StepItem number={2} label="Your Story" status="active" />
-                        <StepItem number={3} label="Voice Recording" status="pending" />
-                        <StepItem number={4} label="Your Audio" status="pending" />
-                    </div>
+    return (
+        <div className={styles.container}>
+            <header className={styles.topbar}>
+                <Link href="/" className={styles.logo}>
+                    Manifest<span>MyStory</span>
+                </Link>
 
-                    <div className={styles.topbarRight}>
-                        <button className={styles.outlineBtn} onClick={handleRegenerate}>
-                            ↺ Regenerate
-                        </button>
-                        <button
-                            className={styles.primaryBtn}
-                            id="approveTopBtn"
-                            disabled={isGenerating || isApproved}
-                            onClick={handleApprove}
-                        >
-                            {isApproved ? '✓ Approved' : 'Approve Story'}
-                            {!isApproved && <ArrowIcon />}
-                        </button>
-                    </div>
-                </header>
+                <div className={styles.stepsRow}>
+                    {steps.map((step, idx) => (
+                        <StepItem key={idx} number={idx + 1} label={step.label} status={step.status} />
+                    ))}
+                </div>
 
-                {/* PAGE BODY */}
-                <div className={styles.pageBody}>
-                    {/* LEFT: VISION SUMMARY */}
-                    <aside className={styles.leftPanel}>
+                <div className={styles.topbarRight}>
+                    <button className={styles.outlineBtn} onClick={handleRegenerate}>
+                        ↺ Regenerate
+                    </button>
+                    <button
+                        className={styles.primaryBtn}
+                        id="approveTopBtn"
+                        disabled={isGenerating || isApproved}
+                        onClick={handleApprove}
+                    >
+                        {isApproved ? '✓ Approved' : 'Approve Story'}
+                        {!isApproved && <ArrowIcon />}
+                    </button>
+                </div>
+            </header>
+
+            <div className={styles.pageBody}>
+                <aside className={styles.leftPanel}>
+                    {userAnswers && (
                         <div>
                             <div className={styles.panelSectionTitle}>Your Vision</div>
                             <VisionItem label="Identity" value={userAnswers.identity} />
@@ -455,141 +439,144 @@ Later, in bed, I feel the day settle into me. It was not extraordinary by any me
                             </div>
                             <VisionItem label="Core Feeling" value={userAnswers.emotions} />
                         </div>
+                    )}
 
-                        <button className={styles.regenBtn} onClick={handleRegenerate}>
-                            <RefreshIcon />
-                            Regenerate story
-                        </button>
-                    </aside>
+                    <button className={styles.regenBtn} onClick={handleRegenerate}>
+                        <RefreshIcon />
+                        Regenerate story
+                    </button>
+                </aside>
 
-                    {/* CENTER: STORY EDITOR */}
-                    <main className={styles.centerPanel} id="centerPanel">
-                        {/* GENERATING STATE */}
-                        {isGenerating && (
-                            <div className={styles.generatingCard} id="generatingCard">
-                                <div className={styles.genIcon}>
-                                    <StarIcon />
-                                </div>
-                                <div className={styles.genTitle}>Crafting your story…</div>
-                                <div className={styles.genSubtitle}>
-                                    We're weaving your vision into a rich, sensory narrative set on a perfect day in your future life.
-                                </div>
-
-                                <div className={styles.genSteps}>
-                                    {generationSteps.map((step, index) => {
-                                        let status: 'pending' | 'active' | 'done' = 'pending';
-                                        if (index < activeStep) status = 'done';
-                                        else if (index === activeStep) status = 'active';
-                                        return (
-                                            <GenerationStepItem
-                                                key={step.id}
-                                                step={step}
-                                                status={status}
-                                            />
-                                        );
-                                    })}
-                                </div>
+                <main className={styles.centerPanel} id="centerPanel">
+                    {isGenerating && (
+                        <div className={styles.generatingCard} id="generatingCard">
+                            <div className={styles.genIcon}>
+                                <StarIcon />
                             </div>
-                        )}
-
-                        {/* STORY CARD */}
-                        {!isGenerating && (
-                            <div className={`${styles.storyCard} ${styles.visible}`} id="storyCard">
-                                <div className={styles.storyHeader}>
-                                    <div className={styles.storyHeaderLeft}>
-                                        <div className={styles.storyEyebrow}>Your Personal Manifestation Story</div>
-                                        <div className={styles.storyTitle} id="storyTitleEl">
-                                            A Day in the Life of My Highest Self
-                                        </div>
-                                        <div className={styles.storyMeta} id="storyMeta">
-                                            Generated just now · {wordCount.toLocaleString()} words
-                                        </div>
-                                    </div>
-                                    <button
-                                        className={`${styles.editToggle} ${isEditing ? styles.editing : ''}`}
-                                        onClick={handleToggleEdit}
-                                    >
-                                        {isEditing ? (
-                                            <>
-                                                <DoneIcon />
-                                                Done editing
-                                            </>
-                                        ) : (
-                                            <>
-                                                <EditIcon />
-                                                Edit story
-                                            </>
-                                        )}
-                                    </button>
-                                </div>
-
-                                <div className={styles.storyBody}>
-                                    <textarea
-                                        ref={textareaRef}
-                                        id="storyText"
-                                        className={styles.storyText}
-                                        readOnly={!isEditing}
-                                        value={storyText}
-                                        onChange={handleStoryChange}
-                                    />
-                                </div>
-
-                                <div className={styles.storyFooter}>
-                                    <span className={styles.wordCount} id="wordCountBottom">
-                                        {wordCount.toLocaleString()} words
-                                    </span>
-                                    <div className={styles.footerActions}>
-                                        <button className={styles.outlineBtn} onClick={handleRegenerate}>
-                                            ↺ New version
-                                        </button>
-                                        <button
-                                            className={styles.primaryBtn}
-                                            onClick={handleApprove}
-                                            disabled={isApproved}
-                                        >
-                                            Approve & Continue
-                                            <ArrowIcon />
-                                        </button>
-                                    </div>
-                                </div>
+                            <div className={styles.genTitle}>Crafting your story…</div>
+                            <div className={styles.genSubtitle}>
+                                We're weaving your vision into a rich, sensory narrative set on a perfect day in your future life.
                             </div>
-                        )}
 
-                        {/* APPROVE BANNER */}
-                        {isApproved && !isGenerating && (
-                            <ApproveBanner
-                                onEditMore={handleUnapprove}
-                                onRecordVoice={handleRecordVoice}
-                            />
-                        )}
-                    </main>
-
-                    {/* RIGHT PANEL */}
-                    <aside className={styles.rightPanel}>
-                        <TipCard />
-
-                        <div>
-                            <div className={styles.panelSectionTitle}>Story Checklist</div>
-                            <div className={styles.checklist} id="checklist">
-                                {checklistItems.map(item => (
-                                    <ChecklistItemComponent
-                                        key={item.id}
-                                        item={item}
-                                        checked={!!checkedItems[item.id]}
-                                        onToggle={handleToggleCheck}
-                                    />
-                                ))}
+                            <div className={styles.genSteps}>
+                                {generationSteps.map((step, index) => {
+                                    let status: 'pending' | 'active' | 'done' = 'pending';
+                                    if (index < activeStep) status = 'done';
+                                    else if (index === activeStep) status = 'active';
+                                    return (
+                                        <GenerationStepItem
+                                            key={step.id}
+                                            step={step}
+                                            status={status}
+                                        />
+                                    );
+                                })}
                             </div>
                         </div>
+                    )}
 
-                        <NextStepCard
-                            onNext={handleRecordVoice}
-                            disabled={!isApproved}
+                    {!isGenerating && storyText && (
+                        <div className={`${styles.storyCard} ${styles.visible}`} id="storyCard">
+                            <div className={styles.storyHeader}>
+                                <div className={styles.storyHeaderLeft}>
+                                    <div className={styles.storyEyebrow}>Your Personal Manifestation Story</div>
+                                    <div className={styles.storyTitle} id="storyTitleEl">
+                                        A Day in the Life of My Highest Self
+                                    </div>
+                                    <div className={styles.storyMeta} id="storyMeta">
+                                        Generated just now · {wordCount.toLocaleString()} words
+                                    </div>
+                                </div>
+                                <button
+                                    className={`${styles.editToggle} ${isEditing ? styles.editing : ''}`}
+                                    onClick={handleToggleEdit}
+                                >
+                                    {isEditing ? (
+                                        <>
+                                            <DoneIcon />
+                                            Done editing
+                                        </>
+                                    ) : (
+                                        <>
+                                            <EditIcon />
+                                            Edit story
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+
+                            <div className={styles.storyBody}>
+                                <textarea
+                                    ref={textareaRef}
+                                    id="storyText"
+                                    className={styles.storyText}
+                                    readOnly={!isEditing}
+                                    value={storyText}
+                                    onChange={handleStoryChange}
+                                />
+                            </div>
+
+                            <div className={styles.storyFooter}>
+                                <span className={styles.wordCount} id="wordCountBottom">
+                                    {wordCount.toLocaleString()} words
+                                </span>
+                                <div className={styles.footerActions}>
+                                    <button className={styles.outlineBtn} onClick={handleRegenerate}>
+                                        ↺ New version
+                                    </button>
+                                    <button
+                                        className={styles.primaryBtn}
+                                        onClick={handleApprove}
+                                        disabled={isApproved}
+                                    >
+                                        Approve & Continue
+                                        <ArrowIcon />
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {isApproved && !isGenerating && (
+                        <ApproveBanner
+                            onEditMore={handleUnapprove}
+                            onRecordVoice={handleRecordVoice}
                         />
-                    </aside>
-                </div>
+                    )}
+                </main>
+
+                <aside className={styles.rightPanel}>
+                    <TipCard />
+
+                    <div>
+                        <div className={styles.panelSectionTitle}>Story Checklist</div>
+                        <div className={styles.checklist} id="checklist">
+                            {checklistItems.map(item => (
+                                <ChecklistItemComponent
+                                    key={item.id}
+                                    item={item}
+                                    checked={!!checkedItems[item.id]}
+                                    onToggle={handleToggleCheck}
+                                />
+                            ))}
+                        </div>
+                    </div>
+
+                    <NextStepCard
+                        onNext={handleRecordVoice}
+                        disabled={!isApproved}
+                    />
+                </aside>
             </div>
-        </>
+        </div>
+    );
+};
+
+const Story: React.FC = () => {
+    return (
+        <Suspense fallback={<div>Loading...</div>}>
+            <StoryContent />
+        </Suspense>
     );
 };
 

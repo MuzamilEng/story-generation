@@ -9,6 +9,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id: userId } = await params;
     const session = await getServerSession(authOptions);
 
     if (!session || session.user.role !== UserRole.ADMIN) {
@@ -66,6 +67,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id: userId } = await params;
     const session = await getServerSession(authOptions);
 
     if (!session || session.user.role !== UserRole.ADMIN) {
