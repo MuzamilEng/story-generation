@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import styles from "../app/styles/Home.module.css";
 import {
   ArrowIcon,
@@ -19,6 +20,7 @@ import { Step, PricingPlan, Testimonial } from "../app/types/home";
 
 // Navigation Component
 const Navigation: React.FC = () => {
+  const { data: session } = useSession();
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -65,13 +67,18 @@ const Navigation: React.FC = () => {
             The Science
             <ExternalIcon />
           </Link>
+          {session && (
+            <Link href="/user/dashboard" className={styles.navLink}>
+              Dashboard
+            </Link>
+          )}
         </div>
 
         <Link
-          href="/user/goal-intake-ai"
+          href={session ? "/user/dashboard" : "/user/goal-intake-ai"}
           className={`${styles.navCta} ${styles.navCtaDesktop}`}
         >
-          Create My Story — Free
+          {session ? "My Dashboard" : "Create My Story — Free"}
         </Link>
 
         {/* Burger button — mobile only */}
@@ -187,19 +194,21 @@ const Navigation: React.FC = () => {
           </Link>
 
           <div className={styles.mobileMenuDivider} />
+          {!session && (
+            <Link
+              href="/auth/signin"
+              className={styles.mobileMenuLink}
+              onClick={closeMenu}
+            >
+              Sign In
+            </Link>
+          )}
           <Link
-            href="/auth/signin"
-            className={styles.mobileMenuLink}
-            onClick={closeMenu}
-          >
-            Sign In
-          </Link>
-          <Link
-            href="/user/goal-intake-ai"
+            href={session ? "/user/dashboard" : "/user/goal-intake-ai"}
             className={styles.mobileMenuCta}
             onClick={closeMenu}
           >
-            Create My Story — Free
+            {session ? "Dashboard" : "Create My Story — Free"}
           </Link>
         </nav>
       </div>
@@ -209,6 +218,7 @@ const Navigation: React.FC = () => {
 
 // Hero Section
 const Hero: React.FC = () => {
+  const { data: session } = useSession();
   return (
     <section className={styles.hero}>
       <div className={`${styles.orb} ${styles.orb1}`} />
@@ -240,8 +250,11 @@ const Hero: React.FC = () => {
         </p>
 
         <div className={styles.heroActions}>
-          <Link href="/user/goal-intake-ai" className={styles.heroPrimary}>
-            Create My Story — It's Free
+          <Link
+            href={session ? "/user/dashboard" : "/user/goal-intake-ai"}
+            className={styles.heroPrimary}
+          >
+            {session ? "View My Stories" : "Create My Story — It's Free"}
             <ArrowIcon />
           </Link>
 
@@ -645,6 +658,7 @@ const Testimonials: React.FC = () => {
 
 // Final CTA Section
 const FinalCTA: React.FC = () => {
+  const { data: session } = useSession();
   return (
     <section className={styles.final}>
       <div className={styles.finalContent}>
@@ -656,8 +670,11 @@ const FinalCTA: React.FC = () => {
         <p className={styles.finalSub}>
           It takes 15 minutes to create your story. The rest is just listening.
         </p>
-        <Link href="/user/goal-intake-ai" className={styles.finalBtn}>
-          Create My Story — It's Free
+        <Link
+          href={session ? "/user/dashboard" : "/user/goal-intake-ai"}
+          className={styles.finalBtn}
+        >
+          {session ? "Go to My Dashboard" : "Create My Story — It's Free"}
           <ArrowIcon />
         </Link>
         <div className={styles.finalNote}>

@@ -298,12 +298,18 @@ const AudioReadyContent: React.FC = () => {
                     Manifest<span>MyStory</span>
                 </div>
                 <div className={styles.stepsRow}>
-                    <StepItem number={1} label="Your Goals" status="done" />
-                    <StepItem number={2} label="Your Story" status="done" />
-                    <StepItem number={3} label="Free Sample" status="done" />
-                    <StepItem number={4} label="Account" status="done" />
-                    <StepItem number={5} label="Choose Plan" status="done" />
-                    <StepItem number={6} label="Full Audio" status="active" />
+                    <StepItem number={1} label="Goals" status="done" />
+                    <StepItem number={2} label="Story" status="done" />
+                    <StepItem number={3} label="Voice" status="done" />
+                    <StepItem number={4} label="Audio" status="active" />
+                </div>
+                <div className={styles.topActions}>
+                    <button
+                        className={styles.dashboardBtn}
+                        onClick={() => router.push('/user/dashboard')}
+                    >
+                        Go to Dashboard
+                    </button>
                 </div>
             </div>
 

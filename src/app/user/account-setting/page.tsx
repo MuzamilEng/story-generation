@@ -2,6 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useSession, signOut } from 'next-auth/react';
 import { format } from 'date-fns';
 import styles from '../../styles/AccountSettings.module.css';
 import {
@@ -21,35 +23,43 @@ import { UserProfile, VoiceModel, NotificationSettings, PlanDetails } from '../.
 // Top Bar Component
 interface TopBarProps {
     onNewStory: () => void;
+    userName?: string;
 }
 
-const TopBar: React.FC<TopBarProps> = ({ onNewStory }) => (
-    <header className={styles.topbar}>
-        <Link href="/" className={styles.logo}>
-            Manifest<span>MyStory</span>
-        </Link>
+const TopBar: React.FC<TopBarProps> = ({ onNewStory, userName }) => {
+    const getInitials = (name?: string) => {
+        if (!name) return '??';
+        return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
+    };
 
-        <nav className={styles.topbarNav}>
-            <Link href="/user/dashboard" className={styles.navLink}>
-                My Dashboard
+    return (
+        <header className={styles.topbar}>
+            <Link href="/" className={styles.logo}>
+                Manifest<span>MyStory</span>
             </Link>
-            <Link href="/science" className={styles.navLink}>
-                The Science
-            </Link>
-            <Link href="/user/account-setting" className={`${styles.navLink} ${styles.active}`}>
-                Settings
-            </Link>
-        </nav>
 
-        <div className={styles.topbarRight}>
-            <button className={styles.newStoryBtn} onClick={onNewStory}>
-                <PlusIcon />
-                New Story
-            </button>
-            <button className={styles.avatarBtn}>MZ</button>
-        </div>
-    </header>
-);
+            <nav className={styles.topbarNav}>
+                <Link href="/user/dashboard" className={styles.navLink}>
+                    My Dashboard
+                </Link>
+                <Link href="/science" className={styles.navLink}>
+                    The Science
+                </Link>
+                <Link href="/user/account-setting" className={`${styles.navLink} ${styles.active}`}>
+                    Settings
+                </Link>
+            </nav>
+
+            <div className={styles.topbarRight}>
+                <button className={styles.newStoryBtn} onClick={onNewStory}>
+                    <PlusIcon />
+                    New Story
+                </button>
+                <button className={styles.avatarBtn}>{getInitials(userName)}</button>
+            </div>
+        </header>
+    );
+};
 
 // Settings Section Header Component
 interface SectionHeaderProps {
@@ -75,6 +85,7 @@ const SectionHeader: React.FC<SectionHeaderProps> = ({ icon, title, subtitle, ic
 interface FormRowProps {
     label: string;
     value: string;
+    onChange?: (val: string) => void;
     onEdit?: () => void;
     isEditing?: boolean;
     onSave?: () => void;
@@ -86,6 +97,7 @@ interface FormRowProps {
 const FormRow: React.FC<FormRowProps> = ({
     label,
     value,
+    onChange,
     onEdit,
     isEditing,
     onSave,
@@ -103,6 +115,7 @@ const FormRow: React.FC<FormRowProps> = ({
                         type={inputType}
                         value={value}
                         disabled={!isEditing}
+                        onChange={(e) => onChange && onChange(e.target.value)}
                     />
                     {!isEditing && onEdit && (
                         <button className={styles.editBtn} onClick={onEdit}>
@@ -238,39 +251,86 @@ const AccountSettings: React.FC = () => {
         }
     }, []);
 
+    const queryClient = useQueryClient();
+    const { data: session } = useSession();
+
+    // Fetch user settings
+    const { data: userData, isLoading } = useQuery({
+        queryKey: ['user-settings'],
+        queryFn: async () => {
+            const res = await fetch('/api/user/settings');
+            if (!res.ok) throw new Error('Failed to fetch settings');
+            return res.json();
+        }
+    });
+
+    // Update settings mutation
+    const updateSettingsMutation = useMutation({
+        mutationFn: async (newData: any) => {
+            const res = await fetch('/api/user/settings', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(newData),
+            });
+            if (!res.ok) throw new Error('Failed to update settings');
+            return res.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['user-settings'] });
+            showToast('✓ Changes saved');
+            setEditingField(null);
+        },
+        onError: () => {
+            showToast('❌ Failed to save changes');
+        }
+    });
+
+    // Delete all stories mutation
+    const deleteStoriesMutation = useMutation({
+        mutationFn: async () => {
+            const res = await fetch('/api/user/stories', { method: 'DELETE' });
+            if (!res.ok) throw new Error('Failed to delete stories');
+            return res.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['user-settings'] });
+            showToast('✓ All stories deleted');
+        },
+        onError: () => {
+            showToast('❌ Failed to delete stories');
+        }
+    });
+
+    // Delete account mutation
+    const deleteAccountMutation = useMutation({
+        mutationFn: async () => {
+            const res = await fetch('/api/user/settings', { method: 'DELETE' });
+            if (!res.ok) throw new Error('Failed to delete account');
+            return res.json();
+        },
+        onSuccess: () => {
+            showToast('✓ Account deleted');
+            signOut({ callbackUrl: '/' });
+        },
+        onError: () => {
+            showToast('❌ Failed to delete account');
+        }
+    });
+
     // Edit states
     const [editingField, setEditingField] = useState<'name' | 'email' | null>(null);
-    const [profile, setProfile] = useState<UserProfile>({
-        name: 'Michael Ziman',
-        email: 'michael@manifestmystory.com',
-        signInMethod: 'Email & Password'
-    });
+    const [nameInput, setNameInput] = useState('');
+    const [emailInput, setEmailInput] = useState('');
 
-    const [voiceModel, setVoiceModel] = useState<VoiceModel>({
-        name: "Michael's Voice",
-        createdDate: new Date(2026, 2, 7),
-        storyCount: 3,
-        provider: 'ElevenLabs'
-    });
+    const isEditingName = editingField === 'name';
+    const isEditingEmail = editingField === 'email';
 
-    const [notifications, setNotifications] = useState<NotificationSettings>({
-        morningReminder: true,
-        eveningReminder: true,
-        streakMilestones: true,
-        productUpdates: false
-    });
-
-    const [plan, setPlan] = useState<PlanDetails>({
-        name: 'Standard',
-        price: '$9.99 / month',
-        nextRenewal: new Date(2026, 3, 7),
-        storiesUsed: 3,
-        storiesLimit: 5,
-        audioMinutesUsed: 22,
-        audioMinutesLimit: 60,
-        storiesSaved: 3,
-        slotsEarned: 15
-    });
+    useEffect(() => {
+        if (userData) {
+            setNameInput(userData.full_name || '');
+            setEmailInput(userData.email || '');
+        }
+    }, [userData]);
 
     const showToast = (message: string) => {
         setToast({ message, visible: true });
@@ -282,12 +342,32 @@ const AccountSettings: React.FC = () => {
     };
 
     const handleSave = (field: 'name' | 'email') => {
-        setEditingField(null);
-        showToast('✓ Changes saved');
+        if (field === 'name') {
+            updateSettingsMutation.mutate({ full_name: nameInput });
+        } else if (field === 'email') {
+            // Usually email changes require more verification, but we'll allow it for now
+            updateSettingsMutation.mutate({ email: emailInput });
+        }
     };
 
     const handleCancel = () => {
         setEditingField(null);
+        if (userData) {
+            setNameInput(userData.full_name || '');
+            setEmailInput(userData.email || '');
+        }
+    };
+
+    const handleNotificationChange = (key: string, value: boolean) => {
+        const backendKeyMap: Record<string, string> = {
+            morningReminder: 'morning_reminder',
+            eveningReminder: 'evening_reminder',
+            streakMilestones: 'streak_milestones',
+            productUpdates: 'product_updates'
+        };
+
+        const backendKey = backendKeyMap[key] || key;
+        updateSettingsMutation.mutate({ [backendKey]: value });
     };
 
     const handleNewStory = () => {
@@ -299,17 +379,14 @@ const AccountSettings: React.FC = () => {
     };
 
     const handleReRecord = () => {
-        router.push('/voice-recording');
+        router.push('/user/voice-recording');
     };
 
     const handleDeleteVoice = () => {
         if (confirm('Delete your voice model? Your existing audio stories will still play, but you won\'t be able to generate new ones until you re-record. This cannot be undone.')) {
+            // TODO: API call to delete voice model
             showToast('Voice model deleted');
         }
-    };
-
-    const handleNotificationChange = (key: keyof NotificationSettings, value: boolean) => {
-        setNotifications(prev => ({ ...prev, [key]: value }));
     };
 
     const handlePasswordChange = () => {
@@ -318,20 +395,23 @@ const AccountSettings: React.FC = () => {
 
     const handleDeleteStories = () => {
         if (confirm('Permanently delete all stories and audio files? This cannot be undone.')) {
-            showToast('All stories deleted');
+            deleteStoriesMutation.mutate();
         }
     };
 
     const handleDeleteAccount = () => {
         if (confirm('Permanently delete your account? Everything — stories, audio, voice model — will be lost forever. This cannot be undone.')) {
-            showToast('Check your email to confirm account deletion');
+            deleteAccountMutation.mutate();
         }
     };
+
+    if (isLoading) return <div className={styles.container}><TopBar onNewStory={handleNewStory} userName={session?.user?.name || undefined} /><div className={styles.page}>Loading settings...</div></div>;
+    if (!userData) return <div className={styles.container}><TopBar onNewStory={handleNewStory} userName={session?.user?.name || undefined} /><div className={styles.page}>Error loading settings</div></div>;
 
     return (
         <>
             <div className={styles.container}>
-                <TopBar onNewStory={handleNewStory} />
+                <TopBar onNewStory={handleNewStory} userName={userData.full_name} />
 
                 <main className={styles.page}>
                     {/* Back Link */}
@@ -355,8 +435,9 @@ const AccountSettings: React.FC = () => {
 
                         <FormRow
                             label="Full Name"
-                            value={profile.name}
-                            isEditing={editingField === 'name'}
+                            value={isEditingName ? nameInput : userData.full_name}
+                            onChange={(val) => setNameInput(val)}
+                            isEditing={isEditingName}
                             onEdit={() => handleEdit('name')}
                             onSave={() => handleSave('name')}
                             onCancel={handleCancel}
@@ -364,9 +445,10 @@ const AccountSettings: React.FC = () => {
 
                         <FormRow
                             label="Email"
-                            value={profile.email}
+                            value={isEditingEmail ? emailInput : userData.email}
+                            onChange={(val) => setEmailInput(val)}
                             inputType="email"
-                            isEditing={editingField === 'email'}
+                            isEditing={isEditingEmail}
                             onEdit={() => handleEdit('email')}
                             onSave={() => handleSave('email')}
                             onCancel={handleCancel}
@@ -381,7 +463,7 @@ const AccountSettings: React.FC = () => {
 
                         <FormRow
                             label="Sign-in Method"
-                            value={profile.signInMethod}
+                            value={userData.auth_provider === 'email' ? 'Email & Password' : userData.auth_provider}
                         />
                     </div>
 
@@ -393,12 +475,37 @@ const AccountSettings: React.FC = () => {
                             subtitle="The cloned voice used to narrate your stories"
                         />
 
-                        <VoiceModelCard
-                            model={voiceModel}
-                            onPlay={handlePlaySample}
-                            onReRecord={handleReRecord}
-                            onDelete={handleDeleteVoice}
-                        />
+                        {userData.voice_model_id ? (
+                            <VoiceModelCard
+                                model={{
+                                    name: "My Voice Model",
+                                    createdDate: new Date(userData.createdAt),
+                                    storyCount: userData._count?.stories || 0,
+                                    provider: 'ElevenLabs'
+                                }}
+                                onPlay={handlePlaySample}
+                                onReRecord={handleReRecord}
+                                onDelete={handleDeleteVoice}
+                            />
+                        ) : (
+                            <div className={styles.voiceRow}>
+                                <div className={styles.voiceInfo}>
+                                    <div className={styles.voiceAvatar}>
+                                        <MicIcon />
+                                    </div>
+                                    <div>
+                                        <div className={styles.voiceName}>No Voice Model Yet</div>
+                                        <div className={styles.voiceMeta}>Record your voice to start generating audio stories</div>
+                                    </div>
+                                </div>
+                                <div className={styles.voiceBtns}>
+                                    <button className={`${styles.vbtn} ${styles.solid}`} onClick={handleReRecord}>
+                                        <PlusIcon />
+                                        Setup Voice Model
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Notifications Section */}
@@ -412,28 +519,28 @@ const AccountSettings: React.FC = () => {
                         <ToggleRow
                             label="Morning listening reminder"
                             subtitle="Daily nudge to listen to your story when you wake up"
-                            checked={notifications.morningReminder}
+                            checked={userData.morning_reminder}
                             onChange={(val) => handleNotificationChange('morningReminder', val)}
                         />
 
                         <ToggleRow
                             label="Evening listening reminder"
                             subtitle="Reminder before bed to complete your daily practice"
-                            checked={notifications.eveningReminder}
+                            checked={userData.evening_reminder}
                             onChange={(val) => handleNotificationChange('eveningReminder', val)}
                         />
 
                         <ToggleRow
                             label="Streak milestones"
                             subtitle="Celebrate when you hit 7, 30, and 60-day listening streaks"
-                            checked={notifications.streakMilestones}
+                            checked={userData.streak_milestones}
                             onChange={(val) => handleNotificationChange('streakMilestones', val)}
                         />
 
                         <ToggleRow
                             label="Product updates & tips"
                             subtitle="Occasional emails about new features and manifestation techniques"
-                            checked={notifications.productUpdates}
+                            checked={userData.product_updates}
                             onChange={(val) => handleNotificationChange('productUpdates', val)}
                         />
                     </div>
@@ -442,24 +549,14 @@ const AccountSettings: React.FC = () => {
                     <div className={styles.settingsSection}>
                         <SectionHeader
                             icon={<StarIcon />}
-                            title={`Current Plan — ${plan.name}`}
-                            subtitle={`${plan.price} · Renews ${format(plan.nextRenewal, 'MMMM d, yyyy')}`}
+                            title={`Current Plan — ${userData.plan.toUpperCase()}`}
+                            subtitle={`${userData.plan === 'free' ? 'Free Plan' : '$9.99 / month'} · Active since ${format(new Date(userData.createdAt), 'MMMM d, yyyy')}`}
                             iconColor="gold"
                         />
 
                         <FormRow
-                            label="Stories this month"
-                            value={`${plan.storiesUsed} of ${plan.storiesLimit} used`}
-                        />
-
-                        <FormRow
-                            label="Audio minutes"
-                            value={`${plan.audioMinutesUsed} of ${plan.audioMinutesLimit} minutes used`}
-                        />
-
-                        <FormRow
-                            label="Story library"
-                            value={`${plan.storiesSaved} stories saved (${plan.slotsEarned} slots earned so far)`}
+                            label="Stories created"
+                            value={`${userData._count?.stories || 0} stories`}
                         />
 
                         <FormRow label="Manage plan" value="Upgrade, downgrade, or cancel">

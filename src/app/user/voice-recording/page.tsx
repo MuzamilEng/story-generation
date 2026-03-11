@@ -290,6 +290,8 @@ const VoiceRecordingContent: React.FC = () => {
         };
     }, [recState]);
 
+    const [mimeType, setMimeType] = useState<string>('');
+
     const startRecording = async () => {
         try {
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -299,7 +301,18 @@ const VoiceRecordingContent: React.FC = () => {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             streamRef.current = stream;
 
-            const mediaRecorder = new MediaRecorder(stream);
+            // Detect best supported mime type (Safari prefers mp4/aac, others prefer webm)
+            const supportedType = [
+                'audio/webm;codecs=opus',
+                'audio/webm',
+                'audio/mp4',
+                'audio/aac',
+            ].find(type => MediaRecorder.isTypeSupported(type)) || '';
+
+            setMimeType(supportedType);
+
+            const options = supportedType ? { mimeType: supportedType } : {};
+            const mediaRecorder = new MediaRecorder(stream, options);
             mediaRecorderRef.current = mediaRecorder;
             audioChunksRef.current = [];
 
@@ -310,7 +323,7 @@ const VoiceRecordingContent: React.FC = () => {
             };
 
             mediaRecorder.onstop = () => {
-                const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+                const blob = new Blob(audioChunksRef.current, { type: supportedType || 'audio/webm' });
                 const url = URL.createObjectURL(blob);
                 setAudioBlob(blob);
                 setAudioUrl(url);
@@ -364,7 +377,11 @@ const VoiceRecordingContent: React.FC = () => {
         setIsSubmitting(true);
         try {
             const formData = new FormData();
-            formData.append('audio', audioBlob, 'sample.webm');
+
+            // Safari fix: use m4a for mp4/aac types, else webm
+            const extension = mimeType.includes('mp4') || mimeType.includes('aac') ? 'm4a' : 'webm';
+            formData.append('audio', audioBlob, `sample.${extension}`);
+
             if (storyId) {
                 formData.append('storyId', storyId);
             }

@@ -55,3 +55,23 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
     }
 }
+
+export async function DELETE(req: NextRequest) {
+    try {
+        const session = await getServerSession(authOptions)
+        if (!session || !session.user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        }
+
+        await prisma.story.deleteMany({
+            where: {
+                userId: session.user.id,
+            },
+        })
+
+        return NextResponse.json({ message: 'All stories deleted' })
+    } catch (error) {
+        console.error('[STORY_DELETE_ALL]', error)
+        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
+    }
+}

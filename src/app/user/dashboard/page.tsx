@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
+import { useQuery } from '@tanstack/react-query';
 import { format, formatDistanceToNow } from 'date-fns';
 import styles from '../../styles/Dashboard.module.css';
 
@@ -121,6 +122,19 @@ const CheckIcon = () => (
     </svg>
 );
 
+const RefreshIcon = () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <polyline points="23 4 23 10 17 10" />
+        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+    </svg>
+);
+
+const ArrowIcon = () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <polyline points="9 18 15 12 9 6" />
+    </svg>
+);
+
 // Types
 interface Story {
     id: string;
@@ -131,6 +145,8 @@ interface Story {
     plays: number;
     downloads: number;
     audioUrl?: string;
+    audio_url?: string;
+    status: 'draft' | 'approved' | 'audio_ready';
 }
 
 interface Activity {
@@ -165,58 +181,89 @@ interface StoryCardProps {
     onRead: (story: Story) => void;
 }
 
-const StoryCard: React.FC<StoryCardProps> = ({ story, isActive, onPlay, onDownload, onRead }) => (
-    <div className={`${styles.storyCard} ${isActive ? styles.activeCard : ''}`} onClick={() => onPlay(story)}>
-        <div className={styles.storyCardTop}>
-            {isActive && (
-                <div className={`${styles.storyPlayingBadge} ${styles.show}`}>
-                    Playing
+const StoryCard: React.FC<StoryCardProps> = ({ story, isActive, onPlay, onDownload, onRead }) => {
+    // A story is a draft if it's explicitly 'draft', or if it's approved but missing audio
+    const isDraft = story.status === 'draft' || !story.audio_url;
+
+    const getDraftReason = () => {
+        if (story.status === 'draft') return 'In Progress';
+        if (!story.audio_url) return 'Awaiting Voice';
+        return 'Draft';
+    };
+
+    return (
+        <div className={`${styles.storyCard} ${isActive ? styles.activeCard : ''}`} onClick={() => onPlay(story)}>
+            <div className={styles.storyCardTop}>
+                {isActive && (
+                    <div className={`${styles.storyPlayingBadge} ${styles.show}`}>
+                        Playing
+                    </div>
+                )}
+                {isDraft && (
+                    <div className={styles.draftBadge}>
+                        {getDraftReason()}
+                    </div>
+                )}
+                <div className={styles.storyCardEyebrow}>
+                    Created {story.createdAt instanceof Date && !isNaN(story.createdAt.getTime()) ? format(story.createdAt, 'MMM d, yyyy') : 'Recently'}
                 </div>
-            )}
-            <div className={styles.storyCardEyebrow}>
-                Created {format(new Date(story.createdAt), 'MMM d, yyyy')}
+                <div className={styles.storyCardTitle}>{story.title}</div>
+                <div className={styles.storyCardMeta}>
+                    <div className={styles.storyMetaPill}>
+                        <ClockIcon />
+                        {story.duration || '—'}
+                    </div>
+                    {!isDraft && (
+                        <div className={styles.storyMetaPill}>
+                            <PlayIcon />
+                            {story.plays} plays
+                        </div>
+                    )}
+                </div>
             </div>
-            <div className={styles.storyCardTitle}>{story.title}</div>
-            <div className={styles.storyCardMeta}>
-                <div className={styles.storyMetaPill}>
-                    <ClockIcon />
-                    {story.duration}
-                </div>
-                <div className={styles.storyMetaPill}>
-                    <PlayIcon />
-                    {story.plays} plays
+            <div className={styles.storyCardBody}>
+                <div className={styles.storyExcerpt}>{story.excerpt || (isDraft ? 'Finish generating your manifestation story to listen and download.' : 'No excerpt available.')}</div>
+                <div className={styles.storyActions}>
+                    <button
+                        className={`${styles.storyBtn} ${styles.primary} ${isDraft ? styles.fullWidth : ''}`}
+                        onClick={(e) => { e.stopPropagation(); onPlay(story); }}
+                    >
+                        {isDraft ? (
+                            <>
+                                <RefreshIcon />
+                                Resume Generation
+                            </>
+                        ) : (
+                            <>
+                                <PlayIcon />
+                                Play
+                            </>
+                        )}
+                    </button>
+                    {!isDraft && (
+                        <>
+                            <button
+                                className={styles.storyBtn}
+                                onClick={(e) => { e.stopPropagation(); onDownload(story); }}
+                            >
+                                <DownloadIcon />
+                                Download
+                            </button>
+                            <div className={styles.storyBtnSpacer} />
+                            <button
+                                className={styles.storyBtn}
+                                onClick={(e) => { e.stopPropagation(); onRead(story); }}
+                            >
+                                <EyeIcon />
+                                Read
+                            </button>
+                        </>
+                    )}
                 </div>
             </div>
         </div>
-        <div className={styles.storyCardBody}>
-            <div className={styles.storyExcerpt}>{story.excerpt}</div>
-            <div className={styles.storyActions}>
-                <button
-                    className={`${styles.storyBtn} ${styles.primary}`}
-                    onClick={(e) => { e.stopPropagation(); onPlay(story); }}
-                >
-                    <PlayIcon />
-                    Play
-                </button>
-                <button
-                    className={styles.storyBtn}
-                    onClick={(e) => { e.stopPropagation(); onDownload(story); }}
-                >
-                    <DownloadIcon />
-                    Download
-                </button>
-                <div className={styles.storyBtnSpacer} />
-                <button
-                    className={styles.storyBtn}
-                    onClick={(e) => { e.stopPropagation(); onRead(story); }}
-                >
-                    <EyeIcon />
-                    Read
-                </button>
-            </div>
-        </div>
-    </div>
-);
+    );
+};
 
 interface ActivityRowProps {
     activity: Activity;
@@ -245,7 +292,7 @@ const ActivityRow: React.FC<ActivityRowProps> = ({ activity }) => {
         }
     };
 
-    const timeAgo = formatDistanceToNow(activity.timestamp, { addSuffix: true });
+
 
     return (
         <div className={styles.activityRow}>
@@ -253,7 +300,7 @@ const ActivityRow: React.FC<ActivityRowProps> = ({ activity }) => {
                 {getIcon()}
             </div>
             <div className={styles.activityText}>{getText()}</div>
-            <div className={styles.activityTime}>{timeAgo}</div>
+            <div className={styles.activityTime}>{activity.timestamp instanceof Date && !isNaN(activity.timestamp.getTime()) ? formatDistanceToNow(activity.timestamp, { addSuffix: true }) : 'Recently'}</div>
         </div>
     );
 };
@@ -290,8 +337,25 @@ const Dashboard: React.FC = () => {
     const dropdownRef = useRef<HTMLDivElement>(null);
     const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
-    const [stories, setStories] = useState<Story[]>([]);
-    const [isLoadingStories, setIsLoadingStories] = useState(true);
+    const { data: stories = [], isLoading: isLoadingStories } = useQuery<Story[]>({
+        queryKey: ['stories'],
+        queryFn: async () => {
+            const res = await fetch('/api/user/stories');
+            if (!res.ok) throw new Error('Failed to fetch stories');
+            const data = await res.json();
+            return data.map((s: any) => ({
+                id: s.id,
+                title: s.title || 'My Manifestation Story',
+                excerpt: s.story_text_draft ? s.story_text_draft.substring(0, 120) + '...' : 'Draft created, ready to generate details.',
+                createdAt: new Date(s.createdAt),
+                duration: s.duration || "6 min 42 sec",
+                plays: 0,
+                downloads: 0,
+                audioUrl: s.audio_url || 'TODO',
+            }));
+        },
+        enabled: !!session,
+    });
 
     const [activities] = useState<Activity[]>([
         { id: 1, type: 'play', storyId: '1', storyTitle: "A Day in the Life of My Highest Self", timestamp: new Date(new Date().setHours(7, 2)) },
@@ -300,36 +364,6 @@ const Dashboard: React.FC = () => {
         { id: 4, type: 'create', storyId: '2', storyTitle: "My Abundant Life — Financial Freedom", timestamp: new Date(Date.now() - 8 * 86400000) },
         { id: 5, type: 'create', storyId: '1', storyTitle: "A Day in the Life of My Highest Self", timestamp: new Date(Date.now() - 29 * 86400000) }
     ]);
-
-    useEffect(() => {
-        const fetchStories = async () => {
-            try {
-                const res = await fetch('/api/user/stories');
-                if (res.ok) {
-                    const data = await res.json();
-                    const formatted = data.map((s: any) => ({
-                        id: s.id,
-                        title: s.title || 'My Manifestation Story',
-                        excerpt: s.story_text_draft ? s.story_text_draft.substring(0, 120) + '...' : 'Draft created, ready to generate details.',
-                        createdAt: new Date(s.createdAt),
-                        duration: s.duration || "6 min 42 sec", // Fallback for now until audio is wired
-                        plays: 0,
-                        downloads: 0,
-                        audioUrl: s.audio_url || 'TODO',
-                    }));
-                    setStories(formatted);
-                }
-            } catch (err) {
-                console.error("Failed to fetch stories:", err);
-            } finally {
-                setIsLoadingStories(false);
-            }
-        };
-
-        if (session) {
-            fetchStories();
-        }
-    }, [session]);
 
     const totalDuration = 402; // 6:42 in seconds
     const progressPercentage = (currentTime / totalDuration) * 100;
@@ -381,6 +415,17 @@ const Dashboard: React.FC = () => {
     };
 
     const handlePlayStory = (story: Story) => {
+        const isDraft = story.status === 'draft' || !story.audio_url;
+
+        if (isDraft) {
+            if (story.status === 'draft') {
+                router.push(`/user/story?id=${story.id}`);
+            } else {
+                router.push(`/user/voice-recording?storyId=${story.id}`);
+            }
+            return;
+        }
+
         setActiveStory(story);
         setAudioPanelOpen(true);
         setIsPlaying(true);
@@ -424,7 +469,13 @@ const Dashboard: React.FC = () => {
     };
 
     const handleRead = (story: Story) => {
-        router.push(`/user/story?id=${story.id}`);
+        if (story.status === 'draft') {
+            router.push(`/user/story?id=${story.id}`);
+        } else if (story.status === 'approved' && !story.audio_url) {
+            router.push(`/user/voice-recording?storyId=${story.id}`);
+        } else {
+            router.push(`/user/story-detail/${story.id}`);
+        }
     };
 
     return (
@@ -448,7 +499,7 @@ const Dashboard: React.FC = () => {
                 </nav>
 
                 <div className={styles.topbarRight}>
-                    <Link href="/user/story" className={styles.newStoryBtn}>
+                    <Link href="/user/goal-intake-ai" className={styles.newStoryBtn}>
                         <PlusIcon />
                         New story
                     </Link>
@@ -637,15 +688,21 @@ const Dashboard: React.FC = () => {
                 <div className={styles.sectionHeader}>
                     <div>
                         <div className={styles.sectionTitle}>My Story Library</div>
-                        <div className={styles.sectionSub}>2 of 5 story slots used</div>
+                        <div className={styles.sectionSub}>Recent captures and sessions</div>
                     </div>
+                    {stories.length > 10 && (
+                        <Link href="/user/stories" className={styles.viewAllLink}>
+                            View All Stories
+                            <ArrowIcon />
+                        </Link>
+                    )}
                 </div>
 
                 <div className={styles.storyGrid}>
                     {isLoadingStories ? (
                         <div style={{ opacity: 0.7, padding: '2rem' }}>Loading your stories...</div>
                     ) : (
-                        stories.map(story => (
+                        stories.slice(0, 10).map((story: Story) => (
                             <StoryCard
                                 key={story.id}
                                 story={story}
@@ -678,7 +735,7 @@ const Dashboard: React.FC = () => {
                 </div>
 
                 <div className={styles.activityCard}>
-                    {activities.map(activity => (
+                    {activities.map((activity: Activity) => (
                         <ActivityRow key={activity.id} activity={activity} />
                     ))}
                 </div>

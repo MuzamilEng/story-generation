@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter, useParams } from 'next/navigation';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import styles from '../../../styles/StoryDetail.module.css';
 import {
@@ -19,7 +20,8 @@ import {
     PauseIcon,
     SkipBackIcon,
     SkipForwardIcon,
-    LoopIcon
+    LoopIcon,
+    TrashIcon
 } from '../../../components/icons/StoryDetailIcons';
 import { Story, StoryVersion, AudioPlayerState } from '../../../types/story-detail';
 
@@ -30,15 +32,15 @@ interface TopBarProps {
 
 const TopBar: React.FC<TopBarProps> = ({ onNewStory }) => (
     <header className={styles.topbar}>
-        <Link href="/" className={styles.logo}>
+        <Link href="/user/dashboard" className={styles.logo}>
             Manifest<span>MyStory</span>
         </Link>
 
         <nav className={styles.topbarNav}>
-            <Link href="/dashboard" className={`${styles.navLink} ${styles.active}`}>
+            <Link href="/user/dashboard" className={`${styles.navLink} ${styles.active}`}>
                 My Stories
             </Link>
-            <Link href="/account-settings" className={styles.navLink}>
+            <Link href="/user/account-setting" className={styles.navLink}>
                 Settings
             </Link>
         </nav>
@@ -61,6 +63,7 @@ interface StoryHeaderProps {
     onRegenToggle: () => void;
     onPlayToggle: () => void;
     onDownload: () => void;
+    onDelete: () => void;
     isPlaying: boolean;
     onTitleChange: (title: string) => void;
 }
@@ -72,6 +75,7 @@ const StoryHeader: React.FC<StoryHeaderProps> = ({
     onRegenToggle,
     onPlayToggle,
     onDownload,
+    onDelete,
     isPlaying,
     onTitleChange
 }) => {
@@ -98,7 +102,7 @@ const StoryHeader: React.FC<StoryHeaderProps> = ({
     return (
         <div className={styles.storyHeader}>
             <div className={styles.shEyebrow}>
-                Story 1 · Created {format(story.createdAt, 'MMMM d, yyyy')}
+                Story 1 · Created {story.createdAt instanceof Date && !isNaN(story.createdAt.getTime()) ? format(story.createdAt, 'MMMM d, yyyy') : 'Recently'}
             </div>
 
             {!isEditing ? (
@@ -160,6 +164,14 @@ const StoryHeader: React.FC<StoryHeaderProps> = ({
                 >
                     <RefreshIcon />
                     Regenerate
+                </button>
+
+                <button
+                    className={`${styles.shBtn} ${styles.delete}`}
+                    onClick={onDelete}
+                    title="Delete story"
+                >
+                    <TrashIcon />
                 </button>
             </div>
         </div>
@@ -311,7 +323,7 @@ const VersionHistory: React.FC<VersionHistoryProps> = ({ versions, onRestore }) 
                             Version {version.version} — {version.label}
                         </div>
                         <div className={styles.historyDate}>
-                            {format(version.date, 'MMMM d, yyyy')} · {version.wordCount.toLocaleString()} words
+                            {version.date instanceof Date && !isNaN(version.date.getTime()) ? format(version.date, 'MMMM d, yyyy') : 'Date unknown'} · {version.wordCount.toLocaleString()} words
                         </div>
                     </div>
                 </div>
@@ -448,85 +460,111 @@ const Toast: React.FC<ToastProps> = ({ message, visible }) => (
 const StoryDetail: React.FC = () => {
     const router = useRouter();
     const params = useParams();
-    const id = params?.id;
+    const id = params?.id as string;
 
-    const [story, setStory] = useState<Story>({
-        id: '1',
-        title: 'A Day in the Life of My Highest Self',
-        createdAt: new Date(2026, 0, 12),
-        wordCount: 847,
-        audioDuration: 402, // 6:42 in seconds
-        plays: 34,
-        downloads: 6,
-        content: `Morning light filters through the curtains of my home in the hills. I stretch without an alarm — my body knows when it's ready. The day ahead is full, but it's mine completely.
-
-I walk barefoot to the kitchen. The coffee is already made — I set it the night before, a small ritual that tells me tomorrow is worth preparing for. I stand at the window and look out at the garden. The roses are in bloom. I planted them two years ago, during the season when everything felt uncertain, and now they bloom every spring without asking permission.
-
-My phone is face-down on the counter. It will stay that way until I've had an hour to myself.
-
-By eight, I'm at my desk. Not the desk I used to have — the one wedged against a closet wall, where I hunched over spreadsheets I didn't believe in. This desk faces a window. There are books on either side of me. A candle. A glass of water. The work I do now is work that came from me, shaped by me, and every morning I am a little amazed that this is real.
-
-The emails can wait. I read for twenty minutes first. This is non-negotiable.
-
-At ten I take a call with a collaborator in Madrid. We are building something together that neither of us could build alone. After the call I sit for a moment in the quiet and feel the particular satisfaction of people who know their purpose and are living it.
-
-Lunch is unhurried. I eat outside. The neighbor's dog wanders over, as it always does, and I scratch behind his ears and think about nothing in particular.
-
-In the afternoon, I do the creative work — the kind that requires full presence, the kind I used to save for weekends and then never actually do. Now it is simply part of Tuesday. I lose track of time. When I look up, two hours have passed and I feel accomplished in a way that is different from busy. This is the feeling I once chased everywhere and could never quite catch.
-
-By five, I am done. I close the laptop with intention. I do not check it again.
-
-My partner and I cook dinner together. We talk about small things — something funny that happened, something we're curious about, a plan we're quietly excited for. The kitchen smells like garlic and something roasting. This is, I think, what abundance actually looks like: not the number in an account, but the quality of a Tuesday.
-
-Later, I read again before bed. The book is good. I fall asleep before the chapter ends.
-
-Tomorrow I will do this again. And the day after. Not because I have to. Because I built a life I actually want to live inside of — and every morning I wake up and it is still here.`,
-        audioUrl: '#'
-    });
-
-    const [versions, setVersions] = useState<StoryVersion[]>([
-        {
-            id: 'v3',
-            version: 3,
-            label: 'Current',
-            date: new Date(2026, 2, 7),
-            wordCount: 847,
-            isCurrent: true
-        },
-        {
-            id: 'v2',
-            version: 2,
-            label: 'Regenerated',
-            date: new Date(2026, 1, 14),
-            wordCount: 792
-        },
-        {
-            id: 'v1',
-            version: 1,
-            label: 'Original',
-            date: new Date(2026, 0, 12),
-            wordCount: 761
-        }
-    ]);
-
+    const [editedContent, setEditedContent] = useState('');
+    const [editedTitle, setEditedTitle] = useState('');
     const [isEditing, setIsEditing] = useState(false);
     const [showRegen, setShowRegen] = useState(false);
     const [toast, setToast] = useState({ message: '', visible: false });
-    const [editedContent, setEditedContent] = useState(story.content);
-    const [editedTitle, setEditedTitle] = useState(story.title);
 
     // Audio player state
     const [audioState, setAudioState] = useState<AudioPlayerState>({
         isPlaying: false,
         isLooping: false,
-        currentTime: 138, // 2:18
-        duration: story.audioDuration
+        currentTime: 0,
+        duration: 0
     });
 
-    useEffect(() => {
-        document.title = `ManifestMyStory — ${story.title}`;
+    const queryClient = useQueryClient();
 
-        // Add font if it doesn't exist
+    const { data: storyData, isLoading, error: queryError } = useQuery({
+        queryKey: ['story', id],
+        queryFn: async () => {
+            const res = await fetch(`/api/user/stories/${id}`);
+            if (!res.ok) throw new Error('Failed to fetch story');
+            return res.json();
+        },
+        enabled: !!id,
+    });
+
+    const updateStoryMutation = useMutation({
+        mutationFn: async (updatedData: { title?: string; content?: string }) => {
+            const res = await fetch(`/api/user/stories/${id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updatedData),
+            });
+            if (!res.ok) throw new Error('Failed to update story');
+            return res.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['story', id] });
+            queryClient.invalidateQueries({ queryKey: ['stories'] });
+            showToast('✓ Story saved successfully');
+            setIsEditing(false);
+        },
+        onError: () => {
+            showToast('❌ Failed to save changes');
+        },
+    });
+
+    const deleteStoryMutation = useMutation({
+        mutationFn: async () => {
+            const res = await fetch(`/api/user/stories/${id}`, {
+                method: 'DELETE',
+            });
+            if (!res.ok) throw new Error('Failed to delete story');
+            return res.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['stories'] });
+            router.push('/user/dashboard');
+        },
+        onError: () => {
+            showToast('❌ Failed to delete story');
+        },
+    });
+
+    const error = queryError ? (queryError as Error).message : null;
+
+    const story = React.useMemo(() => {
+        if (!storyData) return null;
+        return {
+            id: storyData.id,
+            title: storyData.title || 'My Manifestation Story',
+            createdAt: new Date(storyData.createdAt),
+            wordCount: storyData.word_count || 0,
+            audioDuration: storyData.audio_duration_seconds || 402,
+            plays: 0,
+            downloads: 0,
+            content: storyData.story_text_approved || storyData.story_text_draft || '',
+            audioUrl: storyData.audio_url || '#'
+        };
+    }, [storyData]);
+
+    const versions = React.useMemo(() => {
+        if (!storyData?.versions || !Array.isArray(storyData.versions)) return [];
+        return storyData.versions.map((v: any, idx: number) => ({
+            id: v.id,
+            version: v.version,
+            label: idx === 0 ? 'Current' : 'Previous',
+            date: new Date(v.createdAt),
+            wordCount: v.word_count || 0,
+            isCurrent: idx === 0
+        }));
+    }, [storyData]);
+
+    useEffect(() => {
+        if (story) {
+            setEditedContent(story.content);
+            setEditedTitle(story.title);
+            setAudioState(prev => ({ ...prev, duration: story.audioDuration }));
+            document.title = `ManifestMyStory — ${story.title}`;
+        }
+    }, [story]);
+
+    useEffect(() => {
         if (!document.getElementById('dm-fonts')) {
             const link = document.createElement('link');
             link.id = 'dm-fonts';
@@ -534,10 +572,10 @@ Tomorrow I will do this again. And the day after. Not because I have to. Because
             link.href = 'https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&family=Lora:ital,wght@0,400;1,400&display=swap';
             document.head.appendChild(link);
         }
-    }, [story.title]);
+    }, []);
 
-    const originalContentRef = useRef(story.content);
-    const originalTitleRef = useRef(story.title);
+    const originalContentRef = useRef('');
+    const originalTitleRef = useRef('');
 
     const showToast = (message: string) => {
         setToast({ message, visible: true });
@@ -545,6 +583,7 @@ Tomorrow I will do this again. And the day after. Not because I have to. Because
     };
 
     const handleEditToggle = () => {
+        if (!story) return;
         if (!isEditing) {
             // Enter edit mode
             originalContentRef.current = story.content;
@@ -555,15 +594,18 @@ Tomorrow I will do this again. And the day after. Not because I have to. Because
         setIsEditing(!isEditing);
     };
 
-    const handleSaveEdit = () => {
-        setStory(prev => ({
-            ...prev,
+    const handleSaveEdit = async () => {
+        if (!story) return;
+        updateStoryMutation.mutate({
             title: editedTitle,
-            content: editedContent,
-            wordCount: editedContent.trim().split(/\s+/).filter(w => w.length > 0).length
-        }));
-        setIsEditing(false);
-        showToast('✓ Story saved — your audio file is unchanged');
+            content: editedContent
+        });
+    };
+
+    const handleDelete = async () => {
+        if (window.confirm('Are you sure you want to delete this story? This action cannot be undone.')) {
+            deleteStoryMutation.mutate();
+        }
     };
 
     const handleCancelEdit = () => {
@@ -574,8 +616,6 @@ Tomorrow I will do this again. And the day after. Not because I have to. Because
 
     const handleContentChange = (content: string) => {
         setEditedContent(content);
-        const wordCount = content.trim().split(/\s+/).filter(w => w.length > 0).length;
-        setStory(prev => ({ ...prev, wordCount }));
     };
 
     const handleTitleChange = (title: string) => {
@@ -615,8 +655,11 @@ Tomorrow I will do this again. And the day after. Not because I have to. Because
     };
 
     const handleDownload = () => {
-        // TODO: Replace with actual signed URL
-        showToast('📥 Download will work once audio URL is wired by developer');
+        if (!story?.audioUrl || story.audioUrl === '#') {
+            showToast('📥 Audio not generated yet');
+            return;
+        }
+        window.open(story.audioUrl, '_blank');
     };
 
     const handleRestoreVersion = (versionId: string) => {
@@ -628,6 +671,9 @@ Tomorrow I will do this again. And the day after. Not because I have to. Because
         router.push('/user/goal-intake-ai');
     };
 
+    if (isLoading) return <div className={styles.container}><TopBar onNewStory={handleNewStory} /><div className={styles.page}>Loading story...</div></div>;
+    if (error || !story) return <div className={styles.container}><TopBar onNewStory={handleNewStory} /><div className={styles.page}>Error: {error || 'Story not found'}</div></div>;
+
     return (
         <>
             <div className={styles.container}>
@@ -635,7 +681,7 @@ Tomorrow I will do this again. And the day after. Not because I have to. Because
 
                 <main className={styles.page}>
                     {/* Back Link */}
-                    <Link href="/dashboard" className={styles.backLink}>
+                    <Link href="/user/dashboard" className={styles.backLink}>
                         <ArrowLeftIcon />
                         Back to My Stories
                     </Link>
@@ -648,6 +694,7 @@ Tomorrow I will do this again. And the day after. Not because I have to. Because
                         onRegenToggle={handleRegenToggle}
                         onPlayToggle={handlePlayToggle}
                         onDownload={handleDownload}
+                        onDelete={handleDelete}
                         isPlaying={audioState.isPlaying}
                         onTitleChange={handleTitleChange}
                     />
@@ -676,10 +723,12 @@ Tomorrow I will do this again. And the day after. Not because I have to. Because
                     />
 
                     {/* Version History */}
-                    <VersionHistory
-                        versions={versions}
-                        onRestore={handleRestoreVersion}
-                    />
+                    {versions.length > 0 && (
+                        <VersionHistory
+                            versions={versions}
+                            onRestore={handleRestoreVersion}
+                        />
+                    )}
 
                     {/* Audio Player */}
                     <AudioPlayer
