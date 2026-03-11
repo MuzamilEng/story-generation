@@ -13,8 +13,8 @@ export async function POST(req: NextRequest) {
         const body = await req.json()
         const { goals, title } = body
 
-        if (!goals) {
-            return NextResponse.json({ error: 'Goals are required' }, { status: 400 })
+        if (!goals || Object.keys(goals).length === 0) {
+            return NextResponse.json({ error: 'Goals are required and cannot be empty' }, { status: 400 })
         }
 
         const story = await prisma.story.create({

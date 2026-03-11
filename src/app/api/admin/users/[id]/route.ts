@@ -20,7 +20,6 @@ export async function PATCH(
     }
 
     const { role, isActive } = await request.json();
-    const { id: userId } = await params;
 
     // Prevent admin from modifying their own admin status
     if (userId === session.user.id && role && role !== UserRole.ADMIN) {
@@ -76,8 +75,6 @@ export async function DELETE(
         { status: 403 }
       );
     }
-
-    const { id: userId } = await params;
 
     // Prevent admin from deleting themselves
     if (userId === session.user.id) {

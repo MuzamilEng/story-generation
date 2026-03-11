@@ -82,11 +82,12 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.id = user.id
         token.role = user.role || 'USER'
+        token.plan = (user as any).plan || 'free'
         token.email = user.email
       }
 
       // ✅ Update token from database on subsequent requests
-      if (token.email) {
+      if (token.email && !user) {
         try {
           const dbUser = await prisma.user.findUnique({
             where: { email: token.email as string }
@@ -95,6 +96,7 @@ export const authOptions: NextAuthOptions = {
           if (dbUser) {
             token.role = dbUser.role || 'USER'
             token.id = dbUser.id
+            token.plan = dbUser.plan || 'free'
           }
         } catch (error) {
           console.error('[AUTH] Error fetching user for JWT:', error)
@@ -108,11 +110,12 @@ export const authOptions: NextAuthOptions = {
       if (token && session.user) {
         session.user.id = token.id as string
         session.user.role = (token.role as string) || 'USER'
+        session.user.plan = (token.plan as string) || 'free'
         session.user.email = token.email as string
         session.user.name = token.name as string
       }
 
-      console.log('[AUTH] Session created for:', session.user?.email, 'Role:', session.user?.role)
+      console.log('[AUTH] Session created for:', session.user?.email, 'Role:', session.user?.role, 'Plan:', session.user?.plan)
       return session
     },
 

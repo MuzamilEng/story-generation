@@ -123,7 +123,7 @@ const CheckIcon = () => (
 
 // Types
 interface Story {
-    id: number;
+    id: string;
     title: string;
     excerpt: string;
     createdAt: Date;
@@ -136,7 +136,7 @@ interface Story {
 interface Activity {
     id: number;
     type: 'play' | 'create' | 'download';
-    storyId: number;
+    storyId: string;
     storyTitle: string;
     timestamp: Date;
 }
@@ -174,7 +174,7 @@ const StoryCard: React.FC<StoryCardProps> = ({ story, isActive, onPlay, onDownlo
                 </div>
             )}
             <div className={styles.storyCardEyebrow}>
-                Story {story.id} · Created {format(story.createdAt, 'MMM d, yyyy')}
+                Created {format(new Date(story.createdAt), 'MMM d, yyyy')}
             </div>
             <div className={styles.storyCardTitle}>{story.title}</div>
             <div className={styles.storyCardMeta}>
@@ -290,37 +290,46 @@ const Dashboard: React.FC = () => {
     const dropdownRef = useRef<HTMLDivElement>(null);
     const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
-    // Mock data
-    const [stories] = useState<Story[]>([
-        {
-            id: 1,
-            title: "A Day in the Life of My Highest Self",
-            excerpt: "Morning light filters through the curtains of my home in the hills. I stretch without an alarm — my body knows when it's ready. The day ahead is full, but it's mine...",
-            createdAt: new Date(2025, 0, 12),
-            duration: "6 min 42 sec",
-            plays: 34,
-            downloads: 4,
-            audioUrl: 'TODO: R2_URL_STORY_1'
-        },
-        {
-            id: 2,
-            title: "My Abundant Life — Financial Freedom",
-            excerpt: "The number in my account no longer surprises me. It just is. I book the flight without checking it twice — there is always enough, and I've always known it...",
-            createdAt: new Date(2025, 1, 3),
-            duration: "7 min 08 sec",
-            plays: 13,
-            downloads: 2,
-            audioUrl: 'TODO: R2_URL_STORY_2'
-        }
-    ]);
+    const [stories, setStories] = useState<Story[]>([]);
+    const [isLoadingStories, setIsLoadingStories] = useState(true);
 
     const [activities] = useState<Activity[]>([
-        { id: 1, type: 'play', storyId: 1, storyTitle: "A Day in the Life of My Highest Self", timestamp: new Date(new Date().setHours(7, 2)) },
-        { id: 2, type: 'play', storyId: 2, storyTitle: "My Abundant Life — Financial Freedom", timestamp: new Date(Date.now() - 86400000) },
-        { id: 3, type: 'download', storyId: 1, storyTitle: "A Day in the Life of My Highest Self", timestamp: new Date(Date.now() - 5 * 86400000) },
-        { id: 4, type: 'create', storyId: 2, storyTitle: "My Abundant Life — Financial Freedom", timestamp: new Date(Date.now() - 8 * 86400000) },
-        { id: 5, type: 'create', storyId: 1, storyTitle: "A Day in the Life of My Highest Self", timestamp: new Date(Date.now() - 29 * 86400000) }
+        { id: 1, type: 'play', storyId: '1', storyTitle: "A Day in the Life of My Highest Self", timestamp: new Date(new Date().setHours(7, 2)) },
+        { id: 2, type: 'play', storyId: '2', storyTitle: "My Abundant Life — Financial Freedom", timestamp: new Date(Date.now() - 86400000) },
+        { id: 3, type: 'download', storyId: '1', storyTitle: "A Day in the Life of My Highest Self", timestamp: new Date(Date.now() - 5 * 86400000) },
+        { id: 4, type: 'create', storyId: '2', storyTitle: "My Abundant Life — Financial Freedom", timestamp: new Date(Date.now() - 8 * 86400000) },
+        { id: 5, type: 'create', storyId: '1', storyTitle: "A Day in the Life of My Highest Self", timestamp: new Date(Date.now() - 29 * 86400000) }
     ]);
+
+    useEffect(() => {
+        const fetchStories = async () => {
+            try {
+                const res = await fetch('/api/user/stories');
+                if (res.ok) {
+                    const data = await res.json();
+                    const formatted = data.map((s: any) => ({
+                        id: s.id,
+                        title: s.title || 'My Manifestation Story',
+                        excerpt: s.story_text_draft ? s.story_text_draft.substring(0, 120) + '...' : 'Draft created, ready to generate details.',
+                        createdAt: new Date(s.createdAt),
+                        duration: s.duration || "6 min 42 sec", // Fallback for now until audio is wired
+                        plays: 0,
+                        downloads: 0,
+                        audioUrl: s.audio_url || 'TODO',
+                    }));
+                    setStories(formatted);
+                }
+            } catch (err) {
+                console.error("Failed to fetch stories:", err);
+            } finally {
+                setIsLoadingStories(false);
+            }
+        };
+
+        if (session) {
+            fetchStories();
+        }
+    }, [session]);
 
     const totalDuration = 402; // 6:42 in seconds
     const progressPercentage = (currentTime / totalDuration) * 100;
@@ -415,7 +424,7 @@ const Dashboard: React.FC = () => {
     };
 
     const handleRead = (story: Story) => {
-        alert('View full story text — to be wired by developer.');
+        router.push(`/user/story?id=${story.id}`);
     };
 
     return (
@@ -498,7 +507,7 @@ const Dashboard: React.FC = () => {
                 <div className={styles.metricsRow}>
                     <MetricCard
                         icon={<StarIcon />}
-                        value="2"
+                        value={stories.length.toString()}
                         label="Stories created"
                     />
                     <MetricCard
@@ -633,16 +642,20 @@ const Dashboard: React.FC = () => {
                 </div>
 
                 <div className={styles.storyGrid}>
-                    {stories.map(story => (
-                        <StoryCard
-                            key={story.id}
-                            story={story}
-                            isActive={activeStory?.id === story.id}
-                            onPlay={handlePlayStory}
-                            onDownload={handleDownload}
-                            onRead={handleRead}
-                        />
-                    ))}
+                    {isLoadingStories ? (
+                        <div style={{ opacity: 0.7, padding: '2rem' }}>Loading your stories...</div>
+                    ) : (
+                        stories.map(story => (
+                            <StoryCard
+                                key={story.id}
+                                story={story}
+                                isActive={activeStory?.id === story.id}
+                                onPlay={handlePlayStory}
+                                onDownload={handleDownload}
+                                onRead={handleRead}
+                            />
+                        ))
+                    )}
 
                     {/* Empty slot for new story */}
                     <Link href="/user/goal-intake-ai" className={styles.storySlot}>

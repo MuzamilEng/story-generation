@@ -16,7 +16,9 @@ import {
     InfoIcon,
     MicIcon
 } from '../../components/icons/StoryIcons';
-import { UserAnswers, ChecklistItem, GenerationStep } from '../../types/story';
+import { ChecklistItem, GenerationStep } from '../../types/story';
+import { UserAnswers, normalizeGoals } from '@/lib/story-utils';
+import { useStoryStore } from '@/store/useStoryStore';
 
 // Step Item Component
 interface StepItemProps {
@@ -154,6 +156,23 @@ const ApproveBanner: React.FC<ApproveBannerProps> = ({ onEditMore, onRecordVoice
     </div>
 );
 
+const generationSteps: GenerationStep[] = [
+    { id: 'gstep1', label: 'Analysing your vision & goals', delay: 0 },
+    { id: 'gstep2', label: 'Building your future world', delay: 1200 },
+    { id: 'gstep3', label: 'Writing sensory narrative', delay: 2400 },
+    { id: 'gstep4', label: 'Finalising your personal story', delay: 4000 }
+];
+
+const checklistItems: ChecklistItem[] = [
+    { id: 'first-person', text: 'Written in first person (I, me, my)' },
+    { id: 'present-tense', text: 'Present tense throughout' },
+    { id: 'sensory', text: 'Includes physical sensations' },
+    { id: 'authentic', text: 'Emotions feel authentic to you' },
+    { id: 'specific', text: 'Specific details you recognize' },
+    { id: 'readable', text: 'Reads naturally when spoken aloud' },
+    { id: 'length', text: '5–8 minutes to read aloud' }
+];
+
 const StoryContent: React.FC = () => {
     const { data: session, status: authStatus } = useSession();
     const router = useRouter();
@@ -172,6 +191,9 @@ const StoryContent: React.FC = () => {
     const [activeStep, setActiveStep] = useState(0);
     const [userAnswers, setUserAnswers] = useState<UserAnswers | null>(null);
     const [storyId, setStoryId] = useState<string | null>(storyIdFromUrl);
+
+    const { capturedGoals, normalizedGoals, setNormalizedGoals, clearStore, isHydrated } = useStoryStore();
+    const hasInitialized = useRef(false);
 
     // Dynamic steps based on logic
     const getSteps = () => {
@@ -206,23 +228,6 @@ const StoryContent: React.FC = () => {
 
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-    const generationSteps: GenerationStep[] = [
-        { id: 'gstep1', label: 'Analysing your vision & goals', delay: 0 },
-        { id: 'gstep2', label: 'Building your future world', delay: 1200 },
-        { id: 'gstep3', label: 'Writing sensory narrative', delay: 2400 },
-        { id: 'gstep4', label: 'Finalising your personal story', delay: 4000 }
-    ];
-
-    const checklistItems: ChecklistItem[] = [
-        { id: 'first-person', text: 'Written in first person (I, me, my)' },
-        { id: 'present-tense', text: 'Present tense throughout' },
-        { id: 'sensory', text: 'Includes physical sensations' },
-        { id: 'authentic', text: 'Emotions feel authentic to you' },
-        { id: 'specific', text: 'Specific details you recognize' },
-        { id: 'readable', text: 'Reads naturally when spoken aloud' },
-        { id: 'length', text: '5–8 minutes to read aloud' }
-    ];
-
     useEffect(() => {
         document.title = "ManifestMyStory — Your Story";
 
@@ -232,6 +237,7 @@ const StoryContent: React.FC = () => {
         document.head.appendChild(fontLink);
     }, []);
 
+
     const generate = useCallback(async (id: string) => {
         setIsGenerating(true);
         setActiveStep(0);
@@ -239,7 +245,7 @@ const StoryContent: React.FC = () => {
         // UI simulation of steps
         for (let i = 0; i < generationSteps.length; i++) {
             setActiveStep(i);
-            await new Promise(r => setTimeout(r, 1500));
+            await new Promise(r => setTimeout(r, 1200));
         }
 
         try {
@@ -255,9 +261,19 @@ const StoryContent: React.FC = () => {
         } finally {
             setIsGenerating(false);
         }
-    }, [generationSteps]);
+    }, []);
 
     const saveAndGenerate = useCallback(async (goals: UserAnswers) => {
+        // Validation check to prevent {goals: {}} - handles arrays and missing values
+        const isEmpty = !goals ||
+            Object.keys(goals).length === 0 ||
+            Object.values(goals).every(v => !v || v === '' || (Array.isArray(v) && v.length === 0));
+
+        if (isEmpty) {
+            console.warn("Skipping saveAndGenerate: Goals are empty or default.");
+            return;
+        }
+
         try {
             const res = await fetch('/api/user/stories', {
                 method: 'POST',
@@ -269,6 +285,9 @@ const StoryContent: React.FC = () => {
                 setStoryId(data.storyId);
                 generate(data.storyId);
                 sessionStorage.removeItem('capturedGoals');
+            } else if (data.error) {
+                console.error("API error:", data.error);
+                alert(`Could not save story: ${data.error}`);
             }
         } catch (e) {
             console.error("Failed to save goals", e);
@@ -277,18 +296,22 @@ const StoryContent: React.FC = () => {
 
     useEffect(() => {
         const init = async () => {
+            if (!isHydrated || hasInitialized.current) return;
+            hasInitialized.current = true;
+
             let currentId = storyIdFromUrl || storyId;
 
-            // 1. Check session storage for goals
-            const storedGoals = sessionStorage.getItem('capturedGoals');
-            let goals: UserAnswers | null = null;
-            if (storedGoals) {
-                try {
-                    goals = JSON.parse(storedGoals);
-                    setUserAnswers(goals);
-                } catch (e) {
-                    console.error("Failed to parse stored goals", e);
-                }
+            // 1. Check Store for goals
+            let goals: UserAnswers | null = normalizedGoals;
+
+            // If we have raw captured goals but no normalized version, normalize them now
+            if (!goals && capturedGoals && Object.keys(capturedGoals).length > 0) {
+                goals = normalizeGoals(capturedGoals);
+                setNormalizedGoals(goals);
+            }
+
+            if (goals) {
+                setUserAnswers(goals);
             }
 
             // 2. Load or Save
@@ -297,28 +320,29 @@ const StoryContent: React.FC = () => {
                     const res = await fetch(`/api/user/stories/${currentId}`);
                     if (res.ok) {
                         const data = await res.json();
+                        if (data.goal_intake_json) {
+                            const dbGoals = normalizeGoals(data.goal_intake_json);
+                            setUserAnswers(dbGoals);
+                            setNormalizedGoals(dbGoals);
+                        }
+
                         if (data.story_text_draft) {
                             setStoryText(data.story_text_draft);
                             setIsGenerating(false);
                         } else {
                             generate(currentId);
                         }
-                        if (data.goal_intake_json) {
-                            setUserAnswers(data.goal_intake_json);
-                        }
                     }
                 } catch (e) {
                     console.error("Failed to fetch story", e);
                 }
-            } else if (goals) {
+            } else if (goals && Object.values(goals).some(v => v && (typeof v === 'string' ? v !== '' : (!Array.isArray(v) || v.length > 0)))) {
                 saveAndGenerate(goals);
             }
         };
 
-        if (storyIdFromUrl || !storyId) {
-            init();
-        }
-    }, [storyIdFromUrl, generate, saveAndGenerate, storyId]);
+        init();
+    }, [isHydrated, storyIdFromUrl, generate, saveAndGenerate, storyId, capturedGoals, normalizedGoals, setNormalizedGoals]);
 
     useEffect(() => {
         const count = storyText.trim().split(/\s+/).filter(Boolean).length;

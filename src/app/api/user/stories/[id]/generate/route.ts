@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { model } from '@/lib/langchain'
-import { buildStoryPrompt, UserAnswers } from '@/lib/story-utils'
+import { buildStoryPrompt, UserAnswers, normalizeGoals } from '@/lib/story-utils'
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 
 export async function POST(
@@ -28,7 +28,7 @@ export async function POST(
             return NextResponse.json({ error: 'Story not found' }, { status: 404 })
         }
 
-        const goals = story.goal_intake_json as unknown as UserAnswers
+        const goals = normalizeGoals(story.goal_intake_json)
         const prompt = buildStoryPrompt(goals)
 
         const response = await model.invoke([

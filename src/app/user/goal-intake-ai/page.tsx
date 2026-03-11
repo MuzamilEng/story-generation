@@ -13,6 +13,8 @@ import {
     TOPICS,
     SYSTEM_PROMPT
 } from '../../types/goal-discovery';
+import { useStoryStore } from '@/store/useStoryStore';
+import { normalizeGoals } from '@/lib/story-utils';
 
 // Step Item Component
 interface StepItemProps {
@@ -178,8 +180,8 @@ const GoalDiscovery: React.FC = () => {
             }
         };
     }, []);
+    const { capturedGoals, setCapturedGoals, setNormalizedGoals } = useStoryStore();
     const [messages, setMessages] = useState<Message[]>([]);
-    const [capturedData, setCapturedData] = useState<CapturedData>({});
     const [progress, setProgress] = useState<ProgressData>({
         pct: 0,
         phase: 'Getting Started',
@@ -216,7 +218,7 @@ const GoalDiscovery: React.FC = () => {
         let cleanText = raw;
 
         // 1. Extract PROGRESS data
-        const progressMatch = cleanText.match(/PROGRESS:(\{.*?\})/);
+        const progressMatch = cleanText.match(/PROGRESS:\s*(\{[\s\S]*?\})/);
         if (progressMatch) {
             try {
                 const data = JSON.parse(progressMatch[1]) as ProgressData;
@@ -236,16 +238,19 @@ const GoalDiscovery: React.FC = () => {
         }
 
         // 2. Extract all CAPTURE data (could be multiple)
-        const captureRegex = /CAPTURE:(\{.*?\})/g;
+        const captureRegex = /CAPTURE:\s*(\{[\s\S]*?\})/g;
         let match;
         while ((match = captureRegex.exec(cleanText)) !== null) {
             try {
                 const data = JSON.parse(match[1]) as CaptureData;
                 if (data.label && data.value) {
-                    setCapturedData(prev => ({
-                        ...prev,
-                        [data.label]: data.value
-                    }));
+                    setCapturedGoals(prev => {
+                        const next = {
+                            ...prev,
+                            [data.label]: data.value
+                        };
+                        return next;
+                    });
                 }
                 // Mark for removal below
             } catch (e) {
@@ -254,7 +259,7 @@ const GoalDiscovery: React.FC = () => {
         }
 
         // Clean up the text: remove all CAPTURE lines and extra whitespace
-        return cleanText.replace(/CAPTURE:\{.*?\}/g, '').trim();
+        return cleanText.replace(/CAPTURE:\s*\{[\s\S]*?\}/g, '').trim();
     }, []);
 
     // Send message to AI
@@ -341,12 +346,19 @@ const GoalDiscovery: React.FC = () => {
     }, [isWaiting, sendToAI, progress.pct]);
 
     const handleGenerateStory = useCallback(async () => {
-        // Prepare goal data
-        const goalData = capturedData;
+        // Prevent submission if no goals are captured
+        if (!capturedGoals || Object.keys(capturedGoals).length === 0) {
+            alert('Goals are required and cannot be empty. Please answer some questions first.');
+            return;
+        }
+
+        // 1. Normalize the data before sending/storing
+        const normalized = normalizeGoals(capturedGoals);
+        setNormalizedGoals(normalized);
 
         // If not logged in: store in session storage first then go through signup
         if (!session) {
-            sessionStorage.setItem('capturedGoals', JSON.stringify(goalData));
+            sessionStorage.setItem('capturedGoals', JSON.stringify(capturedGoals));
             router.push('/auth/signup?next=/user/story');
             return;
         }
@@ -356,23 +368,27 @@ const GoalDiscovery: React.FC = () => {
             const response = await fetch('/api/user/stories', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ goals: goalData })
+                body: JSON.stringify({
+                    goals: normalized, // Send normalized goals to satisfy API
+                    title: 'My Manifestation Story'
+                })
             });
             const data = await response.json();
             if (data.storyId) {
                 router.push(`/user/story?id=${data.storyId}`);
             } else {
+                console.warn('API error during story creation:', data.error);
                 // Fallback if API fails
-                sessionStorage.setItem('capturedGoals', JSON.stringify(goalData));
+                sessionStorage.setItem('capturedGoals', JSON.stringify(capturedGoals));
                 router.push('/user/story');
             }
         } catch (error) {
             console.error('Error saving story goals:', error);
             // Fallback
-            sessionStorage.setItem('capturedGoals', JSON.stringify(goalData));
+            sessionStorage.setItem('capturedGoals', JSON.stringify(capturedGoals));
             router.push('/user/story');
         }
-    }, [capturedData, router, session]);
+    }, [capturedGoals, router, session, setNormalizedGoals]);
 
     const isPaid = session?.user?.plan && session.user.plan !== 'free';
 
@@ -483,10 +499,10 @@ const GoalDiscovery: React.FC = () => {
                     <div className={styles.capturedBox}>
                         <div className={styles.capturedTitle}>Captured So Far</div>
                         <div className={styles.capturedList}>
-                            {Object.entries(capturedData).length === 0 ? (
+                            {!capturedGoals || Object.entries(capturedGoals).length === 0 ? (
                                 <span className={styles.nothingYet}>Your vision will appear here…</span>
                             ) : (
-                                Object.entries(capturedData).map(([label, value]) => (
+                                Object.entries(capturedGoals).map(([label, value]) => (
                                     <CapturedItem key={label} label={label} value={value} />
                                 ))
                             )}

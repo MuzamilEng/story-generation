@@ -27,6 +27,45 @@ export interface UserAnswers {
     obstacle3?: string;
     proof3?: string;
 }
+export function normalizeGoals(raw: any): UserAnswers {
+    if (!raw) return {} as UserAnswers;
+
+    const normalized: any = {};
+    const mapping: Record<string, keyof UserAnswers> = {
+        'Identity': 'identity',
+        'Purpose': 'purpose',
+        'Values': 'values',
+        'Location': 'location',
+        'Home': 'home',
+        'Morning': 'morning',
+        'Work': 'work',
+        'Relationships': 'people',
+        'Feelings': 'emotions',
+        'Joy': 'joy',
+        'Evening': 'evening',
+        'Dreams': 'dreams',
+        'Obstacle': 'obstacle1',
+        'Proof': 'proof1'
+    };
+
+    Object.keys(raw).forEach(key => {
+        const normalizedKey = mapping[key] || key.toLowerCase();
+        normalized[normalizedKey] = raw[key];
+    });
+
+    // Default critical fields to empty strings to avoid 'undefined' in prompt
+    const criticalFields: (keyof UserAnswers)[] = [
+        'identity', 'purpose', 'location', 'emotions', 'values',
+        'home', 'morning', 'work', 'people', 'joy', 'evening',
+        'dreams', 'challenges', 'reflection'
+    ];
+
+    criticalFields.forEach(f => {
+        if (normalized[f] === undefined) normalized[f] = '';
+    });
+
+    return normalized as UserAnswers;
+}
 
 export function buildStoryPrompt(answers: UserAnswers): string {
     let obstacleSection = '';
@@ -88,27 +127,41 @@ WHAT TO AVOID:
 - No chapter headings, section labels, bullet points — pure flowing prose only
 - No preamble or title — begin directly with the first line of the story
 - Do not open with the literal words "I wake up" — find a more evocative entry
+- Do NOT invent highly specific fictional personal details (e.g. eating figs/honey, specific dog breeds, names of relatives, a coastal town if none of those were specified by the user). If a dimension of life is sparse or missing in the details below, keep it abstract and focused on the core purpose.
 
 THEIR VISION:
-Identity: ${answers.identity}
-Core Purpose: ${answers.purpose}
-Values: ${answers.values}
-Where they live: ${answers.location}
-Their home: ${answers.home}
-Morning routine: ${answers.morning}
-Work/creative life: ${answers.work}
-Key relationships: ${answers.people}
-Financial abundance: ${answers.abundance || 'Not specified'}
-Health & body: ${answers.health || 'Not specified'}
-Spirituality & inner life: ${answers.spirit || 'Not specified'}
-How they feel each day: ${answers.emotions}
-Small joyful moments: ${answers.joy}
-Community & contribution: ${answers.community || 'Not specified'}
-Recreation & travel: ${answers.travel || 'Not specified'}
-How they handle challenges: ${answers.challenges}
-Evening routine: ${answers.evening}
-End of day reflection: ${answers.reflection}
-Dreams and intentions: ${answers.dreams}${obstacleSection}
+${buildDynamicVision(answers)}${obstacleSection}
 
 Write the story now. Begin directly with the first line — no preamble, no title, no intro.`;
+}
+
+function buildDynamicVision(answers: UserAnswers): string {
+    let result = '';
+    const addLine = (label: string, val: string | undefined | null) => {
+        if (val && val.trim().length > 0 && val.toLowerCase() !== 'not specified') {
+            result += `${label}: ${val.trim()}\n`;
+        }
+    };
+
+    addLine('Identity', answers.identity);
+    addLine('Core Purpose', answers.purpose);
+    addLine('Values', answers.values);
+    addLine('Where they live', answers.location);
+    addLine('Their home', answers.home);
+    addLine('Morning routine', answers.morning);
+    addLine('Work/creative life', answers.work);
+    addLine('Key relationships', answers.people);
+    addLine('Financial abundance', answers.abundance);
+    addLine('Health & body', answers.health);
+    addLine('Spirituality & inner life', answers.spirit);
+    addLine('How they feel each day', answers.emotions);
+    addLine('Small joyful moments', answers.joy);
+    addLine('Community & contribution', answers.community);
+    addLine('Recreation & travel', answers.travel);
+    addLine('How they handle challenges', answers.challenges);
+    addLine('Evening routine', answers.evening);
+    addLine('End of day reflection', answers.reflection);
+    addLine('Dreams and intentions', answers.dreams);
+
+    return result || '- No specific vision details were provided. Focus purely on their inner emotional landscape and feelings of manifestation achieved.';
 }
