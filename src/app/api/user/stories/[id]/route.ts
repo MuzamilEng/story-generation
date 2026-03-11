@@ -33,7 +33,10 @@ export async function GET(
             return NextResponse.json({ error: 'Story not found' }, { status: 404 })
         }
 
-        return NextResponse.json(story)
+        return NextResponse.json({
+            ...story,
+            audio_file_size_bytes: story.audio_file_size_bytes != null ? Number(story.audio_file_size_bytes) : null,
+        })
     } catch (error) {
         console.error('[STORY_GET_ID]', error)
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
@@ -70,7 +73,10 @@ export async function PATCH(
             data: updateData
         })
 
-        return NextResponse.json(story)
+        return NextResponse.json({
+            ...story,
+            audio_file_size_bytes: story.audio_file_size_bytes != null ? Number(story.audio_file_size_bytes) : null,
+        })
     } catch (error) {
         console.error('[STORY_PATCH_ID]', error)
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
