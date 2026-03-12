@@ -852,7 +852,6 @@ const Dashboard: React.FC = () => {
           </Link>
         </div>
 
-        {/* RECENT ACTIVITY */}
         <div className={styles.sectionHeader}>
           <div>
             <div className={styles.sectionTitle}>Recent Activity</div>
