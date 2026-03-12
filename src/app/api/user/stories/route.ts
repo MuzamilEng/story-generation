@@ -49,7 +49,12 @@ export async function GET(req: NextRequest) {
             },
         })
 
-        return NextResponse.json(stories)
+        const serializedStories = stories.map(story => ({
+            ...story,
+            audio_file_size_bytes: story.audio_file_size_bytes != null ? Number(story.audio_file_size_bytes) : null,
+        }))
+
+        return NextResponse.json(serializedStories)
     } catch (error) {
         console.error('[STORY_GET]', error)
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })

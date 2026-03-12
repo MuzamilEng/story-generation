@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import styles from '../../styles/AudioReady.module.css';
+import styles from '../../../styles/AudioReady.module.css';
 
 // Icon Components (kept as they were)
 const CheckIcon = () => (
@@ -184,6 +184,13 @@ const AudioReadyContent: React.FC = () => {
         );
     }, [currentTime, duration]);
 
+    // Ensure audio element volume is synced with state
+    useEffect(() => {
+        if (audioRef.current) {
+            audioRef.current.volume = volume / 100;
+        }
+    }, []);
+
     const formatTime = (seconds: number): string => {
         const h = Math.floor(seconds / 3600);
         const m = Math.floor((seconds % 3600) / 60);
@@ -192,15 +199,30 @@ const AudioReadyContent: React.FC = () => {
         return `${m}:${s.toString().padStart(2, '0')}`;
     };
 
+    const recordEvent = async (eventType: 'play' | 'download') => {
+        if (!story?.id) return;
+        try {
+            await fetch('/api/user/events/record', {
+                method: 'POST',
+                body: JSON.stringify({ storyId: story.id, eventType })
+            });
+        } catch (e) {
+            console.error('Failed to record event:', e);
+        }
+    };
+
     const togglePlay = () => {
         if (!audioRef.current) return;
         if (isPlaying) {
             audioRef.current.pause();
         } else {
             audioRef.current.play();
+            // Record play if starting from 0 or just once per session
+            if (currentTime < 1) recordEvent('play');
         }
         setIsPlaying(!isPlaying);
     };
+
 
     const skip = (seconds: number) => {
         if (!audioRef.current) return;
@@ -235,7 +257,7 @@ const AudioReadyContent: React.FC = () => {
         }
     };
 
-    const handleDownload = async () => {
+    const handleDownload = () => {
         if (!story?.audio_url) return;
 
         const confirmed = window.confirm(
@@ -244,40 +266,42 @@ const AudioReadyContent: React.FC = () => {
 
         if (!confirmed) return;
 
-        // Trigger real download
-        try {
-            const response = await fetch(story.audio_url);
-            const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `MyStory_${storyId}.mp3`;
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(url);
-            document.body.removeChild(a);
+        // Record download event
+        recordEvent('download');
 
-            setShowDownloadPrompt(true);
-            setTimeout(() => {
-                document.getElementById('postDownload')?.scrollIntoView({
-                    behavior: 'smooth',
-                    block: 'nearest'
-                });
-            }, 1000);
-        } catch (err) {
-            console.error("Download failed", err);
-            alert("Download failed. Please try again.");
-        }
+        // Trigger real download via our stream API with download=true
+        const downloadUrl = `${story.audio_url}${story.audio_url.includes('?') ? '&' : '?'}download=true`;
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.click();
+
+
+        setShowDownloadPrompt(true);
+
+        setTimeout(() => {
+            document.getElementById('postDownload')?.scrollIntoView({
+                behavior: 'smooth',
+                block: 'nearest'
+            });
+        }, 1000);
     };
 
     const progressPercentage = duration > 0 ? (currentTime / duration) * 100 : 0;
 
     if (isLoading) {
-        return <div className={styles.container}><div style={{ padding: '100px', textAlign: 'center' }}>Preparing your story...</div></div>;
+        return (
+            <div className={styles.container}>
+                <div style={{ padding: '100px', textAlign: 'center' }}>Preparing your story...</div>
+            </div>
+        );
     }
 
-    if (!story && !isLoading) {
-        return <div className={styles.container}><div style={{ padding: '100px', textAlign: 'center' }}>Story not found.</div></div>;
+    if (!story) {
+        return (
+            <div className={styles.container}>
+                <div style={{ padding: '100px', textAlign: 'center' }}>Story not found.</div>
+            </div>
+        );
     }
 
     return (
@@ -287,31 +311,11 @@ const AudioReadyContent: React.FC = () => {
                     ref={audioRef}
                     src={story.audio_url}
                     onLoadedMetadata={handleMetadata}
+                    onDurationChange={handleMetadata}
                     onTimeUpdate={handleTimeUpdate}
                     onEnded={() => setIsPlaying(false)}
                 />
             )}
-
-            {/* TOP BAR */}
-            <div className={styles.topbar}>
-                <div className={styles.logo}>
-                    Manifest<span>MyStory</span>
-                </div>
-                <div className={styles.stepsRow}>
-                    <StepItem number={1} label="Goals" status="done" />
-                    <StepItem number={2} label="Story" status="done" />
-                    <StepItem number={3} label="Voice" status="done" />
-                    <StepItem number={4} label="Audio" status="active" />
-                </div>
-                <div className={styles.topActions}>
-                    <button
-                        className={styles.dashboardBtn}
-                        onClick={() => router.push('/user/dashboard')}
-                    >
-                        Go to Dashboard
-                    </button>
-                </div>
-            </div>
 
             {/* PAGE */}
             <div className={styles.page}>
@@ -327,6 +331,15 @@ const AudioReadyContent: React.FC = () => {
                     <p className={styles.celebrateSub}>
                         Your personal manifestation story — written from your vision, spoken in your voice. Listen every morning and night to begin rewiring your mind toward your future.
                     </p>
+                    <div style={{ marginTop: '1.5rem' }}>
+                        <button
+                            className={styles.dashboardBtn}
+                            onClick={() => router.push('/user/dashboard')}
+                            style={{ padding: '0.6rem 1.5rem', borderRadius: '8px', cursor: 'pointer' }}
+                        >
+                            ← Back to Dashboard
+                        </button>
+                    </div>
                 </div>
 
                 {/* PLAYER */}
@@ -337,7 +350,7 @@ const AudioReadyContent: React.FC = () => {
                         <div className={styles.playerMeta}>
                             {formatTime(duration || 0)} · Generated {new Date(story?.audio_generated_at || story?.updatedAt).toLocaleDateString()}
                         </div>
-                        <div className={styles.waveformDisplay}>
+                        <div className={styles.waveformDisplay} onClick={seekTo} style={{ cursor: 'pointer' }}>
                             {waveformBars.map((bar, index) => (
                                 <div
                                     key={index}

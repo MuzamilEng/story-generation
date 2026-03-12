@@ -120,6 +120,10 @@ export async function POST(req: NextRequest) {
         }
 
         const audioBuffer = await ttsRes.arrayBuffer();
+        const historyId = ttsRes.headers.get('request-id'); // ElevenLabs request-id
+
+        // Store rough duration (128kbps = 16KB/s)
+        const durationSecs = Math.round(audioBuffer.byteLength / 16000);
 
         // 3. Upload to Cloudflare R2
         const bucketName = process.env.R2_BUCKET_NAME || 'manifestmystory-audio';
@@ -132,30 +136,26 @@ export async function POST(req: NextRequest) {
             ContentType: 'audio/mpeg',
         }));
 
-        // Public URL - usually setup with a custom domain on cloudflare, or default r2.dev
-        // We will assume a public url setup or just return the bucket URL
-        // If there's no public custom domain, we should use the r2 dev url
-        const publicUrl = `https://pub-2e99f0eb01914ebc93081e7e40801833.r2.dev/${fileKey}`; // This depends on standard R2 setup, but wait, usually R2 dev domain is not easily guessable unless it's configured. Wait, I should probably save the fileKey and resolve it on demand or assume standard public bucket access. 
-        // We can just construct it, or let the audio-download page use an API to fetch the stream.
-        // For simplicity, let's do a public URL pattern or stream it via another endpoint. Actually `audio_url` in Story should probably be the fileKey, and we can make an endpoint to serve it.
-        // Let's just assume public URL via env or we can serve it by making `/api/user/audio/[key]`.
-        // To be safe, I'll provide an endpoint for it if public url is not configured. Or just save fileKey and let a generic route serve it. Let's use fileKey directly.
+        const streamUrl = `/api/user/audio/stream?key=${encodeURIComponent(fileKey)}`;
 
         await prisma.story.update({
             where: { id: story.id },
             data: {
                 status: 'audio_ready',
                 audio_r2_key: fileKey,
-                audio_url: `/api/user/audio/stream?key=${encodeURIComponent(fileKey)}`,
+                audio_url: streamUrl,
                 audio_file_size_bytes: audioBuffer.byteLength,
+                audio_duration_secs: durationSecs,
+                elevenlabs_history_id: historyId,
                 audio_generated_at: new Date()
             }
         });
 
         return NextResponse.json({
             success: true,
-            audioUrl: `/api/user/audio/stream?key=${encodeURIComponent(fileKey)}`,
-            storyId: story.id
+            audioUrl: streamUrl,
+            storyId: story.id,
+            duration: durationSecs
         });
 
     } catch (e: any) {

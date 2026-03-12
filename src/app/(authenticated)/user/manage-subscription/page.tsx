@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { format } from 'date-fns';
-import styles from '../../styles/Subscription.module.css';
+import styles from '../../../styles/Subscription.module.css';
 import {
     CheckIcon,
     XIcon,
@@ -11,8 +11,8 @@ import {
     ArrowLeftIcon,
     UserIcon,
     ReceiptIcon
-} from '../../components/icons/SubscriptionIcons';
-import { Plan, UsageMetric, BillingRecord, CurrentPlan } from '../../types/subscription';
+} from '../../../components/icons/SubscriptionIcons';
+import { Plan, UsageMetric, BillingRecord, CurrentPlan } from '../../../types/subscription';
 
 // Current Plan Banner Component
 interface CurrentPlanBannerProps {
@@ -349,30 +349,6 @@ const Subscription: React.FC = () => {
             </Head>
 
             <div className={styles.container}>
-                {/* TOP BAR */}
-                <header className={styles.topbar}>
-                    <Link href="/" className={styles.logo}>
-                        Manifest<span>MyStory</span>
-                    </Link>
-
-                    <nav className={styles.topbarNav}>
-                        <Link href="/user/dashboard" className={`${styles.navLink} ${styles.active}`}>
-                            My Stories
-                        </Link>
-                        <Link href="/user/account-setting" className={styles.navLink}>
-                            Settings
-                        </Link>
-                    </nav>
-
-                    <div className={styles.topbarRight}>
-                        <Link href="/user/goal-intake-ai" className={styles.newStoryBtn}>
-                            <PlusIcon />
-                            New Story
-                        </Link>
-                        <button className={styles.avatarBtn}>MZ</button>
-                    </div>
-                </header>
-
                 <main className={styles.page}>
                     {/* Back Link */}
                     <Link href="/user/account-setting" className={styles.backLink}>

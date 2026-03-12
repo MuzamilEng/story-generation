@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef, Suspense } from 'react';
 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import styles from '../../styles/VoiceRecording.module.css';
+import styles from '../../../styles/VoiceRecording.module.css';
 import {
     CheckIcon,
     MicIcon,
@@ -16,24 +16,10 @@ import {
     ClockIcon,
     ShieldIcon,
     ArrowIcon
-} from '../../components/icons/VoiceIcons';
-import { RecordingState, TipItem } from '../../types/voice';
+} from '../../../components/icons/VoiceIcons';
+import { RecordingState, TipItem } from '../../../types/voice';
 
-// Step Item Component
-interface StepItemProps {
-    number: number;
-    label: string;
-    status: 'done' | 'active' | 'pending';
-}
 
-const StepItem: React.FC<StepItemProps> = ({ number, label, status }) => (
-    <div className={`${styles.stepItem} ${styles[status]}`}>
-        <div className={styles.stepNum}>
-            {status === 'done' ? <CheckIcon /> : number}
-        </div>
-        {label}
-    </div>
-);
 
 // Tip Row Component
 interface TipRowProps {
@@ -182,7 +168,12 @@ const Playback: React.FC<PlaybackProps> = ({ duration, audioUrl, onReRecord }) =
                 <div className={styles.pbTitle}>
                     Your voice sample · <span>{formatTime(duration)}</span>
                 </div>
-                <div className={styles.pbProgress}>
+                <div className={styles.pbProgress} onClick={(e) => {
+                    if (!audioRef.current || !duration) return;
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const percent = (e.clientX - rect.left) / rect.width;
+                    audioRef.current.currentTime = percent * duration;
+                }} style={{ cursor: 'pointer' }}>
                     <div className={styles.pbFill} style={{ width: `${progressPercentage}%` }} />
                 </div>
                 <div className={styles.pbTime}>{formatTime(currentTime)}</div>
@@ -368,9 +359,7 @@ const VoiceRecordingContent: React.FC = () => {
         }
     };
 
-    const handleSkip = () => {
-        router.push(`/user/audio-download${storyId ? '?storyId=' + storyId : ''}`);
-    };
+
 
     const handleSubmit = async () => {
         if (!audioBlob) return;
@@ -411,197 +400,177 @@ const VoiceRecordingContent: React.FC = () => {
     };
 
     return (
-        <>
-            <div className={styles.container}>
-                {/* TOP BAR */}
-                <header className={styles.topbar}>
-                    <div className={styles.logo}>
-                        Manifest<span>MyStory</span>
-                    </div>
+        <div className={styles.container}>
 
-                    <div className={styles.stepsRow}>
-                        <StepItem number={1} label="Goals" status="done" />
-                        <StepItem number={2} label="Your Story" status="done" />
-                        <StepItem number={3} label="Voice Sample" status="active" />
-                        <StepItem number={4} label="Your Audio" status="pending" />
-                    </div>
 
-                    <div className={styles.topRight}>
-                        <button className={styles.ghostBtn} onClick={handleSkip}>
-                            Skip for now
-                        </button>
-                    </div>
-                </header>
-
-                {/* PAGE */}
-                <div className={styles.page}>
-                    {/* LEFT COLUMN - TIPS */}
-                    <aside className={styles.leftCol}>
-                        <div className={styles.infoCard}>
-                            <div className={styles.infoCardTitle}>Recording tips</div>
-                            <div className={styles.infoCardSub}>
-                                A clean 60-second sample is all we need to clone your voice accurately.
-                            </div>
-                            <div className={styles.tipList}>
-                                {tips.map((tip, index) => (
-                                    <TipRow
-                                        key={index}
-                                        icon={tip.icon}
-                                        title={tip.title}
-                                        description={tip.description}
-                                    />
-                                ))}
-                            </div>
+            {/* PAGE */}
+            <div className={styles.page}>
+                {/* LEFT COLUMN - TIPS */}
+                <aside className={styles.leftCol}>
+                    <div className={styles.infoCard}>
+                        <div className={styles.infoCardTitle}>Recording tips</div>
+                        <div className={styles.infoCardSub}>
+                            A clean 60-second sample is all we need to clone your voice accurately.
                         </div>
-
-                        <div className={styles.sampleScript}>
-                            <div className={styles.sampleScriptLabel}>📖 Read this script</div>
-                            <p>
-                                I wake each morning with a quiet sense of purpose — knowing exactly who I am and where I'm headed. My days are filled with meaningful work, deep connection, and the kind of joy that doesn't need a reason. I am healthy, free, and fully alive to the beauty of the life I've built. Everything I once dreamed of is now simply the life I live.
-                            </p>
+                        <div className={styles.tipList}>
+                            {tips.map((tip, index) => (
+                                <TipRow
+                                    key={index}
+                                    icon={tip.icon}
+                                    title={tip.title}
+                                    description={tip.description}
+                                />
+                            ))}
                         </div>
-                    </aside>
+                    </div>
 
-                    {/* CENTER COLUMN - RECORDER */}
-                    <div className={styles.centerCol}>
-                        {/* RECORDER CARD */}
-                        <div className={styles.recorderCard}>
-                            {/* MIC + STATUS */}
-                            <div className={styles.recTop}>
-                                <div
-                                    className={`${styles.micRing} 
+                    <div className={styles.sampleScript}>
+                        <div className={styles.sampleScriptLabel}>📖 Read this script</div>
+                        <p>
+                            I wake each morning with a quiet sense of purpose — knowing exactly who I am and where I'm headed. My days are filled with meaningful work, deep connection, and the kind of joy that doesn't need a reason. I am healthy, free, and fully alive to the beauty of the life I've built. Everything I once dreamed of is now simply the life I live.
+                        </p>
+                    </div>
+                </aside>
+
+                {/* CENTER COLUMN - RECORDER */}
+                <div className={styles.centerCol}>
+                    {/* RECORDER CARD */}
+                    <div className={styles.recorderCard}>
+                        {/* MIC + STATUS */}
+                        <div className={styles.recTop}>
+                            <div
+                                className={`${styles.micRing} 
                     ${recState === 'recording' ? styles.recording : ''}
                     ${recState === 'stopped' ? styles.hasRecording : ''}`}
-                                    onClick={handleMicClick}
-                                >
-                                    <div className={styles.micRingBg} />
-                                    <div className={styles.micIcon}>
-                                        {recState === 'stopped' ? <CheckIcon /> : <MicIcon />}
-                                    </div>
-                                </div>
-
-                                <div className={styles.recStatus}>
-                                    {recState === 'idle' && 'Tap to start recording'}
-                                    {recState === 'recording' && 'Recording… tap to stop'}
-                                    {recState === 'stopped' && 'Recording saved'}
-                                </div>
-
-                                <div
-                                    className={styles.recHint}
-                                    style={{ color: recState === 'recording' ? 'var(--red)' : recState === 'stopped' ? 'var(--accent)' : '' }}
-                                >
-                                    {recState === 'idle' && 'Read the sample script on the left at a natural pace for 60 seconds'}
-                                    {recState === 'recording' && 'Speak clearly at a relaxed, natural pace'}
-                                    {recState === 'stopped' && `${formatTime(recordedDuration)} recorded — listen back below, then continue`}
+                                onClick={handleMicClick}
+                            >
+                                <div className={styles.micRingBg} />
+                                <div className={styles.micIcon}>
+                                    {recState === 'stopped' ? <CheckIcon /> : <MicIcon />}
                                 </div>
                             </div>
 
-                            {/* TIMER */}
-                            <div className={styles.timerRow}>
-                                <div>
-                                    <div className={styles.timerLabel}>Recorded</div>
-                                    <TimerDisplay seconds={seconds} isRecording={recState === 'recording'} />
-                                </div>
-
-                                <div className={styles.timerDivider} />
-
-                                <div className={styles.timerTarget}>
-                                    <div className={styles.timerLabel}>Target</div>
-                                    <div className={styles.timerTargetVal}>1:00</div>
-                                </div>
-
-                                <div className={styles.timerDivider} />
-
-                                <div>
-                                    <div className={styles.timerLabel}>Quality</div>
-                                    <div
-                                        className={styles.qualityLabel}
-                                        style={{ color: quality.color }}
-                                    >
-                                        {quality.text}
-                                    </div>
-                                </div>
+                            <div className={styles.recStatus}>
+                                {recState === 'idle' && 'Tap to start recording'}
+                                {recState === 'recording' && 'Recording… tap to stop'}
+                                {recState === 'stopped' && 'Recording saved'}
                             </div>
 
-                            {/* WAVEFORM */}
-                            <Waveform
-                                isRecording={recState === 'recording'}
-                                isStopped={recState === 'stopped'}
-                                duration={seconds}
-                            />
-
-                            {/* CONTROLS */}
-                            <div className={styles.recControls}>
-                                <button
-                                    className={`${styles.ctrlBtn} ${styles.secondary}`}
-                                    onClick={handleRetake}
-                                    disabled={recState === 'idle' || recState === 'recording'}
-                                >
-                                    <RefreshIcon />
-                                    Re-record
-                                </button>
-
-                                <button
-                                    className={`${styles.ctrlBtn} 
-                    ${recState === 'recording' ? styles.danger : styles.primary}`}
-                                    onClick={handleMicClick}
-                                >
-                                    {recState === 'recording' ? (
-                                        <>
-                                            <StopIcon />
-                                            Stop
-                                        </>
-                                    ) : recState === 'stopped' ? (
-                                        <>
-                                            <CheckIcon />
-                                            Saved
-                                        </>
-                                    ) : (
-                                        <>
-                                            <MicIcon />
-                                            Start Recording
-                                        </>
-                                    )}
-                                </button>
+                            <div
+                                className={styles.recHint}
+                                style={{ color: recState === 'recording' ? 'var(--red)' : recState === 'stopped' ? 'var(--accent)' : '' }}
+                            >
+                                {recState === 'idle' && 'Read the sample script on the left at a natural pace for 60 seconds'}
+                                {recState === 'recording' && 'Speak clearly at a relaxed, natural pace'}
+                                {recState === 'stopped' && `${formatTime(recordedDuration)} recorded — listen back below, then continue`}
                             </div>
                         </div>
 
-                        {recState === 'stopped' && (
-                            <Playback
-                                duration={recordedDuration}
-                                audioUrl={audioUrl}
-                                onReRecord={handleRetake}
-                            />
-                        )}
-
-                        {/* SUBMIT */}
-                        {recState === 'stopped' && (
-                            <div className={`${styles.submitArea} ${styles.visible}`}>
-                                <div className={styles.submitNote}>
-                                    <InfoIcon />
-                                    <span>
-                                        Your voice sample will be used <strong>only</strong> to generate your personal audio story. It is never shared, sold, or used for any other purpose.
-                                    </span>
-                                </div>
-
-                                <button className={styles.submitBtn} onClick={handleSubmit} disabled={isSubmitting}>
-                                    {isSubmitting ? (
-                                        <>
-                                            Generating...
-                                        </>
-                                    ) : (
-                                        <>
-                                            <MicIcon />
-                                            Generate My Audio Story
-                                        </>
-                                    )}
-                                </button>
+                        {/* TIMER */}
+                        <div className={styles.timerRow}>
+                            <div>
+                                <div className={styles.timerLabel}>Recorded</div>
+                                <TimerDisplay seconds={seconds} isRecording={recState === 'recording'} />
                             </div>
-                        )}
+
+                            <div className={styles.timerDivider} />
+
+                            <div className={styles.timerTarget}>
+                                <div className={styles.timerLabel}>Target</div>
+                                <div className={styles.timerTargetVal}>1:00</div>
+                            </div>
+
+                            <div className={styles.timerDivider} />
+
+                            <div>
+                                <div className={styles.timerLabel}>Quality</div>
+                                <div
+                                    className={styles.qualityLabel}
+                                    style={{ color: quality.color }}
+                                >
+                                    {quality.text}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* WAVEFORM */}
+                        <Waveform
+                            isRecording={recState === 'recording'}
+                            isStopped={recState === 'stopped'}
+                            duration={seconds}
+                        />
+
+                        {/* CONTROLS */}
+                        <div className={styles.recControls}>
+                            <button
+                                className={`${styles.ctrlBtn} ${styles.secondary}`}
+                                onClick={handleRetake}
+                                disabled={recState === 'idle' || recState === 'recording'}
+                            >
+                                <RefreshIcon />
+                                Re-record
+                            </button>
+
+                            <button
+                                className={`${styles.ctrlBtn} 
+                    ${recState === 'recording' ? styles.danger : styles.primary}`}
+                                onClick={handleMicClick}
+                            >
+                                {recState === 'recording' ? (
+                                    <>
+                                        <StopIcon />
+                                        Stop
+                                    </>
+                                ) : recState === 'stopped' ? (
+                                    <>
+                                        <CheckIcon />
+                                        Saved
+                                    </>
+                                ) : (
+                                    <>
+                                        <MicIcon />
+                                        Start Recording
+                                    </>
+                                )}
+                            </button>
+                        </div>
                     </div>
+
+                    {recState === 'stopped' && (
+                        <Playback
+                            duration={recordedDuration}
+                            audioUrl={audioUrl}
+                            onReRecord={handleRetake}
+                        />
+                    )}
+
+                    {/* SUBMIT */}
+                    {recState === 'stopped' && (
+                        <div className={`${styles.submitArea} ${styles.visible}`}>
+                            <div className={styles.submitNote}>
+                                <InfoIcon />
+                                <span>
+                                    Your voice sample will be used <strong>only</strong> to generate your personal audio story. It is never shared, sold, or used for any other purpose.
+                                </span>
+                            </div>
+
+                            <button className={styles.submitBtn} onClick={handleSubmit} disabled={isSubmitting}>
+                                {isSubmitting ? (
+                                    <>
+                                        Generating...
+                                    </>
+                                ) : (
+                                    <>
+                                        <MicIcon />
+                                        Generate My Audio Story
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    )}
                 </div>
             </div>
-        </>
+        </div>
     );
 };
 

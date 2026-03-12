@@ -277,8 +277,21 @@
 
 /* RESPONSIVE — show burger & drawer on mobile */
 @media (max-width: 768px) {
+    .nav {
+        justify-content: center;
+        padding: 0.75rem 1rem;
+        pointer-events: none;
+        /* Allow clicks to pass through to the hamburger underneath */
+    }
+
+    .navLogo {
+        pointer-events: auto;
+        /* Re-enable clicks for the logo */
+    }
+
     .burger {
-        display: flex;
+        display: none;
+        /* Hide the old burger as well to avoid confusion */
     }
 
     .navCtaDesktop {
@@ -290,11 +303,13 @@
     }
 
     .mobileMenuOverlay {
-        display: block;
+        display: none;
+        /* Replaced by Sidebar component's overlay */
     }
 
     .mobileMenu {
-        display: flex;
+        display: none;
+        /* Replaced by Sidebar component */
     }
 }
 

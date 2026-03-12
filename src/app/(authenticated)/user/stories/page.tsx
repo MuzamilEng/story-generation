@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
-import styles from '../../styles/Stories.module.css';
+import styles from '../../../styles/Stories.module.css';
 
 // Icons
 const PlayIcon = () => (
@@ -105,11 +105,11 @@ const StoryCard = ({ story, onPlay, onDownload, onRead }: {
     onDownload: (s: Story) => void;
     onRead: (s: Story) => void;
 }) => {
-    const isDraft = story.status === 'draft' || !story.audio_url;
+    const isDraft = story.status !== 'audio_ready' || !story.audio_url;
 
     const getDraftReason = () => {
         if (story.status === 'draft') return 'In Progress';
-        if (!story.audio_url) return 'Awaiting Voice';
+        if (story.status === 'approved' || !story.audio_url) return 'Awaiting Voice';
         return 'Draft';
     };
 
@@ -193,9 +193,9 @@ export default function StoriesPage() {
 
     const handleDownload = (story: Story) => {
         if (!story.audio_url) return;
+        const downloadUrl = `${story.audio_url}${story.audio_url.includes('?') ? '&' : '?'}download=true`;
         const link = document.createElement('a');
-        link.href = story.audio_url;
-        link.download = `${story.title}.mp3`;
+        link.href = downloadUrl;
         link.click();
     };
 
@@ -205,16 +205,6 @@ export default function StoriesPage() {
 
     return (
         <div className={styles.container}>
-            <header className={styles.topbar}>
-                <Link href="/" className={styles.logo}>
-                    Manifest<span>MyStory</span>
-                </Link>
-                <div className={styles.topbarRight}>
-                    <Link href="/user/goal-intake-ai" className={styles.newStoryBtn}>New Story</Link>
-                    <div className={styles.avatarBtn}>{session?.user?.name?.[0] || 'U'}</div>
-                </div>
-            </header>
-
             <main className={styles.page}>
                 <div className={styles.header}>
                     <Link href="/user/dashboard" className={styles.backBtn}>

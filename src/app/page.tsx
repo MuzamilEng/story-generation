@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import styles from "../app/styles/Home.module.css";
+import Sidebar from "../app/components/Sidebar";
 import {
   ArrowIcon,
   ExternalIcon,
@@ -22,7 +23,6 @@ import { Step, PricingPlan, Testimonial } from "../app/types/home";
 const Navigation: React.FC = () => {
   const { data: session } = useSession();
   const [scrolled, setScrolled] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -32,24 +32,11 @@ const Navigation: React.FC = () => {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // Close menu on route change / body scroll lock
-  useEffect(() => {
-    document.body.style.overflow = menuOpen ? "hidden" : "";
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, [menuOpen]);
-
-  const closeMenu = () => setMenuOpen(false);
-
   return (
     <>
+      {/* Desktop nav — hidden on mobile (Sidebar takes over) */}
       <nav className={`${styles.nav} ${scrolled ? styles.scrolled : ""}`}>
-        <Link
-          href="/"
-          className={`${styles.navLogo} ${menuOpen ? styles.navLogoHidden : ""}`}
-          onClick={closeMenu}
-        >
+        <Link href="/" className={styles.navLogo}>
           Manifest<span>MyStory</span>
         </Link>
 
@@ -72,6 +59,11 @@ const Navigation: React.FC = () => {
               Dashboard
             </Link>
           )}
+          {!session && (
+            <Link href="/auth/signin" className={styles.navLink}>
+              Sign In
+            </Link>
+          )}
         </div>
 
         <Link
@@ -80,138 +72,10 @@ const Navigation: React.FC = () => {
         >
           {session ? "My Dashboard" : "Create My Story — Free"}
         </Link>
-
-        {/* Burger button — mobile only */}
-        <button
-          className={`${styles.burger} ${menuOpen ? styles.burgerOpen : ""}`}
-          onClick={() => setMenuOpen((prev) => !prev)}
-          aria-label="Toggle menu"
-          aria-expanded={menuOpen}
-        >
-          <span />
-          <span />
-          <span />
-        </button>
       </nav>
 
-      {/* Mobile drawer */}
-      <div
-        className={`${styles.mobileMenuOverlay} ${menuOpen ? styles.mobileMenuOverlayVisible : ""}`}
-        onClick={closeMenu}
-      />
-      <div
-        className={`${styles.mobileMenu} ${menuOpen ? styles.mobileMenuOpen : ""}`}
-      >
-        <div className={styles.mobileMenuHeader}>
-          <Link href="/" className={styles.navLogo} onClick={closeMenu}>
-            Manifest<span>MyStory</span>
-          </Link>
-          <button
-            className={styles.mobileMenuClose}
-            onClick={closeMenu}
-            aria-label="Close menu"
-          >
-            ✕
-          </button>
-        </div>
-
-        <nav className={styles.mobileMenuNav}>
-          <p className={styles.mobileMenuSection}>Explore</p>
-          <Link href="/" className={styles.mobileMenuLink} onClick={closeMenu}>
-            Home
-          </Link>
-          <Link
-            href="#how"
-            className={styles.mobileMenuLink}
-            onClick={closeMenu}
-          >
-            How It Works
-          </Link>
-          <Link
-            href="#pricing"
-            className={styles.mobileMenuLink}
-            onClick={closeMenu}
-          >
-            Pricing
-          </Link>
-          <Link
-            href="/science"
-            className={styles.mobileMenuLink}
-            onClick={closeMenu}
-          >
-            The Science
-          </Link>
-
-          <p className={styles.mobileMenuSection}>My Account</p>
-          <Link
-            href="/user/dashboard"
-            className={styles.mobileMenuLink}
-            onClick={closeMenu}
-          >
-            Dashboard
-          </Link>
-          <Link
-            href="/user/story"
-            className={styles.mobileMenuLink}
-            onClick={closeMenu}
-          >
-            My Story
-          </Link>
-          <Link
-            href="/user/voice-recording"
-            className={styles.mobileMenuLink}
-            onClick={closeMenu}
-          >
-            Voice Recording
-          </Link>
-          <Link
-            href="/user/audio-download"
-            className={styles.mobileMenuLink}
-            onClick={closeMenu}
-          >
-            Audio Downloads
-          </Link>
-          <Link
-            href="/user/goal-intake-ai"
-            className={styles.mobileMenuLink}
-            onClick={closeMenu}
-          >
-            Goal Discovery
-          </Link>
-          <Link
-            href="/user/account-setting"
-            className={styles.mobileMenuLink}
-            onClick={closeMenu}
-          >
-            Account Settings
-          </Link>
-          <Link
-            href="/user/manage-subscription"
-            className={styles.mobileMenuLink}
-            onClick={closeMenu}
-          >
-            Manage Subscription
-          </Link>
-
-          <div className={styles.mobileMenuDivider} />
-          {!session && (
-            <Link
-              href="/auth/signin"
-              className={styles.mobileMenuLink}
-              onClick={closeMenu}
-            >
-              Sign In
-            </Link>
-          )}
-          <Link
-            href={session ? "/user/dashboard" : "/user/goal-intake-ai"}
-            className={styles.mobileMenuCta}
-            onClick={closeMenu}
-          >
-            {session ? "Dashboard" : "Create My Story — Free"}
-          </Link>
-        </nav>
-      </div>
+      {/* Mobile sidebar — replaces the old burger + drawer */}
+      <Sidebar isLandingPage />
     </>
   );
 };

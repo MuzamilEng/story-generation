@@ -16,43 +16,66 @@ export async function GET(req: NextRequest) {
     try {
         const session = await getServerSession(authOptions);
         if (!session || !session.user) {
-            return new NextResponse('Unauthorized', { status: 401 });
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
         const { searchParams } = new URL(req.url);
         const key = searchParams.get('key');
+        const download = searchParams.get('download') === 'true';
 
         if (!key) {
-            return new NextResponse('Missing key', { status: 400 });
+            return NextResponse.json({ error: 'Key is required' }, { status: 400 });
         }
 
-        // Security check: ensure the key belongs to the current user
-        // The key format is "user_[userId]/..."
+        // Basic security: Ensure the key belongs to the user
         if (!key.startsWith(`user_${session.user.id}/`)) {
-            return new NextResponse('Forbidden', { status: 403 });
+            return NextResponse.json({ error: 'Unauthorized key access' }, { status: 403 });
         }
 
-        const command = new GetObjectCommand({
-            Bucket: process.env.R2_BUCKET_NAME || 'manifestmystory-audio',
-            Key: key,
-        });
+        const bucketName = process.env.R2_BUCKET_NAME || 'manifestmystory-audio';
+        const range = req.headers.get('range');
 
+        const params: any = {
+            Bucket: bucketName,
+            Key: key,
+        };
+
+        if (range) {
+            params.Range = range;
+        }
+
+        const command = new GetObjectCommand(params);
         const response = await s3Client.send(command);
 
         if (!response.Body) {
-            return new NextResponse('Not found', { status: 404 });
+            return NextResponse.json({ error: 'File not found' }, { status: 404 });
         }
 
-        // Return the stream directly
-        return new NextResponse(response.Body as any, {
-            headers: {
-                'Content-Type': 'audio/mpeg',
-                'Content-Length': response.ContentLength?.toString() || '',
-                'Cache-Control': 'public, max-age=3600',
-            },
+        const headers = new Headers();
+        headers.set('Content-Type', response.ContentType || 'audio/mpeg');
+        headers.set('Accept-Ranges', 'bytes');
+
+        if (response.ContentLength) {
+            headers.set('Content-Length', response.ContentLength.toString());
+        }
+
+        if (response.ContentRange) {
+            headers.set('Content-Range', response.ContentRange);
+        }
+
+        if (download) {
+            const fileName = key.split('/').pop() || 'story.mp3';
+            headers.set('Content-Disposition', `attachment; filename="${fileName}"`);
+        }
+
+        // Stream directly using transformToWebStream() for efficiency
+        return new NextResponse(response.Body.transformToWebStream() as any, {
+            status: range ? 206 : 200,
+            headers,
         });
-    } catch (error) {
-        console.error('[AUDIO_STREAM]', error);
-        return new NextResponse('Internal Error', { status: 500 });
+
+    } catch (e: any) {
+        console.error('API /api/user/audio/stream error:', e);
+        return NextResponse.json({ error: e.message || 'Internal Server Error' }, { status: 500 });
     }
 }

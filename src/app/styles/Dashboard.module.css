@@ -537,8 +537,38 @@
 .playerRight {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 1.25rem;
     margin-left: auto;
+}
+
+.playerVolume {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    color: var(--ink-faint);
+}
+
+.playerVolume svg {
+    width: 14px;
+    height: 14px;
+}
+
+.volSlider {
+    width: 80px;
+    height: 3px;
+    -webkit-appearance: none;
+    background: var(--border);
+    border-radius: 99px;
+    outline: none;
+    cursor: pointer;
+}
+
+.volSlider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--accent);
 }
 
 .playerDl {

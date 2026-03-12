@@ -2,9 +2,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import styles from '../../styles/GoalDiscovery.module.css';
+import styles from '../../../styles/GoalDiscovery.module.css';
 import Link from 'next/link';
-import { SendIcon, UserIcon, ArrowIcon } from '../../components/icons/ChatIcons';
+import { SendIcon, UserIcon, ArrowIcon } from '../../../components/icons/ChatIcons';
 import {
     Message,
     CapturedData,
@@ -12,32 +12,11 @@ import {
     CaptureData,
     TOPICS,
     SYSTEM_PROMPT
-} from '../../types/goal-discovery';
+} from '../../../types/goal-discovery';
 import { useStoryStore } from '@/store/useStoryStore';
 import { normalizeGoals } from '@/lib/story-utils';
 
-// Step Item Component
-interface StepItemProps {
-    number: number;
-    label: string;
-    status: 'done' | 'active' | 'pending';
-}
 
-const StepItem: React.FC<StepItemProps> = ({ number, label, status }) => (
-    <div className={`${styles.stepItem} ${styles[status]}`}>
-        <div className={styles.stepNum}>
-            {status === 'done' ? <CheckIcon /> : number}
-        </div>
-        {label}
-    </div>
-);
-
-// Define your icons if needed or import them
-const CheckIcon = () => (
-    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="3">
-        <polyline points="20 6 9 17 4 12" />
-    </svg>
-);
 
 // Typing animation component
 const TypingIndicator: React.FC = () => (
@@ -415,58 +394,7 @@ const GoalDiscovery: React.FC = () => {
 
     return (
         <div className={styles.container}>
-            {/* Top Bar */}
-            <header className={styles.topbar}>
-                <Link href="/" className={styles.logo}>
-                    Manifest<span>MyStory</span>
-                </Link>
 
-                <div className={styles.stepsRow}>
-                    {steps.map((step, idx) => (
-                        <StepItem key={idx} number={idx + 1} label={step.label} status={step.status} />
-                    ))}
-                </div>
-
-                <div className={styles.progressWrap}>
-                    <div className={styles.progressMeta}>
-                        <span className={styles.progressLabel}>Goal Discovery</span>
-                        <span className={styles.progressPct}>{progress.pct}%</span>
-                    </div>
-                    <div className={styles.progressTrack}>
-                        <div
-                            className={styles.progressFill}
-                            style={{ width: `${progress.pct}%` }}
-                        />
-                    </div>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                    <div className={styles.phaseBadge}>
-                        {progress.phase}
-                    </div>
-
-                    {/* Show Generate Story button very early if they've shared anything useful */}
-                    {!isComplete && progress.pct >= 40 && (
-                        <button
-                            className={styles.headerProceedBtn}
-                            onClick={handleGenerateStory}
-                        >
-                            Generate My Story
-                            <ArrowIcon />
-                        </button>
-                    )}
-
-                    {session ? (
-                        <Link href="/user/dashboard" style={{ fontSize: '13px', opacity: 0.7, textDecoration: 'none' }}>
-                            Dashboard →
-                        </Link>
-                    ) : (
-                        <Link href="/auth/signin" style={{ fontSize: '13px', opacity: 0.7, textDecoration: 'none' }}>
-                            Sign In
-                        </Link>
-                    )}
-                </div>
-            </header>
 
             <div className={styles.main}>
                 {/* Sidebar */}

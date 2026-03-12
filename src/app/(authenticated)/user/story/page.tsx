@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import styles from '../../styles/Story.module.css';
+import styles from '../../../styles/Story.module.css';
 import {
     CheckIcon,
     ArrowIcon,
@@ -15,8 +15,8 @@ import {
     CircleIcon,
     InfoIcon,
     MicIcon
-} from '../../components/icons/StoryIcons';
-import { ChecklistItem, GenerationStep } from '../../types/story';
+} from '../../../components/icons/StoryIcons';
+import { ChecklistItem, GenerationStep } from '../../../types/story';
 import { UserAnswers, normalizeGoals } from '@/lib/story-utils';
 import { useStoryStore } from '@/store/useStoryStore';
 
@@ -408,32 +408,7 @@ const StoryContent: React.FC = () => {
 
     return (
         <div className={styles.container}>
-            <header className={styles.topbar}>
-                <Link href="/" className={styles.logo}>
-                    Manifest<span>MyStory</span>
-                </Link>
 
-                <div className={styles.stepsRow}>
-                    {steps.map((step, idx) => (
-                        <StepItem key={idx} number={idx + 1} label={step.label} status={step.status} />
-                    ))}
-                </div>
-
-                <div className={styles.topbarRight}>
-                    <button className={styles.outlineBtn} onClick={handleRegenerate}>
-                        ↺ Regenerate
-                    </button>
-                    <button
-                        className={styles.primaryBtn}
-                        id="approveTopBtn"
-                        disabled={isGenerating || isApproved}
-                        onClick={handleApprove}
-                    >
-                        {isApproved ? '✓ Approved' : 'Approve Story'}
-                        {!isApproved && <ArrowIcon />}
-                    </button>
-                </div>
-            </header>
 
             <div className={styles.pageBody}>
                 <aside className={styles.leftPanel}>
@@ -493,7 +468,9 @@ const StoryContent: React.FC = () => {
                                 <div className={styles.storyHeaderLeft}>
                                     <div className={styles.storyEyebrow}>Your Personal Manifestation Story</div>
                                     <div className={styles.storyTitle} id="storyTitleEl">
-                                        A Day in the Life of My Highest Self
+                                        {userAnswers?.identity
+                                            ? `A Day in the Life of ${userAnswers.identity.split(' ')[0]}'s Highest Self`
+                                            : 'Your Manifestation Story'}
                                     </div>
                                     <div className={styles.storyMeta} id="storyMeta">
                                         Generated just now · {wordCount.toLocaleString()} words

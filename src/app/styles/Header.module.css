@@ -1,0 +1,321 @@
+:root {
+    --bg: #f4f1eb;
+    --surface: #fff;
+    --ink: #1c1a16;
+    --ink-muted: #7a7468;
+    --ink-faint: #b8b3a8;
+    --accent: #2d6a4f;
+    --accent-light: #e8f4ee;
+    --accent-mid: #52b788;
+    --gold: #9a6f0a;
+    --gold-bg: #fdf6e3;
+    --gold-border: #e8d08a;
+    --border: #e4dfd5;
+    --red: #c0392b;
+    --red-light: #fdf0ef;
+}
+
+.topbar {
+    display: flex;
+    flex-direction: column;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+}
+
+.topbarContent {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1.75rem;
+    gap: 1rem;
+}
+
+.stepsBar {
+    background: #fbfaf8;
+    border-top: 1px solid var(--border);
+    padding: 0.45rem 1.75rem;
+    display: flex;
+    justify-content: center;
+}
+
+.stepsRow {
+    display: flex;
+    align-items: center;
+}
+
+.stepItem {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.68rem;
+    color: var(--ink-faint);
+    padding: 0 0.85rem;
+    position: relative;
+}
+
+.stepItem.done {
+    color: var(--accent);
+}
+
+.stepItem.active {
+    color: var(--ink);
+    font-weight: 500;
+}
+
+.stepItem:not(:last-child)::after {
+    content: '›';
+    position: absolute;
+    right: -2px;
+    color: var(--ink-faint);
+    font-size: 0.85rem;
+}
+
+.stepNum {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-size: 0.65rem;
+    font-weight: 500;
+    flex-shrink: 0;
+    border: 1px solid var(--border);
+    color: var(--ink-faint);
+}
+
+.stepItem.done .stepNum {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+}
+
+.stepItem.active .stepNum {
+    background: var(--ink);
+    border-color: var(--ink);
+    color: #fff;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+    .topbarContent {
+        display: none;
+        /* Hide the entire logo/nav row on mobile */
+    }
+
+    /* Show ONLY the stepsBar on mobile if it exists */
+    .topbar:not(.hasSteps) {
+        display: none;
+    }
+
+    .stepsBar {
+        border-top: none;
+        padding: 0.65rem 1rem 0.65rem 3.5rem;
+        /* Add left padding to make room for hamburger */
+        min-height: 48px;
+        justify-content: flex-start;
+        /* Align steps left but padded */
+        overflow-x: auto;
+        /* Allow horizontal scroll if steps are too wide */
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .stepsBar::-webkit-scrollbar {
+        display: none;
+        /* Hide scrollbar for cleaner look */
+    }
+
+    .stepLabel {
+        display: none;
+        /* Hide labels to save space */
+    }
+
+    .stepItem {
+        padding: 0 0.5rem;
+    }
+
+    .stepItem:not(:last-child)::after {
+        right: -4px;
+    }
+}
+
+.logo {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.1rem;
+    color: var(--ink);
+    text-decoration: none;
+    flex-shrink: 0;
+}
+
+.logo span {
+    color: var(--accent);
+}
+
+.topbarNav {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.navLink {
+    font-size: 0.78rem;
+    color: var(--ink-muted);
+    text-decoration: none;
+    padding: 0.35rem 0.7rem;
+    border-radius: 7px;
+    transition: all 0.15s;
+    white-space: nowrap;
+}
+
+.navLink:hover {
+    color: var(--ink);
+    background: var(--bg);
+}
+
+.navLink.active {
+    color: var(--accent);
+    font-weight: 500;
+}
+
+.topbarRight {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    flex-shrink: 0;
+}
+
+.newStoryBtn {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.48rem 1rem;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.78rem;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-decoration: none;
+}
+
+.newStoryBtn:hover {
+    background: #235840;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(45, 106, 79, 0.25);
+}
+
+.newStoryBtn svg {
+    width: 13px;
+    height: 13px;
+}
+
+.avatarWrapper {
+    position: relative;
+    flex-shrink: 0;
+}
+
+.avatarBtn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    cursor: pointer;
+    font-size: 0.75rem;
+    font-weight: 500;
+    font-family: 'DM Sans', sans-serif;
+    display: grid;
+    place-items: center;
+    position: relative;
+}
+
+.avatarDropdown {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    min-width: 180px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+    z-index: 100;
+    display: none;
+    overflow: hidden;
+}
+
+.avatarDropdown.open {
+    display: block;
+    animation: fadeUp 0.15s ease both;
+}
+
+@keyframes fadeUp {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.ddUser {
+    padding: 0.75rem 0.85rem;
+    border-bottom: 1px solid var(--border);
+    background: #fbfaf8;
+}
+
+.ddName {
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: var(--ink);
+}
+
+.ddEmail {
+    font-size: 0.68rem;
+    color: var(--ink-muted);
+    margin-top: 2px;
+}
+
+.ddItem {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.6rem 0.85rem;
+    font-size: 0.78rem;
+    color: var(--ink-muted);
+    cursor: pointer;
+    transition: background 0.15s;
+    text-decoration: none;
+}
+
+.ddItem:hover {
+    background: var(--bg);
+    color: var(--ink);
+}
+
+.ddItem svg {
+    width: 13px;
+    height: 13px;
+}
+
+.ddSep {
+    height: 1px;
+    background: var(--border);
+}
+
+.ddItem.logout {
+    color: var(--red);
+}
+
+.ddItem.logout:hover {
+    background: var(--red-light);
+}

@@ -85,25 +85,20 @@ export function buildStoryPrompt(answers: UserAnswers): string {
 
 This story will be professionally narrated by an AI voice and listened to by the user every morning and every night as a tool for rewiring their subconscious mind toward their ideal life.
 
-THE STORY IS: "A Day in Alignment With My Highest Self" — one complete, perfect day from waking to sleeping. Written as if it is already real and already happening. Not a dream. Not a wish. A memory of a day that has not happened yet, told in the present tense.
+THE STORY IS: A deeply immersive manifestation narrative tailored to the user's unique vision. While a "day in the life" is a powerful structure, you have the creative freedom to set the narrative logic that best serves their specific goals. It should feel like a memory of a future that has already happened, told in the present tense.
 
 WORD COUNT & PACING:
-- Target exactly 700-800 words — no shorter, no longer
-- This will be narrated at a measured, emotionally present pace of approximately 120 words per minute
-- At this pace, 700-800 words = 6-7 minutes of deeply immersive listening
-- Every sentence should breathe. Write for the voice, not the eye.
+- Target approximately 600-900 words. Quality and emotional resonance are more important than an exact count.
+- This will be narrated at an emotionally present pace. Every sentence should breathe.
 
 CRITICAL WRITING REQUIREMENTS:
-- First person, present tense throughout: "I wake," "I feel," "I walk" — never future tense, never "I will"
-- Deeply sensory in every scene: sight, sound, smell, feel, touch — engage all senses throughout
-- Emotionally alive: capture how it FEELS to live this life — the quiet pride, deep peace, aliveness, gratitude
-- Emotional arc: peaceful morning → engaged purposeful day → deep evening gratitude. The listener should feel genuine thankfulness that this is their life.
-- Specific and personal: use the exact details given — their city, home, people, work. No generic placeholders.
-- Natural spoken rhythm: every sentence must flow when read aloud. Write as a warm, present voice speaking into someone's ear.
-- Weave in all life dimensions naturally: love, health, work, financial abundance, community, spirituality, growth, recreation — as moments in a lived day, not a checklist
-- Weave in values and purpose without stating them — show through action, choice, and feeling
-- Arc: waking → morning practices → full day including work and relationships → evening → sleep
-- End with a sense of deep rightness — they are exactly where they are meant to be, and they know it
+- First person, present tense throughout: "I wake," "I feel," "I walk" — never future tense.
+- Deeply sensory: engage all senses to make the future feel tangibly real.
+- Emotionally alive: capture the quiet pride, deep peace, and gratitude of this achieved life.
+- Narrative Logic: You determine the best flow. It could be one perfect day, a series of milestone moments, or a specific significant event. The goal is to make the user feel: "This is my life."
+- Specific and personal: use the exact details given. No generic placeholders.
+- Weave in all life dimensions naturally: love, health, work, financial abundance, community.
+- Arc: Start with presence, build through purpose and connection, and end with a sense of deep rightness and arrival.
 
 THE OBSTACLE PROOF PRINCIPLE — CRITICAL:
 Each obstacle listed below must be addressed with a proof moment — a specific scene that could ONLY exist if that struggle is fully, completely behind them. The obstacle is never named or referenced. Only its absence is shown through natural action and ease. These moments carry quiet but powerful emotional weight — a feeling of freedom in a place where there used to be fear.
