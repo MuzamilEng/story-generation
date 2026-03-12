@@ -108,9 +108,13 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, onChipClick }) =
             ? ['Tell me more', "Let's move on"]
             : [];
 
-    // Format text with simple markdown
+    // Format text with simple markdown and strip AI markers
     const formatText = (text: string) => {
-        const withBold = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        // Strip CAPTURE: and PROGRESS: markers
+        let cleanText = text.replace(/CAPTURE:\s*\{[\s\S]*?\}/g, '');
+        cleanText = cleanText.replace(/PROGRESS:\s*\{[\s\S]*?\}/g, '');
+
+        const withBold = cleanText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
         const withItalic = withBold.replace(/\*(.*?)\*/g, '<em>$1</em>');
         const withParagraphs = withItalic.replace(/\n\n/g, '</p><p>');
         const withBreaks = withParagraphs.replace(/\n/g, '<br>');
@@ -270,9 +274,11 @@ const GoalDiscovery: React.FC = () => {
 
             const data = await response.json();
             const rawText = data.text || '';
-            const cleanText = parseResponse(rawText);
 
-            newMessages.push({ role: 'assistant', content: cleanText });
+            // Extract metadata for state but keep rawText for history/amnesia fix
+            parseResponse(rawText);
+
+            newMessages.push({ role: 'assistant', content: rawText });
             setMessages(newMessages);
 
         } catch (error) {

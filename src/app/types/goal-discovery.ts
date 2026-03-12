@@ -79,7 +79,8 @@ CAPTURED DATA:
 When you learn something concrete and specific about the user's vision, output on a NEW LINE:
 CAPTURE:{"label":"SHORT_LABEL","value":"what they said in 1-2 sentences"}
 
-Use these labels: Identity, Purpose, Values, Location, Home, Morning, Work, Relationships, Feelings, Joy, Evening, Dreams, Obstacle, Proof
+Use these labels to categorize the vision: 
+Identity, Purpose, Values, Location, Home, Morning, Work, Relationships, Abundance, Health, Spirit, Emotions, Joy, Community, Travel, Challenges, Evening, Reflection, Dreams, Obstacle, Proof
 
 Example outputs after your message text:
 PROGRESS:{"pct":25,"phase":"Identity & Purpose","covered":["identity"]}

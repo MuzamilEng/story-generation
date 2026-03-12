@@ -31,6 +31,8 @@ export async function POST(
         const goals = normalizeGoals(story.goal_intake_json)
         const prompt = buildStoryPrompt(goals)
 
+        console.log(`[STORY_GENERATE] Prompt for story ${storyId}:`, prompt);
+
         const response = await model.invoke([
             new SystemMessage('You are a gifted memoir and manifestation story writer.'),
             new HumanMessage(prompt)

@@ -19,7 +19,6 @@ export interface UserAnswers {
     spirit?: string;
     community?: string;
     travel?: string;
-    // For proof logic mentioned in original code
     obstacle1?: string;
     proof1?: string;
     obstacle2?: string;
@@ -41,11 +40,25 @@ export function normalizeGoals(raw: any): UserAnswers {
         'Work': 'work',
         'Relationships': 'people',
         'Feelings': 'emotions',
+        'Emotions': 'emotions',
+        'Abundance': 'abundance',
+        'Health': 'health',
+        'Spirit': 'spirit',
         'Joy': 'joy',
+        'Community': 'community',
+        'Travel': 'travel',
+        'Challenges': 'challenges',
         'Evening': 'evening',
+        'Reflection': 'reflection',
         'Dreams': 'dreams',
         'Obstacle': 'obstacle1',
-        'Proof': 'proof1'
+        'Proof': 'proof1',
+        'Obstacle 1': 'obstacle1',
+        'Proof 1': 'proof1',
+        'Obstacle 2': 'obstacle2',
+        'Proof 2': 'proof2',
+        'Obstacle 3': 'obstacle3',
+        'Proof 3': 'proof3'
     };
 
     Object.keys(raw).forEach(key => {
@@ -101,15 +114,17 @@ CRITICAL WRITING REQUIREMENTS:
 - Arc: Start with presence, build through purpose and connection, and end with a sense of deep rightness and arrival.
 
 THE OBSTACLE PROOF PRINCIPLE — CRITICAL:
-Each obstacle listed below must be addressed with a proof moment — a specific scene that could ONLY exist if that struggle is fully, completely behind them. The obstacle is never named or referenced. Only its absence is shown through natural action and ease. These moments carry quiet but powerful emotional weight — a feeling of freedom in a place where there used to be fear.
+Each obstacle listed below must be addressed with a proof moment — a specific scene that could ONLY exist if that struggle is fully, completely behind them. The obstacle is never named or referenced. Only its absence is shown through natural action and ease. 
 
-Examples of how this works:
-- Financial anxiety → "I book us on a last-minute flight without a second thought. I don't even check the balance. There's always enough."
-- Career struggle → "My calendar has three things on it today and I chose every single one of them."
-- Health struggle → "My body moves the way I always knew it could — strong, light, easy."
-- Loneliness → "She reaches for my hand across the table. We don't need words."
-- Feeling stuck → "I decline the meeting with a calm no. My time is mine. I know exactly what it's worth."
-- Parenting guilt → "My son asks if I can stay and play. I close the laptop without a moment's hesitation. Yes. Always yes now."
+**IMPORTANT**: Use the following examples ONLY for inspiration. DO NOT copy them literally. Create fresh, unique scenes that fit the specific user's life and location.
+- Financial anxiety example: freedom in spending.
+- Career struggle example: choice and boundaries.
+- Health struggle example: ease of movement.
+- Loneliness example: presence of others.
+- Parenting guilt example: being fully present.
+
+- Natural spoken rhythm: every sentence must flow when read aloud. Write as a warm, present voice speaking into someone's ear.
+- Uniqueness: Every story must be unique. Even with similar goals, imagine a different specific day, a different season, or different small details. No two stories should ever feel the same.
 
 THE TONE:
 Warm. Grounded. Real. Quietly joyful. Not mystical. Not a motivational speech.
