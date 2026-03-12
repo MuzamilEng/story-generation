@@ -264,17 +264,23 @@ const StoryContent: React.FC = () => {
             return;
         }
 
+        const length = sessionStorage.getItem('storyLength') || 'long';
+
         try {
             const res = await fetch('/api/user/stories', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ goals })
+                body: JSON.stringify({
+                    goals,
+                    length: length
+                })
             });
             const data = await res.json();
             if (data.storyId) {
                 setStoryId(data.storyId);
                 generate(data.storyId);
                 sessionStorage.removeItem('capturedGoals');
+                sessionStorage.removeItem('storyLength');
             } else if (data.error) {
                 console.error("API error:", data.error);
                 alert(`Could not save story: ${data.error}`);
@@ -415,16 +421,41 @@ const StoryContent: React.FC = () => {
                     {userAnswers && (
                         <div>
                             <div className={styles.panelSectionTitle}>Your Vision</div>
-                            <VisionItem label="Identity" value={userAnswers.identity} />
-                            <VisionItem label="Purpose" value={userAnswers.purpose} />
-                            <VisionItem label="Location" value={userAnswers.location} />
-                            <div className={styles.visionItem}>
-                                <div className={styles.visionLabel}>Focus Areas</div>
-                                {userAnswers.categories && (
+
+                            {/* Main Pillars */}
+                            {['identity', 'purpose', 'location', 'emotions'].map(key => {
+                                const val = (userAnswers as any)[key];
+                                if (!val || typeof val !== 'string' || val.trim() === '') return null;
+                                return (
+                                    <VisionItem
+                                        key={key}
+                                        label={key === 'emotions' ? 'Core Feeling' : key.charAt(0).toUpperCase() + key.slice(1)}
+                                        value={val}
+                                    />
+                                );
+                            })}
+
+                            {/* Any other dynamically captured goals */}
+                            {Object.entries(userAnswers)
+                                .filter(([key, val]) =>
+                                    !['identity', 'purpose', 'location', 'emotions', 'categories'].includes(key) &&
+                                    val && typeof val === 'string' && val.trim() !== ''
+                                )
+                                .map(([key, val]) => (
+                                    <VisionItem
+                                        key={key}
+                                        label={key.charAt(0).toUpperCase() + key.slice(1)}
+                                        value={val as string}
+                                    />
+                                ))
+                            }
+
+                            {userAnswers.categories && userAnswers.categories.length > 0 && (
+                                <div className={styles.visionItem}>
+                                    <div className={styles.visionLabel}>Focus Areas</div>
                                     <CategoryTags categories={userAnswers.categories} />
-                                )}
-                            </div>
-                            <VisionItem label="Core Feeling" value={userAnswers.emotions} />
+                                </div>
+                            )}
                         </div>
                     )}
 

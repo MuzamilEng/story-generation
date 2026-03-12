@@ -138,6 +138,7 @@ model Story {
   updatedAt               DateTime       @updatedAt @map("updated_at")
   approved_at             DateTime?      @map("approved_at")
   audio_generated_at      DateTime?      @map("audio_generated_at")
+  story_length_option     String?        @db.VarChar(20) @map("story_length_option")
 
   // Relations
   user            User                 @relation(fields: [userId], references: [id], onDelete: Cascade)

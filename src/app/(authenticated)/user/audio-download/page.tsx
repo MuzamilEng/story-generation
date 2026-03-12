@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import styles from '../../../styles/AudioReady.module.css';
+import { useStoryStore } from '@/store/useStoryStore';
 
 // Icon Components (kept as they were)
 const CheckIcon = () => (
@@ -132,8 +133,14 @@ const AudioReadyContent: React.FC = () => {
     const audioRef = useRef<HTMLAudioElement>(null);
     const waveformCount = 80;
 
+    const { clearStore } = useStoryStore();
+
     useEffect(() => {
         document.title = "ManifestMyStory — Your Audio is Ready";
+
+        // Reset the store as the process is successfully complete
+        clearStore();
+
         const link = document.createElement('link');
         link.href = "https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&family=Lora:ital,wght@0,400;1,400&display=swap";
         link.rel = "stylesheet";

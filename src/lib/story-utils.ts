@@ -32,22 +32,37 @@ export function normalizeGoals(raw: any): UserAnswers {
     const normalized: any = {};
     const mapping: Record<string, keyof UserAnswers> = {
         'Identity': 'identity',
+        'Who are you?': 'identity',
         'Purpose': 'purpose',
+        'Why': 'purpose',
+        'Mission': 'purpose',
         'Values': 'values',
         'Location': 'location',
+        'Where': 'location',
         'Home': 'home',
         'Morning': 'morning',
         'Work': 'work',
+        'Career': 'work',
         'Relationships': 'people',
+        'People': 'people',
+        'Family': 'people',
         'Feelings': 'emotions',
         'Emotions': 'emotions',
+        'Core Feeling': 'emotions',
         'Abundance': 'abundance',
+        'Money': 'abundance',
+        'Wealth': 'abundance',
         'Health': 'health',
+        'Body': 'health',
+        'Fitness': 'health',
         'Spirit': 'spirit',
+        'Spiritual': 'spirit',
         'Joy': 'joy',
+        'Fun': 'joy',
         'Community': 'community',
         'Travel': 'travel',
         'Challenges': 'challenges',
+        'Obstacles': 'challenges',
         'Evening': 'evening',
         'Reflection': 'reflection',
         'Dreams': 'dreams',
@@ -61,9 +76,35 @@ export function normalizeGoals(raw: any): UserAnswers {
         'Proof 3': 'proof3'
     };
 
+    const mainKeys = ['identity', 'purpose', 'location', 'emotions'];
+    const auxiliaryCategories: string[] = [];
+
     Object.keys(raw).forEach(key => {
-        const normalizedKey = mapping[key] || key.toLowerCase();
-        normalized[normalizedKey] = raw[key];
+        const val = raw[key];
+        const normalizedKey = mapping[key] || mapping[key.trim()] || key.toLowerCase().trim();
+        normalized[normalizedKey] = val;
+
+        // Collect auxiliary goals into categories for sidebar display
+        if (!mainKeys.includes(normalizedKey) && val && typeof val === 'string' && val.length > 0) {
+            // Add the display name (original key) to categories
+            if (!auxiliaryCategories.includes(key)) {
+                auxiliaryCategories.push(key);
+            }
+        }
+
+        // Also handle explicit 'Categories' or 'Focus Areas' tags
+        if (key.toLowerCase().includes('category') || key.toLowerCase().includes('focus area')) {
+            if (typeof val === 'string') {
+                val.split(',').forEach(s => {
+                    const trimmed = s.trim();
+                    if (trimmed && !auxiliaryCategories.includes(trimmed)) auxiliaryCategories.push(trimmed);
+                });
+            } else if (Array.isArray(val)) {
+                val.forEach(v => {
+                    if (v && !auxiliaryCategories.includes(v)) auxiliaryCategories.push(v);
+                });
+            }
+        }
     });
 
     // Default critical fields to empty strings to avoid 'undefined' in prompt
@@ -77,10 +118,14 @@ export function normalizeGoals(raw: any): UserAnswers {
         if (normalized[f] === undefined) normalized[f] = '';
     });
 
+    normalized.categories = auxiliaryCategories;
+
     return normalized as UserAnswers;
 }
 
-export function buildStoryPrompt(answers: UserAnswers): string {
+export type StoryLength = 'short' | 'long';
+
+export function buildStoryPrompt(answers: UserAnswers, length: StoryLength = 'long'): string {
     let obstacleSection = '';
     const obstacles = [];
     if (answers.obstacle1) obstacles.push({ struggle: answers.obstacle1, proof: answers.proof1 || '' });
@@ -94,6 +139,10 @@ export function buildStoryPrompt(answers: UserAnswers): string {
         });
     }
 
+    const wordCountInstruction = length === 'short'
+        ? '- Target approximately 400-500 words. Keep it focused, punchy, and potent. Focus intensely on the 1-2 most important goals.'
+        : '- Target approximately 1000-1200 words. Take the time to build a fully immersive, expansive world. Explore all dimensions of their vision in rich detail.';
+
     return `You are a gifted narrative writer creating a deeply personal first-person manifestation story for ManifestMyStory.com.
 
 This story will be professionally narrated by an AI voice and listened to by the user every morning and every night as a tool for rewiring their subconscious mind toward their ideal life.
@@ -101,7 +150,7 @@ This story will be professionally narrated by an AI voice and listened to by the
 THE STORY IS: A deeply immersive manifestation narrative tailored to the user's unique vision. While a "day in the life" is a powerful structure, you have the creative freedom to set the narrative logic that best serves their specific goals. It should feel like a memory of a future that has already happened, told in the present tense.
 
 WORD COUNT & PACING:
-- Target approximately 600-900 words. Quality and emotional resonance are more important than an exact count.
+${wordCountInstruction}
 - This will be narrated at an emotionally present pace. Every sentence should breathe.
 
 CRITICAL WRITING REQUIREMENTS:
@@ -139,7 +188,7 @@ WHAT TO AVOID:
 - Do not open with the literal words "I wake up" — find a more evocative entry
 - Do NOT invent highly specific fictional personal details (e.g. eating figs/honey, specific dog breeds, names of relatives, a coastal town if none of those were specified by the user). If a dimension of life is sparse or missing in the details below, keep it abstract and focused on the core purpose.
 
-THEIR VISION:
+THE VISION:
 ${buildDynamicVision(answers)}${obstacleSection}
 
 Write the story now. Begin directly with the first line — no preamble, no title, no intro.`;

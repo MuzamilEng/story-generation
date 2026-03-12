@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
         }
 
         const body = await req.json()
-        const { goals, title } = body
+        const { goals, title, length } = body
 
         if (!goals || Object.keys(goals).length === 0) {
             return NextResponse.json({ error: 'Goals are required and cannot be empty' }, { status: 400 })
@@ -23,6 +23,7 @@ export async function POST(req: NextRequest) {
                 title: title || 'My Manifestation Story',
                 status: 'draft',
                 goal_intake_json: goals,
+                story_length_option: length || 'long',
             },
         })
 

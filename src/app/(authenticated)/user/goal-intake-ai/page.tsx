@@ -10,7 +10,6 @@ import {
     CapturedData,
     ProgressData,
     CaptureData,
-    TOPICS,
     SYSTEM_PROMPT
 } from '../../../types/goal-discovery';
 import { useStoryStore } from '@/store/useStoryStore';
@@ -30,32 +29,6 @@ const TypingIndicator: React.FC = () => (
     </div>
 );
 
-// Topic item component
-interface TopicItemProps {
-    id: string;
-    label: string;
-    isActive: boolean;
-    isCovered: boolean;
-    onClick: (id: string, label: string) => void;
-}
-
-const TopicItem: React.FC<TopicItemProps> = ({ id, label, isActive, isCovered, onClick }) => {
-    let className = styles.topicItem;
-    if (isCovered) className += ` ${styles.covered}`;
-    if (isActive) className += ` ${styles.active}`;
-
-    return (
-        <div
-            className={className}
-            id={`t-${id}`}
-            onClick={() => onClick(id, label)}
-            style={{ cursor: 'pointer' }}
-        >
-            <div className={styles.tDot}></div>
-            <span>{label}</span>
-        </div>
-    );
-};
 
 // Captured item component
 interface CapturedItemProps {
@@ -70,27 +43,71 @@ const CapturedItem: React.FC<CapturedItemProps> = ({ label, value }) => (
     </div>
 );
 
-// Completion card component
 interface CompletionCardProps {
-    onGenerate: () => void;
+    onGenerate: (length: 'short' | 'long') => void;
 }
 
-const CompletionCard: React.FC<CompletionCardProps> = ({ onGenerate }) => (
-    <div className={`${styles.msgRow} ${styles.bot}`}>
-        <div className={`${styles.avatar} ${styles.bot}`}>M</div>
-        <div className={styles.completeCard}>
-            <h3>✦ Your vision is captured</h3>
-            <p>
-                I have everything I need to write your personal manifestation story —
-                a rich, sensory, first-person narrative set on a perfect day in your future life.
-            </p>
-            <button className={styles.completeBtn} onClick={onGenerate}>
-                Generate My Story
-                <ArrowIcon />
-            </button>
+const CompletionCard: React.FC<CompletionCardProps> = ({ onGenerate }) => {
+    const [selected, setSelected] = useState<'short' | 'long'>('long');
+
+    return (
+        <div className={`${styles.msgRow} ${styles.bot}`}>
+            <div className={`${styles.avatar} ${styles.bot}`}>M</div>
+            <div className={styles.completeCard}>
+                <h3>✦ Your vision is captured</h3>
+                <p>
+                    I have everything I need to write your personal manifestation story.
+                    Choose the depth of your future world:
+                </p>
+
+                <div className={styles.lengthOptions}>
+                    <div
+                        className={`${styles.lengthOption} ${selected === 'short' ? styles.active : ''}`}
+                        onClick={() => setSelected('short')}
+                    >
+                        <div className={styles.lengthInfo}>
+                            <div className={styles.lengthTitle}>Short Story</div>
+                            <div className={styles.lengthDesc}>Focused on 1-2 core goals</div>
+                        </div>
+                        <div className={styles.lengthMeta}>
+                            <div className={styles.lengthWords}>~500 words</div>
+                            <div className={styles.lengthTime}>4-5 min audio</div>
+                        </div>
+                        <div className={styles.radioCircle}>
+                            {selected === 'short' && <div className={styles.radioInner} />}
+                        </div>
+                    </div>
+
+                    <div
+                        className={`${styles.lengthOption} ${selected === 'long' ? styles.active : ''}`}
+                        onClick={() => setSelected('long')}
+                    >
+                        <div className={styles.lengthInfo}>
+                            <div className={styles.lengthTitle}>Longer Story</div>
+                            <div className={styles.lengthDesc}>Deeply immersive & expansive</div>
+                        </div>
+                        <div className={styles.lengthMeta}>
+                            <div className={styles.lengthWords}>~1000 words</div>
+                            <div className={styles.lengthTime}>8-10 min audio</div>
+                        </div>
+                        <div className={styles.radioCircle}>
+                            {selected === 'long' && <div className={styles.radioInner} />}
+                        </div>
+                    </div>
+                </div>
+
+                <button className={styles.completeBtn} onClick={() => onGenerate(selected)}>
+                    Generate My Story
+                    <ArrowIcon />
+                </button>
+
+                <div className={styles.betaNote}>
+                    Note: ManifestMyStory is currently in early access.
+                </div>
+            </div>
         </div>
-    </div>
-);
+    );
+};
 
 // Message bubble component
 interface MessageBubbleProps {
@@ -163,8 +180,14 @@ const GoalDiscovery: React.FC = () => {
             }
         };
     }, []);
-    const { capturedGoals, setCapturedGoals, setNormalizedGoals } = useStoryStore();
+    const { capturedGoals, setCapturedGoals, setNormalizedGoals, clearStore } = useStoryStore();
     const [messages, setMessages] = useState<Message[]>([]);
+    const messagesRef = useRef<Message[]>([]);
+
+    useEffect(() => {
+        messagesRef.current = messages;
+    }, [messages]);
+
     const [progress, setProgress] = useState<ProgressData>({
         pct: 0,
         phase: 'Getting Started',
@@ -193,15 +216,18 @@ const GoalDiscovery: React.FC = () => {
 
     // Start conversation on mount
     useEffect(() => {
-        sendToAI();
+        if (messagesRef.current.length === 0) {
+            sendToAI();
+        }
     }, []);
 
-    // Parse bot response for metadata
-    const parseResponse = useCallback((raw: string): string => {
+    // Parse bot response for metadata and return cleaned text for the UI
+    const parseResponse = useCallback((raw: string) => {
         let cleanText = raw;
 
-        // 1. Extract PROGRESS data
-        const progressMatch = cleanText.match(/PROGRESS:\s*(\{[\s\S]*?\})/);
+        // 1. Extract PROGRESS data (handles optional markdown, variations, and missing colons)
+        const progressRegex = /(?:PROGRESS|PROG):?\s*(?:```json)?\s*(\{[\s\S]*?\})\s*(?:```)?/i;
+        const progressMatch = cleanText.match(progressRegex);
         if (progressMatch) {
             try {
                 const data = JSON.parse(progressMatch[1]) as ProgressData;
@@ -213,45 +239,55 @@ const GoalDiscovery: React.FC = () => {
                 if (data.phase === 'Complete' || data.pct >= 100) {
                     setIsComplete(true);
                 }
-                // Remove the progress line from the clean text
-                cleanText = cleanText.replace(progressMatch[0], '');
             } catch (e) {
                 console.error('Error parsing progress JSON:', e);
             }
         }
 
-        // 2. Extract all CAPTURE data (could be multiple)
-        const captureRegex = /CAPTURE:\s*(\{[\s\S]*?\})/g;
+        // 2. Extract all CAPTURE data (handles variations, no colons, etc)
+        const captureRegex = /(?:CAPTURE|CAPTURED|CAP):?\s*(?:```json)?\s*(\{[\s\S]*?\})\s*(?:```)?/gi;
         let match;
+        const newGoals: Record<string, string> = {};
         while ((match = captureRegex.exec(cleanText)) !== null) {
             try {
                 const data = JSON.parse(match[1]) as CaptureData;
                 if (data.label && data.value) {
-                    setCapturedGoals(prev => {
-                        const next = {
-                            ...prev,
-                            [data.label]: data.value
-                        };
-                        return next;
-                    });
+                    newGoals[data.label] = data.value;
                 }
-                // Mark for removal below
             } catch (e) {
                 console.error('Error parsing capture JSON:', e);
             }
         }
 
-        // Clean up the text: remove all CAPTURE lines and extra whitespace
-        return cleanText.replace(/CAPTURE:\s*\{[\s\S]*?\}/g, '').trim();
-    }, []);
+        if (Object.keys(newGoals).length > 0) {
+            console.log('[GOAL_CAPTURE] Extracting new goals:', newGoals);
+            setCapturedGoals(prev => ({
+                ...prev,
+                ...newGoals
+            }));
+        }
+
+        // Clean up the text for UI: remove tags and any surrounding artifacts
+        return cleanText
+            .replace(/(?:PROGRESS|PROG):\s*(?:```json)?\s*\{[\s\S]*?\}\s*(?:```)?/gi, '')
+            .replace(/(?:CAPTURE|CAPTURED|CAP):\s*(?:```json)?\s*\{[\s\S]*?\}\s*(?:```)?/gi, '')
+            .trim();
+    }, [setCapturedGoals]);
+
+    const goalsEndRef = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        goalsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [capturedGoals]);
 
     // Send message to AI
     const sendToAI = useCallback(async (userMessage?: string) => {
-        const newMessages: Message[] = [...messages];
+        if (isWaiting) return;
 
+        const currentHistory = [...messagesRef.current];
         if (userMessage) {
-            newMessages.push({ role: 'user', content: userMessage });
-            setMessages(newMessages);
+            const userMsg: Message = { role: 'user', content: userMessage };
+            currentHistory.push(userMsg);
+            setMessages([...currentHistory]);
         }
 
         setShowTyping(true);
@@ -260,40 +296,45 @@ const GoalDiscovery: React.FC = () => {
         try {
             const response = await fetch('/api/user/chat', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    messages: newMessages.map(({ role, content }) => ({ role, content }))
+                    // Send RAW content (with technical tags) back to LLM for context
+                    messages: currentHistory.map(({ role, content, rawContent }) => ({
+                        role,
+                        content: rawContent || content
+                    }))
                 })
             });
 
-            if (!response.ok) {
-                throw new Error(`API error: ${response.status}`);
-            }
+            if (!response.ok) throw new Error(`API error: ${response.status}`);
 
             const data = await response.json();
             const rawText = data.text || '';
 
-            // Extract metadata for state but keep rawText for history/amnesia fix
-            parseResponse(rawText);
+            // 1. Process metadata and get cleaned text for display
+            const uiText = parseResponse(rawText);
 
-            newMessages.push({ role: 'assistant', content: rawText });
-            setMessages(newMessages);
+            // 2. Store CLEAN version for UI, but RAW version for internal memory
+            const assistantMsg: Message = {
+                role: 'assistant',
+                content: uiText,
+                rawContent: rawText // Preserve technical tags for the LLM
+            };
+            setMessages(prev => [...prev, assistantMsg]);
 
         } catch (error) {
             console.error('Error calling AI:', error);
-            newMessages.push({
+            const errorMsg: Message = {
                 role: 'assistant',
-                content: "I'm having a moment of connection trouble. Please check your network and try again — your answers so far are safe."
-            });
-            setMessages(newMessages);
+                content: "I'm having a moment of connection trouble. Please check your network and try again."
+            };
+            setMessages(prev => [...prev, errorMsg]);
         } finally {
             setShowTyping(false);
             setIsWaiting(false);
             setInputValue('');
         }
-    }, [messages, parseResponse]);
+    }, [isWaiting, parseResponse]);
 
     const handleSend = useCallback(() => {
         if (!inputValue.trim() || isWaiting) return;
@@ -312,29 +353,20 @@ const GoalDiscovery: React.FC = () => {
         sendToAI(text);
     }, [isWaiting, sendToAI]);
 
-    const handleTopicClick = useCallback((id: string, label: string) => {
-        if (isWaiting) return;
 
-        // 1. Immediate visual feedback: update progress even before AI responds
-        const topicIndex = TOPICS.findIndex(t => t.id === id);
-        const targetPct = Math.max(progress.pct, (topicIndex + 1) * 15);
-
-        setProgress(prev => ({
-            pct: targetPct,
-            phase: TOPICS[topicIndex].phase,
-            covered: prev.covered.includes(id) ? prev.covered : [...prev.covered, id]
-        }));
-
-        // 2. Tell the AI to focus there
-        const prompt = `I'd like to dive into ${label} next.`;
-        sendToAI(prompt);
-    }, [isWaiting, sendToAI, progress.pct]);
-
-    const handleGenerateStory = useCallback(async () => {
+    const handleGenerateStory = useCallback(async (length: 'short' | 'long' = 'long') => {
         // Prevent submission if no goals are captured
-        if (!capturedGoals || Object.keys(capturedGoals).length === 0) {
+        const goalCount = !capturedGoals ? 0 : Object.keys(capturedGoals).length;
+        if (goalCount === 0) {
             alert('Goals are required and cannot be empty. Please answer some questions first.');
             return;
+        }
+
+        // Constraint: Short story should have 1-2 goals
+        if (length === 'short' && goalCount > 2) {
+            if (!confirm(`A short story is optimized for 1-2 goals, but you have ${goalCount} goals captured. It may feel condensed. Continue anyway?`)) {
+                return;
+            }
         }
 
         // 1. Normalize the data before sending/storing
@@ -344,6 +376,7 @@ const GoalDiscovery: React.FC = () => {
         // If not logged in: store in session storage first then go through signup
         if (!session) {
             sessionStorage.setItem('capturedGoals', JSON.stringify(capturedGoals));
+            sessionStorage.setItem('storyLength', length);
             router.push('/auth/signup?next=/user/story');
             return;
         }
@@ -355,25 +388,29 @@ const GoalDiscovery: React.FC = () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     goals: normalized, // Send normalized goals to satisfy API
-                    title: 'My Manifestation Story'
+                    title: 'My Manifestation Story',
+                    length: length
                 })
             });
             const data = await response.json();
             if (data.storyId) {
+                clearStore(); // Session successfully saved, clear temporary data
                 router.push(`/user/story?id=${data.storyId}`);
             } else {
                 console.warn('API error during story creation:', data.error);
                 // Fallback if API fails
                 sessionStorage.setItem('capturedGoals', JSON.stringify(capturedGoals));
+                sessionStorage.setItem('storyLength', length);
                 router.push('/user/story');
             }
         } catch (error) {
             console.error('Error saving story goals:', error);
             // Fallback
             sessionStorage.setItem('capturedGoals', JSON.stringify(capturedGoals));
+            sessionStorage.setItem('storyLength', length);
             router.push('/user/story');
         }
-    }, [capturedGoals, router, session, setNormalizedGoals]);
+    }, [capturedGoals, router, session, setNormalizedGoals, clearStore]);
 
     const isPaid = session?.user?.plan && session.user.plan !== 'free';
 
@@ -400,26 +437,31 @@ const GoalDiscovery: React.FC = () => {
 
     return (
         <div className={styles.container}>
+            <header className={styles.topbar}>
+                <Link href="/" className={styles.logo}>Manifest<span>MyStory</span></Link>
 
+                <div className={styles.stepsRow}>
+                    {steps.map((s, i) => (
+                        <div key={i} className={`${styles.stepItem} ${styles[s.status]}`}>
+                            <div className={styles.stepNum}>{i + 1}</div>
+                            {s.label}
+                        </div>
+                    ))}
+                </div>
+
+                <button
+                    className={styles.headerProceedBtn}
+                    onClick={() => setIsComplete(true)}
+                    disabled={!capturedGoals || Object.keys(capturedGoals).length === 0}
+                >
+                    Finish & Generate
+                    <ArrowIcon />
+                </button>
+            </header>
 
             <div className={styles.main}>
                 {/* Sidebar */}
                 <aside className={styles.sidebar}>
-                    <div className={styles.sidebarTitle}>Topics</div>
-
-                    {TOPICS.map(topic => (
-                        <TopicItem
-                            key={topic.id}
-                            id={topic.id}
-                            label={topic.label}
-                            isActive={progress.phase === topic.phase}
-                            isCovered={progress.covered.includes(topic.id)}
-                            onClick={handleTopicClick}
-                        />
-                    ))}
-
-                    <div className={styles.sidebarDivider} />
-
                     <div className={styles.capturedBox}>
                         <div className={styles.capturedTitle}>Captured So Far</div>
                         <div className={styles.capturedList}>
@@ -430,15 +472,17 @@ const GoalDiscovery: React.FC = () => {
                                     <CapturedItem key={label} label={label} value={value} />
                                 ))
                             )}
+                            <div ref={goalsEndRef} />
                         </div>
                     </div>
 
-                    {/* Sidebar finish button shown even earlier */}
-                    {!isComplete && progress.pct >= 30 && (
+                    {/* Sidebar finish button - always shown, disabled if no goals */}
+                    {!isComplete && (
                         <button
                             className={styles.finishEarlyBtn}
-                            onClick={handleGenerateStory}
-                            title="Click here whenever you feel ready to see your story"
+                            onClick={() => setIsComplete(true)}
+                            disabled={!capturedGoals || Object.keys(capturedGoals).length === 0}
+                            title={Object.keys(capturedGoals).length === 0 ? "Capture at least one goal to proceed" : "Click here whenever you feel ready to see your story"}
                         >
                             <span>Ready to see your story?</span>
                             <strong>Finish & Generate →</strong>

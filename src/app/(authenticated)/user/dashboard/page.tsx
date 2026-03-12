@@ -6,6 +6,7 @@ import { signOut, useSession } from "next-auth/react";
 import { useQuery } from "@tanstack/react-query";
 import { format, formatDistanceToNow } from "date-fns";
 import styles from "../../../styles/Dashboard.module.css";
+import { useStoryStore } from "@/store/useStoryStore";
 
 // Icon Components
 const LogoIcon = () => (
@@ -350,7 +351,7 @@ const ActivityRow: React.FC<ActivityRowProps> = ({ activity }) => {
       <div className={styles.activityText}>{getText()}</div>
       <div className={styles.activityTime}>
         {activity.timestamp instanceof Date &&
-        !isNaN(activity.timestamp.getTime())
+          !isNaN(activity.timestamp.getTime())
           ? formatDistanceToNow(activity.timestamp, { addSuffix: true })
           : "Recently"}
       </div>
@@ -361,6 +362,7 @@ const ActivityRow: React.FC<ActivityRowProps> = ({ activity }) => {
 const Dashboard: React.FC = () => {
   const router = useRouter();
   const { data: session } = useSession();
+  const { clearStore } = useStoryStore();
 
   const userName = session?.user?.name || "User";
   const userEmail = session?.user?.email || "user@example.com";
@@ -836,7 +838,14 @@ const Dashboard: React.FC = () => {
           )}
 
           {/* Empty slot for new story */}
-          <Link href="/user/goal-intake-ai" className={styles.storySlot}>
+          <div
+            className={styles.storySlot}
+            onClick={() => {
+              clearStore();
+              router.push('/user/goal-intake-ai');
+            }}
+            style={{ cursor: 'pointer' }}
+          >
             <div className={styles.storySlotIcon}>
               <PlusIcon />
             </div>
@@ -849,7 +858,7 @@ const Dashboard: React.FC = () => {
                 ? `${stats.limits.total - stats.limits.used} of ${stats.limits.total} slots remaining`
                 : "Loading..."}
             </div>
-          </Link>
+          </div>
         </div>
 
         <div className={styles.sectionHeader}>

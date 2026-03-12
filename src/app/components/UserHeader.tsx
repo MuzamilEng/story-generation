@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
 import styles from '../styles/Header.module.css';
+import { useStoryStore } from '@/store/useStoryStore';
 
 /* ── Icons ─────────────────────────────────────────────────────────── */
 const PlusIcon = () => (
@@ -51,6 +52,7 @@ const StepItem: React.FC<{ number: number; label: string; status: 'done' | 'acti
 
 const UserHeader: React.FC = () => {
     const { data: session } = useSession();
+    const { clearStore } = useStoryStore();
     const pathname = usePathname();
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
@@ -143,10 +145,17 @@ const UserHeader: React.FC = () => {
                 </nav>
 
                 <div className={styles.topbarRight}>
-                    <Link href="/user/goal-intake-ai" className={styles.newStoryBtn}>
+                    <div
+                        className={styles.newStoryBtn}
+                        onClick={() => {
+                            clearStore();
+                            window.location.href = '/user/goal-intake-ai';
+                        }}
+                        style={{ cursor: 'pointer' }}
+                    >
                         <PlusIcon />
                         New story
-                    </Link>
+                    </div>
 
                     <div className={styles.avatarWrapper} ref={dropdownRef}>
                         <button

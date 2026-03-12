@@ -29,7 +29,7 @@ export async function POST(
         }
 
         const goals = normalizeGoals(story.goal_intake_json)
-        const prompt = buildStoryPrompt(goals)
+        const prompt = buildStoryPrompt(goals, (story.story_length_option as any) || 'long')
 
         console.log(`[STORY_GENERATE] Prompt for story ${storyId}:`, prompt);
 

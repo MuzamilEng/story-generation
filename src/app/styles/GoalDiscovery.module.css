@@ -156,15 +156,20 @@
 /* LAYOUT */
 .main {
     display: flex;
-    flex: 1;
     overflow: hidden;
     max-width: 1060px;
     width: 100%;
-    margin: 0 auto;
-    padding: 1.25rem;
-    gap: 1.25rem;
+    height: 85vh;
+    /* Fixed relative height for consistent UI */
+    margin: auto;
+    /* Center vertically and horizontally */
+    padding: 1.5rem;
+    gap: 1.5rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
     min-height: 0;
-    /* Safari fix for flex items with overflowing children */
 }
 
 /* SIDEBAR */
@@ -233,17 +238,16 @@
 }
 
 .capturedBox {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 9px;
-    padding: 0.9rem;
+    background: var(--gold-bg);
+    /* Use warmer bg for captured items */
+    border: 1px solid var(--gold-border);
+    border-radius: 12px;
+    padding: 1rem;
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
-    flex: 1;
+    gap: 0.6rem;
+    max-height: 100%;
     overflow: hidden;
-    min-height: 0;
-    /* Safari fix */
 }
 
 .capturedTitle {
@@ -602,9 +606,18 @@
     animation: pulse 2s infinite;
 }
 
-.headerProceedBtn:hover {
+.headerProceedBtn:hover:not(:disabled) {
     background: #235840;
     transform: translateY(-1px);
+}
+
+.headerProceedBtn:disabled {
+    background: var(--border);
+    color: var(--ink-faint);
+    cursor: not-allowed;
+    animation: none;
+    box-shadow: none;
+    transform: none;
 }
 
 .headerProceedBtn svg {
@@ -641,9 +654,20 @@
     width: 100%;
 }
 
-.finishEarlyBtn:hover {
+.finishEarlyBtn:hover:not(:disabled) {
     border-color: var(--accent);
     background: var(--accent-light);
+}
+
+.finishEarlyBtn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: var(--bg);
+    border-style: solid;
+}
+
+.finishEarlyBtn:disabled strong {
+    color: var(--ink-faint);
 }
 
 .finishEarlyBtn span {
@@ -685,9 +709,14 @@
 
     .sidebarTitle,
     .sidebarDivider,
-    .capturedBox,
-    .finishEarlyBtn {
+    .capturedBox {
         display: none;
+    }
+
+    .finishEarlyBtn {
+        width: auto;
+        margin-top: 0;
+        padding: 0.5rem 1rem;
     }
 
     .topicItem {
@@ -702,4 +731,105 @@
     .bubble {
         max-width: 90%;
     }
+}
+
+/* Length selection */
+.lengthOptions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
+    margin-top: 1rem;
+}
+
+.lengthOption {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.9rem 1.1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: left;
+}
+
+.lengthOption:hover {
+    border-color: var(--accent);
+    background: var(--accent-light);
+}
+
+.lengthOption.active {
+    border-color: var(--accent);
+    background: var(--accent-light);
+    box-shadow: 0 2px 8px rgba(45, 106, 79, 0.1);
+}
+
+.lengthInfo {
+    display: flex;
+    flex-direction: column;
+}
+
+.lengthTitle {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--ink);
+    margin-bottom: 0.15rem;
+}
+
+.lengthDesc {
+    font-size: 0.72rem;
+    color: var(--ink-muted);
+}
+
+.lengthMeta {
+    text-align: right;
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+}
+
+.lengthWords {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--accent);
+}
+
+.lengthTime {
+    font-size: 0.65rem;
+    color: var(--ink-faint);
+}
+
+.radioCircle {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 1.5px solid var(--border);
+    margin-left: 1rem;
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+}
+
+.lengthOption.active .radioCircle {
+    border-color: var(--accent);
+    background: var(--accent);
+}
+
+.radioInner {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #fff;
+}
+
+.betaNote {
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px dashed var(--gold-border);
+    font-size: 0.7rem;
+    color: var(--ink-faint);
+    text-align: center;
+    font-style: italic;
 }
