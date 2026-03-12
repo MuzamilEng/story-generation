@@ -42,7 +42,7 @@ export async function PATCH(
       data: updateData,
       select: {
         id: true,
-        full_name: true,
+        name: true,
         email: true,
         role: true,
         isActive: true,

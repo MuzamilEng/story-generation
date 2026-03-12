@@ -321,7 +321,7 @@ const AccountSettings: React.FC = () => {
 
   useEffect(() => {
     if (userData) {
-      setNameInput(userData.full_name || "");
+      setNameInput(userData.name || "");
       setEmailInput(userData.email || "");
     }
   }, [userData]);
@@ -337,7 +337,7 @@ const AccountSettings: React.FC = () => {
 
   const handleSave = (field: "name" | "email") => {
     if (field === "name") {
-      updateSettingsMutation.mutate({ full_name: nameInput });
+      updateSettingsMutation.mutate({ name: nameInput });
     } else if (field === "email") {
       // Usually email changes require more verification, but we'll allow it for now
       updateSettingsMutation.mutate({ email: emailInput });
@@ -347,7 +347,7 @@ const AccountSettings: React.FC = () => {
   const handleCancel = () => {
     setEditingField(null);
     if (userData) {
-      setNameInput(userData.full_name || "");
+      setNameInput(userData.name || "");
       setEmailInput(userData.email || "");
     }
   };
@@ -445,7 +445,7 @@ const AccountSettings: React.FC = () => {
 
             <FormRow
               label="Full Name"
-              value={isEditingName ? nameInput : userData.full_name}
+              value={isEditingName ? nameInput : userData.name}
               onChange={(val) => setNameInput(val)}
               isEditing={isEditingName}
               onEdit={() => handleEdit("name")}

@@ -80,8 +80,8 @@ model User {
   id                      String         @id @default(cuid())
   email                   String         @unique @map("email")
   password_hash           String?
-  full_name               String         @map("full_name")
-  avatar_url              String?        @map("avatar_url")
+  name                    String?        @map("full_name")
+  image                   String?        @map("avatar_url")
   auth_provider           AuthProvider   @default(email) @map("auth_provider")
   plan                    Plan           @default(free)
   plan_started_at         DateTime?      @map("plan_started_at")

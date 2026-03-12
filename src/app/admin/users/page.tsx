@@ -185,7 +185,7 @@ export default function UserManagement() {
               {users.map((user) => (
                 <tr key={user.id} style={{ borderBottom: "1px solid #f4f4f4" }}>
                   <td style={{ padding: "12px 16px", fontWeight: 500 }}>
-                    {user.full_name || "N/A"}
+                    {user.name || "N/A"}
                   </td>
                   <td style={{ padding: "12px 16px" }}>{user.email}</td>
                   <td style={{ padding: "12px 16px" }}>

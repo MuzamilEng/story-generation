@@ -2,14 +2,14 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { getToken } from 'next-auth/jwt'
 
-export default async function proxy(request: NextRequest) {
+export async function proxy(request: NextRequest) {
     const { pathname } = request.nextUrl
 
-    // Skip middleware for static files, API routes, and special paths
+    // 1. Skip middleware for static files, API routes, and special paths
     if (
         pathname.startsWith('/_next') ||
         pathname.startsWith('/api') ||
-        pathname.includes('.') || // Skip files with extensions
+        pathname.includes('.') ||
         pathname.startsWith('/.well-known') ||
         pathname.includes('favicon.ico')
     ) {
@@ -18,101 +18,81 @@ export default async function proxy(request: NextRequest) {
 
     console.log('[MIDDLEWARE] Processing:', pathname)
 
-    // Get session token - simplified version
+    // 2. Get the user token
     const token = await getToken({
         req: request,
         secret: process.env.NEXTAUTH_SECRET,
     })
 
-    console.log('[AUTH DEBUG] Token:', {
-        exists: !!token,
-        fullToken: token,
-        cookies: request.cookies.getAll().map(c => c.name),
-        path: pathname
-    })
+    console.log('[AUTH DEBUG] Token exists:', !!token, 'Path:', pathname)
 
-    // Define dashboards for each role
-    const dashboards = {
-        ADMIN: '/admin/dashboard',
-        AGENCY: '/agency/dashboard',
-        USER: '/user/dashboard'
-    }
+    // 3. Define path categories
+    const isAuthPage = pathname.startsWith('/auth')
 
-    const userRole = token?.role as string || 'USER'
-
-    // ✅ Handle authenticated users
-    if (token) {
-        console.log('[AUTH] User authenticated. Role:', userRole, 'ID:', token.sub)
-
-        // Redirect from auth pages or home to appropriate dashboard
-        if (pathname === '/' || pathname.startsWith('/auth')) {
-            const dashboard = dashboards[userRole] || '/user/dashboard'
-            console.log('[REDIRECT] Logged-in user →', dashboard)
-            return NextResponse.redirect(new URL(dashboard, request.url))
-        }
-
-        // Role-based access control
-        if (pathname.startsWith('/admin') && userRole !== 'ADMIN') {
-            console.log('[BLOCKED] Non-admin trying to access admin route')
-            return NextResponse.redirect(new URL('/unauthorized', request.url))
-        }
-        if (pathname.startsWith('/agency') && userRole !== 'AGENCY') {
-            console.log('[BLOCKED] Non-agency trying to access agency route')
-            return NextResponse.redirect(new URL('/unauthorized', request.url))
-        }
-        if (pathname.startsWith('/user') && userRole !== 'USER') {
-            console.log('[BLOCKED] Non-user trying to access user route')
-            return NextResponse.redirect(new URL('/unauthorized', request.url))
-        }
-
-        // Allow authenticated user to continue
-        return NextResponse.next()
-    }
-
-    // ✅ Handle unauthenticated users
-    console.log('[AUTH] No authentication token found')
-
-    // Public paths that don't require authentication
+    // Public paths that are allowed for everyone (Landing page, marketing, legal)
     const publicPaths = [
         '/',
-        '/auth/signin',
-        '/auth/signup',
-        '/auth/error',
         '/about-us',
         '/contact-us',
         '/privacy',
         '/terms',
+        '/pricing',
         '/unauthorized'
     ]
+    const isPublicPath = publicPaths.includes(pathname)
 
-    const isPublicPath = publicPaths.some(path =>
-        pathname === path || (pathname.startsWith('/auth/') && !pathname.includes('/api'))
-    )
+    // Specific user dashboard/app pages to protect
+    const userAppPages = [
+        '/user/dashboard',
+        '/user/stories',
+        '/user/story-detail',
+        '/user/goal-intake-ai',
+        '/user/voice-recording',
+        '/user/audio-download',
+        '/user/account-setting',
+        '/user/manage-subscription',
+        '/user/story',
+        '/science' // Matches the 'science' folder under (authenticated)
+    ]
 
-    // If it's a public path, allow access
-    if (isPublicPath) {
+    // Check if the current pathname is one of the user app pages or starts with /user/
+    const isProtectedUserPage = userAppPages.some(page => pathname === page || pathname.startsWith(page + '/'))
+
+    // 4. Handle Authenticated Users
+    if (token) {
+        console.log('[AUTH] User authenticated.')
+
+        // If logged-in user tries to access auth pages or home, redirect to dashboard
+        if (isAuthPage || pathname === '/') {
+            console.log('[REDIRECT] Logged-in user → /user/dashboard')
+            return NextResponse.redirect(new URL('/user/dashboard', request.url))
+        }
+
         return NextResponse.next()
     }
 
-    // If not public and no token, redirect to signin
-    console.log('[REDIRECT] Protected route without auth → /auth/signin')
-    const url = new URL('/auth/signin', request.url)
-    url.searchParams.set('callbackUrl', encodeURIComponent(pathname))
-    return NextResponse.redirect(url)
+    // 5. Handle Unauthenticated Users
+    // If user is trying to access a protected user page and is not logged in
+    if (isProtectedUserPage) {
+        console.log('[REDIRECT] Protected user page (%s) without auth → /auth/signin', pathname)
+        const signinUrl = new URL('/auth/signin', request.url)
+        signinUrl.searchParams.set('callbackUrl', pathname)
+        return NextResponse.redirect(signinUrl)
+    }
+
+    // Allow access to public paths and anything else not explicitly protected
+    return NextResponse.next()
 }
 
 export const config = {
     matcher: [
-        // Match specific routes only (avoid catching everything)
-        '/',
-        '/auth/:path*',
-        '/admin/:path*',
-        '/agency/:path*',
-        '/user/:path*',
-        '/about-us',
-        '/contact-us',
-        '/privacy',
-        '/terms',
-        '/unauthorized'
+        /*
+         * Match all request paths except for the ones starting with:
+         * - api (API routes)
+         * - _next/static (static files)
+         * - _next/image (image optimization files)
+         * - favicon.ico (favicon file)
+         */
+        '/((?!api|_next/static|_next/image|favicon.ico).*)',
     ],
 }

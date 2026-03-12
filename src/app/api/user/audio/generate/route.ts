@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
         // 1. Voice Cloning if not existing
         if (!voiceId) {
             const elFormData = new FormData();
-            elFormData.append('name', `${user.full_name || 'User'} - Clone Voice`);
+            elFormData.append('name', `${user.name || 'User'} - Clone Voice`);
             elFormData.append('files', audioFile, 'sample.m4a');
             elFormData.append('description', 'Instant Voice Clone for user story');
 

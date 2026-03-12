@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
         const user = await prisma.user.findUnique({
             where: { id: session.user.id },
             select: {
-                full_name: true,
+                name: true,
                 email: true,
                 auth_provider: true,
                 plan: true,
@@ -52,7 +52,7 @@ export async function PATCH(req: NextRequest) {
 
         const body = await req.json()
         const {
-            full_name,
+            name,
             morning_reminder,
             evening_reminder,
             streak_milestones,
@@ -62,7 +62,7 @@ export async function PATCH(req: NextRequest) {
         const updatedUser = await prisma.user.update({
             where: { id: session.user.id },
             data: {
-                ...(full_name !== undefined && { full_name }),
+                ...(name !== undefined && { name }),
                 ...(morning_reminder !== undefined && { morning_reminder }),
                 ...(evening_reminder !== undefined && { evening_reminder }),
                 ...(streak_milestones !== undefined && { streak_milestones }),
