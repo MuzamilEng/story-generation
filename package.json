@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma generate && next build",
     "postbuild": "node scripts/create-middleware-nft.mjs",
     "start": "next start"
   },

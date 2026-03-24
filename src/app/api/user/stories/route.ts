@@ -17,6 +17,18 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Goals are required and cannot be empty' }, { status: 400 })
         }
 
+        // Verify user exists in database (JWT may outlive deleted user record)
+        const userExists = await prisma.user.findUnique({
+            where: { id: session.user.id },
+            select: { id: true }
+        })
+        if (!userExists) {
+            return NextResponse.json(
+                { error: 'Your account was not found. Please sign out and sign back in.' },
+                { status: 401 }
+            )
+        }
+
         const story = await prisma.story.create({
             data: {
                 userId: session.user.id,
