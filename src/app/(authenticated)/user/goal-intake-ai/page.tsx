@@ -176,6 +176,50 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
   );
 };
 
+// Additional Details Modal
+interface AdditionalDetailsModalProps {
+  onConfirm: (details: string) => void;
+  onSkip: () => void;
+}
+
+const AdditionalDetailsModal: React.FC<AdditionalDetailsModalProps> = ({
+  onConfirm,
+  onSkip,
+}) => {
+  const [details, setDetails] = useState("");
+
+  return (
+    <div className={styles.modalOverlay}>
+      <div className={styles.modal}>
+        <div className={styles.modalIcon}>✦</div>
+        <h3>Personalise your story</h3>
+        <p>
+          Would you like to share any additional details about your story?
+          Please add them here to make it more personalized.
+        </p>
+        <textarea
+          value={details}
+          onChange={(e) => setDetails(e.target.value)}
+          placeholder="e.g. specific names, places, or feelings you want to include..."
+          className={styles.modalTextarea}
+        />
+        <div className={styles.modalActions}>
+          <button className={styles.modalBtnSecondary} onClick={onSkip}>
+            Skip for now
+          </button>
+          <button
+            className={styles.modalBtnPrimary}
+            onClick={() => onConfirm(details)}
+            disabled={!details.trim()}
+          >
+            Add Details
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // Skip-confirmation modal
 interface SkipConfirmModalProps {
   topicLabel: string;
@@ -293,6 +337,9 @@ const GoalDiscovery: React.FC = () => {
   } | null>(null);
   // Track which topic IDs the user has sent at least one reply in
   const [respondedTopics, setRespondedTopics] = useState<string[]>([]);
+  const [showAdditionalDetails, setShowAdditionalDetails] = useState(false);
+  const [hasSeenAdditionalDetails, setHasSeenAdditionalDetails] =
+    useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -340,6 +387,9 @@ const GoalDiscovery: React.FC = () => {
           }));
           if (data.phase === "Complete" || data.pct >= 100) {
             setIsComplete(true);
+            if (!hasSeenAdditionalDetails) {
+              setShowAdditionalDetails(true);
+            }
           }
         } catch (e) {
           console.error("Error parsing progress JSON:", e);
@@ -449,6 +499,9 @@ const GoalDiscovery: React.FC = () => {
         if (triggerCompleteAfterResponseRef.current) {
           triggerCompleteAfterResponseRef.current = false;
           setIsComplete(true);
+          if (!hasSeenAdditionalDetails) {
+            setShowAdditionalDetails(true);
+          }
         }
       } catch (error) {
         console.error("Error calling AI:", error);
@@ -647,6 +700,24 @@ const GoalDiscovery: React.FC = () => {
           onCancel={() => setPendingSkip(null)}
         />
       )}
+      {showAdditionalDetails && (
+        <AdditionalDetailsModal
+          onConfirm={(details) => {
+            if (details.trim()) {
+              setCapturedGoals((prev) => ({
+                ...prev,
+                "Additional Details": details.trim(),
+              }));
+            }
+            setShowAdditionalDetails(false);
+            setHasSeenAdditionalDetails(true);
+          }}
+          onSkip={() => {
+            setShowAdditionalDetails(false);
+            setHasSeenAdditionalDetails(true);
+          }}
+        />
+      )}
       <div className={styles.main}>
         {/* Sidebar */}
         <aside className={styles.sidebar}>
@@ -682,7 +753,12 @@ const GoalDiscovery: React.FC = () => {
           {!isComplete && (
             <button
               className={styles.finishEarlyBtn}
-              onClick={() => setIsComplete(true)}
+              onClick={() => {
+                setIsComplete(true);
+                if (!hasSeenAdditionalDetails) {
+                  setShowAdditionalDetails(true);
+                }
+              }}
               disabled={
                 !capturedGoals || Object.keys(capturedGoals).length === 0
               }

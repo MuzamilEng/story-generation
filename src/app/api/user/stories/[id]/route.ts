@@ -8,7 +8,7 @@ export async function GET(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const { id } = await params;
+        const { id: storyId } = await params;
         const session = await getServerSession(authOptions)
         if (!session || !session.user) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -16,14 +16,12 @@ export async function GET(
 
         const story = await prisma.story.findUnique({
             where: {
-                id,
+                id: storyId,
                 userId: session.user.id,
             },
             include: {
                 versions: {
-                    orderBy: {
-                        version: 'desc'
-                    },
+                    orderBy: { version: 'desc' },
                     take: 1
                 }
             }
@@ -33,52 +31,14 @@ export async function GET(
             return NextResponse.json({ error: 'Story not found' }, { status: 404 })
         }
 
-        return NextResponse.json({
+        const serializedStory = {
             ...story,
             audio_file_size_bytes: story.audio_file_size_bytes != null ? Number(story.audio_file_size_bytes) : null,
-        })
-    } catch (error) {
-        console.error('[STORY_GET_ID]', error)
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
-    }
-}
-
-export async function PATCH(
-    req: NextRequest,
-    { params }: { params: Promise<{ id: string }> }
-) {
-    try {
-        const { id } = await params;
-        const session = await getServerSession(authOptions)
-        if (!session || !session.user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
-        const body = await req.json();
-        const { title, content } = body;
-
-        const updateData: any = {};
-        if (title !== undefined) updateData.title = title;
-        if (content !== undefined) {
-            updateData.story_text_draft = content;
-            // Also update approved if it exists, or just count words
-            updateData.word_count = content.trim().split(/\s+/).filter((w: string) => w.length > 0).length;
-        }
-
-        const story = await prisma.story.update({
-            where: {
-                id,
-                userId: session.user.id,
-            },
-            data: updateData
-        })
-
-        return NextResponse.json({
-            ...story,
-            audio_file_size_bytes: story.audio_file_size_bytes != null ? Number(story.audio_file_size_bytes) : null,
-        })
+        return NextResponse.json(serializedStory)
     } catch (error) {
-        console.error('[STORY_PATCH_ID]', error)
+        console.error('[STORY_SINGLE_GET]', error)
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
     }
 }
@@ -88,7 +48,7 @@ export async function DELETE(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const { id } = await params;
+        const { id: storyId } = await params;
         const session = await getServerSession(authOptions)
         if (!session || !session.user) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -96,14 +56,14 @@ export async function DELETE(
 
         await prisma.story.delete({
             where: {
-                id,
+                id: storyId,
                 userId: session.user.id,
-            }
+            },
         })
 
-        return NextResponse.json({ success: true })
+        return NextResponse.json({ message: 'Story deleted' })
     } catch (error) {
-        console.error('[STORY_DELETE_ID]', error)
+        console.error('[STORY_SINGLE_DELETE]', error)
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
     }
 }

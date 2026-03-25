@@ -14,7 +14,8 @@ import {
     RefreshIcon,
     CircleIcon,
     InfoIcon,
-    MicIcon
+    MicIcon,
+    SparkleIcon
 } from '../../../components/icons/StoryIcons';
 import { ChecklistItem, GenerationStep } from '../../../types/story';
 import { UserAnswers, normalizeGoals } from '@/lib/story-utils';
@@ -191,6 +192,11 @@ const StoryContent: React.FC = () => {
     const [activeStep, setActiveStep] = useState(0);
     const [userAnswers, setUserAnswers] = useState<UserAnswers | null>(null);
     const [storyId, setStoryId] = useState<string | null>(storyIdFromUrl);
+    const [isAIEditing, setIsAIEditing] = useState(false);
+    const [aiQuestions, setAiQuestions] = useState<string[]>([]);
+    const [aiAnswers, setAiAnswers] = useState<string[]>([]);
+    const [isGeneratingQuestions, setIsGeneratingQuestions] = useState(false);
+    const [isRefiningStory, setIsRefiningStory] = useState(false);
 
     const { capturedGoals, normalizedGoals, setNormalizedGoals, clearStore, isHydrated } = useStoryStore();
     const hasInitialized = useRef(false);
@@ -398,6 +404,66 @@ const StoryContent: React.FC = () => {
         }));
     };
 
+    const handleAIEdit = async () => {
+        if (!storyId) return;
+        setIsAIEditing(true);
+        setIsGeneratingQuestions(true);
+        setAiQuestions([]);
+        setAiAnswers([]);
+
+        try {
+            const res = await fetch(`/api/user/stories/${storyId}/edit-ai/questions`, {
+                method: 'POST'
+            });
+            const data = await res.json();
+            if (data.questions) {
+                setAiQuestions(data.questions);
+                setAiAnswers(new Array(data.questions.length).fill(''));
+            } else {
+                alert("Failed to generate AI questions. Please try again.");
+                setIsAIEditing(false);
+            }
+        } catch (e) {
+            console.error("AI questions failed", e);
+            setIsAIEditing(false);
+        } finally {
+            setIsGeneratingQuestions(false);
+        }
+    };
+
+    const handleAIRefine = async () => {
+        if (!storyId) return;
+        setIsRefiningStory(true);
+
+        try {
+            const res = await fetch(`/api/user/stories/${storyId}/edit-ai/refine`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    questions: aiQuestions,
+                    answers: aiAnswers
+                })
+            });
+            const data = await res.json();
+            if (data.storyText) {
+                setStoryText(data.storyText);
+                setIsAIEditing(false);
+            } else {
+                alert("Failed to refine story. Please try again.");
+            }
+        } catch (e) {
+            console.error("AI refinement failed", e);
+        } finally {
+            setIsRefiningStory(false);
+        }
+    };
+
+    const handleAnswerChange = (index: number, val: string) => {
+        const next = [...aiAnswers];
+        next[index] = val;
+        setAiAnswers(next);
+    };
+
     if (!userAnswers && !isGenerating) {
         return (
             <div className={styles.container}>
@@ -414,6 +480,80 @@ const StoryContent: React.FC = () => {
 
     return (
         <div className={styles.container}>
+            {isAIEditing && (
+                <div className={styles.aiEditModalOverlay} onClick={() => !isRefiningStory && setIsAIEditing(false)}>
+                    <div className={styles.aiEditModal} onClick={e => e.stopPropagation()}>
+                        <div className={styles.aiEditModalHeader}>
+                            <div className={styles.aiEditPromptTitle}>
+                                <SparkleIcon />
+                                Refine with AI
+                            </div>
+                            <button className={styles.closeBtn} onClick={() => setIsAIEditing(false)}>×</button>
+                        </div>
+
+                        <div className={styles.aiEditModalBody}>
+                            {isGeneratingQuestions ? (
+                                <div>
+                                    <div className={styles.loadingSpinner} />
+                                    <div className={styles.aiEditLoadingText}>AI is analyzing your story for gaps...</div>
+                                </div>
+                            ) : (
+                                <>
+                                    <div className={styles.aiEditPrompt}>
+                                        <div className={styles.aiEditPromptText}>
+                                            The AI has identified a few areas to make your story even more potent.
+                                            Answer these questions to add more personal nuance.
+                                        </div>
+                                    </div>
+
+                                    <div className={styles.aiQuestionsSection}>
+                                        {aiQuestions.map((q, i) => (
+                                            <div key={i} className={styles.aiQuestionItem}>
+                                                <div className={styles.aiQuestionText}>{q}</div>
+                                                <textarea
+                                                    className={styles.aiAnswerTextarea}
+                                                    value={aiAnswers[i]}
+                                                    onChange={(e) => handleAnswerChange(i, e.target.value)}
+                                                    placeholder="Your answer..."
+                                                />
+                                            </div>
+                                        ))}
+                                    </div>
+                                </>
+                            )}
+                        </div>
+
+                        {!isGeneratingQuestions && (
+                            <div className={styles.aiEditModalFooter}>
+                                <button
+                                    className={styles.outlineBtn}
+                                    onClick={() => setIsAIEditing(false)}
+                                    disabled={isRefiningStory}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    className={styles.aiEditRegenBtn}
+                                    onClick={handleAIRefine}
+                                    disabled={isRefiningStory || aiAnswers.every(a => !a.trim())}
+                                >
+                                    {isRefiningStory ? (
+                                        <>
+                                            <div className={styles.spinnerSmall} style={{ marginRight: '8px' }} />
+                                            Enhancing...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <SparkleIcon />
+                                            Regenerate Story
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
 
 
             <div className={styles.pageBody}>
@@ -507,22 +647,31 @@ const StoryContent: React.FC = () => {
                                         Generated just now · {wordCount.toLocaleString()} words
                                     </div>
                                 </div>
-                                <button
-                                    className={`${styles.editToggle} ${isEditing ? styles.editing : ''}`}
-                                    onClick={handleToggleEdit}
-                                >
-                                    {isEditing ? (
-                                        <>
-                                            <DoneIcon />
-                                            Done editing
-                                        </>
-                                    ) : (
-                                        <>
-                                            <EditIcon />
-                                            Edit story
-                                        </>
-                                    )}
-                                </button>
+                                <div className={styles.footerActions} style={{ gap: '0.6rem' }}>
+                                    <button
+                                        className={styles.aiEditBtn}
+                                        onClick={handleAIEdit}
+                                    >
+                                        <SparkleIcon />
+                                        Edit with AI
+                                    </button>
+                                    <button
+                                        className={`${styles.editToggle} ${isEditing ? styles.editing : ''}`}
+                                        onClick={handleToggleEdit}
+                                    >
+                                        {isEditing ? (
+                                            <>
+                                                <DoneIcon />
+                                                Done editing
+                                            </>
+                                        ) : (
+                                            <>
+                                                <EditIcon />
+                                                Edit story
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
                             </div>
 
                             <div className={styles.storyBody}>
