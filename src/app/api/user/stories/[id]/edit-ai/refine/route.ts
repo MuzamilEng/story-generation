@@ -43,7 +43,6 @@ CURRENT STORY DRAFT:
 """
 ${story.story_text_draft}
 """
-
 NEW REFLECTIVE DETAILS (Answers from the user to specific personalized questions):
 ${questions.map((q: string, i: number) => `Q: ${q}\nA: ${answers[i] || 'N/A'}`).join('\n\n')}
 

@@ -16,7 +16,9 @@
 }
 
 .container {
-    min-height: 100vh;
+    height: 100%;
+    flex: 1;
+    overflow-y: auto;
     background: var(--bg);
     color: var(--ink);
     font-family: 'DM Sans', sans-serif;
@@ -539,6 +541,8 @@
 .playPause svg {
     width: 14px;
     height: 14px;
+    fill: #ffffff;
+    color: #ffffff;
 }
 
 .pbInfo {
@@ -554,7 +558,7 @@
 }
 
 .pbProgress {
-    height: 3px;
+    height: 6px;
     background: rgba(45, 106, 79, 0.2);
     border-radius: 99px;
     overflow: hidden;
@@ -663,6 +667,11 @@
     .page {
         justify-content: center;
     }
+
+    .centerCol {
+        max-width: 100%;
+        width: 100%;
+    }
 }
 
 @media (max-width: 560px) {
@@ -670,25 +679,120 @@
         display: none;
     }
 
+    /* Extra bottom padding so content is never hidden behind fixed submit bar */
     .page {
-        padding: 1.5rem 1rem 3rem;
+        padding: 1.25rem 1rem 2rem;
+    }
+
+    .centerCol {
+        padding-bottom: 140px;
+        /* space for fixed submit bar */
+    }
+
+    .recorderCard {
+        border-radius: 12px;
+    }
+
+    .recTop {
+        padding: 1.5rem 1.25rem 1.25rem;
     }
 
     .timerRow {
         flex-wrap: wrap;
         gap: 1rem;
+        padding: 1rem 1.25rem;
     }
 
     .timerDivider {
         display: none;
     }
 
+    .timerDisplay {
+        font-size: 1.75rem;
+        min-width: 70px;
+    }
+
     .recControls {
         flex-direction: column;
+        padding: 1rem 1.25rem 1.25rem;
     }
 
     .ctrlBtn {
         width: 100%;
         justify-content: center;
+        padding: 0.75rem 1.25rem;
+        font-size: 0.85rem;
+    }
+
+    /* Playback card: fully visible, not covered */
+    .playbackCard {
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        padding: 1.25rem;
+    }
+
+    .pbInfo {
+        width: 100%;
+        order: 2;
+    }
+
+    .playPause {
+        order: 1;
+        width: 44px;
+        height: 44px;
+        flex-shrink: 0;
+    }
+
+    .pbRedo {
+        width: 100%;
+        text-align: center;
+        order: 3;
+        padding: 0.5rem 0;
+        font-size: 0.8rem;
+    }
+
+    /* Submit area — fixed at bottom so it never covers content above */
+    .submitArea {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: var(--bg);
+        padding: 0.85rem 1rem calc(0.85rem + env(safe-area-inset-bottom, 0px));
+        border-top: 1px solid var(--border);
+        gap: 0.5rem;
+        z-index: 100;
+        box-shadow: 0 -4px 20px rgba(28, 26, 22, 0.08);
+    }
+
+    .submitArea.visible {
+        display: flex;
+        flex-direction: column;
+        animation: slideUp 0.3s ease both;
+    }
+
+    @keyframes slideUp {
+        from {
+            transform: translateY(100%);
+            opacity: 0;
+        }
+
+        to {
+            transform: translateY(0);
+            opacity: 1;
+        }
+    }
+
+    .submitBtn {
+        min-height: 52px;
+        font-size: 0.95rem;
+        border-radius: 12px;
+        padding: 1rem;
+        box-shadow: 0 4px 16px rgba(45, 106, 79, 0.25);
+    }
+
+    .submitNote {
+        font-size: 0.72rem;
+        padding: 0.65rem 0.75rem;
     }
 }

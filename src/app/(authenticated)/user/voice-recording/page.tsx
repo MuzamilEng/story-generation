@@ -123,7 +123,7 @@ const Playback: React.FC<PlaybackProps> = ({ duration, audioUrl, onReRecord }) =
 
     const formatTime = (s: number): string => {
         const mins = Math.floor(s / 60);
-        const secs = s % 60;
+        const secs = Math.floor(s % 60);
         return `${mins}:${secs.toString().padStart(2, '0')}`;
     };
 
@@ -131,7 +131,7 @@ const Playback: React.FC<PlaybackProps> = ({ duration, audioUrl, onReRecord }) =
         const audio = audioRef.current;
         if (!audio) return;
 
-        const updateTime = () => setCurrentTime(Math.floor(audio.currentTime));
+        const updateTime = () => setCurrentTime(audio.currentTime);
         const handleEnded = () => {
             setIsPlaying(false);
             setCurrentTime(0);
@@ -156,7 +156,7 @@ const Playback: React.FC<PlaybackProps> = ({ duration, audioUrl, onReRecord }) =
         setIsPlaying(!isPlaying);
     };
 
-    const progressPercentage = duration > 0 ? (currentTime / duration) * 100 : 0;
+    const progressPercentage = duration > 0 ? Math.min((currentTime / duration) * 100, 100) : 0;
 
     return (
         <div className={`${styles.playbackCard} ${styles.visible}`}>
@@ -395,7 +395,7 @@ const VoiceRecordingContent: React.FC = () => {
 
     const formatTime = (s: number): string => {
         const mins = Math.floor(s / 60);
-        const secs = s % 60;
+        const secs = Math.floor(s % 60);
         return `${mins}:${secs.toString().padStart(2, '0')}`;
     };
 

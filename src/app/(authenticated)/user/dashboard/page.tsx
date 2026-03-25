@@ -874,7 +874,12 @@ const Dashboard: React.FC = () => {
             ))
           ) : (
             <div className={styles.emptyActivity}>
-              No recent activity yet. Start with a new story session.
+              <div className={styles.emptyActivityIcon}>
+                <ClockIcon />
+              </div>
+              <div className={styles.emptyActivityText}>
+                No recent activity yet. Start with a new story session.
+              </div>
             </div>
           )}
         </div>

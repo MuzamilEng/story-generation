@@ -14,13 +14,13 @@ export default function UserLayout({
     const { data: session } = useSession();
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
             {/* Desktop top header — always visible now */}
             <UserHeader />
             {/* Mobile-only sidebar hamburger + slide-in drawer */}
             <Sidebar />
 
-            <main style={{ flex: 1 }} className="authenticated-main">
+            <main style={{ flex: 1, position: 'relative', overflow: 'hidden', display: 'flex', flexDirection: 'column' }} className="authenticated-main">
                 {children}
             </main>
 
@@ -28,7 +28,7 @@ export default function UserLayout({
             <style>{`
                 @media (max-width: 768px) {
                     .authenticated-main {
-                        padding-top: 3.25rem;
+                        /* Header is part of flex flow, so no padding-top needed */
                     }
                 }
             `}</style>

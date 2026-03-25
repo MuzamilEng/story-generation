@@ -14,7 +14,9 @@
 }
 
 .container {
-    min-height: 100vh;
+    height: 100%;
+    flex: 1;
+    overflow-y: auto;
     background: var(--bg);
     color: var(--ink);
     font-family: 'DM Sans', sans-serif;
@@ -777,12 +779,89 @@
 }
 
 /* Responsive */
-@media (max-width: 560px) {
+@media (max-width: 640px) {
     .stepsRow {
         display: none;
     }
 
-    .usageList {
-        grid-template-columns: 1fr;
+    .page {
+        padding: 0 1rem 4rem;
+    }
+
+    .celebrateHeader {
+        padding: 2.5rem 1rem 1.5rem;
+    }
+
+    .celebrateTitle {
+        font-size: 2.2rem;
+    }
+
+    .playerTop {
+        padding: 1.5rem 1.25rem 1.25rem;
+    }
+
+    .playerControls {
+        padding: 1.25rem;
+    }
+
+    .ctrlPlay {
+        width: 48px;
+        height: 48px;
+    }
+
+    .downloadCard {
+        flex-wrap: wrap;
+        padding: 1.15rem;
+    }
+
+    .dlInfo {
+        min-width: calc(100% - 65px);
+    }
+
+    .dlBtn {
+        width: 100%;
+        justify-content: center;
+        padding: 0.75rem;
+        font-size: 0.85rem;
+        margin-top: 0.35rem;
+    }
+
+    .usageItem {
+        padding: 1rem;
+        gap: 0.75rem;
+    }
+
+    .usageItemIcon {
+        font-size: 1.15rem;
+    }
+
+    .scienceBanner {
+        flex-direction: column;
+        gap: 0.65rem;
+        padding: 1.15rem;
+    }
+
+    .sciIcon {
+        font-size: 1.15rem;
+    }
+
+    .nextCard {
+        padding: 1rem;
+    }
+
+    .postDownload {
+        padding: 1.5rem 1rem;
+    }
+
+    .postDownloadActions {
+        flex-direction: column;
+        width: 100%;
+        gap: 0.65rem;
+    }
+
+    .homeCta,
+    .homeCtaOutline {
+        width: 100%;
+        justify-content: center;
     }
 }

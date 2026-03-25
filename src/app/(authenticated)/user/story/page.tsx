@@ -201,6 +201,10 @@ const StoryContent: React.FC = () => {
     const { capturedGoals, normalizedGoals, setNormalizedGoals, clearStore, isHydrated } = useStoryStore();
     const hasInitialized = useRef(false);
 
+    // Mobile Panel Visibility
+    const [showVisionMobile, setShowVisionMobile] = useState(false);
+    const [showChecklistMobile, setShowChecklistMobile] = useState(false);
+
     // Dynamic steps based on logic
     const getSteps = () => {
         if (!isLoggedIn) {
@@ -556,8 +560,47 @@ const StoryContent: React.FC = () => {
             )}
 
 
+            {/* Mobile Overlay — sits outside pageBody so it covers everything */}
+            {(showVisionMobile || showChecklistMobile) && (
+                <div
+                    className={styles.mobileOverlay}
+                    onClick={() => {
+                        setShowVisionMobile(false);
+                        setShowChecklistMobile(false);
+                    }}
+                />
+            )}
+
+            {/* Mobile Navigation Bar */}
+            <div className={styles.mobilePanelNav}>
+                <button
+                    className={`${styles.mobileNavBtn} ${showVisionMobile ? styles.active : ''}`}
+                    onClick={() => {
+                        setShowVisionMobile(!showVisionMobile);
+                        setShowChecklistMobile(false);
+                    }}
+                >
+                    <InfoIcon />
+                    Your Vision
+                </button>
+                <button
+                    className={`${styles.mobileNavBtn} ${showChecklistMobile ? styles.active : ''}`}
+                    onClick={() => {
+                        setShowChecklistMobile(!showChecklistMobile);
+                        setShowVisionMobile(false);
+                    }}
+                >
+                    <CheckIcon />
+                    Checklist
+                </button>
+            </div>
+
             <div className={styles.pageBody}>
-                <aside className={styles.leftPanel}>
+                <aside className={`${styles.leftPanel} ${showVisionMobile ? styles.showMobile : ''}`}>
+                    <div className={styles.mobilePanelHeader}>
+                        <span className={styles.panelSectionTitle}>Your Vision</span>
+                        <button className={styles.closeMobileBtn} onClick={() => setShowVisionMobile(false)}>×</button>
+                    </div>
                     {userAnswers && (
                         <div>
                             <div className={styles.panelSectionTitle}>Your Vision</div>
@@ -675,14 +718,20 @@ const StoryContent: React.FC = () => {
                             </div>
 
                             <div className={styles.storyBody}>
-                                <textarea
-                                    ref={textareaRef}
-                                    id="storyText"
-                                    className={styles.storyText}
-                                    readOnly={!isEditing}
-                                    value={storyText}
-                                    onChange={handleStoryChange}
-                                />
+                                {isEditing ? (
+                                    <textarea
+                                        ref={textareaRef}
+                                        id="storyText"
+                                        className={styles.storyText}
+                                        value={storyText}
+                                        onChange={handleStoryChange}
+                                        placeholder="Start writing your story here..."
+                                    />
+                                ) : (
+                                    <div className={styles.storyTextDisplay}>
+                                        {storyText}
+                                    </div>
+                                )}
                             </div>
 
                             <div className={styles.storyFooter}>
@@ -714,11 +763,14 @@ const StoryContent: React.FC = () => {
                     )}
                 </main>
 
-                <aside className={styles.rightPanel}>
+                <aside className={`${styles.rightPanel} ${showChecklistMobile ? styles.showMobile : ''}`}>
+                    <div className={styles.mobilePanelHeader}>
+                        <div className={styles.panelSectionTitle}>Story Checklist</div>
+                        <button className={styles.closeMobileBtn} onClick={() => setShowChecklistMobile(false)}>×</button>
+                    </div>
                     <TipCard />
 
                     <div>
-                        <div className={styles.panelSectionTitle}>Story Checklist</div>
                         <div className={styles.checklist} id="checklist">
                             {checklistItems.map(item => (
                                 <ChecklistItemComponent

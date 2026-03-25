@@ -16,7 +16,9 @@
  }
 
  .container {
-     min-height: 100vh;
+     height: 100%;
+     flex: 1;
+     overflow-y: auto;
      background: var(--bg);
      color: var(--ink);
      font-family: 'DM Sans', sans-serif;
