@@ -548,23 +548,23 @@ const GoalDiscovery: React.FC = () => {
     async (length: "short" | "long" = "long") => {
       // Prevent submission if no goals are captured
       const goalCount = !capturedGoals ? 0 : Object.keys(capturedGoals).length;
-      if (goalCount === 0) {
-        alert(
-          "Goals are required and cannot be empty. Please answer some questions first.",
-        );
-        return;
-      }
+      // if (goalCount === 0) {
+      //   alert(
+      //     "Goals are required and cannot be empty. Please answer some questions first.",
+      //   );
+      //   return;
+      // }
 
       // Constraint: Short story should have 1-2 goals
-      if (length === "short" && goalCount > 2) {
-        if (
-          !confirm(
-            `A short story is optimized for 1-2 goals, but you have ${goalCount} goals captured. It may feel condensed. Continue anyway?`,
-          )
-        ) {
-          return;
-        }
-      }
+      // if (length === "short" && goalCount > 2) {
+      //   if (
+      //     !confirm(
+      //       `A short story is optimized for 1-2 goals, but you have ${goalCount} goals captured. It may feel condensed. Continue anyway?`,
+      //     )
+      //   ) {
+      //     return;
+      //   }
+      // }
 
       // 1. Normalize the data before sending/storing
       const normalized = normalizeGoals(capturedGoals);
