@@ -25,6 +25,10 @@ export interface UserAnswers {
     proof2?: string;
     obstacle3?: string;
     proof3?: string;
+    goals?: string;
+    actionsAfter?: string;
+    futureVision?: string;
+    givingBack?: string;
 }
 export function normalizeGoals(raw: any): UserAnswers {
     if (!raw) return {} as UserAnswers;
@@ -73,7 +77,11 @@ export function normalizeGoals(raw: any): UserAnswers {
         'Obstacle 2': 'obstacle2',
         'Proof 2': 'proof2',
         'Obstacle 3': 'obstacle3',
-        'Proof 3': 'proof3'
+        'Proof 3': 'proof3',
+        'Goals': 'goals',
+        'Actions After': 'actionsAfter',
+        'Future Vision': 'futureVision',
+        'Giving Back': 'givingBack'
     };
 
     const mainKeys = ['identity', 'purpose', 'location', 'emotions'];
@@ -205,6 +213,7 @@ function buildDynamicVision(answers: UserAnswers): string {
     addLine('Identity', answers.identity);
     addLine('Core Purpose', answers.purpose);
     addLine('Values', answers.values);
+    addLine('Specific Goals', answers.goals);
     addLine('Where they live', answers.location);
     addLine('Their home', answers.home);
     addLine('Morning routine', answers.morning);
@@ -218,6 +227,9 @@ function buildDynamicVision(answers: UserAnswers): string {
     addLine('Community & contribution', answers.community);
     addLine('Recreation & travel', answers.travel);
     addLine('How they handle challenges', answers.challenges);
+    addLine('Life After Goals', answers.actionsAfter);
+    addLine('Giving Back', answers.givingBack);
+    addLine('Future Vision', answers.futureVision);
     addLine('Evening routine', answers.evening);
     addLine('End of day reflection', answers.reflection);
     addLine('Dreams and intentions', answers.dreams);
