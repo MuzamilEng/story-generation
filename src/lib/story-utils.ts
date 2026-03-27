@@ -133,7 +133,42 @@ export function normalizeGoals(raw: any): UserAnswers {
 
 export type StoryLength = 'short' | 'long';
 
-export function buildStoryPrompt(answers: UserAnswers, length: StoryLength = 'long'): string {
+/** Lightweight seed so each generation call forces a structurally different story */
+export interface VariationSeed {
+    season: string;
+    timeOfDay: string;
+    narrativeFocus: string;
+    openingMood: string;
+}
+
+const SEASONS = ['spring', 'summer', 'autumn', 'winter'];
+const TIMES = ['early morning', 'midday', 'golden afternoon', 'early evening', 'a quiet night'];
+const NARRATIVE_FOCUS = [
+    'a single ordinary day that captures everything',
+    'a series of milestone moments across the year',
+    'one significant event that embodies the whole journey',
+    'a morning and evening bookending a pivotal day',
+    'a spontaneous moment where life clicks into perfect clarity',
+];
+const OPENING_MOODS = [
+    'quiet gratitude',
+    'energised purpose',
+    'deep stillness',
+    'playful joy',
+    'warm contentment',
+];
+
+export function createVariationSeed(): VariationSeed {
+    const pick = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
+    return {
+        season: pick(SEASONS),
+        timeOfDay: pick(TIMES),
+        narrativeFocus: pick(NARRATIVE_FOCUS),
+        openingMood: pick(OPENING_MOODS),
+    };
+}
+
+export function buildStoryPrompt(answers: UserAnswers, length: StoryLength = 'long', seed?: VariationSeed): string {
     let obstacleSection = '';
     const obstacles = [];
     if (answers.obstacle1) obstacles.push({ struggle: answers.obstacle1, proof: answers.proof1 || '' });
@@ -198,6 +233,14 @@ WHAT TO AVOID:
 
 THE VISION:
 ${buildDynamicVision(answers)}${obstacleSection}
+
+VARIATION DIRECTIVE — THIS IS MANDATORY AND OVERRIDES ANY DEFAULTS:
+This specific story MUST use the following parameters to guarantee it feels completely different from any story generated with similar goals:
+- Season / time of year: ${seed?.season ?? SEASONS[0]}
+- The story opens at: ${seed?.timeOfDay ?? TIMES[0]}
+- Narrative structure: ${seed?.narrativeFocus ?? NARRATIVE_FOCUS[0]}
+- Opening emotional tone: ${seed?.openingMood ?? OPENING_MOODS[0]}
+Do NOT default to a generic summer morning or a single "day in the life" structure unless explicitly set above. These parameters are non-negotiable.
 
 Write the story now. Begin directly with the first line — no preamble, no title, no intro.`;
 }

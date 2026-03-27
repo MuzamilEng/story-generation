@@ -347,6 +347,10 @@ const GoalDiscovery: React.FC = () => {
   const activeTopicIdRef = useRef<string>(TOPICS[0].id);
   // Set when user sends a message in Evening & Close; triggers isComplete after AI replies
   const triggerCompleteAfterResponseRef = useRef(false);
+  // Guard against double-fire on back-navigation / React Strict Mode double-invoke
+  const hasSentInitialRef = useRef(false);
+  // Blocking ref for concurrent calls
+  const isCallingRef = useRef(false);
 
   // Scroll to bottom whenever messages change
   useEffect(() => {
@@ -361,9 +365,10 @@ const GoalDiscovery: React.FC = () => {
     }
   }, [inputValue]);
 
-  // Start conversation on mount
+  // Start conversation on mount — fire only once per mount cycle
   useEffect(() => {
-    if (messagesRef.current.length === 0) {
+    if (!hasSentInitialRef.current && messagesRef.current.length === 0) {
+      hasSentInitialRef.current = true;
       sendToAI();
     }
   }, []);
@@ -443,7 +448,8 @@ const GoalDiscovery: React.FC = () => {
   // Send message to AI
   const sendToAI = useCallback(
     async (userMessage?: string) => {
-      if (isWaiting) return;
+      if (isWaiting || isCallingRef.current) return;
+      isCallingRef.current = true;
 
       const currentHistory = [...messagesRef.current];
       if (userMessage) {
@@ -515,6 +521,7 @@ const GoalDiscovery: React.FC = () => {
       } finally {
         setShowTyping(false);
         setIsWaiting(false);
+        isCallingRef.current = false;
         setInputValue("");
       }
     },
@@ -544,31 +551,94 @@ const GoalDiscovery: React.FC = () => {
     [isWaiting, sendToAI],
   );
 
+  /**
+   * Build a personalised story title from whatever goals have been captured.
+   * Priority order: career → relationship → financial → health → lifestyle → generic
+   */
+  const buildStoryTitle = useCallback(
+    (goals: Record<string, string>): string => {
+      if (!goals || Object.keys(goals).length === 0) {
+        return "My Manifestation Story";
+      }
+
+      const entries = Object.entries(goals);
+
+      // Try to find a high-value goal label to feature in the title
+      const priorityKeywords = [
+        "career",
+        "job",
+        "work",
+        "business",
+        "relationship",
+        "love",
+        "partner",
+        "financial",
+        "money",
+        "income",
+        "wealth",
+        "health",
+        "body",
+        "fitness",
+        "lifestyle",
+        "home",
+        "travel",
+        "freedom",
+      ];
+
+      let featuredGoal = "";
+      for (const keyword of priorityKeywords) {
+        const match = entries.find(
+          ([label]) =>
+            label.toLowerCase().includes(keyword) ||
+            goals[label]?.toLowerCase().includes(keyword),
+        );
+        if (match) {
+          // Take first meaningful snippet of the value (max ~5 words)
+          const words = match[1]
+            .replace(/[^a-zA-Z0-9 ',-]/g, "")
+            .split(" ")
+            .slice(0, 5)
+            .join(" ");
+          featuredGoal = words;
+          break;
+        }
+      }
+
+      // Static title templates keyed to theme
+      const templates = [
+        "A Life of {goal}",
+        "My Journey to {goal}",
+        "Living My Best Life — {goal}",
+        "The Story of {goal}",
+        "Manifesting {goal}",
+      ];
+
+      if (featuredGoal) {
+        // Pick template based on number of captured goals for variety
+        const tpl = templates[Object.keys(goals).length % templates.length];
+        // Capitalise first letter
+        const g =
+          featuredGoal.charAt(0).toUpperCase() + featuredGoal.slice(1);
+        return tpl.replace("{goal}", g);
+      }
+
+      // Fallback: count-based generic
+      const goalCount = Object.keys(goals).length;
+      return goalCount === 1
+        ? "My Manifestation Story"
+        : `My ${goalCount}-Goal Manifestation Story`;
+    },
+    [],
+  );
+
   const handleGenerateStory = useCallback(
     async (length: "short" | "long" = "long") => {
-      // Prevent submission if no goals are captured
-      const goalCount = !capturedGoals ? 0 : Object.keys(capturedGoals).length;
-      // if (goalCount === 0) {
-      //   alert(
-      //     "Goals are required and cannot be empty. Please answer some questions first.",
-      //   );
-      //   return;
-      // }
-
-      // Constraint: Short story should have 1-2 goals
-      // if (length === "short" && goalCount > 2) {
-      //   if (
-      //     !confirm(
-      //       `A short story is optimized for 1-2 goals, but you have ${goalCount} goals captured. It may feel condensed. Continue anyway?`,
-      //     )
-      //   ) {
-      //     return;
-      //   }
-      // }
-
       // 1. Normalize the data before sending/storing
       const normalized = normalizeGoals(capturedGoals);
       setNormalizedGoals(normalized);
+
+      // Build a dynamic title from captured goals
+      const storyTitle = buildStoryTitle(capturedGoals);
 
       // If not logged in: store in session storage first then go through signup
       if (!session) {
@@ -584,8 +654,8 @@ const GoalDiscovery: React.FC = () => {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            goals: normalized, // Send normalized goals to satisfy API
-            title: "My Manifestation Story",
+            goals: normalized,
+            title: storyTitle,
             length: length,
           }),
         });
@@ -611,7 +681,7 @@ const GoalDiscovery: React.FC = () => {
         router.push("/user/story");
       }
     },
-    [capturedGoals, router, session, setNormalizedGoals, clearStore],
+    [capturedGoals, router, session, setNormalizedGoals, clearStore, buildStoryTitle],
   );
 
   // Execute the actual topic navigation (called directly or after modal confirm)

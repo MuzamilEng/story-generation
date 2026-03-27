@@ -174,6 +174,54 @@ const checklistItems: ChecklistItem[] = [
     { id: 'length', text: '5–8 minutes to read aloud' }
 ];
 
+/** Derive a personalised on-page story title from the user's captured goals */
+function buildDisplayTitle(answers: UserAnswers | null): string {
+    if (!answers) return 'Your Manifestation Story';
+
+    // Priority: career/work → location → health → purpose → identity
+    const workVal = answers.work?.trim();
+    const locationVal = answers.location?.trim();
+    const healthVal = answers.health?.trim();
+    const purposeVal = answers.purpose?.trim();
+    const identityVal = answers.identity?.trim();
+
+    // Templates rotated by goal count for variety
+    const goalCount = Object.values(answers).filter(
+        v => v && typeof v === 'string' && v.trim().length > 0
+    ).length;
+
+    const snippet = (val: string, words = 4) =>
+        val.split(' ').slice(0, words).join(' ');
+
+    if (workVal) {
+        const templates = [
+            `My Life as ${snippet(workVal)}`,
+            `Living the Dream: ${snippet(workVal)}`,
+            `A Day Doing ${snippet(workVal)}`,
+        ];
+        return templates[goalCount % templates.length];
+    }
+    if (locationVal) {
+        return `My Perfect Life in ${snippet(locationVal, 3)}`;
+    }
+    if (healthVal) {
+        return `A Day of Vitality & ${snippet(healthVal, 3)}`;
+    }
+    if (purposeVal) {
+        return `Living My Purpose: ${snippet(purposeVal, 4)}`;
+    }
+    if (identityVal) {
+        const name = identityVal.split(' ')[0];
+        const templates = [
+            `${name}'s Highest Self`,
+            `A Life of Abundance for ${name}`,
+            `${name}'s Future, Already Here`,
+        ];
+        return templates[goalCount % templates.length];
+    }
+    return 'Your Manifestation Story';
+}
+
 const StoryContent: React.FC = () => {
     const { data: session, status: authStatus } = useSession();
     const router = useRouter();
@@ -682,9 +730,7 @@ const StoryContent: React.FC = () => {
                                 <div className={styles.storyHeaderLeft}>
                                     <div className={styles.storyEyebrow}>Your Personal Manifestation Story</div>
                                     <div className={styles.storyTitle} id="storyTitleEl">
-                                        {userAnswers?.identity
-                                            ? `A Day in the Life of ${userAnswers.identity.split(' ')[0]}'s Highest Self`
-                                            : 'Your Manifestation Story'}
+                                        {buildDisplayTitle(userAnswers)}
                                     </div>
                                     <div className={styles.storyMeta} id="storyMeta">
                                         Generated just now · {wordCount.toLocaleString()} words

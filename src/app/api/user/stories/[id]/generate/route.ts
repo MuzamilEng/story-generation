@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { model } from '@/lib/langchain'
-import { buildStoryPrompt, UserAnswers, normalizeGoals } from '@/lib/story-utils'
+import { buildStoryPrompt, createVariationSeed, UserAnswers, normalizeGoals } from '@/lib/story-utils'
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 
 export async function POST(
@@ -29,7 +29,9 @@ export async function POST(
         }
 
         const goals = normalizeGoals(story.goal_intake_json)
-        const prompt = buildStoryPrompt(goals, (story?.story_length_option as any) || 'long')
+        // Generate a fresh variation seed on every call to guarantee a unique story
+        const seed = createVariationSeed()
+        const prompt = buildStoryPrompt(goals, (story?.story_length_option as any) || 'long', seed)
 
         console.log(`[STORY_GENERATE] Prompt for story ${storyId}:`, prompt);
 
