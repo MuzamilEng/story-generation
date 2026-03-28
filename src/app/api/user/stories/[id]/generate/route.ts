@@ -38,16 +38,27 @@ export async function POST(
             new HumanMessage(prompt)
         ]);
 
-        const storyText = response.content as string;
+        const rawResponse = response.content as string;
 
-        if (!storyText) {
+        if (!rawResponse) {
             throw new Error('LangChain failed to generate story text')
+        }
+
+        let title = story.title;
+        let storyText = rawResponse;
+
+        // Try to parse out the title if format "[Title]\n---\n[Story]" was followed
+        if (rawResponse.includes('---')) {
+            const parts = rawResponse.split('---');
+            title = parts[0].trim();
+            storyText = parts.slice(1).join('---').trim();
         }
 
         // Update story and create a version
         const updatedStory = await prisma.story.update({
             where: { id: storyId },
             data: {
+                title: title,
                 story_text_draft: storyText,
                 word_count: storyText.trim().split(/\s+/).length,
                 version: {
@@ -56,7 +67,7 @@ export async function POST(
                 versions: {
                     create: {
                         version: story.version + 1,
-                        title: story.title,
+                        title: title,
                         body: storyText,
                         word_count: storyText.trim().split(/\s+/).length,
                         source: 'original',
@@ -68,6 +79,7 @@ export async function POST(
         return NextResponse.json({
             storyId: updatedStory.id,
             storyText: updatedStory.story_text_draft,
+            title: updatedStory.title,
         })
     } catch (error) {
         console.error('[STORY_GENERATE_LANGCHAIN]', error)

@@ -203,6 +203,7 @@ const StoryContent: React.FC = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [isApproved, setIsApproved] = useState(false);
   const [storyText, setStoryText] = useState("");
+  const [storyTitle, setStoryTitle] = useState("");
   const [wordCount, setWordCount] = useState(0);
   const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({});
   const [activeStep, setActiveStep] = useState(0);
@@ -278,6 +279,9 @@ const StoryContent: React.FC = () => {
       const data = await res.json();
       if (data.storyText) {
         setStoryText(data.storyText);
+      }
+      if (data.title) {
+        setStoryTitle(data.title);
       }
     } catch (e) {
       console.error("Generation failed", e);
@@ -373,6 +377,10 @@ const StoryContent: React.FC = () => {
               const dbGoals = normalizeGoals(data.goal_intake_json);
               setUserAnswers(dbGoals);
               setNormalizedGoals(dbGoals);
+            }
+
+            if (data.title) {
+              setStoryTitle(data.title);
             }
 
             if (data.story_text_draft) {
@@ -531,6 +539,7 @@ const StoryContent: React.FC = () => {
       const data = await res.json();
       if (data.storyText) {
         setStoryText(data.storyText);
+        if (data.title) setStoryTitle(data.title);
         setIsAIEditing(false);
       } else {
         alert("Failed to refine story. Please try again.");
@@ -819,9 +828,9 @@ const StoryContent: React.FC = () => {
                     Your Personal Manifestation Story
                   </div>
                   <div className={styles.storyTitle} id="storyTitleEl">
-                    {userAnswers?.identity
+                    {storyTitle || (userAnswers?.identity
                       ? `A Day in the Life of ${userAnswers.identity.split(" ")[0]}'s Highest Self`
-                      : "Your Manifestation Story"}
+                      : "Your Manifestation Story")}
                   </div>
                   <div className={styles.storyMeta} id="storyMeta">
                     Generated just now · {wordCount.toLocaleString()} words

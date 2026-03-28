@@ -279,12 +279,19 @@ This story will be listened to dozens of times. It must earn every replay:
 - Never use "I manifest," "I am attracting," "I am aligned," or any law-of-attraction language
 - Never reference the original struggle directly ("I used to worry..." — never)
 - No chapter headings, section labels, or bullet points — pure flowing prose only
-- No preamble, title, or introductory sentence — begin directly with the first line of the story
-- Do NOT open with the literal phrase "I wake up"
+- Begin your response with a short, evocative, and deeply personal title that reflects the heart of this specific vision.
+- Follow the title with a separator '---' on its own line.
+- Then, begin the story directly with the first line of the narrative.
+- Do NOT use the literal phrase "I wake up" in the opening.
 - Do NOT invent highly specific fictional personal details not present in the user's inputs (invented family names, specific fictional places, fictional pets, etc.). If a dimension is sparse, keep it abstract and emotionally true.
 - Do NOT write a generic "motivational speech." This must feel like a real, lived, intimate memory — not a pep talk.
 
-Write the story now. Begin directly with the first line — no preamble, no title, no explanation.`;
+Write the story now. Format your response exactly as follows:
+[Short Dynamic Title]
+---
+[Full Story Text]
+
+Begin now.`;
 }
 
 function buildDynamicVision(answers: UserAnswers): string {

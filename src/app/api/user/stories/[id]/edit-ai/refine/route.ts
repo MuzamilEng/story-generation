@@ -40,7 +40,7 @@ export async function POST(
         // Separate the three types of feedback so the prompt can be explicit about each
         const corrections = qaPairs[0]?.answer ? `CORRECTIONS / INACCURACIES TO FIX:\nQ: ${qaPairs[0].question}\nA: ${qaPairs[0].answer}` : '';
         const enhancements = qaPairs[1]?.answer ? `ADDITIONS / ENHANCEMENTS REQUESTED:\nQ: ${qaPairs[1].question}\nA: ${qaPairs[1].answer}` : '';
-        const gapAndExtra = qaPairs.slice(2).filter((p: {question: string, answer: string}) => p.answer).map((p: {question: string, answer: string}) => `Q: ${p.question}\nA: ${p.answer}`).join('\n\n');
+        const gapAndExtra = qaPairs.slice(2).filter((p: { question: string, answer: string }) => p.answer).map((p: { question: string, answer: string }) => `Q: ${p.question}\nA: ${p.answer}`).join('\n\n');
 
         const refinementPrompt = `
 You are a master manifestation story writer revising an existing personal story.
@@ -64,10 +64,13 @@ ${gapAndExtra ? `ADDITIONAL DETAILS & GAP-FILLING:\n${gapAndExtra}\n\nINSTRUCTIO
 - First person, present tense throughout.
 - Flowing prose only — no headings, bullets, or section labels.
 - Keep the story approximately ${story.word_count || 1000} words. Do not significantly shorten or pad it.
-- Start directly with the first line of the story — no title, no preamble.
+- Every response must include a Title on the first line, followed by '---' on a new line, followed by the Story Text.
 - Every change must serve the user's vision. Do not introduce new details that were not provided or implied.
 
-Return ONLY the revised story text.
+Return the result in exactly this format:
+[Short Dynamic Title]
+---
+[Full Story Text]
 `;
 
         const response = await model.invoke([
@@ -75,27 +78,37 @@ Return ONLY the revised story text.
             new HumanMessage(refinementPrompt)
         ]);
 
-        const refinedStoryText = response.content as string;
+        const rawResponse = response.content as string;
 
-        if (!refinedStoryText) {
+        if (!rawResponse) {
             throw new Error('LangChain failed to refine story text')
+        }
+
+        let title = story.title;
+        let storyText = rawResponse;
+
+        if (rawResponse.includes('---')) {
+            const parts = rawResponse.split('---');
+            title = parts[0].trim();
+            storyText = parts.slice(1).join('---').trim();
         }
 
         // Update story and create a version
         const updatedStory = await prisma.story.update({
             where: { id: storyId },
             data: {
-                story_text_draft: refinedStoryText,
-                word_count: refinedStoryText.trim().split(/\s+/).length,
+                title: title,
+                story_text_draft: storyText,
+                word_count: storyText.trim().split(/\s+/).length,
                 version: {
                     increment: 1,
                 },
                 versions: {
                     create: {
                         version: story.version + 1,
-                        title: story.title,
-                        body: refinedStoryText,
-                        word_count: refinedStoryText.trim().split(/\s+/).length,
+                        title: title,
+                        body: storyText,
+                        word_count: storyText.trim().split(/\s+/).length,
                         source: 'regenerated',
                     },
                 },
@@ -105,6 +118,7 @@ Return ONLY the revised story text.
         return NextResponse.json({
             storyId: updatedStory.id,
             storyText: updatedStory.story_text_draft,
+            title: updatedStory.title,
         })
 
     } catch (error) {
