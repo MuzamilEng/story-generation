@@ -84,22 +84,42 @@ export const authOptions: NextAuthOptions = {
         token.role = user.role || 'USER'
         token.plan = (user as any).plan || 'free'
         token.email = user.email
+        // Record when we last fetched fresh data from the DB so we can throttle
+        // subsequent lookups. Without this, a DB query runs on every single API
+        // request that calls getServerSession(), hammering the database and
+        // risking silent stale/missing token.id on any transient DB error.
+        token.lastDbRefresh = Math.floor(Date.now() / 1000)
       }
 
-      // ✅ Update token from database on subsequent requests
+      // ✅ Refresh token from database at most once per minute on subsequent requests.
+      // Previously this ran on every request, causing a DB hit per API call and
+      // leaving token.id silently stale whenever the query failed.
       if (token.email && !user) {
-        try {
-          const dbUser = await prisma.user.findUnique({
-            where: { email: token.email as string }
-          })
+        const now = Math.floor(Date.now() / 1000)
+        const lastRefresh = (token.lastDbRefresh as number) || 0
+        const shouldRefresh = now - lastRefresh > 60 // throttle to once per 60 s
 
-          if (dbUser) {
-            token.role = dbUser.role || 'USER'
-            token.id = dbUser.id
-            token.plan = dbUser.plan || 'free'
+        if (shouldRefresh) {
+          try {
+            const dbUser = await prisma.user.findUnique({
+              where: { email: token.email as string }
+            })
+
+            if (dbUser) {
+              token.role = dbUser.role || 'USER'
+              token.id = dbUser.id
+              token.plan = dbUser.plan || 'free'
+              token.lastDbRefresh = now
+            } else {
+              // User record was deleted — clear the id so API routes return a
+              // proper 401 ("account not found") rather than a cryptic 500.
+              token.id = undefined
+            }
+          } catch (error) {
+            console.error('[AUTH] Error fetching user for JWT:', error)
+            // Do NOT clear token.id on transient errors — keep the existing
+            // value so one DB blip doesn't immediately break the session.
           }
-        } catch (error) {
-          console.error('[AUTH] Error fetching user for JWT:', error)
         }
       }
 

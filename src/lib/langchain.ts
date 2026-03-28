@@ -8,10 +8,10 @@ export const model = isAzure
         azureOpenAIEndpoint: process.env.AZURE_OPENAI_ENDPOINT,
         azureOpenAIApiDeploymentName: process.env.AZURE_OPENAI_DEPLOYMENT_NAME || 'gpt-4o',
         azureOpenAIApiVersion: process.env.AZURE_OPENAI_API_VERSION || '2024-12-01-preview',
-        temperature: 0.7,
+        temperature: 0.88,
     })
     : new ChatOpenAI({
         apiKey: process.env.OPENAI_API_KEY,
         model: "gpt-4o",
-        temperature: 0.7,
+        temperature: 0.88,
     });

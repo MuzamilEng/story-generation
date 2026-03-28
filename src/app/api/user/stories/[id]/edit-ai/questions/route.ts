@@ -31,7 +31,7 @@ export async function POST(
         const goals = normalizeGoals(story.goal_intake_json)
 
         const analysisPrompt = `
-You are an expert manifesting story editor.
+You are an expert manifestation story editor.
 Review the following goals and the manifestation story written from them.
 
 USER'S ORIGINAL GOALS:
@@ -42,14 +42,14 @@ CURRENT STORY DRAFT:
 ${story.story_text_draft}
 """
 
-GOAL: Identify 3-5 specific gaps where more sensory detail, emotional depth, or personal nuance would make this story feel like a 100% lived-in memory.
-Ask the user 3-5 personalized follow-up questions that will help you fill these gaps. 
-Make the questions warm, specific to their vision, and emotionally resonant.
+GOAL: The user has already been asked whether anything feels inaccurate and whether anything can be added to make the story feel more realistic. Your job is to go deeper.
+Identify 2-3 specific sensory, emotional, or situational gaps in the story — places where more vivid personal detail would make this feel like a fully lived-in memory.
+Ask the user 2-3 targeted, warm, personal follow-up questions to fill those exact gaps.
+Do NOT ask about accuracy or general additions — those are already covered.
 
-Return ONLY a JSON array of 3-5 strings (the questions).
-Do not include any preamble, analysis, or wrap-up.
-JSON format only.
-Example: ["Question 1", "Question 2", "Question 3"]
+Return ONLY a JSON array of 2-3 strings (the questions).
+Do not include any preamble, analysis, or wrap-up. JSON format only.
+Example: ["Question 1", "Question 2"]
 `;
 
         const response = await model.invoke([

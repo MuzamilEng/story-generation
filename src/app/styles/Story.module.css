@@ -1209,6 +1209,30 @@
     transform: rotate(90deg);
 }
 
+.pageLoader {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    min-height: 60vh;
+    background: var(--bg);
+}
+
+.pageLoaderInner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.pageLoaderText {
+    font-size: 0.88rem;
+    color: var(--ink-muted);
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 300;
+    letter-spacing: 0.01em;
+}
+
 .loadingSpinner {
     width: 32px;
     height: 32px;

@@ -209,6 +209,17 @@
     background: var(--accent);
 }
 
+/* Skipped stage: user passed through without responding */
+.topicItem.skipped {
+    color: var(--ink-faint);
+    opacity: 0.55;
+}
+
+.topicItem.skipped .tDot {
+    background: transparent;
+    border: 1.5px dashed var(--ink-faint);
+}
+
 .topicItem.active {
     background: var(--surface);
     border-color: var(--border);

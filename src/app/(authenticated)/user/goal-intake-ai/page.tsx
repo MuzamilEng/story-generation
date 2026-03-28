@@ -262,6 +262,7 @@ interface TopicItemProps {
   label: string;
   isActive: boolean;
   isCovered: boolean;
+  isResponded: boolean;
   onClick: (id: string, label: string) => void;
 }
 
@@ -270,11 +271,19 @@ const TopicItem: React.FC<TopicItemProps> = ({
   label,
   isActive,
   isCovered,
+  isResponded,
   onClick,
 }) => {
   let className = styles.topicItem;
-  if (isCovered) className += ` ${styles.covered}`;
-  if (isActive) className += ` ${styles.active}`;
+  if (isActive) {
+    className += ` ${styles.active}`;
+  } else if (isCovered && isResponded) {
+    // User actually interacted with this stage
+    className += ` ${styles.covered}`;
+  } else if (isCovered && !isResponded) {
+    // User skipped past this stage without responding
+    className += ` ${styles.skipped}`;
+  }
 
   return (
     <div
@@ -307,20 +316,32 @@ const GoalDiscovery: React.FC = () => {
       }
     };
   }, []);
+  const STORAGE_KEY = "mms_chat_session";
+
+  // ── Restore persisted session from localStorage (runs once, before first render) ──
+  const restoreSession = () => {
+    if (typeof window === "undefined") return null;
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  };
+  const saved = restoreSession();
+
   const { capturedGoals, setCapturedGoals, setNormalizedGoals, clearStore } =
     useStoryStore();
-  const [messages, setMessages] = useState<Message[]>([]);
-  const messagesRef = useRef<Message[]>([]);
+  const [messages, setMessages] = useState<Message[]>(saved?.messages ?? []);
+  const messagesRef = useRef<Message[]>(saved?.messages ?? []);
 
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
 
-  const [progress, setProgress] = useState<ProgressData>({
-    pct: 0,
-    phase: "Getting Started",
-    covered: [],
-  });
+  const [progress, setProgress] = useState<ProgressData>(
+    saved?.progress ?? { pct: 0, phase: "Getting Started", covered: [] },
+  );
 
   // Keep activeTopicIdRef in sync with the current phase
   useEffect(() => {
@@ -328,7 +349,7 @@ const GoalDiscovery: React.FC = () => {
     if (match) activeTopicIdRef.current = match.id;
   }, [progress.phase]);
   const [isWaiting, setIsWaiting] = useState(false);
-  const [isComplete, setIsComplete] = useState(false);
+  const [isComplete, setIsComplete] = useState(saved?.isComplete ?? false);
   const [inputValue, setInputValue] = useState("");
   const [showTyping, setShowTyping] = useState(false);
   const [pendingSkip, setPendingSkip] = useState<{
@@ -336,10 +357,13 @@ const GoalDiscovery: React.FC = () => {
     label: string;
   } | null>(null);
   // Track which topic IDs the user has sent at least one reply in
-  const [respondedTopics, setRespondedTopics] = useState<string[]>([]);
+  const [respondedTopics, setRespondedTopics] = useState<string[]>(
+    saved?.respondedTopics ?? [],
+  );
   const [showAdditionalDetails, setShowAdditionalDetails] = useState(false);
-  const [hasSeenAdditionalDetails, setHasSeenAdditionalDetails] =
-    useState(false);
+  const [hasSeenAdditionalDetails, setHasSeenAdditionalDetails] = useState(
+    saved?.hasSeenAdditionalDetails ?? false,
+  );
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -347,10 +371,38 @@ const GoalDiscovery: React.FC = () => {
   const activeTopicIdRef = useRef<string>(TOPICS[0].id);
   // Set when user sends a message in Evening & Close; triggers isComplete after AI replies
   const triggerCompleteAfterResponseRef = useRef(false);
-  // Guard against double-fire on back-navigation / React Strict Mode double-invoke
-  const hasSentInitialRef = useRef(false);
-  // Blocking ref for concurrent calls
-  const isCallingRef = useRef(false);
+
+  // ── Persist session state to localStorage whenever key state changes ──
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({
+          messages,
+          progress,
+          respondedTopics,
+          isComplete,
+          hasSeenAdditionalDetails,
+        }),
+      );
+    } catch {
+      // Storage quota exceeded or unavailable — silently skip
+    }
+  }, [
+    messages,
+    progress,
+    respondedTopics,
+    isComplete,
+    hasSeenAdditionalDetails,
+  ]);
+
+  // ── Helper to wipe the persisted session (called after successful story save) ──
+  const clearChatSession = () => {
+    if (typeof window !== "undefined") {
+      localStorage.removeItem(STORAGE_KEY);
+    }
+  };
 
   // Scroll to bottom whenever messages change
   useEffect(() => {
@@ -365,10 +417,9 @@ const GoalDiscovery: React.FC = () => {
     }
   }, [inputValue]);
 
-  // Start conversation on mount — fire only once per mount cycle
+  // Start conversation on mount — skip if restoring a previous session
   useEffect(() => {
-    if (!hasSentInitialRef.current && messagesRef.current.length === 0) {
-      hasSentInitialRef.current = true;
+    if (messagesRef.current.length === 0) {
       sendToAI();
     }
   }, []);
@@ -448,8 +499,7 @@ const GoalDiscovery: React.FC = () => {
   // Send message to AI
   const sendToAI = useCallback(
     async (userMessage?: string) => {
-      if (isWaiting || isCallingRef.current) return;
-      isCallingRef.current = true;
+      if (isWaiting) return;
 
       const currentHistory = [...messagesRef.current];
       if (userMessage) {
@@ -521,7 +571,6 @@ const GoalDiscovery: React.FC = () => {
       } finally {
         setShowTyping(false);
         setIsWaiting(false);
-        isCallingRef.current = false;
         setInputValue("");
       }
     },
@@ -551,94 +600,19 @@ const GoalDiscovery: React.FC = () => {
     [isWaiting, sendToAI],
   );
 
-  /**
-   * Build a personalised story title from whatever goals have been captured.
-   * Priority order: career → relationship → financial → health → lifestyle → generic
-   */
-  const buildStoryTitle = useCallback(
-    (goals: Record<string, string>): string => {
-      if (!goals || Object.keys(goals).length === 0) {
-        return "My Manifestation Story";
-      }
-
-      const entries = Object.entries(goals);
-
-      // Try to find a high-value goal label to feature in the title
-      const priorityKeywords = [
-        "career",
-        "job",
-        "work",
-        "business",
-        "relationship",
-        "love",
-        "partner",
-        "financial",
-        "money",
-        "income",
-        "wealth",
-        "health",
-        "body",
-        "fitness",
-        "lifestyle",
-        "home",
-        "travel",
-        "freedom",
-      ];
-
-      let featuredGoal = "";
-      for (const keyword of priorityKeywords) {
-        const match = entries.find(
-          ([label]) =>
-            label.toLowerCase().includes(keyword) ||
-            goals[label]?.toLowerCase().includes(keyword),
-        );
-        if (match) {
-          // Take first meaningful snippet of the value (max ~5 words)
-          const words = match[1]
-            .replace(/[^a-zA-Z0-9 ',-]/g, "")
-            .split(" ")
-            .slice(0, 5)
-            .join(" ");
-          featuredGoal = words;
-          break;
-        }
-      }
-
-      // Static title templates keyed to theme
-      const templates = [
-        "A Life of {goal}",
-        "My Journey to {goal}",
-        "Living My Best Life — {goal}",
-        "The Story of {goal}",
-        "Manifesting {goal}",
-      ];
-
-      if (featuredGoal) {
-        // Pick template based on number of captured goals for variety
-        const tpl = templates[Object.keys(goals).length % templates.length];
-        // Capitalise first letter
-        const g =
-          featuredGoal.charAt(0).toUpperCase() + featuredGoal.slice(1);
-        return tpl.replace("{goal}", g);
-      }
-
-      // Fallback: count-based generic
-      const goalCount = Object.keys(goals).length;
-      return goalCount === 1
-        ? "My Manifestation Story"
-        : `My ${goalCount}-Goal Manifestation Story`;
-    },
-    [],
-  );
-
   const handleGenerateStory = useCallback(
     async (length: "short" | "long" = "long") => {
+      // Do not act while the session is still being fetched — session is null
+      // during loading and treating that as "unauthenticated" causes a spurious
+      // redirect to the signup page every time the user returns to the tab.
+      if (authStatus === "loading") return;
+
+      // Prevent submission if no goals are captured
+      const goalCount = !capturedGoals ? 0 : Object.keys(capturedGoals).length;
+
       // 1. Normalize the data before sending/storing
       const normalized = normalizeGoals(capturedGoals);
       setNormalizedGoals(normalized);
-
-      // Build a dynamic title from captured goals
-      const storyTitle = buildStoryTitle(capturedGoals);
 
       // If not logged in: store in session storage first then go through signup
       if (!session) {
@@ -655,17 +629,30 @@ const GoalDiscovery: React.FC = () => {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             goals: normalized,
-            title: storyTitle,
+            title: "My Manifestation Story",
             length: length,
           }),
         });
+
+        // Handle auth errors explicitly — do NOT fall back to the sessionStorage
+        // path, as that causes a second failed API call on the story page and
+        // shows the user a confusing alert.
+        if (response.status === 401) {
+          const errData = await response.json();
+          const msg = errData?.error || "Your session has expired.";
+          alert(`${msg}\n\nYou will be signed out so you can sign back in.`);
+          router.push("/api/auth/signout?callbackUrl=/auth/signin");
+          return;
+        }
+
         const data = await response.json();
         if (data.storyId) {
-          clearStore(); // Session successfully saved, clear temporary data
+          clearStore();
+          clearChatSession();
           router.push(`/user/story?id=${data.storyId}`);
         } else {
           console.warn("API error during story creation:", data.error);
-          // Fallback if API fails
+          // Fallback – only for non-auth errors (e.g. validation)
           sessionStorage.setItem(
             "capturedGoals",
             JSON.stringify(capturedGoals),
@@ -675,13 +662,19 @@ const GoalDiscovery: React.FC = () => {
         }
       } catch (error) {
         console.error("Error saving story goals:", error);
-        // Fallback
         sessionStorage.setItem("capturedGoals", JSON.stringify(capturedGoals));
         sessionStorage.setItem("storyLength", length);
         router.push("/user/story");
       }
     },
-    [capturedGoals, router, session, setNormalizedGoals, clearStore, buildStoryTitle],
+    [
+      capturedGoals,
+      router,
+      session,
+      authStatus,
+      setNormalizedGoals,
+      clearStore,
+    ],
   );
 
   // Execute the actual topic navigation (called directly or after modal confirm)
@@ -713,8 +706,11 @@ const GoalDiscovery: React.FC = () => {
         (t) => t.phase === progress.phase,
       );
 
-      // Block navigating to a previous stage
-      if (topicIndex < currentTopicIndex) return;
+      // Allow navigating back to any previously visited stage freely
+      if (topicIndex < currentTopicIndex) {
+        executeTopicNav(id, label);
+        return;
+      }
 
       // "Getting Started" is mandatory — block any forward jump until the user
       // has replied at least once in that stage.
@@ -793,16 +789,26 @@ const GoalDiscovery: React.FC = () => {
         <aside className={styles.sidebar}>
           <div className={styles.sidebarTitle}>Topics</div>
 
-          {TOPICS.map((topic) => (
-            <TopicItem
-              key={topic.id}
-              id={topic.id}
-              label={topic.label}
-              isActive={progress.phase === topic.phase}
-              isCovered={progress.covered.includes(topic.id)}
-              onClick={() => handleTopicClick(topic.id, topic.label)}
-            />
-          ))}
+          {TOPICS.map((topic, idx) => {
+            const currentPhaseIdx = TOPICS.findIndex(
+              (t) => t.phase === progress.phase,
+            );
+            const isActive = progress.phase === topic.phase;
+            // A topic is "covered" if it sits before the current active phase
+            const isCovered = !isActive && idx < currentPhaseIdx;
+            const isResponded = respondedTopics.includes(topic.id);
+            return (
+              <TopicItem
+                key={topic.id}
+                id={topic.id}
+                label={topic.label}
+                isActive={isActive}
+                isCovered={isCovered}
+                isResponded={isResponded}
+                onClick={() => handleTopicClick(topic.id, topic.label)}
+              />
+            );
+          })}
           <div className={styles.capturedBox}>
             <div className={styles.capturedTitle}>Captured So Far</div>
             <div className={styles.capturedList}>
