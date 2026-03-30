@@ -514,7 +514,7 @@ const GoalDiscovery: React.FC = () => {
         );
 
         // Flag auto-completion when submitting a message in the last stage
-        if (currentTopicId === "evening") {
+        if (currentTopicId === "details") {
           triggerCompleteAfterResponseRef.current = true;
         }
       }

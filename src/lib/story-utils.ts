@@ -27,6 +27,7 @@ export interface UserAnswers {
     proof3?: string;
     goals?: string;
     actionsAfter?: string;
+    timeframe?: string;
     futureVision?: string;
     givingBack?: string;
 }
@@ -80,8 +81,41 @@ export function normalizeGoals(raw: any): UserAnswers {
         'Proof 3': 'proof3',
         'Goals': 'goals',
         'Actions After': 'actionsAfter',
+        'ActionsAfter': 'actionsAfter',
+        'Timeframe': 'timeframe',
         'Future Vision': 'futureVision',
-        'Giving Back': 'givingBack'
+        'Giving Back': 'givingBack',
+        // Pass-through for already-normalized keys from DB re-normalization
+        'goals': 'goals',
+        'actionsAfter': 'actionsAfter',
+        'timeframe': 'timeframe',
+        'identity': 'identity',
+        'purpose': 'purpose',
+        'values': 'values',
+        'location': 'location',
+        'home': 'home',
+        'morning': 'morning',
+        'work': 'work',
+        'people': 'people',
+        'emotions': 'emotions',
+        'health': 'health',
+        'spirit': 'spirit',
+        'community': 'community',
+        'travel': 'travel',
+        'challenges': 'challenges',
+        'evening': 'evening',
+        'reflection': 'reflection',
+        'dreams': 'dreams',
+        'abundance': 'abundance',
+        'joy': 'joy',
+        'obstacle1': 'obstacle1',
+        'obstacle2': 'obstacle2',
+        'obstacle3': 'obstacle3',
+        'proof1': 'proof1',
+        'proof2': 'proof2',
+        'proof3': 'proof3',
+        'futureVision': 'futureVision',
+        'givingBack': 'givingBack'
     };
 
     const mainKeys = ['identity', 'purpose', 'location', 'emotions'];
@@ -89,7 +123,8 @@ export function normalizeGoals(raw: any): UserAnswers {
 
     Object.keys(raw).forEach(key => {
         const val = raw[key];
-        const normalizedKey = mapping[key] || mapping[key.trim()] || key.toLowerCase().trim();
+        // Use key.trim() (not toLowerCase) so already-normalized camelCase keys from DB survive re-normalization
+        const normalizedKey = mapping[key] || mapping[key.trim()] || key.trim();
         normalized[normalizedKey] = val;
 
         // Collect auxiliary goals into categories for sidebar display
@@ -199,14 +234,14 @@ export function buildStoryPrompt(answers: UserAnswers, length: StoryLength = 'lo
     if (obstacles.length > 0) {
         obstacleSection = `\n\n━━━ THE OBSTACLE PROOF PRINCIPLE — CRITICAL ━━━\nEach struggle below has already been overcome. Show its absence through a vivid proof moment — a scene that could ONLY exist if this struggle is completely, permanently behind them. Never name the obstacle. Never say "I used to..." Just dramatise its resolution through ease, freedom, and natural confident action.\n`;
         obstacles.forEach(o => {
-            obstacleSection += `- Struggle (now resolved): "${o.struggle}"${o.proof ? ` → Proof scene: "${o.proof}"` : ' → Infer an emotionally resonant proof scene from the context'}\n`;
+            obstacleSection += `- Struggle (now resolved): "${o.struggle}"${o.proof ? ` → Proof scene: "${o.proof}"` : ''}\n`;
         });
-        obstacleSection += `\nFor each proof scene: make it physical, specific, and undeniable. A person who never has to think about that struggle anymore — show what that looks like in their body, their choices, their world.\n`;
+        obstacleSection += `\nFor each proof scene: make it physical, specific, and undeniable.\n`;
     }
 
     const wordCountInstruction = length === 'short'
-        ? '- Target approximately 400-500 words. Every sentence must earn its place — focused, potent, and charged with feeling. Zero filler. Centre on the 1-2 most transformative goals.'
-        : '- Target approximately 1000-1200 words. Build a fully immersive world. Move through multiple scenes and dimensions of their life. Let the reader sink into it completely.';
+        ? '[SHORT: Target approximately 400–500 words. Zero filler. Centre entirely on the 1–2 most important goals and their proof actions.]'
+        : '[LONG: Target approximately 900–1100 words. Build a fully immersive world across multiple scenes.]';
 
     // Pick this story's unique creative brief
     const narrativeStructure = pickRandom(NARRATIVE_STRUCTURES);
@@ -215,12 +250,14 @@ export function buildStoryPrompt(answers: UserAnswers, length: StoryLength = 'lo
     const seasonalContext = pickRandom(SEASONAL_CONTEXTS);
     const openingStyle = pickRandom(OPENING_STYLES);
 
-    return `You are a master storyteller and narrative therapist creating a highly personalised, transformational first-person story for ManifestMyStory.com.
+    const timeframe = answers.timeframe || '1 year';
 
-This story will be narrated by an AI voice and listened to repeatedly — in the morning to ignite the day and at night to anchor the mind. Its purpose is therapeutic, motivational, and deeply personal: to rewire this person's self-concept, dissolve inner resistance, and make them feel genuinely capable, energised, and inspired every single time they listen.
+    return `You are a master storyteller and NLP practitioner creating a deeply personal, transformational first-person manifestation story for ManifestMyStory.com.
+
+This story will be narrated by an AI voice cloned from the user's own voice and listened to every morning and every night. Its purpose is to rewire the subconscious mind through repeated immersive exposure — making the user's desired future feel like remembered reality.
 
 ━━━ YOUR UNIQUE CREATIVE BRIEF FOR THIS STORY ━━━
-Every story generated is given a distinct creative brief. Honour yours exactly.
+Honour yours exactly — these parameters shape every structural and tonal decision.
 
 NARRATIVE STRUCTURE: ${narrativeStructure}
 EMOTIONAL ARC: ${emotionalArc}
@@ -228,68 +265,98 @@ TONAL MODE: ${tonalMode}
 SEASONAL / ATMOSPHERIC CONTEXT: ${seasonalContext}
 OPENING STYLE: ${openingStyle}
 
-These five parameters are your creative foundation. They must shape every structural and tonal decision you make. This is what makes this story unlike any other story this system has generated.
-
 ━━━ WORD COUNT & PACING ━━━
 ${wordCountInstruction}
-- This will be narrated at an emotionally resonant pace. Every sentence should breathe and land.
-- Vary sentence length deliberately: long, flowing sentences for immersion and feeling; short, impactful sentences for clarity and power.
+- Write for the ear, not the eye — every sentence must flow beautifully when read aloud
+- Vary sentence length: long flowing sentences for immersion, short sentences for emotional peaks
 
-━━━ CORE WRITING REQUIREMENTS ━━━
-- First person, present tense throughout: "I feel," "I walk," "I choose" — never future tense.
-- Deeply sensory: engage sight, sound, smell, touch, and the felt sense in the body. Make the reader feel present.
-- Emotionally alive: capture pride, peace, joy, and the quiet thrill of a life fully inhabited.
-- Specific and personal: use the exact words, imagery, and details from the user's own inputs wherever possible. No generic stand-ins.
-- Weave all life dimensions naturally: purpose, relationships, health, financial ease, creative work, community.
-- Natural spoken rhythm: every sentence must flow beautifully when read aloud. Write for the ear, not the eye.
+━━━ THE STORY CONCEPT ━━━
+"A Day in Alignment With My Highest Self" — one perfect day set ${timeframe} from now.
+The user's goals are ALREADY achieved. This is not the day they achieve them — this is a day deep inside the life that achievement made possible.
+Open by grounding the story in time: "It is [season], ${timeframe} from where I once stood..." or a natural variation. The listener must know immediately: this is a specific future, not a vague someday.
 
-━━━ THERAPEUTIC PURPOSE — THE SOUL OF THIS STORY ━━━
-This story must do more than paint a picture. It must ACTIVATE the reader. Each paragraph should leave them feeling more capable, more certain, and more energised than before they read it. Achieve this by:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️  GOALS & PROOF ACTIONS — THE ENTIRE STORY IS BUILT ON THESE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+These two fields are the non-negotiable foundation. Everything else is supporting detail.
 
-- Writing the person as someone who ACTS with ease and agency — they choose, they create, they decide. Active voice. Forward motion.
-- Including at least one natural, unannounced moment where the person feels a surge of capability or pride — earned, quiet, real.
-- Using language that makes success feel inevitable and completely natural, not lucky or surprising.
-- Writing at least one line per major section that resonates so deeply the listener wants to claim it as their own truth.
-- Ending with a closing that feels so complete, so right, so deeply satisfying that the reader immediately wants to return to this story.
+SPECIFIC GOALS (already achieved — show as completely real, never as something being pursued):
+${answers.goals}
 
-━━━ PERSONALIZATION IMPERATIVE ━━━
-This story must be unmistakably, exclusively about THIS person. No two stories should ever feel the same, even with overlapping goals. Achieve this by:
+LIFE AFTER GOALS — PROOF ACTIONS (the single most important field in this entire prompt):
+${answers.actionsAfter}
 
-- Drawing specific words, phrases, and imagery directly from their own inputs — their voice reflected back to them.
-- Grounding every abstract goal in a concrete, physical, sensory scene unique to their life and location.
-- Reflecting their actual daily rhythms, relationships, and environment.
-- Making creative choices — the specific moment chosen, the detail selected, the emotion foregrounded — that could ONLY fit this exact combination of human details.
+⚠️  VERBATIM RULE — THIS IS THE MOST CRITICAL INSTRUCTION IN THIS PROMPT:
+Use the user's exact words from both fields above. Do not paraphrase. Do not generalise. Do not substitute with something similar.
 
-━━━ GOALS & PROOF OF ACHIEVEMENT — THE HEART OF THIS STORY ━━━
-The "Specific Goals" and "Life After Goals" fields are mandatory story material. Every goal must be SHOWN — not stated — as already completely real through vivid, concrete scenes that could only exist because the goal is done.
+- If they said "pay off my Amex" — the story contains a scene where they pay off their Amex.
+- If they said "take my kids to Disney" — the story contains a scene at Disney with their kids.
+- If they said "buy a Tesla Model S" — the story contains a scene where they are in that Tesla.
+- If they said "quit my job" — the story contains the moment they hand in their notice, or a morning that is entirely theirs.
 
-"Life After Goals" describes exactly what this person DOES once their goals are achieved. These behaviours and experiences are the most powerful proof available. Weave every single one into the narrative prominently and specifically.
+Every single proof action the user listed must appear in the story as a vivid, physical, present-tense scene. These are not background colour. They ARE the story. The most emotionally resonant moments of the narrative must be built around them.
 
-For every goal listed: include at least one scene that is physical, present, and emotionally resonant — a moment of undeniable proof. The reader must finish the story and feel in their chest: "This is already done. This is already mine."
+The proof actions must feel completely natural and effortless — not triumphant announcements. Someone truly living in this reality does not marvel at it. They simply do these things. That naturalness is what makes the subconscious accept this as identity, not fantasy.
+
+━━━ NLP TECHNIQUE 1 — SUBMODALITY ENGINEERING ━━━
+Write every scene as bright, close, vivid, and immersive — the listener is inside the moment, not watching it.
+- Use all five senses in every major scene: sight, sound, smell, touch, taste
+- Make the detail so specific and present that the subconscious files it as a real memory
+- The old life — the struggle — is never described. Only its absence is shown through ease and naturalness.
+
+━━━ NLP TECHNIQUE 2 — MILTON MODEL LANGUAGE PATTERNS ━━━
+Weave these throughout to speak directly to the subconscious mind:
+
+EMBEDDED COMMANDS (hide directives inside descriptive sentences):
+- "...and as I notice myself moving with complete ease through the morning..."
+- "...I find myself feeling deeply certain about where my life is going..."
+- "...and I continue to grow into the person I always knew I was becoming..."
+
+PRESUPPOSITIONS (assume the desired state is already true):
+- "As I continue to build on everything I've created..." (presupposes creation has happened)
+- "Each morning I wake into this life..." (presupposes this is the ongoing reality)
+
+UNIVERSAL QUANTIFIERS (signal permanence to the subconscious):
+- "Every morning..." / "Always..." / "Each time..." / "Whenever I..."
+
+━━━ NLP TECHNIQUE 3 — IDENTITY-LEVEL STATEMENTS ━━━
+Include 2–3 moments where the character quietly recognises who they ARE — not what they have.
+These feel like private recognitions, not declarations:
+- "This is simply who I am now."
+- "I am someone who shows up for the life I built."
+- "I have always known, somewhere, that I was capable of this."
+
+━━━ NLP TECHNIQUE 4 — FUTURE PACING ━━━
+Include one moment where the character makes a decision — effortlessly — that could ONLY be made by someone whose life has changed. A small, natural choice with enormous weight in its ease:
+- They say yes to something they used to be unable to afford
+- They give generously what they used to hold tightly
+- They decline something they used to feel obligated to accept
 
 ${buildDynamicVision(answers)}${obstacleSection}
 
-━━━ RE-LISTABILITY — MAKE THEM RETURN ━━━
-This story will be listened to dozens of times. It must earn every replay:
-- Include at least one moment of unexpected beauty, insight, or emotional truth.
-- The closing lines must be so resonant that the listener carries them through their day.
-- Create at least one image or scene so specific and alive that it becomes a touchstone — something the listener sees clearly every time they close their eyes.
+━━━ PERSONALIZATION IMPERATIVE ━━━
+This story must be unmistakably about THIS person:
+- Use their exact words, phrases, and specific details from their inputs
+- Ground every scene in their specific location, home, and daily rhythms
+- Never invent details not present in their inputs — if a dimension is sparse, keep it abstract
+
+━━━ RE-LISTABILITY ━━━
+This story will be listened to dozens of times:
+- Include at least one moment of unexpected beauty or emotional truth
+- Closing lines must be so resonant the listener carries them through their day
+- Create at least one scene so specific it becomes a personal touchstone
 
 ━━━ WHAT TO AVOID ━━━
 - Never use "I manifest," "I am attracting," "I am aligned," or any law-of-attraction language
-- Never reference the original struggle directly ("I used to worry..." — never)
-- No chapter headings, section labels, or bullet points — pure flowing prose only
-- Begin your response with a short, evocative, and deeply personal title that reflects the heart of this specific vision.
-- Follow the title with a separator '---' on its own line.
-- Then, begin the story directly with the first line of the narrative.
-- Do NOT use the literal phrase "I wake up" in the opening.
-- Do NOT invent highly specific fictional personal details not present in the user's inputs (invented family names, specific fictional places, fictional pets, etc.). If a dimension is sparse, keep it abstract and emotionally true.
-- Do NOT write a generic "motivational speech." This must feel like a real, lived, intimate memory — not a pep talk.
+- Never reference the original struggle ("I used to worry..." — never)
+- No headings, bullets, or section breaks — pure flowing prose only
+- Do NOT use the literal phrase "I wake up" in the opening
+- Do NOT write a generic motivational speech — this must feel like a real, lived, intimate memory
 
-Write the story now. Format your response exactly as follows:
-[Short Dynamic Title]
+Write the story now. Format your response exactly as:
+[Short evocative title that reflects the heart of THIS person's specific vision]
 ---
-[Full Story Text]
+[Full story text]
 
 Begin now.`;
 }
@@ -302,44 +369,45 @@ function buildDynamicVision(answers: UserAnswers): string {
         }
     };
 
-    // ── TIER 1: Goals & proof of achievement — must dominate the story ──────────
-    if (answers.goals || answers.actionsAfter || answers.futureVision || answers.givingBack) {
-        result += `\n╔══ TIER 1: GOALS & PROOF — MANDATORY STORY CORE ══╗\n`;
-        result += `Every item in this tier MUST appear in the story as a concrete, vivid, physical scene.\n\n`;
-        addLine('GOALS — show each as already completely real (not wished for, not worked toward — DONE)', answers.goals);
-        addLine('LIFE AFTER GOALS — the specific actions, behaviours, and experiences that prove the goals are real (use their exact words; weave every single one into the narrative as prominent scenes)', answers.actionsAfter);
-        addLine('GIVING BACK — show this as a natural, joyful part of their current life', answers.givingBack);
-        addLine('BIGGER FUTURE VISION — the expanded horizon already visible from where they stand', answers.futureVision);
-        result += `╚══ END TIER 1 ══╝\n\n`;
-    }
+    // ── TIER 1: Goals & Proof Actions — non-negotiable story core ───────────────
+    result += `\n╔══ TIER 1: GOALS & PROOF ACTIONS — NON-NEGOTIABLE STORY CORE ══╗\n`;
+    result += `CRITICAL: Every item in this tier MUST appear in the story as a vivid, physical, present-tense scene built around the user's exact words. Use their exact language. Do not paraphrase.\n\n`;
+    addLine('GOALS — show each as already completely real. Not pursued. Not achieved in this moment. Simply lived', answers.goals);
+    addLine('LIFE AFTER GOALS / PROOF ACTIONS — the most important field. These are the specific things the user will DO because their goals are real. Build the story\'s most vivid scenes around these. Use their exact words', answers.actionsAfter);
+    addLine('TIMEFRAME — open the story grounded in this specific future moment', answers.timeframe);
+    addLine('GIVING BACK — show this as a natural, joyful part of their current life', answers.givingBack);
+    addLine('BIGGER FUTURE VISION — the expanded horizon already visible from where they stand', answers.futureVision);
+    result += `╚══ END TIER 1 ══╝\n\n`;
 
-    // ── TIER 2: Identity & inner world ─────────────────────────────────────────
+    // ── TIER 2: Who this person is ──────────────────────────────────────────────
     result += `╔══ TIER 2: WHO THIS PERSON IS ══╗\n`;
-    addLine('Identity (use their own words to ground the story\'s voice)', answers.identity);
-    addLine('Core Purpose (the why behind everything they do — let it pulse through the story)', answers.purpose);
-    addLine('Core Values (honour these in every choice the character makes)', answers.values);
-    addLine('How they feel each day (this is the emotional baseline — the reader should feel this tone throughout)', answers.emotions);
+    result += `Use only if provided — ground the story's voice and choices in these.\n`;
+    addLine('Identity', answers.identity);
+    addLine('Purpose', answers.purpose);
+    addLine('Values', answers.values);
     result += `╚══ END TIER 2 ══╝\n\n`;
 
-    // ── TIER 3: Sensory world ───────────────────────────────────────────────────
-    result += `╔══ TIER 3: THEIR WORLD — SENSORY DETAIL ══╗\n`;
-    result += `Use these details to build a world so specific and real that the listener knows they are home.\n`;
-    addLine('Where they live (anchor the story physically in this place)', answers.location);
-    addLine('Their home (describe it as a place that holds and reflects who they are)', answers.home);
-    addLine('Morning routine (if the story includes morning, make this real and specific)', answers.morning);
-    addLine('Work / creative life (show them in mastery — doing this with skill and joy)', answers.work);
-    addLine('Key relationships (bring these people alive in at least one scene)', answers.people);
-    addLine('Financial ease (show this through natural, unforced behaviour — not announcements)', answers.abundance);
-    addLine('Health & body (let the body feel strong, capable, and alive in the story)', answers.health);
-    addLine('Spirituality & inner life (let this be a quiet undertone, not a lecture)', answers.spirit);
-    addLine('Joyful micro-moments (include at least one — these make the story feel real and human)', answers.joy);
-    addLine('Community & contribution (show them as a person people are drawn to and nourished by)', answers.community);
-    addLine('Recreation & travel (if relevant, let this add texture and expansion)', answers.travel);
-    addLine('How they move through challenges (show this as natural wisdom, not struggle)', answers.challenges);
-    addLine('Evening routine (if the story ends in evening, make this feel like earned rest)', answers.evening);
-    addLine('End of day reflection (the emotional close — let this resonate)', answers.reflection);
-    addLine('Dreams and deeper intentions (let these shimmer underneath the whole story)', answers.dreams);
+    // ── TIER 3: Their world — sensory setting ───────────────────────────────────
+    result += `╔══ TIER 3: THEIR WORLD — SENSORY SETTING ══╗\n`;
+    result += `Use only what was provided — never invent details not present in the user's inputs.\n`;
+    addLine('Where they live', answers.location);
+    addLine('Their home', answers.home);
+    addLine('Morning routine', answers.morning);
+    addLine('Work / creative life', answers.work);
+    addLine('Key relationships and people', answers.people);
+    addLine('Emotional tone of the day', answers.emotions);
+    addLine('Health & body', answers.health);
+    addLine('Community & contribution', answers.community);
+    addLine('Spirituality & inner life (quiet undertone, never a lecture)', answers.spirit);
+    addLine('Travel and recreation', answers.travel);
+    addLine('Dreams and deeper intentions', answers.dreams);
+    addLine('Financial ease', answers.abundance);
+    addLine('Joyful micro-moments', answers.joy);
     result += `╚══ END TIER 3 ══╝\n`;
 
-    return result || '- No specific vision details were provided. Focus entirely on this person\'s inner emotional landscape — their capability, clarity, peace, and the quiet certainty of someone who has arrived where they always knew they belonged.';
+    if (!answers.goals && !answers.actionsAfter) {
+        return 'No specific vision details were provided. Focus entirely on this person\'s inner emotional landscape — their capability, clarity, peace, and the quiet certainty of someone who has arrived where they always knew they belonged.';
+    }
+
+    return result;
 }
