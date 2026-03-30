@@ -1,0 +1,919 @@
+:root {
+    --bg: #f4f1eb;
+    --surface: #fff;
+    --ink: #1c1a16;
+    --ink-muted: #7a7468;
+    --ink-faint: #b8b3a8;
+    --accent: #2d6a4f;
+    --accent-light: #e8f4ee;
+    --accent-mid: #52b788;
+    --gold: #9a6f0a;
+    --gold-bg: #fdf6e3;
+    --gold-border: #e8d08a;
+    --border: #e4dfd5;
+    --mystic: #2d1a5e;
+    --mystic-mid: #7c4dbd;
+    --mystic-light: #f0ebfa;
+    --mystic-border: #d4c2f0;
+}
+
+.mainContainer {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 300;
+    line-height: 1.7;
+    min-height: 100vh;
+}
+
+.nav {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: rgba(244, 241, 235, 0.92);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--border);
+    padding: 0.85rem 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.logo {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.1rem;
+    color: var(--ink);
+    text-decoration: none;
+}
+
+.logo span {
+    color: var(--accent);
+}
+
+.navLinks {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+}
+
+.navLinks a {
+    font-size: 0.78rem;
+    color: var(--ink-muted);
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+.navLinks a:hover {
+    color: var(--accent);
+}
+
+.navCta {
+    font-size: 0.75rem;
+    background: var(--accent);
+    color: #fff;
+    padding: 0.42rem 1rem;
+    border-radius: 6px;
+    text-decoration: none;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.navCta:hover {
+    background: #235840;
+}
+
+.hero {
+    background: linear-gradient(160deg, #0f0a1e 0%, #1a0d35 45%, #0d1a2e 100%);
+    padding: 6rem 2rem 5rem;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(circle at 25% 40%, rgba(124, 77, 189, 0.18) 0%, transparent 55%),
+        radial-gradient(circle at 75% 60%, rgba(45, 106, 79, 0.12) 0%, transparent 50%),
+        radial-gradient(circle at 50% 95%, rgba(154, 111, 10, 0.1) 0%, transparent 40%);
+    pointer-events: none;
+}
+
+.stars {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+.stars::before {
+    content: '';
+    position: absolute;
+    width: 2px;
+    height: 2px;
+    border-radius: 50%;
+    background: #fff;
+    top: 10%;
+    left: 5%;
+    box-shadow: 60px 30px 0 rgba(255, 255, 255, 0.5), 140px 70px 0 rgba(255, 255, 255, 0.3),
+        220px 20px 0 rgba(255, 255, 255, 0.6), 300px 90px 0 rgba(255, 255, 255, 0.4),
+        380px 45px 0 rgba(255, 255, 255, 0.5), 460px 80px 0 rgba(255, 255, 255, 0.3),
+        540px 25px 0 rgba(255, 255, 255, 0.5), 620px 65px 0 rgba(255, 255, 255, 0.4),
+        700px 105px 0 rgba(255, 255, 255, 0.3), 780px 35px 0 rgba(255, 255, 255, 0.6),
+        90px 140px 0 rgba(255, 255, 255, 0.3), 180px 170px 0 rgba(255, 255, 255, 0.5),
+        280px 120px 0 rgba(255, 255, 255, 0.4), 420px 155px 0 rgba(255, 255, 255, 0.3),
+        580px 130px 0 rgba(255, 255, 255, 0.5), 730px 160px 0 rgba(255, 255, 255, 0.4);
+}
+
+.heroInner {
+    position: relative;
+    z-index: 1;
+    max-width: 720px;
+    margin: 0 auto;
+}
+
+.heroEyebrow {
+    font-size: 0.62rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: rgba(176, 141, 255, 0.8);
+    margin-bottom: 1.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.7rem;
+}
+
+.heroEyebrow::before,
+.heroEyebrow::after {
+    content: '';
+    width: 30px;
+    height: 1px;
+    background: rgba(176, 141, 255, 0.4);
+}
+
+.heroSymbol {
+    font-size: 2.2rem;
+    margin-bottom: 1.25rem;
+    display: block;
+    opacity: 0.7;
+}
+
+.heroTitle {
+    font-family: 'DM Serif Display', serif;
+    font-size: clamp(2.4rem, 5.5vw, 4rem);
+    color: #fff;
+    line-height: 1.1;
+    margin-bottom: 1.1rem;
+}
+
+.heroTitle em {
+    font-style: italic;
+    color: #c9a8ff;
+}
+
+.heroSub {
+    font-size: 1rem;
+    color: rgba(255, 255, 255, 0.58);
+    line-height: 1.85;
+    max-width: 580px;
+    margin: 0 auto 2.5rem;
+}
+
+.heroDivider {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+}
+
+.heroDividerLine {
+    width: 50px;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.heroDividerGlyph {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1rem;
+    color: rgba(255, 255, 255, 0.2);
+}
+
+.section {
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 4.5rem 2rem;
+}
+
+.sectionEyebrow {
+    font-size: 0.62rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 0.6rem;
+}
+
+.sectionEyebrow.mystic {
+    color: var(--mystic-mid);
+}
+
+.sectionTitle {
+    font-family: 'DM Serif Display', serif;
+    font-size: clamp(1.6rem, 3.5vw, 2.4rem);
+    color: var(--ink);
+    line-height: 1.2;
+    margin-bottom: 1.25rem;
+}
+
+.sectionTitle em {
+    font-style: italic;
+    color: var(--accent);
+}
+
+.sectionTitle em.mystic {
+    color: var(--mystic-mid);
+}
+
+.prose {
+    font-size: 0.95rem;
+    color: var(--ink-muted);
+    line-height: 1.85;
+    margin-bottom: 1.25rem;
+}
+
+.prose strong {
+    color: var(--ink);
+    font-weight: 500;
+}
+
+.sectionRule {
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 0 2rem;
+}
+
+.sectionRule hr {
+    border: none;
+    border-top: 1px solid var(--border);
+}
+
+.pullQuote {
+    border-left: 3px solid var(--accent);
+    padding: 1rem 1.5rem;
+    margin: 2rem 0;
+    background: var(--accent-light);
+    border-radius: 0 10px 10px 0;
+}
+
+.pullQuote p {
+    font-family: 'Lora', serif;
+    font-style: italic;
+    font-size: 1.05rem;
+    color: var(--ink);
+    line-height: 1.7;
+}
+
+.pullQuote cite {
+    display: block;
+    font-size: 0.72rem;
+    color: var(--ink-muted);
+    margin-top: 0.5rem;
+    font-style: normal;
+    letter-spacing: 0.05em;
+}
+
+.pullQuoteMystic {
+    border-left: 3px solid var(--mystic-border);
+    padding: 1rem 1.5rem;
+    margin: 2rem 0;
+    background: var(--mystic-light);
+    border-radius: 0 10px 10px 0;
+}
+
+.pullQuoteMystic p {
+    font-family: 'Lora', serif;
+    font-style: italic;
+    font-size: 1.05rem;
+    color: var(--ink);
+    line-height: 1.7;
+}
+
+.pullQuoteMystic cite {
+    display: block;
+    font-size: 0.72rem;
+    color: var(--mystic-mid);
+    margin-top: 0.5rem;
+    font-style: normal;
+    letter-spacing: 0.05em;
+}
+
+.pullQuoteGold {
+    border-left: 3px solid var(--gold-border);
+    padding: 1rem 1.5rem;
+    margin: 2rem 0;
+    background: var(--gold-bg);
+    border-radius: 0 10px 10px 0;
+}
+
+.pullQuoteGold p {
+    font-family: 'Lora', serif;
+    font-style: italic;
+    font-size: 1.05rem;
+    color: var(--ink);
+    line-height: 1.7;
+}
+
+.pullQuoteGold cite {
+    display: block;
+    font-size: 0.72rem;
+    color: var(--gold);
+    margin-top: 0.5rem;
+    font-style: normal;
+    letter-spacing: 0.05em;
+}
+
+.traditionList {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    position: relative;
+    margin: 2rem 0;
+}
+
+.traditionList::before {
+    content: '';
+    position: absolute;
+    left: 19px;
+    top: 20px;
+    bottom: 20px;
+    width: 1px;
+    background: var(--mystic-border);
+}
+
+.traditionItem {
+    display: flex;
+    gap: 1.25rem;
+    padding: 1.1rem 0;
+}
+
+.traditionDot {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--mystic-light);
+    border: 1px solid var(--mystic-border);
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    font-size: 1.1rem;
+    position: relative;
+    z-index: 1;
+}
+
+.traditionName {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1rem;
+    color: var(--ink);
+    margin-bottom: 0.2rem;
+}
+
+.traditionBody {
+    font-size: 0.82rem;
+    color: var(--ink-muted);
+    line-height: 1.65;
+}
+
+.easternPanel {
+    background: var(--ink);
+    border-radius: 20px;
+    overflow: hidden;
+    margin: 3rem 0;
+}
+
+.easternHeader {
+    padding: 2.5rem 2.5rem 1.5rem;
+    text-align: center;
+}
+
+.easternBadge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.65);
+    font-size: 0.65rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    padding: 0.3rem 0.85rem;
+    border-radius: 99px;
+    margin-bottom: 1.1rem;
+}
+
+.easternTitle {
+    font-family: 'DM Serif Display', serif;
+    font-size: clamp(1.5rem, 3.5vw, 2.2rem);
+    color: #fff;
+    line-height: 1.2;
+    margin-bottom: 0.6rem;
+}
+
+.easternTitle em {
+    font-style: italic;
+    color: #c9a8ff;
+}
+
+.easternSub {
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.5);
+    line-height: 1.75;
+    max-width: 500px;
+    margin: 0 auto;
+}
+
+.easternGrid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: rgba(255, 255, 255, 0.06);
+    margin: 0 2.5rem 2.5rem;
+}
+
+.easternCard {
+    background: var(--ink);
+    padding: 1.5rem;
+}
+
+.easternCardTag {
+    font-size: 0.6rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(200, 160, 255, 0.7);
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+}
+
+.easternCardTitle {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1rem;
+    color: #fff;
+    margin-bottom: 0.45rem;
+}
+
+.easternCardBody {
+    font-size: 0.78rem;
+    color: rgba(255, 255, 255, 0.5);
+    line-height: 1.65;
+}
+
+.easternCardScience {
+    display: inline-block;
+    font-size: 0.65rem;
+    color: var(--accent-mid);
+    background: rgba(82, 183, 136, 0.12);
+    border: 1px solid rgba(82, 183, 136, 0.2);
+    padding: 0.15rem 0.55rem;
+    border-radius: 99px;
+    margin-top: 0.55rem;
+    font-weight: 500;
+}
+
+.bridgeGrid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin: 2rem 0;
+}
+
+.bridgeCard {
+    border-radius: 12px;
+    padding: 1.3rem;
+}
+
+.bridgeCard.mysticSide {
+    background: var(--mystic-light);
+    border: 1px solid var(--mystic-border);
+}
+
+.bridgeCard.scienceSide {
+    background: var(--accent-light);
+    border: 1px solid #b8dfc8;
+}
+
+.bridgeCardTag {
+    display: inline-block;
+    font-size: 0.6rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 0.2rem 0.6rem;
+    border-radius: 99px;
+    margin-bottom: 0.55rem;
+    font-weight: 500;
+}
+
+.bridgeCard.mysticSide .bridgeCardTag {
+    background: rgba(124, 77, 189, 0.12);
+    color: var(--mystic-mid);
+}
+
+.bridgeCard.scienceSide .bridgeCardTag {
+    background: rgba(45, 106, 79, 0.12);
+    color: var(--accent);
+}
+
+.bridgeCardTitle {
+    font-family: 'DM Serif Display', serif;
+    font-size: 0.95rem;
+    color: var(--ink);
+    margin-bottom: 0.35rem;
+}
+
+.bridgeCardBody {
+    font-size: 0.78rem;
+    color: var(--ink-muted);
+    line-height: 1.65;
+}
+
+.principlesGrid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.25rem;
+    margin: 2rem 0;
+}
+
+.principleCard {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+}
+
+.principleTop {
+    padding: 1.25rem 1.25rem 1rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.principleMysticTag {
+    font-size: 0.6rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--mystic-mid);
+    font-weight: 500;
+    margin-bottom: 0.4rem;
+}
+
+.principleTitle {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1rem;
+    color: var(--ink);
+}
+
+.principleMysticBody {
+    font-size: 0.78rem;
+    color: var(--ink-muted);
+    line-height: 1.6;
+    padding: 0.85rem 1.25rem;
+    background: var(--mystic-light);
+}
+
+.principleBottom {
+    padding: 0.85rem 1.25rem;
+}
+
+.principleScienceTag {
+    font-size: 0.6rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 500;
+    margin-bottom: 0.3rem;
+}
+
+.principleScienceBody {
+    font-size: 0.78rem;
+    color: var(--ink-muted);
+    line-height: 1.6;
+}
+
+.voicePanel {
+    background: linear-gradient(135deg, #1a0d35 0%, #0f0a1e 100%);
+    border-radius: 20px;
+    padding: 3rem 2.5rem;
+    margin: 3rem 0;
+    text-align: center;
+}
+
+.voicePanelEyebrow {
+    font-size: 0.62rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(200, 160, 255, 0.7);
+    margin-bottom: 1rem;
+}
+
+.voicePanelTitle {
+    font-family: 'DM Serif Display', serif;
+    font-size: clamp(1.5rem, 3.5vw, 2.2rem);
+    color: #fff;
+    line-height: 1.2;
+    margin-bottom: 0.85rem;
+}
+
+.voicePanelTitle em {
+    font-style: italic;
+    color: #c9a8ff;
+}
+
+.voicePanelBody {
+    font-size: 0.88rem;
+    color: rgba(255, 255, 255, 0.55);
+    line-height: 1.85;
+    max-width: 540px;
+    margin: 0 auto 1.75rem;
+}
+
+.voiceRow {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    text-align: left;
+}
+
+.voiceCard {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    padding: 1rem;
+}
+
+.vcName {
+    font-size: 0.68rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgba(200, 160, 255, 0.7);
+    margin-bottom: 0.35rem;
+    font-weight: 500;
+}
+
+.vcBody {
+    font-size: 0.78rem;
+    color: rgba(255, 255, 255, 0.48);
+    line-height: 1.6;
+}
+
+.mysticSteps {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    position: relative;
+    margin: 2rem 0;
+}
+
+.mysticSteps::before {
+    content: '';
+    position: absolute;
+    left: 19px;
+    top: 20px;
+    bottom: 20px;
+    width: 1px;
+    background: var(--mystic-border);
+}
+
+.mysticStep {
+    display: flex;
+    gap: 1.25rem;
+    padding: 1.25rem 0;
+}
+
+.mysticStepNum {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--mystic-light);
+    border: 1px solid var(--mystic-border);
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    font-family: 'DM Serif Display', serif;
+    font-size: 1rem;
+    color: var(--mystic-mid);
+    position: relative;
+    z-index: 1;
+}
+
+.mysticStepTitle {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.05rem;
+    color: var(--ink);
+    margin-bottom: 0.3rem;
+}
+
+.mysticStepText {
+    font-size: 0.82rem;
+    color: var(--ink-muted);
+    line-height: 1.7;
+}
+
+.mysticStepTag {
+    display: inline-block;
+    font-size: 0.65rem;
+    color: var(--accent);
+    background: var(--accent-light);
+    padding: 0.15rem 0.55rem;
+    border-radius: 99px;
+    margin-top: 0.4rem;
+    font-weight: 500;
+}
+
+.forGrid {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin: 1.5rem 0;
+}
+
+.forItem {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem 1.2rem;
+    display: flex;
+    gap: 0.85rem;
+    align-items: flex-start;
+}
+
+.forDot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--mystic-mid);
+    flex-shrink: 0;
+    margin-top: 6px;
+}
+
+.forText {
+    font-size: 0.83rem;
+    color: var(--ink-muted);
+    line-height: 1.65;
+}
+
+.forText strong {
+    color: var(--ink);
+    font-weight: 500;
+    display: block;
+    margin-bottom: 0.1rem;
+}
+
+.scienceBridge {
+    background: linear-gradient(135deg, #1a3d2b 0%, var(--accent) 100%);
+    border-radius: 20px;
+    padding: 3rem 2.5rem;
+    text-align: center;
+    margin: 4rem 0;
+}
+
+.sbEyebrow {
+    font-size: 0.62rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.6);
+    margin-bottom: 1rem;
+}
+
+.sbTitle {
+    font-family: 'DM Serif Display', serif;
+    font-size: clamp(1.5rem, 3.5vw, 2.2rem);
+    color: #fff;
+    line-height: 1.2;
+    margin-bottom: 0.85rem;
+}
+
+.sbTitle em {
+    font-style: italic;
+    color: var(--accent-mid);
+}
+
+.sbBody {
+    font-size: 0.88rem;
+    color: rgba(255, 255, 255, 0.65);
+    line-height: 1.8;
+    max-width: 520px;
+    margin: 0 auto 1.75rem;
+}
+
+.sbCta {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: #fff;
+    color: var(--accent);
+    border: none;
+    border-radius: 99px;
+    padding: 0.75rem 1.75rem;
+    font-size: 0.85rem;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-decoration: none;
+}
+
+.sbCta:hover {
+    background: var(--accent-light);
+}
+
+.finalCta {
+    text-align: center;
+    padding: 5rem 2rem;
+    max-width: 580px;
+    margin: 0 auto;
+}
+
+.finalCtaEyebrow {
+    font-size: 0.62rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--mystic-mid);
+    margin-bottom: 0.85rem;
+}
+
+.finalCtaTitle {
+    font-family: 'DM Serif Display', serif;
+    font-size: clamp(1.8rem, 4vw, 2.8rem);
+    color: var(--ink);
+    line-height: 1.15;
+    margin-bottom: 0.75rem;
+}
+
+.finalCtaTitle em {
+    font-style: italic;
+    color: var(--accent);
+}
+
+.finalCtaSub {
+    font-size: 0.88rem;
+    color: var(--ink-muted);
+    line-height: 1.7;
+    margin-bottom: 2rem;
+}
+
+.finalCtaBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    padding: 0.9rem 2.2rem;
+    font-size: 0.9rem;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 4px 18px rgba(45, 106, 79, 0.22);
+    text-decoration: none;
+}
+
+.finalCtaBtn:hover {
+    background: #235840;
+    transform: translateY(-1px);
+}
+
+.footer {
+    border-top: 1px solid var(--border);
+    padding: 2rem;
+    text-align: center;
+    font-size: 0.72rem;
+    color: var(--ink-faint);
+}
+
+.footer a {
+    color: var(--accent);
+    text-decoration: none;
+}
+
+@media (max-width: 640px) {
+
+    .bridgeGrid,
+    .principlesGrid,
+    .voiceRow,
+    .easternGrid {
+        grid-template-columns: 1fr;
+    }
+
+    .navLinks {
+        display: none;
+    }
+
+    .easternGrid {
+        margin: 0 1.25rem 1.5rem;
+    }
+
+    .easternHeader {
+        padding: 2rem 1.25rem 1rem;
+    }
+
+    .voicePanel {
+        padding: 2rem 1.25rem;
+    }
+}
