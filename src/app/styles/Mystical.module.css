@@ -849,6 +849,23 @@
     color: var(--accent);
 }
 
+@media (max-width: 850px) {
+    .nav {
+        padding: 1rem 1.5rem;
+        justify-content: center;
+    }
+
+    .logo {
+        margin: 0;
+        text-align: center;
+    }
+
+    .navLinks,
+    .navCta {
+        display: none !important;
+    }
+}
+
 .finalCtaSub {
     font-size: 0.88rem;
     color: var(--ink-muted);

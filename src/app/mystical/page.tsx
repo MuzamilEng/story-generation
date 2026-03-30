@@ -3,6 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import styles from '../styles/Mystical.module.css';
+import Sidebar from '../components/Sidebar';
 
 export default function MysticalPage() {
   return (
@@ -11,6 +12,7 @@ export default function MysticalPage() {
         <Link href="/" className={styles.logo}>
           Manifest<span>MyStory</span>
         </Link>
+
         <div className={styles.navLinks}>
           <Link href="/">&larr; Home</Link>
           <a href="#tradition">The Tradition</a>
@@ -19,10 +21,13 @@ export default function MysticalPage() {
           <a href="#for-you">Who It&apos;s For</a>
           <Link href="/science">The Science &rarr;</Link>
         </div>
+
         <Link href="/user/goal-intake-ai" className={styles.navCta}>
           Create My Story — Free
         </Link>
       </nav>
+
+      <Sidebar isLandingPage />
 
       {/* HERO */}
       <div className={styles.hero}>

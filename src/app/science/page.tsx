@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import styles from '../styles/Science.module.css';
+import Sidebar from '../components/Sidebar';
 
 export default function SciencePage() {
     const [step, setStep] = useState(1);
@@ -25,6 +26,7 @@ export default function SciencePage() {
                 <Link href="/" className={styles.logo}>
                     Manifest<span>MyStory</span>
                 </Link>
+
                 <div className={styles.navLinks}>
                     <Link href="/">&larr; Home</Link>
                     <a href="#how">How It Works</a>
@@ -33,10 +35,13 @@ export default function SciencePage() {
                     <a href="#research">Research</a>
                     <Link href="/mystical">The Ancient Side &rarr;</Link>
                 </div>
+
                 <Link href="/user/goal-intake-ai" className={styles.navCta}>
                     Create My Story — Free
                 </Link>
             </nav>
+
+            <Sidebar isLandingPage />
 
             {/* HERO */}
             <div className={styles.hero}>

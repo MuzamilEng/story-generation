@@ -127,12 +127,30 @@ const Sidebar: React.FC<SidebarProps> = ({ isLandingPage = false }) => {
 
     const isActive = (href: string) => pathname === href || pathname.startsWith(href + '/');
 
+    const isSciencePage = pathname === '/science';
+    const isMysticalPage = pathname === '/mystical';
+
     const mainNav = isLandingPage ? [
         { href: '/', label: 'Home', icon: <HomeIcon /> },
         ...(session ? [{ href: '/user/dashboard', label: 'Dashboard', icon: <HomeIcon /> }] : []),
-        { href: '#how', label: 'How It Works', icon: <BookOpenIcon /> },
-        { href: '#pricing', label: 'Pricing', icon: <CreditCardIcon /> },
-        { href: '/science', label: 'The Science', icon: <FlaskIcon /> },
+        ...(isSciencePage ? [
+            { href: '#how', label: 'How It Works', icon: <BookOpenIcon /> },
+            { href: '#nlp', label: 'The NLP Layer', icon: <FlaskIcon /> },
+            { href: '#emotion', label: 'The Practice', icon: <MicIcon /> },
+            { href: '#research', label: 'Research', icon: <FlaskIcon /> },
+            { href: '/mystical', label: 'The Ancient Side', icon: <MicIcon /> },
+        ] : isMysticalPage ? [
+            { href: '#tradition', label: 'The Tradition', icon: <BookOpenIcon /> },
+            { href: '#eastern', label: 'The Eastern Path', icon: <MicIcon /> },
+            { href: '#bridge', label: 'Where They Meet', icon: <FlaskIcon /> },
+            { href: '#for-you', label: 'Who It\'s For', icon: <BookOpenIcon /> },
+            { href: '/science', label: 'The Science', icon: <FlaskIcon /> },
+        ] : [
+            { href: '#how', label: 'How It Works', icon: <BookOpenIcon /> },
+            { href: '#pricing', label: 'Pricing', icon: <CreditCardIcon /> },
+            { href: '/science', label: 'The Science', icon: <FlaskIcon /> },
+            { href: '/mystical', label: 'The Ancient Side', icon: <MicIcon /> },
+        ]),
     ] : [
         { href: '/user/dashboard', label: 'My Dashboard', icon: <HomeIcon /> },
         { href: '/user/stories', label: 'My Stories', icon: <BookOpenIcon /> },
