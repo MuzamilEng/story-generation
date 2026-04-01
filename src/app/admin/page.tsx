@@ -125,8 +125,6 @@ export default async function AdminDashboard() {
                 backgroundColor: "transparent",
                 transition: "background-color 0.2s"
               }}
-              onMouseOver={(e) => (e.currentTarget.style.backgroundColor = "#f9fafb")}
-              onMouseOut={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
             >
               Manage Users
             </a>
@@ -142,8 +140,6 @@ export default async function AdminDashboard() {
                 backgroundColor: "transparent",
                 transition: "background-color 0.2s"
               }}
-              onMouseOver={(e) => (e.currentTarget.style.backgroundColor = "#f9fafb")}
-              onMouseOut={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
             >
               System Settings
             </a>
@@ -160,8 +156,6 @@ export default async function AdminDashboard() {
                 cursor: "pointer",
                 transition: "background-color 0.2s"
               }}
-              onMouseOver={(e) => (e.currentTarget.style.backgroundColor = "#f9fafb")}
-              onMouseOut={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
             >
               View Audit Logs
             </button>

@@ -22,8 +22,9 @@ export async function GET(req: NextRequest) {
                 streak_milestones: true,
                 product_updates: true,
                 voice_model_id: true,
+                soundscape: true,
+                binaural_enabled: true,
                 createdAt: true,
-                // Add plan details or counts if needed
                 _count: {
                     select: {
                         stories: true
@@ -56,7 +57,9 @@ export async function PATCH(req: NextRequest) {
             morning_reminder,
             evening_reminder,
             streak_milestones,
-            product_updates
+            product_updates,
+            soundscape,
+            binaural_enabled,
         } = body
 
         const updatedUser = await prisma.user.update({
@@ -67,6 +70,8 @@ export async function PATCH(req: NextRequest) {
                 ...(evening_reminder !== undefined && { evening_reminder }),
                 ...(streak_milestones !== undefined && { streak_milestones }),
                 ...(product_updates !== undefined && { product_updates }),
+                ...(soundscape !== undefined && { soundscape }),
+                ...(binaural_enabled !== undefined && { binaural_enabled }),
             }
         })
 

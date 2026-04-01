@@ -99,6 +99,7 @@ const CreateAccountForm: React.FC = () => {
     lastName: "",
     email: "",
     password: "",
+    betaCode: "",
     terms: false,
   });
   const [showPassword, setShowPassword] = useState(false);
@@ -205,6 +206,7 @@ const CreateAccountForm: React.FC = () => {
           name,
           email: formData.email,
           password: formData.password,
+          betaCode: formData.betaCode.trim().toUpperCase(),
         }),
       });
 
@@ -464,6 +466,21 @@ const CreateAccountForm: React.FC = () => {
                 >
                   Password must be at least 8 characters
                 </span>
+              </div>
+
+              <div className={styles.field}>
+                <label htmlFor="betaCode">Beta code (Optional)</label>
+                <input
+                  type="text"
+                  id="betaCode"
+                  placeholder="e.g. VIP-BETA-2026"
+                  value={formData.betaCode}
+                  onChange={handleInputChange}
+                  style={{ textTransform: 'uppercase' }}
+                />
+                <p style={{ fontSize: '12px', color: 'var(--ink-faint)', marginTop: '4px' }}>
+                  Have an invite? Enter it here for 2 months free of Amplifier.
+                </p>
               </div>
 
               <div className={styles.termsRow}>

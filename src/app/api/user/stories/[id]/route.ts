@@ -23,6 +23,13 @@ export async function GET(
                 versions: {
                     orderBy: { version: 'desc' },
                     take: 1
+                },
+                user: {
+                    select: {
+                        soundscape: true,
+                        binaural_enabled: true,
+                        plan: true
+                    } as any
                 }
             }
         })

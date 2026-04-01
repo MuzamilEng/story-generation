@@ -131,7 +131,12 @@ const AudioReadyContent: React.FC = () => {
     const [waveformBars, setWaveformBars] = useState<WaveformBar[]>([]);
 
     const audioRef = useRef<HTMLAudioElement>(null);
+    const soundscapeRef = useRef<HTMLAudioElement>(null);
+    const binauralRef = useRef<HTMLAudioElement>(null);
     const waveformCount = 80;
+
+    const [soundscapeOn, setSoundscapeOn] = useState(false);
+    const [binauralOn, setBinauralOn] = useState(false);
 
     const { clearStore } = useStoryStore();
 
@@ -164,6 +169,13 @@ const AudioReadyContent: React.FC = () => {
                 if (res.ok) {
                     const data = await res.json();
                     setStory(data);
+                    // Default toggles based on user preference
+                    if (data.user?.soundscape && data.user.soundscape !== 'none') {
+                        setSoundscapeOn(true);
+                    }
+                    if (data.user?.binaural_enabled && data.user?.plan === 'amplifier') {
+                        setBinauralOn(true);
+                    }
                 }
             } catch (err) {
                 console.error("Failed to fetch story", err);
@@ -191,12 +203,13 @@ const AudioReadyContent: React.FC = () => {
         );
     }, [currentTime, duration]);
 
-    // Ensure audio element volume is synced with state
+    // Ensure audio element volumes are synced
     useEffect(() => {
-        if (audioRef.current) {
-            audioRef.current.volume = volume / 100;
-        }
-    }, []);
+        if (audioRef.current) audioRef.current.volume = volume / 100;
+        // Background tracks are mixed at ~ -18dB relative to voice (approx 0.13 volume)
+        if (soundscapeRef.current) soundscapeRef.current.volume = (volume / 100) * 0.13;
+        if (binauralRef.current) binauralRef.current.volume = (volume / 100) * 0.13;
+    }, [volume]);
 
     const formatTime = (seconds: number): string => {
         const h = Math.floor(seconds / 3600);
@@ -222,13 +235,37 @@ const AudioReadyContent: React.FC = () => {
         if (!audioRef.current) return;
         if (isPlaying) {
             audioRef.current.pause();
+            soundscapeRef.current?.pause();
+            binauralRef.current?.pause();
         } else {
             audioRef.current.play();
+            if (soundscapeOn) {
+                soundscapeRef.current!.currentTime = audioRef.current.currentTime % (soundscapeRef.current!.duration || 300);
+                soundscapeRef.current?.play();
+            }
+            if (binauralOn) {
+                binauralRef.current!.currentTime = audioRef.current.currentTime % (binauralRef.current!.duration || 300);
+                binauralRef.current?.play();
+            }
             // Record play if starting from 0 or just once per session
             if (currentTime < 1) recordEvent('play');
         }
         setIsPlaying(!isPlaying);
     };
+
+    // Keep background tracks sync'd on seek
+    useEffect(() => {
+        if (isPlaying) {
+            if (soundscapeOn && soundscapeRef.current && audioRef.current) {
+                const diff = Math.abs(soundscapeRef.current.currentTime - (audioRef.current.currentTime % (soundscapeRef.current.duration || 300)));
+                if (diff > 0.5) soundscapeRef.current.currentTime = audioRef.current.currentTime % (soundscapeRef.current.duration || 300);
+            }
+            if (binauralOn && binauralRef.current && audioRef.current) {
+                const diff = Math.abs(binauralRef.current.currentTime - (audioRef.current.currentTime % (binauralRef.current.duration || 300)));
+                if (diff > 0.5) binauralRef.current.currentTime = audioRef.current.currentTime % (binauralRef.current.duration || 300);
+            }
+        }
+    }, [currentTime]);
 
 
     const skip = (seconds: number) => {
@@ -320,7 +357,30 @@ const AudioReadyContent: React.FC = () => {
                     onLoadedMetadata={handleMetadata}
                     onDurationChange={handleMetadata}
                     onTimeUpdate={handleTimeUpdate}
-                    onEnded={() => setIsPlaying(false)}
+                    onEnded={() => {
+                        setIsPlaying(false);
+                        soundscapeRef.current?.pause();
+                        binauralRef.current?.pause();
+                    }}
+                />
+            )}
+
+            {/* Feature C/D: Background Loops */}
+            {story?.user?.soundscape && story.user.soundscape !== 'none' && (
+                <audio
+                    ref={soundscapeRef}
+                    src={`/audio/landscapes/${story.user.soundscape}.mp3`}
+                    loop
+                    preload="auto"
+                />
+            )}
+
+            {story?.user?.binaural_enabled && story.user.plan === 'amplifier' && (
+                <audio
+                    ref={binauralRef}
+                    src={`/audio/binaural/theta.mp3`}
+                    loop
+                    preload="auto"
                 />
             )}
 
@@ -355,7 +415,10 @@ const AudioReadyContent: React.FC = () => {
                         <div className={styles.playerEyebrow}>Your Personal Audio Story</div>
                         <div className={styles.playerTitle}>{story?.title || 'A Day in the Life of My Highest Self'}</div>
                         <div className={styles.playerMeta}>
-                            {formatTime(duration || 0)} · Generated {new Date(story?.audio_generated_at || story?.updatedAt).toLocaleDateString()}
+                            Personalized Story Experience · {formatTime(duration || 0)}
+                        </div>
+                        <div className={styles.playerMetaSub}>
+                            Opening Affirmations + Your Vision Story + Closing Affirmations
                         </div>
                         <div className={styles.waveformDisplay} onClick={seekTo} style={{ cursor: 'pointer' }}>
                             {waveformBars.map((bar, index) => (
@@ -405,6 +468,40 @@ const AudioReadyContent: React.FC = () => {
                             >
                                 <SkipForwardIcon />
                             </button>
+                        </div>
+
+                        <div className={styles.layerControls}>
+                            {story?.user?.soundscape && story.user.soundscape !== 'none' && (
+                                <button
+                                    className={`${styles.layerBtn} ${soundscapeOn ? styles.active : ''}`}
+                                    onClick={() => {
+                                        setSoundscapeOn(!soundscapeOn);
+                                        if (!soundscapeOn && isPlaying) {
+                                            soundscapeRef.current?.play();
+                                        } else {
+                                            soundscapeRef.current?.pause();
+                                        }
+                                    }}
+                                >
+                                    🌊 {soundscapeOn ? 'Soundscape: ON' : 'Soundscape: OFF'}
+                                </button>
+                            )}
+
+                            {story?.user?.plan === 'amplifier' && story?.user?.binaural_enabled && (
+                                <button
+                                    className={`${styles.layerBtn} ${binauralOn ? styles.active : ''}`}
+                                    onClick={() => {
+                                        setBinauralOn(!binauralOn);
+                                        if (!binauralOn && isPlaying) {
+                                            binauralRef.current?.play();
+                                        } else {
+                                            binauralRef.current?.pause();
+                                        }
+                                    }}
+                                >
+                                    🎧 {binauralOn ? 'Binaural: ON' : 'Binaural: OFF'}
+                                </button>
+                            )}
                         </div>
 
                         <div className={styles.volumeRow}>

@@ -134,13 +134,13 @@ interface NextStepCardProps {
 
 const NextStepCard: React.FC<NextStepCardProps> = ({ onNext, disabled }) => (
   <div className={styles.nextStepCard}>
-    <div className={styles.nextStepTitle}>Next: Your Voice</div>
+    <div className={styles.nextStepTitle}>Next: Your Affirmations</div>
     <div className={styles.nextStepBody}>
-      Once you approve your story, you'll record a 60-second voice sample —
-      we'll use it to create your personal audio file.
+      Once you approve your story, choose your personal affirmations — then
+      record a 60-second voice sample to create your audio.
     </div>
     <button className={styles.nextStepBtn} onClick={onNext} disabled={disabled}>
-      Record My Voice
+      Build My Affirmations
       <ArrowIcon />
     </button>
   </div>
@@ -159,14 +159,14 @@ const ApproveBanner: React.FC<ApproveBannerProps> = ({
   <div className={`${styles.approveBanner} ${styles.visible}`}>
     <div className={styles.approveText}>
       <strong>Story approved ✦</strong>
-      <span>Ready to record your voice sample and create your audio</span>
+      <span>Ready to build your affirmations and create your audio</span>
     </div>
     <div className={styles.approveActions}>
       <button className={styles.approveSecondary} onClick={onEditMore}>
         Edit more
       </button>
       <button className={styles.approvePrimary} onClick={onRecordVoice}>
-        Record My Voice
+        Build My Affirmations
         <MicIcon />
       </button>
     </div>
@@ -456,11 +456,11 @@ const StoryContent: React.FC = () => {
       setIsEditing(false);
     }
 
-    // Logic for next step
+    // V2: Go to affirmation builder before voice recording
     if (!isLoggedIn) {
       router.push("/auth/signup?next=/user/story");
     } else {
-      router.push(`/user/voice-recording?storyId=${storyId}`);
+      router.push(`/user/affirmations?storyId=${storyId}`);
     }
   };
 
@@ -469,7 +469,8 @@ const StoryContent: React.FC = () => {
   };
 
   const handleRecordVoice = () => {
-    router.push(`/user/voice-recording?storyId=${storyId}`);
+    // V2: route through affirmation builder
+    router.push(`/user/affirmations?storyId=${storyId}`);
   };
 
   const handleToggleCheck = (id: string) => {

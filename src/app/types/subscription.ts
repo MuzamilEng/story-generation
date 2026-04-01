@@ -1,9 +1,10 @@
-export type PlanType = 'free' | 'single' | 'standard' | 'power';
+export type PlanType = 'free' | 'activator' | 'manifester' | 'amplifier';
 
 export interface Plan {
     id: PlanType;
     name: string;
     price: string;
+    priceOriginal?: string;
     priceSub: string;
     features: Array<{ text: string; included: boolean }>;
     isCurrent?: boolean;
@@ -25,12 +26,13 @@ export interface BillingRecord {
     date: Date;
     description: string;
     amount: number;
-    status: 'paid' | 'pending' | 'failed';
+    status: 'paid' | 'pending' | 'failed' | string;
+    receiptUrl?: string;
 }
 
 export interface CurrentPlan {
     name: string;
     price: string;
-    nextRenewal: Date;
-    status: 'active' | 'canceled' | 'past_due';
+    nextRenewal?: Date | null;
+    status: 'active' | 'canceled' | 'past_due' | string;
 }

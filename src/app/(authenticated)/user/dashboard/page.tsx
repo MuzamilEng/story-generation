@@ -6,14 +6,11 @@ import { signOut, useSession } from "next-auth/react";
 import { useQuery } from "@tanstack/react-query";
 import { format, formatDistanceToNow } from "date-fns";
 import styles from "../../../styles/Dashboard.module.css";
+import Header from "../../../components/Header";
 import { useStoryStore } from "@/store/useStoryStore";
 
 // Icon Components
-const LogoIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M12 3l1.9 5.8H20l-4.95 3.6 1.9 5.8L12 14.6l-4.95 3.6 1.9-5.8L4 8.8h6.1z" />
-  </svg>
-);
+// ... (removing redundant icons if used only in old header)
 
 const PlusIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -390,7 +387,6 @@ const Dashboard: React.FC = () => {
     };
   }, []);
 
-  const dropdownRef = useRef<HTMLDivElement>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
 
@@ -401,8 +397,7 @@ const Dashboard: React.FC = () => {
   const [currentTime, setCurrentTime] = useState(0);
   const [totalDuration, setTotalDuration] = useState(0);
   const [volume, setVolume] = useState(85);
-  const [dropdownOpen, setDropdownOpen] = useState(false);
-
+  const [isAudioReady, setIsAudioReady] = useState(false);
   const { data: stories = [], isLoading: isLoadingStories } = useQuery<Story[]>(
     {
       queryKey: ["stories"],
@@ -445,20 +440,6 @@ const Dashboard: React.FC = () => {
     })) || [];
 
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(event.target as Node)
-      ) {
-        setDropdownOpen(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  useEffect(() => {
     if (audioRef.current) {
       if (isPlaying) {
         audioRef.current.play().catch(() => setIsPlaying(false));
@@ -466,15 +447,13 @@ const Dashboard: React.FC = () => {
         audioRef.current.pause();
       }
     }
-  }, [isPlaying, activeStory]); // Re-evaluate when isPlaying or activeStory changes
+  }, [isPlaying, activeStory]);
 
   useEffect(() => {
     if (audioRef.current) {
       audioRef.current.loop = isLooping;
     }
   }, [isLooping]);
-
-  const [isAudioReady, setIsAudioReady] = useState(false);
 
   const handleCanPlay = () => {
     setIsAudioReady(true);
@@ -499,10 +478,6 @@ const Dashboard: React.FC = () => {
     } catch (e) {
       console.error("Failed to record event:", e);
     }
-  };
-
-  const toggleDropdown = () => {
-    setDropdownOpen(!dropdownOpen);
   };
 
   const handlePlayStory = (story: Story) => {
@@ -630,12 +605,28 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className={styles.container}>
+
       <main className={styles.page}>
         {/* GREETING */}
         <div className={styles.greeting}>
           <div className={styles.greetingEyebrow}>Good morning</div>
           <h1 className={styles.greetingTitle}>
             Welcome back, <em>{firstName}.</em>
+            {stats?.isBetaUser && (
+              <span className={styles.betaBadge} style={{
+                fontSize: '14px',
+                backgroundColor: 'var(--accent)',
+                color: 'var(--surface-dark, #fff)',
+                padding: '4px 12px',
+                borderRadius: '99px',
+                marginLeft: '12px',
+                fontWeight: '600',
+                verticalAlign: 'middle',
+                display: 'inline-block'
+              }}>
+                Beta Access
+              </span>
+            )}
           </h1>
           <p className={styles.greetingSub}>
             Your story is waiting. Take a few minutes to listen — your future

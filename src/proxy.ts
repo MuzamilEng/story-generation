@@ -60,15 +60,24 @@ export async function proxy(request: NextRequest) {
 
     // 4. Handle Authenticated Users
     if (token) {
-        console.log('[AUTH] User authenticated.')
+        const userRole = token.role || 'USER';
+        console.log('[AUTH] User authenticated as:', userRole);
 
-        // If logged-in user tries to access auth pages or home, redirect to dashboard
-        if (isAuthPage || pathname === '/') {
-            console.log('[REDIRECT] Logged-in user → /user/dashboard')
-            return NextResponse.redirect(new URL('/user/dashboard', request.url))
+        // If Admin tries to access Home, Auth, or standard User pages, redirect to Admin Dashboard
+        if (userRole === 'ADMIN') {
+            if (isAuthPage || pathname === '/' || isProtectedUserPage) {
+                console.log('[REDIRECT] Admin user → /admin');
+                return NextResponse.redirect(new URL('/admin', request.url));
+            }
+        } else {
+            // If standard User tries to access Auth pages or home, redirect to User Dashboard
+            if (isAuthPage || pathname === '/') {
+                console.log('[REDIRECT] Regular user → /user/dashboard');
+                return NextResponse.redirect(new URL('/user/dashboard', request.url));
+            }
         }
 
-        return NextResponse.next()
+        return NextResponse.next();
     }
 
     // 5. Handle Unauthenticated Users

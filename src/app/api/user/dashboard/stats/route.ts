@@ -21,8 +21,14 @@ export async function GET(req: NextRequest) {
                 total_audio_plays: true,
                 total_downloads: true,
                 plan: true,
+                betaCodes: {
+                    where: { expiresAt: { gt: new Date() } },
+                    take: 1
+                }
             }
         });
+
+        const isBetaUser = (user?.betaCodes && user.betaCodes.length > 0) || false;
 
         // 2. Fetch recent stories to calculate used slots (basic metric)
         const storyCount = await prisma.story.count({
@@ -72,6 +78,7 @@ export async function GET(req: NextRequest) {
         });
 
         const stats = {
+            isBetaUser,
             metrics: {
                 stories_ever: user?.total_stories_ever || storyCount || 0,
                 streak_days: user?.streak_days || 0,

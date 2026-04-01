@@ -1,4 +1,4 @@
-:root {
+.mainContainer {
     --bg: #f4f1eb;
     --surface: #fff;
     --ink: #1c1a16;
@@ -15,9 +15,7 @@
     --mystic-mid: #7c4dbd;
     --mystic-light: #f0ebfa;
     --mystic-border: #d4c2f0;
-}
 
-.mainContainer {
     background: var(--bg);
     color: var(--ink);
     font-family: 'DM Sans', sans-serif;

@@ -162,7 +162,13 @@ const UserHeader: React.FC = () => {
             href="/user/manage-subscription"
             className={`${styles.navLink} ${pathname === "/user/manage-subscription" ? styles.active : ""}`}
           >
-            Billing & Plan
+            Manage Subscription
+          </Link>
+          <Link
+            href="/pricing"
+            className={`${styles.navLink} ${pathname === "/pricing" ? styles.active : ""}`}
+          >
+            Pricing
           </Link>
         </nav>
 

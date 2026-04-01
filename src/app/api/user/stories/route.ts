@@ -17,16 +17,24 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Goals are required and cannot be empty' }, { status: 400 })
         }
 
-        // Verify user exists in database (JWT may outlive deleted user record)
-        const userExists = await prisma.user.findUnique({
+        // Verify user exists and check plan limits
+        const user = await prisma.user.findUnique({
             where: { id: session.user.id },
-            select: { id: true }
+            select: { id: true, plan: true, total_stories_ever: true }
         })
-        if (!userExists) {
+
+        if (!user) {
             return NextResponse.json(
                 { error: 'Your account was not found. Please sign out and sign back in.' },
                 { status: 401 }
             )
+        }
+
+        // Plan Gating Check
+        const { checkPlanGating } = await import('@/lib/plan-gating');
+        const gating = await checkPlanGating(user.id, 'create_story');
+        if (!gating.allowed) {
+            return NextResponse.json({ error: gating.message }, { status: 403 });
         }
 
         const story = await prisma.story.create({
@@ -38,6 +46,15 @@ export async function POST(req: NextRequest) {
                 story_length_option: length || 'long',
             },
         })
+
+        // Increment count
+        await prisma.user.update({
+            where: { id: user.id },
+            data: {
+                total_stories_ever: { increment: 1 },
+                stories_this_month: { increment: 1 }
+            }
+        });
 
         return NextResponse.json({ storyId: story.id })
     } catch (error) {

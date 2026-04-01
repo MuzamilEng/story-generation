@@ -25,6 +25,21 @@ import {
   PlanDetails,
 } from "../../../types/settings";
 
+// ── Extra icons for V2 features ───────────────────────────────────────────────
+const SoundwaveIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M2 10v4M6 6v12M10 3v18M14 6v12M18 10v4M22 12" />
+  </svg>
+);
+
+const HeadphonesIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M3 18v-6a9 9 0 0 1 18 0v6" />
+    <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z" />
+  </svg>
+);
+
+
 // Settings Section Header Component
 interface SectionHeaderProps {
   icon: React.ReactNode;
@@ -209,6 +224,46 @@ const VoiceModelCard: React.FC<VoiceModelProps> = ({
         Delete Voice Model
       </button>
     </div>
+  </div>
+);
+
+// Soundscape Selector Component
+const SOUNDSCAPES = [
+  { value: 'none', label: 'None', emoji: '🔇', desc: 'Story audio only' },
+  { value: 'ocean', label: 'Ocean Waves', emoji: '🌊', desc: 'Gentle coastal rhythm' },
+  { value: 'river', label: 'Running River', emoji: '💧', desc: 'Flowing water ambience' },
+  { value: 'rain', label: 'Soft Rain', emoji: '🌧️', desc: 'Steady, calming rainfall' },
+  { value: 'uplifting', label: 'Uplifting Music', emoji: '🎵', desc: 'Soft instrumental backing' },
+] as const;
+
+interface SoundscapeSelectorProps {
+  current: string;
+  disabled?: boolean;
+  onChange: (val: string) => void;
+}
+
+const SoundscapeSelector: React.FC<SoundscapeSelectorProps> = ({ current, disabled, onChange }) => (
+  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', padding: '4px 0' }}>
+    {SOUNDSCAPES.map(s => (
+      <button
+        key={s.value}
+        onClick={() => !disabled && onChange(s.value)}
+        disabled={disabled}
+        style={{
+          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px',
+          padding: '10px 14px', borderRadius: '10px', cursor: disabled ? 'not-allowed' : 'pointer',
+          border: current === s.value ? '2px solid #c9a84c' : '2px solid rgba(255,255,255,0.08)',
+          background: current === s.value ? 'rgba(201,168,76,0.1)' : 'rgba(255,255,255,0.03)',
+          color: current === s.value ? '#c9a84c' : '#8a8476',
+          transition: 'all 0.15s', fontSize: '0.78rem', minWidth: '80px',
+          opacity: disabled ? 0.45 : 1,
+        }}
+        title={s.desc}
+      >
+        <span style={{ fontSize: '1.4rem' }}>{s.emoji}</span>
+        <span style={{ fontWeight: current === s.value ? 600 : 400 }}>{s.label}</span>
+      </button>
+    ))}
   </div>
 );
 
@@ -570,6 +625,76 @@ const AccountSettings: React.FC = () => {
                 handleNotificationChange("productUpdates", val)
               }
             />
+          </div>
+
+          {/* Soundscape Section — Manifester + Amplifier */}
+          <div className={styles.settingsSection}>
+            <SectionHeader
+              icon={<SoundwaveIcon />}
+              title="Background Soundscape"
+              subtitle="Ambient audio mixed softly beneath your story at −18 dB"
+            />
+            {userData.plan === 'free' || userData.plan === 'activator' ? (
+              <div style={{ padding: '16px 24px', color: '#5a5650', fontSize: '0.88rem' }}>
+                🔒 Soundscapes are available on Manifester and Amplifier plans.{' '}
+                <Link href="/user/manage-subscription" style={{ color: '#c9a84c', textDecoration: 'underline' }}>Upgrade →</Link>
+              </div>
+            ) : (
+              <div style={{ padding: '16px 24px' }}>
+                <p style={{ fontSize: '0.83rem', color: '#6a6460', marginBottom: '14px' }}>
+                  Your chosen soundscape is mixed into every new audio file you generate.
+                  Two versions are stored: story-only and with soundscape.
+                </p>
+                <SoundscapeSelector
+                  current={userData.soundscape ?? 'none'}
+                  onChange={(val) => updateSettingsMutation.mutate({ soundscape: val })}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Binaural Beats Section — Amplifier only */}
+          <div className={styles.settingsSection}>
+            <SectionHeader
+              icon={<HeadphonesIcon />}
+              title="Binaural Beats"
+              subtitle="Theta frequency (4–8 Hz) layered softly under the full audio at −18 dB"
+              iconColor="gold"
+            />
+            {userData.plan !== 'amplifier' ? (
+              <div style={{ padding: '16px 24px', color: '#5a5650', fontSize: '0.88rem' }}>
+                🔒 Binaural beats are an Amplifier exclusive.{' '}
+                <Link href="/user/manage-subscription" style={{ color: '#c9a84c', textDecoration: 'underline' }}>Upgrade →</Link>
+              </div>
+            ) : (
+              <>
+                <ToggleRow
+                  label="Enable Binaural Beats"
+                  subtitle="Theta waves promote deep focus and receptivity during listening"
+                  checked={userData.binaural_enabled ?? false}
+                  onChange={(val) => updateSettingsMutation.mutate({ binaural_enabled: val })}
+                />
+                {userData.binaural_enabled && (
+                  <div style={{
+                    margin: '0 24px 16px',
+                    padding: '12px 16px',
+                    background: 'rgba(201,168,76,0.06)',
+                    border: '1px solid rgba(201,168,76,0.18)',
+                    borderRadius: '10px',
+                    fontSize: '0.84rem',
+                    color: '#8a8476',
+                    display: 'flex',
+                    gap: '10px',
+                    alignItems: 'flex-start',
+                  }}>
+                    <span style={{ fontSize: '1.1rem' }}>🎧</span>
+                    <span>Best experienced with <strong style={{ color: '#c9a84c' }}>headphones</strong>.
+                      Binaural beats require separate audio channels to create the effect.
+                      Speaker playback will not produce the theta frequency result.</span>
+                  </div>
+                )}
+              </>
+            )}
           </div>
 
           {/* Plan Summary Section */}

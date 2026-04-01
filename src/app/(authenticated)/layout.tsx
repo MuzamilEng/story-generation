@@ -13,6 +13,12 @@ export default function UserLayout({
   const pathname = usePathname();
   const { data: session } = useSession();
 
+  // Redirect Admin users to the Admin Dashboard
+  if (session?.user?.role === "ADMIN" && !pathname.startsWith("/admin")) {
+    window.location.href = "/admin";
+    return null;
+  }
+
   return (
     <div
       style={{

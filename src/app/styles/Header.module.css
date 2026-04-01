@@ -1,4 +1,4 @@
-:root {
+.topbar {
     --bg: #f4f1eb;
     --surface: #fff;
     --ink: #1c1a16;
@@ -13,9 +13,7 @@
     --border: #e4dfd5;
     --red: #c0392b;
     --red-light: #fdf0ef;
-}
 
-.topbar {
     display: flex;
     flex-direction: column;
     background: var(--surface);
@@ -24,13 +22,66 @@
     position: sticky;
     top: 0;
     z-index: 1000;
+    transition: all 0.3s ease;
+}
+
+.topbar.scrolled {
+    background: rgba(255, 255, 255, 0.88);
+    backdrop-filter: blur(20px);
+    padding: 0.2rem 0;
+}
+
+.topbar.public {
+    background: transparent;
+    border-bottom-color: transparent;
+}
+
+.topbar.public.scrolled {
+    background: rgba(8, 7, 15, 0.88);
+    backdrop-filter: blur(20px);
+    border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
+/* Specific colors for public/dark header */
+.topbar.public .logo {
+    color: #fff;
+}
+
+.topbar.public .navLink {
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.topbar.public .navLink:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.topbar.public .navLink.active {
+    color: var(--accent-mid);
+}
+
+.navCta {
+    font-size: 0.78rem;
+    background: #fff;
+    color: #08070f;
+    padding: 0.52rem 1.2rem;
+    border-radius: 7px;
+    text-decoration: none;
+    font-weight: 500;
+    transition: all 0.2s;
+    letter-spacing: -0.01em;
+}
+
+.navCta:hover {
+    background: rgba(255, 255, 255, 0.88);
+    transform: translateY(-1px);
 }
 
 .topbarContent {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0.75rem 1.75rem;
+    padding: 0.75rem 2rem;
     gap: 1rem;
 }
 

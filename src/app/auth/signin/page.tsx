@@ -152,7 +152,15 @@ const SignIn: React.FC = () => {
         setShowAlert(true);
         setIsLoading(false);
       } else {
-        router.push(nextUrl);
+        // Fetch session to determine role and redirect accordingly
+        const res = await fetch('/api/auth/session');
+        const session = await res.json();
+
+        if (session?.user?.role === 'ADMIN') {
+          router.push('/admin');
+        } else {
+          router.push(nextUrl);
+        }
       }
     } catch (error) {
       setShowAlert(true);

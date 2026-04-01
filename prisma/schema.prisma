@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,60 +7,20 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Enums
-enum UserRole {
-  USER
-  MODERATOR
-  ADMIN
-}
-
-enum AuthProvider {
-  email
-  google
-  apple
-}
-
-enum Plan {
-  free
-  single
-  standard
-  power
-}
-
-enum StoryStatus {
-  draft
-  approved
-  audio_ready
-}
-
-enum VersionSource {
-  original
-  edited
-  regenerated
-}
-
-enum EventType {
-  play
-  download
-  sample_play
-}
-
-// NextAuth.js Models
 model Account {
   id                String  @id @default(cuid())
   userId            String
   type              String
   provider          String
   providerAccountId String
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
+  refresh_token     String?
+  access_token      String?
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String? @db.Text
+  id_token          String?
   session_state     String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
 }
@@ -105,46 +62,54 @@ model User {
   lastLogin               DateTime?      @map("last_login")
   createdAt               DateTime       @default(now()) @map("created_at")
   updatedAt               DateTime       @updatedAt @map("updated_at")
-
-  // Relations
-  accounts        Account[]
-  sessions        Session[]
-  stories         Story[]
-  playEvents      PlayEvent[]
+  stripeCurrentPeriodEnd  DateTime?      @map("stripe_current_period_end")
+  stripeCustomerId        String?        @unique @map("stripe_customer_id")
+  stripePriceId           String?        @map("stripe_price_id")
+  stripeSubscriptionId    String?        @unique @map("stripe_subscription_id")
+  stripeCancelAtPeriodEnd Boolean        @default(false) @map("stripe_cancel_at_period_end")
+  binaural_enabled        Boolean        @default(false) @map("binaural_enabled")
+  soundscape              Soundscape     @default(none) @map("soundscape")
+  accounts                Account[]
+  sessions                Session[]
+  playEvents              PlayEvent[]
+  stories                 Story[]
+  betaCodes               UserBetaCode[]
 
   @@index([email])
   @@map("users")
 }
 
 model Story {
-  id                      String         @id @default(cuid())
-  userId                  String         @map("user_id")
-  title                   String         @db.VarChar(200)
-  status                  StoryStatus
-  goal_intake_json        Json           @map("goal_intake_json")
-  story_text_draft        String?        @db.Text @map("story_text_draft")
-  story_text_approved     String?        @db.Text @map("story_text_approved")
-  word_count              Int?           @map("word_count")
-  audio_url               String?        @db.Text @map("audio_url")
-  audio_r2_key            String?        @db.Text @map("audio_r2_key")
-  audio_duration_secs     Int?           @map("audio_duration_secs")
-  audio_file_size_bytes   BigInt?        @map("audio_file_size_bytes")
-  audio_version           Int            @default(0) @map("audio_version")
-  version                 Int            @default(1)
-  elevenlabs_history_id   String?        @db.VarChar(100) @map("elevenlabs_history_id")
-  play_count              Int            @default(0) @map("play_count")
-  download_count          Int            @default(0) @map("download_count")
-  createdAt               DateTime       @default(now()) @map("created_at")
-  updatedAt               DateTime       @updatedAt @map("updated_at")
-  approved_at             DateTime?      @map("approved_at")
-  audio_generated_at      DateTime?      @map("audio_generated_at")
-  story_length_option     String?        @db.VarChar(20) @map("story_length_option")
-
-  // Relations
-  user            User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
-  versions        StoryVersion[]
-  audioVersions   StoryAudioVersion[]
-  playEvents      PlayEvent[]
+  id                    String              @id @default(cuid())
+  userId                String              @map("user_id")
+  title                 String              @db.VarChar(200)
+  status                StoryStatus
+  goal_intake_json      Json                @map("goal_intake_json")
+  story_text_draft      String?             @map("story_text_draft")
+  story_text_approved   String?             @map("story_text_approved")
+  word_count            Int?                @map("word_count")
+  audio_url             String?             @map("audio_url")
+  audio_r2_key          String?             @map("audio_r2_key")
+  audio_duration_secs   Int?                @map("audio_duration_secs")
+  audio_file_size_bytes BigInt?             @map("audio_file_size_bytes")
+  audio_version         Int                 @default(0) @map("audio_version")
+  version               Int                 @default(1)
+  elevenlabs_history_id String?             @map("elevenlabs_history_id") @db.VarChar(100)
+  play_count            Int                 @default(0) @map("play_count")
+  download_count        Int                 @default(0) @map("download_count")
+  createdAt             DateTime            @default(now()) @map("created_at")
+  updatedAt             DateTime            @updatedAt @map("updated_at")
+  approved_at           DateTime?           @map("approved_at")
+  audio_generated_at    DateTime?           @map("audio_generated_at")
+  story_length_option   String?             @map("story_length_option") @db.VarChar(20)
+  affirmations_json     Json?               @map("affirmations_json")
+  binaural_audio_key    String?             @map("binaural_audio_key")
+  combined_audio_key    String?             @map("combined_audio_key")
+  soundscape_audio_key  String?             @map("soundscape_audio_key")
+  playEvents            PlayEvent[]
+  user                  User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  audioVersions         StoryAudioVersion[]
+  versions              StoryVersion[]
 
   @@index([userId])
   @@index([status])
@@ -153,18 +118,16 @@ model Story {
 }
 
 model StoryVersion {
-  id            String         @id @default(cuid())
-  storyId       String         @map("story_id")
-  version       Int
-  title         String         @db.Text
-  body          String         @db.Text
-  word_count    Int            @map("word_count")
-  source        VersionSource
-  regen_prompt  String?        @db.Text @map("regen_prompt")
-  created_at    DateTime       @default(now()) @map("created_at")
-
-  // Relations
-  story Story @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  id           String        @id @default(cuid())
+  storyId      String        @map("story_id")
+  version      Int
+  title        String
+  body         String
+  word_count   Int           @map("word_count")
+  source       VersionSource
+  regen_prompt String?       @map("regen_prompt")
+  created_at   DateTime      @default(now()) @map("created_at")
+  story        Story         @relation(fields: [storyId], references: [id], onDelete: Cascade)
 
   @@unique([storyId, version])
   @@index([storyId])
@@ -176,13 +139,11 @@ model StoryAudioVersion {
   id            String   @id @default(cuid())
   storyId       String   @map("story_id")
   audio_version Int      @map("audio_version")
-  r2_key        String   @db.Text @map("r2_key")
+  r2_key        String   @map("r2_key")
   duration_s    Int?     @map("duration_s")
   size_bytes    Int?     @map("size_bytes")
   created_at    DateTime @default(now()) @map("created_at")
-
-  // Relations
-  story Story @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  story         Story    @relation(fields: [storyId], references: [id], onDelete: Cascade)
 
   @@unique([storyId, audio_version])
   @@index([storyId])
@@ -197,10 +158,8 @@ model PlayEvent {
   event_type    EventType @map("event_type")
   duration_secs Int?      @map("duration_secs")
   created_at    DateTime  @default(now()) @map("created_at")
-
-  // Relations
-  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  story Story @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  story         Story     @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([storyId])
@@ -210,15 +169,15 @@ model PlayEvent {
 }
 
 model PlanLimit {
-  id                      String   @id @default(cuid())
-  plan                    Plan     @unique
-  max_library_stories     Int      @map("max_library_stories")
-  stories_per_month       Int?     @map("stories_per_month")
-  audio_mins_per_month    Int?     @map("audio_mins_per_month")
-  audio_length_secs       Int      @map("audio_length_secs")
-  audio_length_desc       String   @map("audio_length_desc")
-  created_at              DateTime @default(now()) @map("created_at")
-  updated_at              DateTime @updatedAt @map("updated_at")
+  id                   String   @id @default(cuid())
+  plan                 Plan     @unique
+  max_library_stories  Int      @map("max_library_stories")
+  stories_per_month    Int?     @map("stories_per_month")
+  audio_mins_per_month Int?     @map("audio_mins_per_month")
+  audio_length_secs    Int      @map("audio_length_secs")
+  audio_length_desc    String   @map("audio_length_desc")
+  created_at           DateTime @default(now()) @map("created_at")
+  updated_at           DateTime @updatedAt @map("updated_at")
 
   @@map("plan_limits")
 }
@@ -229,4 +188,91 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+model BetaCode {
+  id            String         @id @default(cuid())
+  code          String         @unique
+  type          String         @default("amplifier_2_months")
+  max_uses      Int            @default(1) @map("max_uses")
+  current_uses  Int            @default(0) @map("current_uses")
+  expires_at    DateTime?      @map("expires_at")
+  isActive      Boolean        @default(true) @map("is_active")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+  userBetaCodes UserBetaCode[]
+
+  @@map("beta_codes")
+}
+
+model UserBetaCode {
+  id          String    @id @default(cuid())
+  userId      String    @map("user_id")
+  codeId      String    @map("code_id")
+  activatedAt DateTime  @default(now()) @map("activated_at")
+  expiresAt   DateTime? @map("expires_at")
+  betaCode    BetaCode  @relation(fields: [codeId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, codeId])
+  @@index([userId])
+  @@index([codeId])
+  @@map("user_beta_codes")
+}
+
+model SystemAudio {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  r2_key      String   @map("r2_key")
+  label       String
+  duration_s  Int?     @map("duration_s")
+  uploaded_at DateTime @default(now()) @map("uploaded_at")
+  updated_at  DateTime @updatedAt @map("updated_at")
+
+  @@map("system_audio")
+}
+
+enum UserRole {
+  USER
+  MODERATOR
+  ADMIN
+}
+
+enum Soundscape {
+  none
+  ocean
+  river
+  rain
+  uplifting
+}
+
+enum AuthProvider {
+  email
+  google
+  apple
+}
+
+enum Plan {
+  free
+  activator
+  manifester
+  amplifier
+}
+
+enum StoryStatus {
+  draft
+  approved
+  audio_ready
+}
+
+enum VersionSource {
+  original
+  edited
+  regenerated
+}
+
+enum EventType {
+  play
+  download
+  sample_play
 }

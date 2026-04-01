@@ -1,12 +1,15 @@
 import { DefaultSession, DefaultUser } from "next-auth"
-import { UserRole } from "@/lib/roles";
 
 declare module "next-auth" {
   interface Session {
     user: {
-      id: string;
-      role: string;
+      id?: string;
+      role?: string;
       plan?: string;
+      stripeCurrentPeriodEnd?: string | Date;
+      stripeCustomerId?: string;
+      stripeSubscriptionId?: string;
+      isBetaUser?: boolean;
     } & DefaultSession["user"];
   }
 
@@ -14,13 +17,22 @@ declare module "next-auth" {
     id: string;
     role: string;
     plan?: string;
+    stripeCurrentPeriodEnd?: string | Date | null;
+    stripeCustomerId?: string | null;
+    stripeSubscriptionId?: string | null;
+    isBetaUser?: boolean;
   }
 }
 
 declare module "next-auth/jwt" {
   interface JWT {
-    id: string;
-    role: string;
+    id?: string;
+    role?: string;
     plan?: string;
+    stripeCurrentPeriodEnd?: string;
+    stripeCustomerId?: string;
+    stripeSubscriptionId?: string;
+    lastDbRefresh?: number;
+    isBetaUser?: boolean;
   }
 }

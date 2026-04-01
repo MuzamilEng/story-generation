@@ -38,14 +38,13 @@ const TipRow: React.FC<TipRowProps> = ({ icon, title, description }) => (
     </div>
 );
 
-// Waveform Component
 interface WaveformProps {
     isRecording: boolean;
     isStopped: boolean;
     duration: number;
 }
 
-const Waveform: React.FC<WaveformProps> = ({ isRecording, isStopped, duration }) => {
+const Waveform: React.FC<WaveformProps & { volume?: number }> = ({ isRecording, isStopped, volume = 0 }) => {
     const [bars, setBars] = useState<number[]>([]);
     const waveformRef = useRef<HTMLDivElement>(null);
     const NUM_BARS = 60;
@@ -62,17 +61,18 @@ const Waveform: React.FC<WaveformProps> = ({ isRecording, isStopped, duration })
         const interval = setInterval(() => {
             setBars(prev => {
                 const newBars = [...prev];
-                // Shift left and add new random height
+                // Shift left and add new magnitude height based on volume
                 for (let i = 0; i < NUM_BARS - 1; i++) {
                     newBars[i] = newBars[i + 1];
                 }
-                newBars[NUM_BARS - 1] = Math.random() * 42 + 4;
+                const magnitude = isRecording ? (volume * 80) + 4 : 4;
+                newBars[NUM_BARS - 1] = magnitude;
                 return newBars;
             });
-        }, 80);
+        }, 50);
 
         return () => clearInterval(interval);
-    }, [isRecording]);
+    }, [isRecording, volume]);
 
     return (
         <div className={styles.waveformWrap} ref={waveformRef}>
@@ -212,6 +212,8 @@ const VoiceRecordingContent: React.FC = () => {
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const streamRef = useRef<MediaStream | null>(null);
     const audioChunksRef = useRef<Blob[]>([]);
+    const analyzerRef = useRef<AnalyserNode | null>(null);
+    const [audioVolume, setAudioVolume] = useState<number>(0);
 
     useEffect(() => {
         return () => {
@@ -292,14 +294,35 @@ const VoiceRecordingContent: React.FC = () => {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             streamRef.current = stream;
 
+            // ANALYZER FOR VISUAL FEEDBACK
+            const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+            const source = audioCtx.createMediaStreamSource(stream);
+            const analyzer = audioCtx.createAnalyser();
+            analyzer.fftSize = 256;
+            source.connect(analyzer);
+            analyzerRef.current = analyzer;
+
+            const bufferLength = analyzer.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+
+            const updateVolume = () => {
+                if (recState === 'recording' || mediaRecorderRef.current?.state === 'recording') {
+                    analyzer.getByteFrequencyData(dataArray);
+                    const average = dataArray.reduce((p, c) => p + c, 0) / bufferLength;
+                    setAudioVolume(average / 255); // Normalized 
+                    requestAnimationFrame(updateVolume);
+                }
+            };
+            updateVolume();
+
             // Detect best supported mime type (Safari prefers mp4/aac, others prefer webm)
-            const supportedType = [
+            const types = [
                 'audio/webm;codecs=opus',
                 'audio/webm',
                 'audio/mp4',
                 'audio/aac',
-            ].find(type => MediaRecorder.isTypeSupported(type)) || '';
-
+            ];
+            const supportedType = types.find(type => MediaRecorder.isTypeSupported(type)) || '';
             setMimeType(supportedType);
 
             const options = supportedType ? { mimeType: supportedType } : {};
@@ -308,7 +331,7 @@ const VoiceRecordingContent: React.FC = () => {
             audioChunksRef.current = [];
 
             mediaRecorder.ondataavailable = (event) => {
-                if (event.data.size > 0) {
+                if (event.data && event.data.size > 0) {
                     audioChunksRef.current.push(event.data);
                 }
             };
@@ -318,14 +341,21 @@ const VoiceRecordingContent: React.FC = () => {
                 const url = URL.createObjectURL(blob);
                 setAudioBlob(blob);
                 setAudioUrl(url);
+                setRecordedDuration(seconds);
+                audioCtx.close();
             };
 
-            mediaRecorder.start();
+            // Using a timeslice (500ms) ensures chunks are periodically captured 
+            // and helps prevent data loss in some environments.
+            mediaRecorder.start(500);
             setRecState('recording');
             setSeconds(0);
-        } catch (err) {
+        } catch (err: any) {
             console.error('Error accessing microphone:', err);
-            alert('Cannot access microphone. Please ensure you have given permission in your browser.');
+            const msg = err.name === 'NotAllowedError'
+                ? 'Microphone access denied. Please enable microphone permissions in your browser settings.'
+                : 'Cannot access microphone. Please ensure your device has a working microphone.';
+            alert(msg);
         }
     };
 
@@ -365,29 +395,47 @@ const VoiceRecordingContent: React.FC = () => {
         if (!audioBlob) return;
         setIsSubmitting(true);
         try {
-            const formData = new FormData();
-
-            // Safari fix: use m4a for mp4/aac types, else webm
+            // ── Step 1: Clone voice (if not already cloned) ────────────────────
+            const cloneFormData = new FormData();
             const extension = mimeType.includes('mp4') || mimeType.includes('aac') ? 'm4a' : 'webm';
-            formData.append('audio', audioBlob, `sample.${extension}`);
-
+            cloneFormData.append('audio', audioBlob, `sample.${extension}`);
             if (storyId) {
-                formData.append('storyId', storyId);
+                cloneFormData.append('storyId', storyId);
             }
 
-            const res = await fetch('/api/user/audio/generate', {
+            // Call the legacy generate endpoint just for voice cloning + single-segment
+            // audio as a fallback. Then we'll call assemble for the full V2 pipeline.
+            const cloneRes = await fetch('/api/user/audio/generate', {
                 method: 'POST',
-                body: formData
+                body: cloneFormData
             });
-            const data = await res.json();
-            if (data.success) {
-                router.push(`/user/audio-download?storyId=${data.storyId}`);
+            const cloneData = await cloneRes.json();
+
+            if (!cloneData.success && !cloneData.storyId) {
+                alert('Voice cloning failed: ' + (cloneData.error || 'Unknown error'));
+                return;
+            }
+
+            const resolvedStoryId = cloneData.storyId || storyId;
+
+            // ── Step 2: V2 Assembly — Induction → Affirmations → Story → Close ─
+            const assembleRes = await fetch('/api/user/audio/assemble', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ storyId: resolvedStoryId }),
+            });
+            const assembleData = await assembleRes.json();
+
+            if (assembleData.success) {
+                router.push(`/user/audio-download?storyId=${resolvedStoryId}`);
             } else {
-                alert('Audio generation failed: ' + (data.error || 'Unknown error'));
+                // Assembly failed gracefully — fall back to the cloned audio already in DB
+                console.warn('V2 assembly failed, using single-segment audio:', assembleData.error);
+                router.push(`/user/audio-download?storyId=${resolvedStoryId}`);
             }
         } catch (e) {
             console.error(e);
-            alert('Failed to request audio generation.');
+            alert('Failed to generate audio.');
         } finally {
             setIsSubmitting(false);
         }
@@ -498,6 +546,7 @@ const VoiceRecordingContent: React.FC = () => {
                             isRecording={recState === 'recording'}
                             isStopped={recState === 'stopped'}
                             duration={seconds}
+                            volume={audioVolume}
                         />
 
                         {/* CONTROLS */}

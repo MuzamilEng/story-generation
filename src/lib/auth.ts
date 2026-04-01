@@ -102,17 +102,25 @@ export const authOptions: NextAuthOptions = {
         if (shouldRefresh) {
           try {
             const dbUser = await prisma.user.findUnique({
-              where: { email: token.email as string }
-            })
+              where: { email: token.email as string },
+              include: {
+                betaCodes: {
+                  where: { expiresAt: { gt: new Date() } },
+                  take: 1
+                }
+              }
+            } as any)
 
             if (dbUser) {
+              const hasActiveBeta = (dbUser as any).betaCodes && (dbUser as any).betaCodes.length > 0;
               token.role = dbUser.role || 'USER'
               token.id = dbUser.id
-              token.plan = dbUser.plan || 'free'
+              token.plan = hasActiveBeta ? 'amplifier' : (dbUser.plan || 'free')
+              token.isBetaUser = hasActiveBeta;
+              token.stripeCurrentPeriodEnd = dbUser.stripeCurrentPeriodEnd ? dbUser.stripeCurrentPeriodEnd.toISOString() : undefined
+              token.stripeSubscriptionId = dbUser.stripeSubscriptionId || undefined
               token.lastDbRefresh = now
             } else {
-              // User record was deleted — clear the id so API routes return a
-              // proper 401 ("account not found") rather than a cryptic 500.
               token.id = undefined
             }
           } catch (error) {
@@ -133,9 +141,12 @@ export const authOptions: NextAuthOptions = {
         session.user.plan = (token.plan as string) || 'free'
         session.user.email = token.email as string
         session.user.name = token.name as string
+        session.user.stripeCurrentPeriodEnd = token.stripeCurrentPeriodEnd as string
+        session.user.stripeSubscriptionId = token.stripeSubscriptionId as string
+        session.user.isBetaUser = token.isBetaUser as boolean
       }
 
-      console.log('[AUTH] Session created for:', session.user?.email, 'Role:', session.user?.role, 'Plan:', session.user?.plan)
+      console.log('[AUTH] Session created for:', session.user?.email, 'Role:', session.user?.role, 'Plan:', session.user?.plan, 'Beta:', session.user?.isBetaUser)
       return session
     },
 

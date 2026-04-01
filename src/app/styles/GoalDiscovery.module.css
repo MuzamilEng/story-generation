@@ -1,4 +1,4 @@
-:root {
+.container {
     --bg: #f4f1eb;
     --surface: #ffffff;
     --ink: #1c1a16;
@@ -11,9 +11,7 @@
     --gold-bg: #fdf6e3;
     --gold-border: #e8d08a;
     --border: #e4dfd5;
-}
 
-.container {
     height: 100%;
     width: 100%;
     background: var(--bg);

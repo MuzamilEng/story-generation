@@ -36,6 +36,13 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'User not found' }, { status: 404 });
         }
 
+        // Plan Gating Check
+        const { checkPlanGating } = await import('@/lib/plan-gating');
+        const gating = await checkPlanGating(user.id, 'generate_audio');
+        if (!gating.allowed) {
+            return NextResponse.json({ error: gating.message }, { status: 403 });
+        }
+
         // If no storyId passed, find the most recent draft/approved story
         if (!storyId) {
             const recentStory = await prisma.story.findFirst({
@@ -83,6 +90,18 @@ export async function POST(req: NextRequest) {
             if (!cloneRes.ok) {
                 const errText = await cloneRes.text();
                 console.error("ElevenLabs Voice Add Error:", errText);
+
+                // Detect ThirteenLabs limit reached specifically
+                try {
+                    const errJson = JSON.parse(errText);
+                    if (errJson.detail?.status === 'voice_limit_reached') {
+                        return NextResponse.json({
+                            error: 'Voice capacity reached (30/30). Please upgrade your ElevenLabs plan or delete unused voices.',
+                            code: 'VOICE_LIMIT_REACHED'
+                        }, { status: 403 });
+                    }
+                } catch (e) { }
+
                 return NextResponse.json({ error: 'Failed to clone voice' }, { status: 500 });
             }
 
@@ -148,6 +167,15 @@ export async function POST(req: NextRequest) {
                 audio_duration_secs: durationSecs,
                 elevenlabs_history_id: historyId,
                 audio_generated_at: new Date()
+            }
+        });
+
+        // Update User Usage Metrics
+        await prisma.user.update({
+            where: { id: user.id },
+            data: {
+                audio_mins_this_month: { increment: durationSecs / 60 },
+                total_audio_plays: { increment: 1 } // Counting first generation as a play/intent
             }
         });
 

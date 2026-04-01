@@ -1,4 +1,4 @@
-:root {
+.container {
     --bg: #f4f1eb;
     --surface: #fff;
     --ink: #1c1a16;
@@ -11,9 +11,7 @@
     --gold-bg: #fdf6e3;
     --gold-border: #e8d08a;
     --border: #e4dfd5;
-}
 
-.container {
     height: 100%;
     flex: 1;
     overflow-y: auto;
@@ -270,7 +268,51 @@
 
 .playerMeta {
     font-size: 0.75rem;
-    color: rgba(255, 255, 255, 0.5);
+    color: rgba(255, 255, 255, 0.7);
+    margin-bottom: 0.1rem;
+}
+
+.playerMetaSub {
+    font-size: 0.65rem;
+    color: rgba(255, 255, 255, 0.45);
+    font-style: italic;
+    line-height: 1.4;
+}
+
+/* LAYER CONTROLS (V2) */
+.layerControls {
+    display: flex;
+    gap: 0.6rem;
+    justify-content: center;
+    margin-bottom: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.layerBtn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.45rem 0.8rem;
+    font-size: 0.7rem;
+    color: var(--ink-muted);
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.layerBtn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-light);
+}
+
+.layerBtn.active {
+    background: var(--accent-light);
+    border-color: var(--accent);
+    color: var(--accent);
+    font-weight: 500;
 }
 
 /* AUDIO WAVEFORM VISUAL */

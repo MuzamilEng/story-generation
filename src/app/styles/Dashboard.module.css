@@ -1,4 +1,4 @@
-:root {
+.container {
     --bg: #f4f1eb;
     --surface: #fff;
     --ink: #1c1a16;
@@ -13,9 +13,7 @@
     --border: #e4dfd5;
     --red: #c0392b;
     --red-light: #fdf0ef;
-}
 
-.container {
     height: 100%;
     flex: 1;
     overflow-y: auto;

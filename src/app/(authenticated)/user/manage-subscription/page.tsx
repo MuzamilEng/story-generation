@@ -1,5 +1,5 @@
 'use client'
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { format } from 'date-fns';
@@ -27,10 +27,12 @@ const CurrentPlanBanner: React.FC<CurrentPlanBannerProps> = ({ plan }) => (
             <div className={styles.cbPrice}>{plan.price}</div>
         </div>
         <div className={styles.cbRight}>
-            <div className={styles.cbRenewal}>Next renewal: {format(plan.nextRenewal, 'MMMM d, yyyy')}</div>
+            {plan.nextRenewal && (
+                <div className={styles.cbRenewal}>Next renewal: {format(plan.nextRenewal, 'MMMM d, yyyy')}</div>
+            )}
             <div className={styles.cbStatus}>
                 <span className={styles.cbDot} />
-                {plan.status === 'active' ? 'Active' : plan.status}
+                {plan.status === 'active' ? 'Active' : (plan.status === 'canceling' ? 'Canceling' : plan.status)}
             </div>
         </div>
     </div>
@@ -114,6 +116,7 @@ const PlanCard: React.FC<PlanCardProps> = ({ plan, onSelect }) => {
 
             <div className={styles.planName}>{plan.name}</div>
             <div className={styles.planPrice}>
+                {plan.priceOriginal && <span style={{ textDecoration: 'line-through', opacity: 0.5, fontSize: '0.65em', marginRight: '6px' }}>{plan.priceOriginal}</span>}
                 {plan.price} <span className={styles.planPriceSub}>{plan.priceSub}</span>
             </div>
 
@@ -174,7 +177,7 @@ const BillingHistory: React.FC<BillingHistoryProps> = ({ records, onReceiptClick
 
 // Cancel Section Component
 interface CancelSectionProps {
-    nextRenewal: Date;
+    nextRenewal?: Date | null;
     onCancel: () => void;
 }
 
@@ -184,7 +187,7 @@ const CancelSection: React.FC<CancelSectionProps> = ({ nextRenewal, onCancel }) 
             <div>
                 <div className={styles.cancelTitle}>Cancel subscription</div>
                 <div className={styles.cancelSub}>
-                    You can cancel at any time with one click. Your plan stays active until the end of your current billing period ({format(nextRenewal, 'MMMM d, yyyy')}). Your stories and audio files remain accessible until then.
+                    You can cancel at any time with one click. {nextRenewal ? `Your plan stays active until the end of your current billing period (${format(nextRenewal, 'MMMM d, yyyy')}). ` : ''}Your stories and audio files remain accessible until then.
                 </div>
             </div>
             <button className={styles.cancelBtn} onClick={onCancel}>
@@ -212,12 +215,70 @@ const Toast: React.FC<ToastProps> = ({ message, visible }) => (
 // Main Component
 const Subscription: React.FC = () => {
     const [toast, setToast] = useState({ message: '', visible: false });
+    const [loading, setLoading] = useState(true);
+    const [actionLoading, setActionLoading] = useState(false);
+    const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
+
+    const [subStatus, setSubStatus] = useState<any>(null);
+    const [billingRecords, setBillingRecords] = useState<BillingRecord[]>([]);
+
+    useEffect(() => {
+        // Handle URL parameters for success/canceled
+        const searchParams = new URLSearchParams(window.location.search);
+        if (searchParams.get('success')) {
+            showToast('✓ Subscription updated successfully!');
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+        if (searchParams.get('canceled')) {
+            showToast('Checkout canceled.');
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+
+        const fetchData = async () => {
+            try {
+                const [statusRes, historyRes] = await Promise.all([
+                    fetch('/api/user/subscription/status'),
+                    fetch('/api/user/subscription/history')
+                ]);
+
+                if (statusRes.ok) {
+                    setSubStatus(await statusRes.json());
+                }
+                if (historyRes.ok) {
+                    const hData = await historyRes.json();
+                    setBillingRecords(hData.map((record: any) => ({
+                        ...record,
+                        date: new Date(record.date)
+                    })));
+                }
+            } catch (err) {
+                console.error(err);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchData();
+    }, []);
+
+    const showToast = (message: string) => {
+        setToast({ message, visible: true });
+        setTimeout(() => setToast({ message: '', visible: false }), 3500);
+    };
+
+    const currentPlanId = subStatus?.plan || 'free';
+    const planNamesMap: Record<string, string> = {
+        'free': 'Explorer',
+        'activator': 'Activator',
+        'manifester': 'Manifester',
+        'amplifier': 'Amplifier'
+    };
 
     const currentPlan: CurrentPlan = {
-        name: 'Standard',
-        price: '$9.99 per month · billed monthly',
-        nextRenewal: new Date(2026, 3, 7),
-        status: 'active'
+        name: planNamesMap[currentPlanId] || 'Free',
+        price: currentPlanId === 'free' ? '$0 forever' : (currentPlanId === 'activator' ? '$9.99 one-time' : (currentPlanId === 'manifester' ? '$19.99/month' : '$39.99/month')),
+        nextRenewal: subStatus?.stripeCurrentPeriodEnd ? new Date(subStatus.stripeCurrentPeriodEnd * 1000) : null,
+        status: subStatus?.stripeSubscriptionId && subStatus?.stripeCancelAtPeriodEnd ? 'canceling' : (subStatus?.stripeSubscriptionId ? 'active' : 'active')
     };
 
     const usageMetrics: UsageMetric[] = [
@@ -228,117 +289,160 @@ const Subscription: React.FC = () => {
 
     const plans: Plan[] = [
         {
-            id: 'free',
-            name: 'Free',
+            id: 'free' as any,
+            name: 'Explorer',
             price: '$0',
             priceSub: 'forever',
-            buttonText: 'Downgrade to Free',
-            buttonStyle: 'downgrade',
+            buttonText: currentPlanId === 'free' ? 'Your Current Plan' : 'Downgrade to Free',
+            buttonStyle: currentPlanId === 'free' ? 'current' : 'downgrade',
+            isCurrent: currentPlanId === 'free',
             features: [
                 { text: 'Unlimited story creation', included: true },
-                { text: '2-minute voice sample', included: true },
-                { text: 'No full audio', included: false },
-                { text: '1 story max', included: false }
+                { text: 'Save up to 3 stories', included: true },
+                { text: 'Free 2-min voice sample', included: true },
+                { text: 'Full audio generation', included: false }
             ]
         },
         {
-            id: 'single',
-            name: 'Single Story',
-            price: '$4.99',
-            priceSub: 'one time',
-            buttonText: 'Switch to Single',
-            buttonStyle: 'downgrade',
-            features: [
-                { text: '1 full audio story', included: true },
-                { text: 'Keep forever', included: true },
-                { text: 'Credit toward subscription', included: true },
-                { text: 'No monthly stories', included: false }
-            ]
-        },
-        {
-            id: 'standard',
-            name: 'Standard',
+            id: 'activator' as any,
+            name: 'Activator',
+            priceOriginal: '$19.99',
             price: '$9.99',
-            priceSub: '/ month',
-            isCurrent: true,
-            badge: 'Current Plan',
-            buttonText: 'Your Current Plan',
-            buttonStyle: 'current',
+            priceSub: 'one time',
+            badge: 'Launch offer',
+            buttonText: currentPlanId === 'activator' ? 'Your Current Plan' : 'Get Activator',
+            buttonStyle: currentPlanId === 'activator' ? 'current' : 'downgrade',
+            isCurrent: currentPlanId === 'activator',
             features: [
-                { text: '5 stories / month', included: true },
-                { text: '60 audio minutes / month', included: true },
-                { text: 'Library grows +5/mo (max 60)', included: true },
-                { text: 'Full audio downloads', included: true }
+                { text: 'Everything in Explorer', included: true },
+                { text: 'Full audio up to 10 min', included: true },
+                { text: 'MP3 download — forever', included: true },
+                { text: 'Affirmations & induction', included: false }
             ]
         },
         {
-            id: 'power',
-            name: 'Power',
-            price: '$19.99',
-            priceSub: '/ month',
-            isHighlighted: true,
-            badge: 'Most Popular',
-            buttonText: 'Upgrade to Power',
-            buttonStyle: 'power',
+            id: 'manifester' as any,
+            name: 'Manifester',
+            priceOriginal: billingCycle === 'yearly' ? '$39.99/mo' : '',
+            price: billingCycle === 'monthly' ? '$19.99' : '$15.99',
+            priceSub: '/month',
+            isCurrent: currentPlanId === 'manifester',
+            badge: currentPlanId === 'manifester' ? 'Current Plan' : 'Most popular',
+            isHighlighted: currentPlanId !== 'manifester',
+            buttonText: currentPlanId === 'manifester' ? 'Your Current Plan' : (currentPlanId === 'amplifier' ? 'Downgrade to Manifester' : 'Upgrade to Manifester'),
+            buttonStyle: currentPlanId === 'manifester' ? 'current' : (currentPlanId === 'amplifier' ? 'downgrade' : 'upgrade'),
             features: [
-                { text: '20 stories / month', included: true },
-                { text: '300 audio minutes / month', included: true },
-                { text: 'Library grows +20/mo (max 240)', included: true },
-                { text: 'Priority audio generation', included: true }
+                { text: 'Everything in Activator', included: true },
+                { text: '5 audio stories/month', included: true },
+                { text: 'AI affirmations in voice', included: true },
+                { text: 'Guided NLP induction', included: true }
+            ]
+        },
+        {
+            id: 'amplifier' as any,
+            name: 'Amplifier',
+            priceOriginal: billingCycle === 'yearly' ? '$79.99/mo' : '',
+            price: billingCycle === 'monthly' ? '$39.99' : '$31.99',
+            priceSub: '/month',
+            isCurrent: currentPlanId === 'amplifier',
+            badge: currentPlanId === 'amplifier' ? 'Current Plan' : 'Most powerful',
+            buttonText: currentPlanId === 'amplifier' ? 'Your Current Plan' : 'Upgrade to Amplifier',
+            buttonStyle: currentPlanId === 'amplifier' ? 'current' : 'power',
+            features: [
+                { text: 'Everything in Manifester', included: true },
+                { text: '10 hrs audio/month', included: true },
+                { text: 'Binaural beats (theta)', included: true },
+                { text: 'Studio-grade quality', included: true }
             ]
         }
     ];
 
-    const billingRecords: BillingRecord[] = [
-        {
-            date: new Date(2026, 2, 7),
-            description: 'Standard Plan — Monthly',
-            amount: 9.99,
-            status: 'paid'
-        },
-        {
-            date: new Date(2026, 1, 7),
-            description: 'Standard Plan — Monthly',
-            amount: 9.99,
-            status: 'paid'
-        },
-        {
-            date: new Date(2026, 0, 7),
-            description: 'Single Story — One-time purchase',
-            amount: 4.99,
-            status: 'paid'
+    const handlePlanSelect = async (planId: string) => {
+        if (actionLoading) return;
+        if (planId === currentPlanId) return;
+
+        if (planId === 'free') {
+            if (confirm(`Are you sure you want to revert to Explorer (Free)? Your access will stay active until the end of your current period.`)) {
+                handleCancel();
+            }
+            return;
         }
-    ];
 
-    const showToast = (message: string) => {
-        setToast({ message, visible: true });
-        setTimeout(() => setToast({ message: '', visible: false }), 3500);
-    };
-
-    const handlePlanSelect = (planId: string) => {
         const plan = plans.find(p => p.id === planId);
         if (!plan) return;
 
-        if (planId === 'power') {
-            if (confirm('Upgrade to Power ($19.99/month)? Your new plan takes effect immediately and you\'ll be charged a prorated amount today.')) {
-                showToast('✓ Upgraded to Power — welcome!');
-            }
-        } else if (planId === 'free' || planId === 'single') {
-            if (confirm(`Switch to ${plan.name}? This takes effect at your next billing date (${format(currentPlan.nextRenewal, 'MMMM d, yyyy')}). You keep your current plan until then.`)) {
-                showToast(`✓ Plan change scheduled — switching to ${plan.name} on ${format(currentPlan.nextRenewal, 'MMMM d')}`);
+        if (confirm(`Proceed to checkout for ${plan.name} (${plan.price}${plan.priceSub !== 'one time' ? plan.priceSub : ''})?`)) {
+            try {
+                setActionLoading(true);
+                const res = await fetch('/api/user/subscription/checkout', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        planId,
+                        billingCycle: planId === 'activator' ? 'oneTime' : (billingCycle === 'yearly' ? 'yearly' : 'monthly'),
+                        autoRenew: true
+                    })
+                });
+
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.url) {
+                        window.location.href = data.url;
+                    }
+                } else {
+                    const err = await res.text();
+                    showToast(`Failed to initiate checkout: ${err}`);
+                }
+            } catch (err) {
+                showToast('Error occurred during checkout.');
+            } finally {
+                setActionLoading(false);
             }
         }
     };
 
-    const handleCancel = () => {
-        if (confirm('Cancel your Standard plan? You\'ll keep access until ' + format(currentPlan.nextRenewal, 'MMMM d, yyyy') + '. Your stories will be archived after that.')) {
-            showToast('Subscription cancelled — access continues until ' + format(currentPlan.nextRenewal, 'MMMM d'));
+    const handleCancel = async () => {
+        if (actionLoading) return;
+        if (!confirm('Cancel your plan? Your subscription will be cancelled immediately.')) return;
+
+        try {
+            setActionLoading(true);
+            const res = await fetch('/api/user/subscription/cancel', {
+                method: 'POST'
+            });
+
+            if (res.ok) {
+                showToast('Subscription cancelled successfully.');
+                const newStatus = await fetch('/api/user/subscription/status').then(r => r.json());
+                setSubStatus(newStatus);
+            } else {
+                const err = await res.text();
+                showToast(`Failed to cancel: ${err}`);
+            }
+        } catch (err) {
+            showToast('Error occurred while cancelling.');
+        } finally {
+            setActionLoading(false);
         }
     };
 
     const handleReceipt = (record: BillingRecord) => {
-        showToast('📄 Receipt downloading...');
+        if (record.receiptUrl) {
+            window.open(record.receiptUrl, '_blank');
+        } else {
+            showToast('Receipt not available.');
+        }
     };
+
+    if (loading) {
+        return (
+            <div className={styles.container}>
+                <main className={styles.page}>
+                    <h1 className={styles.pageTitle} style={{ marginTop: '2rem' }}>Loading subscription...</h1>
+                </main>
+            </div>
+        );
+    }
 
     return (
         <>
@@ -366,7 +470,21 @@ const Subscription: React.FC = () => {
                     <UsageCard metrics={usageMetrics} />
 
                     {/* Plan Options */}
-                    <div className={styles.sectionLabel}>Available plans</div>
+                    <div className={styles.sectionLabel} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>Available plans</span>
+                        <div className={styles.toggleWrapper} style={{ marginTop: 0 }}>
+                            <span className={`${styles.toggleLabel} ${billingCycle === 'monthly' ? styles.active : ''}`}>Monthly</span>
+                            <label className={styles.switch}>
+                                <input
+                                    type="checkbox"
+                                    checked={billingCycle === 'yearly'}
+                                    onChange={() => setBillingCycle(c => c === 'monthly' ? 'yearly' : 'monthly')}
+                                />
+                                <span className={styles.slider}></span>
+                            </label>
+                            <span className={`${styles.toggleLabel} ${billingCycle === 'yearly' ? styles.active : ''}`}>Annual <span className={styles.saveBadge}>Save 20%</span></span>
+                        </div>
+                    </div>
                     <div className={styles.plansGrid}>
                         {plans.map(plan => (
                             <PlanCard
@@ -378,16 +496,20 @@ const Subscription: React.FC = () => {
                     </div>
 
                     {/* Billing History */}
-                    <BillingHistory
-                        records={billingRecords}
-                        onReceiptClick={handleReceipt}
-                    />
+                    {billingRecords.length > 0 && (
+                        <BillingHistory
+                            records={billingRecords}
+                            onReceiptClick={handleReceipt}
+                        />
+                    )}
 
                     {/* Cancel Section */}
-                    <CancelSection
-                        nextRenewal={currentPlan.nextRenewal}
-                        onCancel={handleCancel}
-                    />
+                    {currentPlanId !== 'free' && (
+                        <CancelSection
+                            nextRenewal={currentPlan.nextRenewal}
+                            onCancel={handleCancel}
+                        />
+                    )}
                 </main>
 
                 {/* Toast */}
