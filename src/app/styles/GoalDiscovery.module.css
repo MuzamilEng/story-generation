@@ -1,22 +1,25 @@
 .container {
-    --bg: #f4f1eb;
-    --surface: #ffffff;
-    --ink: #1c1a16;
-    --ink-muted: #7a7468;
-    --ink-faint: #b8b3a8;
-    --accent: #2d6a4f;
-    --accent-light: #e8f4ee;
+    --bg: #08070f;
+    --surface: rgba(255, 255, 255, 0.04);
+    --surface-raised: rgba(255, 255, 255, 0.06);
+    --ink: #ffffff;
+    --ink-muted: rgba(255, 255, 255, 0.55);
+    --ink-faint: rgba(255, 255, 255, 0.28);
+    --ink-ghost: rgba(255, 255, 255, 0.12);
+    --accent: #52b788;
+    --accent-deep: #2d6a4f;
+    --accent-light: rgba(82, 183, 136, 0.08); /* changed from #e8f4ee */
     --accent-mid: #52b788;
-    --gold: #9a6f0a;
-    --gold-bg: #fdf6e3;
-    --gold-border: #e8d08a;
-    --border: #e4dfd5;
+    --gold: #ffb347;
+    --gold-bg: rgba(255, 140, 60, 0.06);
+    --gold-border: rgba(255, 140, 60, 0.25);
+    --border: rgba(255, 255, 255, 0.08);
 
     height: 100%;
     width: 100%;
     background: var(--bg);
     color: var(--ink);
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Inter', sans-serif;
     font-weight: 300;
     display: flex;
     flex-direction: column;
@@ -37,7 +40,7 @@
 }
 
 .logo {
-    font-family: 'DM Serif Display', serif;
+    font-family: 'Fraunces', serif;
     font-size: 1.1rem;
     color: var(--ink);
 }
@@ -373,7 +376,7 @@
 .avatar.bot {
     background: var(--accent);
     color: #fff;
-    font-family: 'DM Serif Display', serif;
+    font-family: 'Fraunces', serif;
     font-size: 0.9rem;
 }
 
@@ -419,7 +422,7 @@
     font-size: 0.77rem;
     color: var(--ink);
     cursor: pointer;
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Inter', sans-serif;
     transition: all 0.2s;
 }
 
@@ -482,7 +485,7 @@
 }
 
 .completeCard h3 {
-    font-family: 'DM Serif Display', serif;
+    font-family: 'Fraunces', serif;
     font-size: 1.1rem;
     color: var(--ink);
     margin-bottom: 0.4rem;
@@ -505,7 +508,7 @@
     border-radius: 8px;
     padding: 0.6rem 1.3rem;
     font-size: 0.82rem;
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Inter', sans-serif;
     font-weight: 500;
     cursor: pointer;
     transition: all 0.2s;
@@ -539,7 +542,7 @@
     border: none;
     outline: none;
     resize: none;
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Inter', sans-serif;
     font-size: 0.875rem;
     font-weight: 300;
     color: var(--ink);
@@ -919,7 +922,7 @@
 }
 
 .modal h3 {
-    font-family: 'DM Serif Display', serif;
+    font-family: 'Fraunces', serif;
     font-size: 1.1rem;
     color: var(--ink);
     margin-bottom: 0.55rem;
@@ -951,7 +954,7 @@
     background: transparent;
     color: var(--ink-muted);
     font-size: 0.8rem;
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Inter', sans-serif;
     font-weight: 500;
     cursor: pointer;
     transition: all 0.2s;
@@ -969,7 +972,7 @@
     background: var(--accent);
     color: #fff;
     font-size: 0.8rem;
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Inter', sans-serif;
     font-weight: 500;
     cursor: pointer;
     transition: all 0.2s;

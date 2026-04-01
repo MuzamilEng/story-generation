@@ -1,16 +1,19 @@
 .container {
-    --bg: #f4f1eb;
-    --surface: #fff;
-    --ink: #1c1a16;
-    --ink-muted: #7a7468;
-    --ink-faint: #b8b3a8;
-    --accent: #2d6a4f;
-    --accent-light: #e8f4ee;
+    --bg: #08070f;
+    --surface: rgba(255, 255, 255, 0.04);
+    --surface-raised: rgba(255, 255, 255, 0.06);
+    --ink: #ffffff;
+    --ink-muted: rgba(255, 255, 255, 0.55);
+    --ink-faint: rgba(255, 255, 255, 0.28);
+    --ink-ghost: rgba(255, 255, 255, 0.12);
+    --accent: #52b788;
+    --accent-deep: #2d6a4f;
+    --accent-light: rgba(82, 183, 136, 0.08); /* changed from #e8f4ee */
     --accent-mid: #52b788;
-    --gold: #9a6f0a;
-    --gold-bg: #fdf6e3;
-    --gold-border: #e8d08a;
-    --border: #e4dfd5;
+    --gold: #ffb347;
+    --gold-bg: rgba(255, 140, 60, 0.06);
+    --gold-border: rgba(255, 140, 60, 0.25);
+    --border: rgba(255, 255, 255, 0.08);
     --red: #c0392b;
     --red-light: #fdf0ef;
 
@@ -19,7 +22,7 @@
     overflow-y: auto;
     background: var(--bg);
     color: var(--ink);
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Inter', sans-serif;
     font-weight: 300;
     display: flex;
     flex-direction: column;
@@ -37,7 +40,7 @@
 }
 
 .logo {
-    font-family: 'DM Serif Display', serif;
+    font-family: 'Fraunces', serif;
     font-size: 1.1rem;
     color: var(--ink);
     text-decoration: none;
@@ -119,7 +122,7 @@
 }
 
 .brandQuote {
-    font-family: 'DM Serif Display', serif;
+    font-family: 'Fraunces', serif;
     font-style: italic;
     font-size: 1.15rem;
     line-height: 1.55;
@@ -221,7 +224,7 @@
 }
 
 .formTitle {
-    font-family: 'DM Serif Display', serif;
+    font-family: 'Fraunces', serif;
     font-size: 1.85rem;
     color: var(--ink);
     line-height: 1.15;
@@ -259,7 +262,7 @@
     font-size: 0.83rem;
     color: var(--ink);
     cursor: pointer;
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Inter', sans-serif;
     font-weight: 400;
     transition: all 0.2s;
 }
@@ -357,7 +360,7 @@
     color: var(--accent);
     cursor: pointer;
     padding: 0;
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Inter', sans-serif;
 }
 
 .forgotLink:hover {
@@ -370,7 +373,7 @@
     padding: 0.62rem 0.8rem;
     border: 1px solid var(--border);
     border-radius: 8px;
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Inter', sans-serif;
     font-size: 0.83rem;
     font-weight: 300;
     color: var(--ink);
@@ -455,7 +458,7 @@
     border: none;
     border-radius: 10px;
     font-size: 0.87rem;
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Inter', sans-serif;
     font-weight: 500;
     cursor: pointer;
     transition: all 0.2s;
@@ -581,7 +584,7 @@
     cursor: pointer;
     border: none;
     background: none;
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Inter', sans-serif;
     padding: 0;
     margin-bottom: 0.5rem;
 }
@@ -611,7 +614,7 @@
 }
 
 .resetTitle {
-    font-family: 'DM Serif Display', serif;
+    font-family: 'Fraunces', serif;
     font-size: 1.25rem;
     color: var(--ink);
 }
@@ -652,7 +655,7 @@
 }
 
 .resetSentTitle {
-    font-family: 'DM Serif Display', serif;
+    font-family: 'Fraunces', serif;
     font-size: 1.1rem;
     color: var(--ink);
 }

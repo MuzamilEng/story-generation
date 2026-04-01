@@ -1,23 +1,26 @@
 .container {
-    --bg: #f4f1eb;
-    --surface: #ffffff;
-    --ink: #1c1a16;
-    --ink-muted: #7a7468;
-    --ink-faint: #b8b3a8;
-    --accent: #2d6a4f;
-    --accent-light: #e8f4ee;
+    --bg: #08070f;
+    --surface: rgba(255, 255, 255, 0.04);
+    --surface-raised: rgba(255, 255, 255, 0.06);
+    --ink: #ffffff;
+    --ink-muted: rgba(255, 255, 255, 0.55);
+    --ink-faint: rgba(255, 255, 255, 0.28);
+    --ink-ghost: rgba(255, 255, 255, 0.12);
+    --accent: #52b788;
+    --accent-deep: #2d6a4f;
+    --accent-light: rgba(82, 183, 136, 0.08); /* changed from #e8f4ee */
     --accent-mid: #52b788;
-    --gold: #9a6f0a;
-    --gold-bg: #fdf6e3;
-    --gold-border: #e8d08a;
-    --border: #e4dfd5;
+    --gold: #ffb347;
+    --gold-bg: rgba(255, 140, 60, 0.06);
+    --gold-border: rgba(255, 140, 60, 0.25);
+    --border: rgba(255, 255, 255, 0.08);
     --story-bg: #fffdf8;
 
     height: 100%;
     width: 100%;
     background: var(--bg);
     color: var(--ink);
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Inter', sans-serif;
     font-weight: 300;
     display: flex;
     flex-direction: column;
@@ -40,7 +43,7 @@
 }
 
 .logo {
-    font-family: 'DM Serif Display', serif;
+    font-family: 'Fraunces', serif;
     font-size: 1.1rem;
     color: var(--ink);
     text-decoration: none;
@@ -122,7 +125,7 @@
     padding: 0.4rem 0.9rem;
     border-radius: 6px;
     cursor: pointer;
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Inter', sans-serif;
     transition: all 0.2s;
 }
 
@@ -139,7 +142,7 @@
     padding: 0.4rem 1rem;
     border-radius: 6px;
     cursor: pointer;
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Inter', sans-serif;
     font-weight: 500;
     transition: all 0.2s;
     display: flex;
@@ -256,7 +259,7 @@
     font-size: 0.75rem;
     color: var(--ink-muted);
     cursor: pointer;
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Inter', sans-serif;
     transition: all 0.2s;
     margin-top: 0.25rem;
 }
@@ -330,7 +333,7 @@
 }
 
 .genTitle {
-    font-family: 'DM Serif Display', serif;
+    font-family: 'Fraunces', serif;
     font-size: 1.5rem;
     color: var(--ink);
     margin-bottom: 0.5rem;
@@ -471,7 +474,7 @@
 }
 
 .storyTitle {
-    font-family: 'DM Serif Display', serif;
+    font-family: 'Fraunces', serif;
     font-size: 1.35rem;
     color: var(--ink);
     font-style: italic;
@@ -494,7 +497,7 @@
     padding: 0.35rem 0.75rem;
     border-radius: 99px;
     cursor: pointer;
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Inter', sans-serif;
     transition: all 0.2s;
     white-space: nowrap;
 }
@@ -704,7 +707,7 @@
 }
 
 .nextStepTitle {
-    font-family: 'DM Serif Display', serif;
+    font-family: 'Fraunces', serif;
     font-size: 0.95rem;
     margin-bottom: 0.4rem;
 }
@@ -724,7 +727,7 @@
     border-radius: 7px;
     padding: 0.55rem;
     font-size: 0.75rem;
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Inter', sans-serif;
     font-weight: 500;
     cursor: pointer;
     transition: all 0.2s;
@@ -795,7 +798,7 @@
     border-radius: 7px;
     padding: 0.5rem 0.9rem;
     font-size: 0.75rem;
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Inter', sans-serif;
     cursor: pointer;
     transition: all 0.2s;
 }
@@ -811,7 +814,7 @@
     border-radius: 7px;
     padding: 0.5rem 1.1rem;
     font-size: 0.75rem;
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Inter', sans-serif;
     font-weight: 500;
     cursor: pointer;
     transition: all 0.2s;
@@ -961,7 +964,7 @@
     border-radius: 8px;
     padding: 0.65rem;
     font-size: 0.82rem;
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Inter', sans-serif;
     color: var(--ink-muted);
     cursor: pointer;
     transition: all 0.2s;
@@ -1021,7 +1024,7 @@
     padding: 0.35rem 0.85rem;
     border-radius: 99px;
     cursor: pointer;
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Inter', sans-serif;
     transition: all 0.2s;
     font-weight: 500;
 }
@@ -1109,7 +1112,7 @@
 }
 
 .aiEditPromptTitle {
-    font-family: 'DM Serif Display', serif;
+    font-family: 'Fraunces', serif;
     font-size: 1.1rem;
     color: var(--gold);
     margin-bottom: 0.4rem;
@@ -1226,7 +1229,7 @@
 .pageLoaderText {
     font-size: 0.88rem;
     color: var(--ink-muted);
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Inter', sans-serif;
     font-weight: 300;
     letter-spacing: 0.01em;
 }

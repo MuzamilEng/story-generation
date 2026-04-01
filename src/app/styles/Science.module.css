@@ -1,20 +1,23 @@
 .mainContainer {
-    --bg: #f4f1eb;
-    --surface: #fff;
-    --ink: #1c1a16;
-    --ink-muted: #7a7468;
-    --ink-faint: #b8b3a8;
-    --accent: #2d6a4f;
-    --accent-light: #e8f4ee;
+    --bg: #08070f;
+    --surface: rgba(255, 255, 255, 0.04);
+    --surface-raised: rgba(255, 255, 255, 0.06);
+    --ink: #ffffff;
+    --ink-muted: rgba(255, 255, 255, 0.55);
+    --ink-faint: rgba(255, 255, 255, 0.28);
+    --ink-ghost: rgba(255, 255, 255, 0.12);
+    --accent: #52b788;
+    --accent-deep: #2d6a4f;
+    --accent-light: rgba(82, 183, 136, 0.08); /* changed from #e8f4ee */
     --accent-mid: #52b788;
-    --gold: #9a6f0a;
-    --gold-bg: #fdf6e3;
-    --gold-border: #e8d08a;
-    --border: #e4dfd5;
+    --gold: #ffb347;
+    --gold-bg: rgba(255, 140, 60, 0.06);
+    --gold-border: rgba(255, 140, 60, 0.25);
+    --border: rgba(255, 255, 255, 0.08);
 
     background: var(--bg);
     color: var(--ink);
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Inter', sans-serif;
     font-weight: 300;
     line-height: 1.7;
     min-height: 100vh;
@@ -24,7 +27,7 @@
     position: sticky;
     top: 0;
     z-index: 50;
-    background: rgba(244, 241, 235, 0.92);
+    background: rgba(8, 7, 15, 0.88);
     backdrop-filter: blur(8px);
     border-bottom: 1px solid var(--border);
     padding: 0.85rem 2rem;
@@ -34,7 +37,7 @@
 }
 
 .logo {
-    font-family: 'DM Serif Display', serif;
+    font-family: 'Fraunces', serif;
     font-size: 1.1rem;
     color: var(--ink);
     text-decoration: none;
@@ -62,18 +65,20 @@
 }
 
 .navCta {
-    font-size: 0.75rem;
-    background: var(--accent);
-    color: #fff;
-    padding: 0.42rem 1rem;
-    border-radius: 6px;
+    font-size: 0.78rem;
+    background: #fff;
+    color: #08070f;
+    padding: 0.52rem 1.2rem;
+    border-radius: 7px;
     text-decoration: none;
     font-weight: 500;
     transition: all 0.2s;
+    letter-spacing: -0.01em;
 }
 
 .navCta:hover {
-    background: #235840;
+    background: rgba(255, 255, 255, 0.88);
+    transform: translateY(-1px);
 }
 
 .hero {
@@ -105,7 +110,7 @@
 }
 
 .heroTitle {
-    font-family: 'DM Serif Display', serif;
+    font-family: 'Fraunces', serif;
     font-size: clamp(2.2rem, 5vw, 3.8rem);
     color: var(--ink);
     line-height: 1.1;
@@ -148,7 +153,7 @@
 }
 
 .sectionTitle {
-    font-family: 'DM Serif Display', serif;
+    font-family: 'Fraunces', serif;
     font-size: clamp(1.6rem, 3.5vw, 2.4rem);
     color: var(--ink);
     line-height: 1.2;
@@ -253,7 +258,7 @@
 }
 
 .sciCardTitle {
-    font-family: 'DM Serif Display', serif;
+    font-family: 'Fraunces', serif;
     font-size: 1.05rem;
     color: var(--ink);
     margin-bottom: 0.4rem;
@@ -284,14 +289,15 @@
 }
 
 .brainwaveWrap {
-    background: var(--ink);
+    background: var(--surface-raised);
+    border: 1px solid var(--border);
     border-radius: 16px;
     padding: 2rem;
     margin: 2rem 0;
 }
 
 .brainwaveTitle {
-    font-family: 'DM Serif Display', serif;
+    font-family: 'Fraunces', serif;
     font-size: 1.1rem;
     color: #fff;
     margin-bottom: 0.3rem;
@@ -407,7 +413,7 @@
     display: grid;
     place-items: center;
     flex-shrink: 0;
-    font-family: 'DM Serif Display', serif;
+    font-family: 'Fraunces', serif;
     font-size: 1rem;
     color: var(--accent);
     position: relative;
@@ -415,7 +421,7 @@
 }
 
 .howStepClaim {
-    font-family: 'DM Serif Display', serif;
+    font-family: 'Fraunces', serif;
     font-size: 1.05rem;
     color: var(--ink);
     margin-bottom: 0.3rem;
@@ -455,7 +461,7 @@
 }
 
 .nlpTitle {
-    font-family: 'DM Serif Display', serif;
+    font-family: 'Fraunces', serif;
     font-size: 0.95rem;
     color: var(--ink);
     margin-bottom: 0.35rem;
@@ -468,7 +474,8 @@
 }
 
 .protocolWrap {
-    background: var(--ink);
+    background: var(--surface-raised);
+    border: 1px solid var(--border);
     border-radius: 20px;
     overflow: hidden;
     margin: 3rem 0;
@@ -494,7 +501,7 @@
 }
 
 .protocolTitle {
-    font-family: 'DM Serif Display', serif;
+    font-family: 'Fraunces', serif;
     font-size: clamp(1.5rem, 3.5vw, 2.2rem);
     color: #fff;
     line-height: 1.2;
@@ -538,7 +545,7 @@
     display: grid;
     place-items: center;
     flex-shrink: 0;
-    font-family: 'DM Serif Display', serif;
+    font-family: 'Fraunces', serif;
     font-size: 0.9rem;
     color: var(--accent-mid);
 }
@@ -572,7 +579,7 @@
 }
 
 .freqSymbol {
-    font-family: 'DM Serif Display', serif;
+    font-family: 'Fraunces', serif;
     font-size: 2.2rem;
     color: var(--accent);
     margin-bottom: 0.4rem;
@@ -593,7 +600,8 @@
 }
 
 .exerciseWrap {
-    background: var(--ink);
+    background: var(--surface-raised);
+    border: 1px solid var(--border);
     border-radius: 20px;
     overflow: hidden;
     margin: 2rem 0;
@@ -619,7 +627,7 @@
 }
 
 .exTitle {
-    font-family: 'DM Serif Display', serif;
+    font-family: 'Fraunces', serif;
     font-size: clamp(1.3rem, 3vw, 1.9rem);
     color: #fff;
     line-height: 1.2;
@@ -709,7 +717,7 @@
     padding: 0.65rem 1.25rem;
     border-radius: 9px;
     font-size: 0.82rem;
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Inter', sans-serif;
     font-weight: 500;
     cursor: pointer;
     transition: all 0.2s;
@@ -750,7 +758,7 @@
 }
 
 .gorillaHead {
-    font-family: 'DM Serif Display', serif;
+    font-family: 'Fraunces', serif;
     font-size: 1.15rem;
     color: #fff;
     margin-bottom: 0.4rem;
@@ -776,7 +784,7 @@
 }
 
 .insightTitle {
-    font-family: 'DM Serif Display', serif;
+    font-family: 'Fraunces', serif;
     font-size: clamp(1.3rem, 3vw, 1.9rem);
     color: #fff;
     margin-bottom: 0.75rem;
@@ -806,7 +814,7 @@
     border-radius: 99px;
     padding: 0.75rem 1.75rem;
     font-size: 0.85rem;
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Inter', sans-serif;
     font-weight: 500;
     cursor: pointer;
     transition: all 0.2s;
@@ -919,7 +927,7 @@
 }
 
 .bridgeTitle {
-    font-family: 'DM Serif Display', serif;
+    font-family: 'Fraunces', serif;
     font-size: clamp(1.5rem, 3.5vw, 2.2rem);
     color: #fff;
     line-height: 1.2;
@@ -949,7 +957,7 @@
     border-radius: 9px;
     padding: 0.75rem 1.75rem;
     font-size: 0.85rem;
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Inter', sans-serif;
     font-weight: 500;
     cursor: pointer;
     transition: all 0.2s;
@@ -968,7 +976,7 @@
 }
 
 .finalCtaTitle {
-    font-family: 'DM Serif Display', serif;
+    font-family: 'Fraunces', serif;
     font-size: clamp(1.8rem, 4vw, 2.8rem);
     color: var(--ink);
     line-height: 1.15;
@@ -997,7 +1005,7 @@
     border-radius: 10px;
     padding: 0.9rem 2.2rem;
     font-size: 0.9rem;
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Inter', sans-serif;
     font-weight: 500;
     cursor: pointer;
     transition: all 0.2s;

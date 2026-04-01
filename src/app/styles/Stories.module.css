@@ -1,16 +1,19 @@
 .container {
-    --bg: #f4f1eb;
-    --surface: #fff;
-    --ink: #1c1a16;
-    --ink-muted: #7a7468;
-    --ink-faint: #b8b3a8;
-    --accent: #2d6a4f;
-    --accent-light: #e8f4ee;
+    --bg: #08070f;
+    --surface: rgba(255, 255, 255, 0.04);
+    --surface-raised: rgba(255, 255, 255, 0.06);
+    --ink: #ffffff;
+    --ink-muted: rgba(255, 255, 255, 0.55);
+    --ink-faint: rgba(255, 255, 255, 0.28);
+    --ink-ghost: rgba(255, 255, 255, 0.12);
+    --accent: #52b788;
+    --accent-deep: #2d6a4f;
+    --accent-light: rgba(82, 183, 136, 0.08); /* changed from #e8f4ee */
     --accent-mid: #52b788;
-    --gold: #9a6f0a;
-    --gold-bg: #fdf6e3;
-    --gold-border: #e8d08a;
-    --border: #e4dfd5;
+    --gold: #ffb347;
+    --gold-bg: rgba(255, 140, 60, 0.06);
+    --gold-border: rgba(255, 140, 60, 0.25);
+    --border: rgba(255, 255, 255, 0.08);
     --red: #c0392b;
     --red-light: #fdf0ef;
 
@@ -19,7 +22,7 @@
     overflow-y: auto;
     background: var(--bg);
     color: var(--ink);
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Inter', sans-serif;
     font-weight: 300;
     display: flex;
     flex-direction: column;
@@ -38,7 +41,7 @@
 }
 
 .logo {
-    font-family: 'DM Serif Display', serif;
+    font-family: 'Fraunces', serif;
     font-size: 1.1rem;
     color: var(--ink);
     text-decoration: none;
@@ -89,7 +92,7 @@
     border: none;
     border-radius: 8px;
     font-size: 0.78rem;
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Inter', sans-serif;
     font-weight: 500;
     cursor: pointer;
     transition: all 0.2s;
@@ -115,7 +118,7 @@
     cursor: pointer;
     font-size: 0.75rem;
     font-weight: 500;
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Inter', sans-serif;
     display: grid;
     place-items: center;
 }
@@ -162,7 +165,7 @@
 }
 
 .title {
-    font-family: 'DM Serif Display', serif;
+    font-family: 'Fraunces', serif;
     font-size: 2.2rem;
     color: var(--ink);
     line-height: 1.1;
@@ -170,7 +173,7 @@
 
 .title span {
     display: block;
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Inter', sans-serif;
     font-size: 0.75rem;
     font-weight: 400;
     text-transform: uppercase;
@@ -195,7 +198,7 @@
 .searchBar input {
     border: none;
     background: none;
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Inter', sans-serif;
     font-size: 0.85rem;
     color: var(--ink);
     outline: none;
@@ -262,7 +265,7 @@
 }
 
 .storyCardTitle {
-    font-family: 'DM Serif Display', serif;
+    font-family: 'Fraunces', serif;
     font-style: italic;
     font-size: 1.1rem;
     color: #fff;
@@ -319,7 +322,7 @@
     padding: 0.45rem 0.85rem;
     border-radius: 8px;
     font-size: 0.75rem;
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Inter', sans-serif;
     font-weight: 400;
     cursor: pointer;
     border: 1px solid var(--border);
@@ -391,7 +394,7 @@
 }
 
 .audioTitle {
-    font-family: 'DM Serif Display', serif;
+    font-family: 'Fraunces', serif;
     font-style: italic;
     font-size: 0.95rem;
     color: #fff;

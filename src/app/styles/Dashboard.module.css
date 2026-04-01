@@ -1,16 +1,19 @@
 .container {
-    --bg: #f4f1eb;
-    --surface: #fff;
-    --ink: #1c1a16;
-    --ink-muted: #7a7468;
-    --ink-faint: #b8b3a8;
-    --accent: #2d6a4f;
-    --accent-light: #e8f4ee;
+    --bg: #08070f;
+    --surface: rgba(255, 255, 255, 0.04);
+    --surface-raised: rgba(255, 255, 255, 0.06);
+    --ink: #ffffff;
+    --ink-muted: rgba(255, 255, 255, 0.55);
+    --ink-faint: rgba(255, 255, 255, 0.28);
+    --ink-ghost: rgba(255, 255, 255, 0.12);
+    --accent: #52b788;
+    --accent-deep: #2d6a4f;
+    --accent-light: rgba(82, 183, 136, 0.08); /* changed from #e8f4ee */
     --accent-mid: #52b788;
-    --gold: #9a6f0a;
-    --gold-bg: #fdf6e3;
-    --gold-border: #e8d08a;
-    --border: #e4dfd5;
+    --gold: #ffb347;
+    --gold-bg: rgba(255, 140, 60, 0.06);
+    --gold-border: rgba(255, 140, 60, 0.25);
+    --border: rgba(255, 255, 255, 0.08);
     --red: #c0392b;
     --red-light: #fdf0ef;
 
@@ -19,7 +22,7 @@
     overflow-y: auto;
     background: var(--bg);
     color: var(--ink);
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Inter', sans-serif;
     font-weight: 300;
     display: flex;
     flex-direction: column;
@@ -38,7 +41,7 @@
 }
 
 .logo {
-    font-family: 'DM Serif Display', serif;
+    font-family: 'Fraunces', serif;
     font-size: 1.1rem;
     color: var(--ink);
     text-decoration: none;
@@ -89,7 +92,7 @@
     border: none;
     border-radius: 8px;
     font-size: 0.78rem;
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Inter', sans-serif;
     font-weight: 500;
     cursor: pointer;
     transition: all 0.2s;
@@ -121,7 +124,7 @@
     cursor: pointer;
     font-size: 0.75rem;
     font-weight: 500;
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Inter', sans-serif;
     display: grid;
     place-items: center;
     position: relative;
@@ -225,7 +228,7 @@
 }
 
 .greetingTitle {
-    font-family: 'DM Serif Display', serif;
+    font-family: 'Fraunces', serif;
     font-size: 1.85rem;
     color: var(--ink);
     line-height: 1.2;
@@ -278,7 +281,7 @@
 }
 
 .metricValue {
-    font-family: 'DM Serif Display', serif;
+    font-family: 'Fraunces', serif;
     font-size: 1.6rem;
     color: var(--ink);
     line-height: 1;
@@ -337,7 +340,7 @@
 }
 
 .streakCount {
-    font-family: 'DM Serif Display', serif;
+    font-family: 'Fraunces', serif;
     font-size: 2.4rem;
     color: #fff;
     line-height: 1;
@@ -346,7 +349,7 @@
 
 .streakCount span {
     font-size: 1rem;
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Inter', sans-serif;
     font-weight: 300;
     color: rgba(255, 255, 255, 0.6);
     margin-left: 0.3rem;
@@ -430,7 +433,7 @@
 }
 
 .audioTitle {
-    font-family: 'DM Serif Display', serif;
+    font-family: 'Fraunces', serif;
     font-style: italic;
     font-size: 1rem;
     color: #fff;
@@ -582,7 +585,7 @@
     color: var(--ink-muted);
     cursor: pointer;
     background: var(--bg);
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Inter', sans-serif;
     transition: all 0.15s;
     text-decoration: none;
 }
@@ -608,7 +611,7 @@
     color: var(--ink-faint);
     cursor: pointer;
     background: var(--bg);
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Inter', sans-serif;
     transition: all 0.2s;
 }
 
@@ -638,7 +641,7 @@
 }
 
 .sectionTitle {
-    font-family: 'DM Serif Display', serif;
+    font-family: 'Fraunces', serif;
     font-size: 1.15rem;
     color: var(--ink);
 }
@@ -779,7 +782,7 @@
 }
 
 .storyCardTitle {
-    font-family: 'DM Serif Display', serif;
+    font-family: 'Fraunces', serif;
     font-style: italic;
     font-size: 0.95rem;
     color: #fff;
@@ -836,7 +839,7 @@
     padding: 0.38rem 0.75rem;
     border-radius: 7px;
     font-size: 0.72rem;
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Inter', sans-serif;
     font-weight: 400;
     cursor: pointer;
     border: 1px solid var(--border);
@@ -1032,7 +1035,7 @@
 .emptyActivityText {
     font-size: 0.85rem;
     color: var(--ink-muted);
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Inter', sans-serif;
     line-height: 1.5;
     max-width: 250px;
 }

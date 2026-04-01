@@ -2,7 +2,7 @@
     min-height: 100vh;
     background: #f4f1eb;
     color: #1c1a16;
-    font-family: 'DM Sans', system-ui, sans-serif;
+    font-family: 'Inter', system-ui, sans-serif;
     padding: 0 0 120px;
     position: relative;
     overflow-x: hidden;
@@ -69,7 +69,7 @@
 }
 
 .headerTitle {
-    font-family: 'DM Serif Display', serif;
+    font-family: 'Fraunces', serif;
     font-size: clamp(2rem, 5vw, 3rem);
     font-weight: 400;
     color: #1c1a16;
@@ -118,7 +118,7 @@
 }
 
 .sectionTitle {
-    font-family: 'DM Serif Display', serif;
+    font-family: 'Fraunces', serif;
     font-size: 1.25rem;
     color: #1c1a16;
 }
@@ -482,7 +482,7 @@
 }
 
 .ctaTitle {
-    font-family: 'DM Serif Display', serif;
+    font-family: 'Fraunces', serif;
     font-size: 2rem;
     color: #1c1a16;
     margin-bottom: 12px;
@@ -591,7 +591,7 @@
 }
 
 .genText {
-    font-family: 'DM Serif Display', serif;
+    font-family: 'Fraunces', serif;
     font-size: 2.2rem;
     color: #1c1a16;
     margin-bottom: 12px;
