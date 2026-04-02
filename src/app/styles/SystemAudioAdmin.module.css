@@ -1,0 +1,308 @@
+.container {
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+    color: #fff;
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+}
+
+.title {
+    font-family: 'Fraunces', serif;
+    font-size: 2.4rem;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 8px;
+}
+
+.title em {
+    font-style: italic;
+    color: #52b788;
+}
+
+.subtitle {
+    font-size: 0.95rem;
+    color: rgba(255, 255, 255, 0.55);
+    max-width: 600px;
+}
+
+.card {
+    background-color: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 20px;
+    padding: 32px;
+}
+
+.tabs {
+    display: flex;
+    gap: 24px;
+    margin-bottom: 28px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    padding-bottom: 4px;
+}
+
+.tabBtn {
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.4);
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 0.9rem;
+    padding: 12px 0;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+}
+
+.tabBtnActive {
+    color: #52b788;
+    border-bottom: 2px solid #52b788;
+}
+
+.inputGroup {
+    margin-bottom: 20px;
+}
+
+.label {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.4);
+    display: block;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.select {
+    width: 100%;
+    padding: 12px 16px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.05);
+    color: #fff;
+    font-size: 0.9rem;
+    outline: none;
+}
+
+.uploadArea {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.fileInput {
+    position: absolute;
+    width: 0.1px;
+    height: 0.1px;
+    opacity: 0;
+    overflow: hidden;
+    z-index: -1;
+}
+
+.fileLabel {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px dashed rgba(255, 255, 255, 0.15);
+    border-radius: 12px;
+    padding: 24px;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 0.9rem;
+}
+
+.fileLabel:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: #52b788;
+    color: #fff;
+}
+
+.primaryButton {
+    width: 100%;
+    background: #52b788;
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    padding: 16px 24px;
+    font-weight: 700;
+    cursor: pointer;
+    font-size: 0.95rem;
+    letter-spacing: 0.01em;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    box-shadow: 0 4px 15px rgba(82, 183, 136, 0.2);
+}
+
+.primaryButton:hover {
+    background: #40916c;
+}
+
+.primaryButton:disabled {
+    background: rgba(82, 183, 136, 0.2);
+    cursor: not-allowed;
+}
+
+.recordBox {
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 16px;
+    padding: 32px;
+    text-align: center;
+    border: 1px dashed rgba(255, 255, 255, 0.12);
+    margin-bottom: 16px;
+}
+
+.timer {
+    font-size: 2.5rem;
+    font-weight: 700;
+    font-family: 'DM Mono', monospace;
+    color: #fff;
+    margin-bottom: 16px;
+}
+
+.timerRecording {
+    color: #ff6b6b;
+}
+
+.controlRow {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    align-items: center;
+}
+
+.micBtn {
+    background: #52b788;
+    color: #fff;
+    border: none;
+    border-radius: 50%;
+    width: 56px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 0 20px rgba(82, 183, 136, 0.3);
+    transition: all 0.2s;
+}
+
+.micBtnRecording {
+    background: #ff6b6b;
+    box-shadow: 0 0 20px rgba(255, 107, 107, 0.3);
+}
+
+.visualizer {
+    width: 120px;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+    border-radius: 2px;
+}
+
+.visualizerBar {
+    height: 100%;
+    background: #52b788;
+    transition: width 0.1s;
+}
+
+.recordStatus {
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.4);
+    margin-top: 20px;
+}
+
+.previewBox {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    background: rgba(255, 255, 255, 0.04);
+    padding: 16px;
+    border-radius: 12px;
+}
+
+.btnGroup {
+    display: flex;
+    gap: 16px;
+}
+
+.secondaryBtn {
+    flex: 1;
+    background: rgba(255, 255, 255, 0.05);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    padding: 12px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: all 0.2s;
+}
+
+.message {
+    margin-top: 12px;
+    font-size: 0.9rem;
+    text-align: center;
+    padding: 12px;
+    border-radius: 10px;
+}
+
+.messageSuccess {
+    color: #52b788;
+    background: rgba(82, 183, 136, 0.1);
+}
+
+.messageError {
+    color: #ff6b6b;
+    background: rgba(255, 107, 107, 0.1);
+}
+
+.tableContainer {
+    overflow-x: auto;
+}
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+
+.table th {
+    padding: 16px 12px;
+    background: rgba(255, 255, 255, 0.02);
+    color: rgba(255, 255, 255, 0.3);
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.table td {
+    padding: 16px 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.assetKey {
+    color: #52b788;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85rem;
+}
+
+.assetLabel {
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.assetMeta {
+    color: rgba(255, 255, 255, 0.5);
+}

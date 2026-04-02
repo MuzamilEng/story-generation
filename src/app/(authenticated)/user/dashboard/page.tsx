@@ -154,8 +154,11 @@ interface Story {
   plays: number;
   downloads: number;
   audio_url?: string;
+  story_text_approved?: string;
+  story_text_draft?: string;
   status: "draft" | "approved" | "audio_ready";
 }
+
 
 interface Activity {
   id: number;
@@ -204,12 +207,28 @@ const StoryCard: React.FC<StoryCardProps> = ({
   // A story is a draft if it's not explicitly 'audio_ready'
   const isDraft = story.status !== "audio_ready" || !story.audio_url;
 
+  const getExcerpt = () => {
+    if (story.excerpt && story.excerpt.includes('...')) { 
+      // This was a fallback excerpt, let's try better one below
+    } else if (story.excerpt) {
+      return story.excerpt;
+    }
+    
+    const text = story.story_text_approved || story.story_text_draft;
+    if (!text) return isDraft ? "Finish generating your manifestation story to listen and download." : "No excerpt available.";
+    
+    // Split by lines, take first three non-empty ones
+    const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    return lines.slice(0, 3).join('\n');
+  };
+
   const getDraftReason = () => {
     if (story.status === "draft") return "In Progress";
     if (story.status === "approved" || !story.audio_url)
       return "Awaiting Voice";
     return "Draft";
   };
+
 
   return (
     <div
@@ -244,13 +263,11 @@ const StoryCard: React.FC<StoryCardProps> = ({
         </div>
       </div>
       <div className={styles.storyCardBody}>
-        <div className={styles.storyExcerpt}>
-          {story.excerpt ||
-            (isDraft
-              ? "Finish generating your manifestation story to listen and download."
-              : "No excerpt available.")}
+        <div className={styles.storyExcerpt} style={{ whiteSpace: 'pre-line', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+          {getExcerpt()}
         </div>
         <div className={styles.storyActions}>
+
           <button
             className={`${styles.storyBtn} ${styles.primary} ${isDraft ? styles.fullWidth : ""}`}
             onClick={(e) => {
@@ -408,16 +425,17 @@ const Dashboard: React.FC = () => {
         return data.map((s: any) => ({
           id: s.id,
           title: s.title || "My Manifestation Story",
-          excerpt: s.story_text_draft
-            ? s.story_text_draft.substring(0, 120) + "..."
-            : "Draft created, ready to generate details.",
+          excerpt: s.excerpt || "",
+          story_text_draft: s.story_text_draft,
+          story_text_approved: s.story_text_approved,
           createdAt: new Date(s.createdAt),
           duration: s.duration || "6 min 42 sec",
-          plays: 0,
-          downloads: 0,
+          plays: s.play_count || 0,
+          downloads: s.download_count || 0,
           audio_url: s.audio_url,
           status: s.status,
         }));
+
       },
       enabled: !!session,
     },

@@ -745,8 +745,8 @@ const StoryDetail: React.FC = () => {
       0,
       Math.min(duration, audioRef.current.currentTime + seconds),
     );
+    // Setting currentTime will trigger handleTimeUpdate automatically via onTimeUpdate
     audioRef.current.currentTime = newTime;
-    setAudioState((prev) => ({ ...prev, currentTime: newTime }));
   };
 
   const handleSeek = (percentage: number) => {
@@ -755,8 +755,8 @@ const StoryDetail: React.FC = () => {
     if (!duration || isNaN(duration)) return;
 
     const newTime = percentage * duration;
+    // Setting currentTime will trigger handleTimeUpdate automatically via onTimeUpdate
     audioRef.current.currentTime = newTime;
-    setAudioState((prev) => ({ ...prev, currentTime: newTime }));
   };
 
   const handleDownload = () => {
@@ -864,6 +864,7 @@ const StoryDetail: React.FC = () => {
             ref={audioRef}
             src={story.audioUrl}
             preload="auto"
+            crossOrigin="anonymous"
             onLoadedMetadata={handleAudioMetadata}
             onTimeUpdate={handleTimeUpdate}
             onEnded={() =>

@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import styles from "../../styles/AdminLayout.module.css";
+import styles from "../../styles/SystemAudioAdmin.module.css";
 import {
     MicIcon,
     StopIcon,
@@ -159,143 +159,119 @@ const SystemAudioPage: React.FC = () => {
     };
 
     return (
-        <div className={styles.page}>
-            <h1 className={styles.pageTitle}>System Audio</h1>
-            <p className={styles.pageSub}>
-                Upload or record the guided induction and guide-close outro. These
-                are prepended / appended to user story audio.
-            </p>
+        <div className={styles.container}>
+            <div className={styles.header}>
+                <div>
+                    <h1 className={styles.title}>
+                        System <em>Audio</em>
+                    </h1>
+                    <p className={styles.subtitle}>
+                        Configure the global audio segments that frame every manifestation story, ensuring a consistent premium experience.
+                    </p>
+                </div>
+            </div>
 
-            <div className={styles.card} style={{ maxWidth: 560, marginBottom: 32 }}>
-                <div style={{ display: 'flex', gap: 16, marginBottom: 20, borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: 8 }}>
+            <div className={styles.card} style={{ maxWidth: '600px' }}>
+                <div className={styles.tabs}>
                     <button
                         onClick={() => setMode('upload')}
-                        style={{
-                            background: 'none', border: 'none', color: mode === 'upload' ? '#c9a84c' : '#8a8476',
-                            fontWeight: 600, cursor: 'pointer', fontSize: '0.9rem', padding: '4px 8px',
-                            borderBottom: mode === 'upload' ? '2px solid #c9a84c' : '2px solid transparent'
-                        }}
+                        className={`${styles.tabBtn} ${mode === 'upload' ? styles.tabBtnActive : ''}`}
                     >
-                        Upload MP3
+                        File Upload
                     </button>
                     <button
                         onClick={() => setMode('record')}
-                        style={{
-                            background: 'none', border: 'none', color: mode === 'record' ? '#c9a84c' : '#8a8476',
-                            fontWeight: 600, cursor: 'pointer', fontSize: '0.9rem', padding: '4px 8px',
-                            borderBottom: mode === 'record' ? '2px solid #c9a84c' : '2px solid transparent'
-                        }}
+                        className={`${styles.tabBtn} ${mode === 'record' ? styles.tabBtnActive : ''}`}
                     >
-                        Record Live
+                        Live Recording
                     </button>
                 </div>
 
-                <div style={{ marginBottom: 12 }}>
-                    <label style={{ fontSize: "0.82rem", color: "#8a8476", display: "block", marginBottom: 6 }}>
-                        Segment
+                <div className={styles.inputGroup}>
+                    <label className={styles.label}>
+                        Audio Segment
                     </label>
                     <select
                         value={selectedKey}
                         onChange={(e) => setSelectedKey(e.target.value)}
-                        style={{
-                            width: "100%", padding: "10px 12px", borderRadius: 8,
-                            border: "1px solid rgba(255,255,255,0.12)",
-                            background: "rgba(255,255,255,0.05)", color: "#e8e3d8",
-                            fontSize: "0.9rem",
-                        }}
+                        className={styles.select}
                     >
                         {KEYS.map((k) => (
-                            <option key={k.key} value={k.key}>{k.label}</option>
+                            <option key={k.key} value={k.key} style={{ background: '#1c1a16' }}>{k.label}</option>
                         ))}
                     </select>
                 </div>
 
                 {mode === 'upload' ? (
-                    <div style={{ marginBottom: 16 }}>
-                        <label style={{ fontSize: "0.82rem", color: "#8a8476", display: "block", marginBottom: 6 }}>
-                            MP3 file
-                        </label>
-                        <input
-                            type="file"
-                            accept="audio/mpeg,audio/mp3,.mp3"
-                            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-                            style={{ color: "#e8e3d8", fontSize: "0.88rem", marginBottom: 16 }}
-                        />
+                    <div className={styles.uploadArea}>
+                        <div style={{ position: 'relative' }}>
+                            <label className={styles.label}>
+                                MP3 Source
+                            </label>
+                            <label className={styles.fileLabel}>
+                                <input
+                                    type="file"
+                                    accept=".mp3"
+                                    onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                                    className={styles.fileInput}
+                                />
+                                <span>{file ? `✓ ${file.name}` : "Select high-quality MP3 file..."}</span>
+                            </label>
+                        </div>
                         <button
                             onClick={() => handleUpload()}
                             disabled={!file || uploading}
-                            style={{
-                                width: '100%',
-                                background: uploading ? "rgba(201,168,76,0.4)" : "#c9a84c",
-                                color: "#0a0a12", border: "none", borderRadius: 8,
-                                padding: "10px 24px", fontWeight: 700, cursor: uploading ? "not-allowed" : "pointer",
-                                fontSize: "0.9rem",
-                            }}
+                            className={styles.primaryButton}
                         >
-                            {uploading ? "Uploading…" : "Upload to R2"}
+                            {uploading ? "Deploying..." : <><CheckIcon /> Save to Cloud</>}
                         </button>
                     </div>
                 ) : (
-                    <div style={{ marginBottom: 16 }}>
-                        <div style={{
-                            background: 'rgba(0,0,0,0.2)', borderRadius: 12, padding: 20, textAlign: 'center',
-                            border: '1px dashed rgba(255,255,255,0.1)', marginBottom: 16
-                        }}>
+                    <div style={{ marginBottom: "16px" }}>
+                        <div className={styles.recordBox}>
                             {!audioBlob ? (
                                 <>
-                                    <div style={{ fontSize: '1.5rem', fontWeight: 700, color: isRecording ? '#e07070' : '#e8e3d8', marginBottom: 8 }}>
+                                    <div className={`${styles.timer} ${isRecording ? styles.timerRecording : ''}`}>
                                         {formatTime(seconds)}
                                     </div>
-                                    <div style={{ display: 'flex', justifyContent: 'center', gap: 12, alignItems: 'center' }}>
-                                        {isRecording ? (
-                                            <button
-                                                onClick={stopRecording}
-                                                style={{ background: '#e07070', color: 'white', border: 'none', borderRadius: '50%', width: 48, height: 48, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
-                                            >
-                                                <StopIcon />
-                                            </button>
-                                        ) : (
-                                            <button
-                                                onClick={startRecording}
-                                                style={{ background: '#c9a84c', color: '#0a0a12', border: 'none', borderRadius: '50%', width: 48, height: 48, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
-                                            >
-                                                <MicIcon />
-                                            </button>
-                                        )}
-                                        <div style={{
-                                            width: 100, height: 2, background: 'rgba(255,255,255,0.1)', overflow: 'hidden', borderRadius: 1
-                                        }}>
-                                            <div style={{
-                                                height: '100%', background: '#c9a84c', width: `${volume * 100}%`, transition: 'width 0.1s'
-                                            }} />
+                                    <div className={styles.controlRow}>
+                                        <button
+                                            onClick={isRecording ? stopRecording : startRecording}
+                                            className={`${styles.micBtn} ${isRecording ? styles.micBtnRecording : ''}`}
+                                        >
+                                            {isRecording ? <StopIcon /> : <MicIcon />}
+                                        </button>
+                                        <div className={styles.visualizer}>
+                                            <div className={styles.visualizerBar} style={{ width: `${volume * 100}%` }} />
                                         </div>
                                     </div>
-                                    <p style={{ fontSize: '0.75rem', color: '#8a8476', marginTop: 12 }}>
-                                        {isRecording ? 'Recording in progress...' : 'Click mic to start recording'}
+                                    <p className={styles.recordStatus}>
+                                        {isRecording ? 'Capturing high-fidelity audio...' : 'Ready to capture studio-grade audio'}
                                     </p>
                                 </>
                             ) : (
                                 <>
-                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                                    <div className={styles.previewBox}>
                                         <div style={{ textAlign: 'left' }}>
-                                            <div style={{ fontSize: '0.8rem', color: '#8a8476' }}>Recorded</div>
-                                            <div style={{ fontSize: '1rem', fontWeight: 600, color: '#e8e3d8' }}>{formatTime(seconds)}</div>
+                                            <div className={styles.label} style={{ marginBottom: 0 }}>Duration</div>
+                                            <div style={{ fontSize: '1.2rem', fontWeight: 600, color: '#fff' }}>{formatTime(seconds)}</div>
                                         </div>
-                                        <audio src={recordedUrl!} controls style={{ height: 32, borderRadius: 16 }} />
+                                        <audio src={recordedUrl!} controls style={{ height: "36px" }} />
                                     </div>
-                                    <div style={{ display: 'flex', gap: 12 }}>
+                                    <div className={styles.btnGroup}>
                                         <button
                                             onClick={handleResetRecording}
-                                            style={{ flex: 1, background: 'rgba(255,255,255,0.05)', color: '#e8e3d8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '10px', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                                            className={styles.secondaryBtn}
                                         >
-                                            <RefreshIcon /> Re-record
+                                            <RefreshIcon /> Discard
                                         </button>
                                         <button
                                             onClick={() => handleUpload(audioBlob)}
                                             disabled={uploading}
-                                            style={{ flex: 1, background: '#c9a84c', color: '#0a0a12', border: 'none', borderRadius: 8, padding: '10px', fontSize: '0.85rem', fontWeight: 700, cursor: uploading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                                            className={styles.primaryButton}
+                                            style={{ flex: 1 }}
                                         >
-                                            {uploading ? 'Saving...' : <><CheckIcon /> Save to Cloud</>}
+                                            {uploading ? 'Deploying...' : <><CheckIcon /> Save to Cloud</>}
                                         </button>
                                     </div>
                                 </>
@@ -305,46 +281,47 @@ const SystemAudioPage: React.FC = () => {
                 )}
 
                 {msg && (
-                    <p style={{ marginTop: 12, fontSize: "0.84rem", color: msg.startsWith("✓") ? "#6dbf7f" : "#e07070" }}>
+                    <p className={`${styles.message} ${msg.startsWith("✓") ? styles.messageSuccess : styles.messageError}`}>
                         {msg}
                     </p>
                 )}
             </div>
 
-            {/* Current assets */}
             <div className={styles.card}>
-                <h2 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: 16 }}>
-                    Uploaded assets
+                <h2 style={{ fontSize: "1.4rem", fontWeight: 600, marginBottom: "24px", fontFamily: "'Fraunces', serif" }}>
+                    Active <em>Registry</em>
                 </h2>
                 {isLoading ? (
-                    <p style={{ color: "#5a5650", fontSize: "0.88rem" }}>Loading…</p>
+                    <p style={{ color: "rgba(255, 255, 255, 0.3)", fontSize: "0.9rem" }}>Fetching registry data...</p>
                 ) : assets.length === 0 ? (
-                    <p style={{ color: "#5a5650", fontSize: "0.88rem" }}>No assets uploaded yet.</p>
+                    <p style={{ color: "rgba(255, 255, 255, 0.3)", fontSize: "0.9rem" }}>Registry is currently empty.</p>
                 ) : (
-                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.86rem" }}>
-                        <thead>
-                            <tr style={{ color: "#5a5650", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-                                <th style={{ textAlign: "left", padding: "6px 10px" }}>Key</th>
-                                <th style={{ textAlign: "left", padding: "6px 10px" }}>Label</th>
-                                <th style={{ textAlign: "left", padding: "6px 10px" }}>~Duration</th>
-                                <th style={{ textAlign: "left", padding: "6px 10px" }}>Uploaded</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {assets.map((a: any) => (
-                                <tr key={a.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-                                    <td style={{ padding: "10px 10px", color: "#c9a84c", fontFamily: "monospace" }}>{a.key}</td>
-                                    <td style={{ padding: "10px 10px", color: "#ccc8bf" }}>{a.label}</td>
-                                    <td style={{ padding: "10px 10px", color: "#8a8476" }}>
-                                        {a.duration_s ? `~${Math.round(a.duration_s)}s` : "—"}
-                                    </td>
-                                    <td style={{ padding: "10px 10px", color: "#8a8476" }}>
-                                        {format(new Date(a.uploaded_at), "MMM d, yyyy HH:mm")}
-                                    </td>
+                    <div className={styles.tableContainer}>
+                        <table className={styles.table}>
+                            <thead>
+                                <tr>
+                                    <th>Asset Key</th>
+                                    <th>Internal Label</th>
+                                    <th>Duration</th>
+                                    <th>Last Updated</th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                                {assets.map((a: any) => (
+                                    <tr key={a.id}>
+                                        <td className={styles.assetKey}>{a.key}</td>
+                                        <td className={styles.assetLabel}>{a.label}</td>
+                                        <td className={styles.assetMeta}>
+                                            {a.duration_s ? `${Math.round(a.duration_s)}s` : "—"}
+                                        </td>
+                                        <td className={styles.assetMeta}>
+                                            {format(new Date(a.uploaded_at), "MMM d, yyyy HH:mm")}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
                 )}
             </div>
         </div>

@@ -44,6 +44,10 @@ export async function POST(req: NextRequest) {
         twoMonthsFromNow.setMonth(twoMonthsFromNow.getMonth() + 2);
 
         await prisma.$transaction([
+            prisma.user.update({
+                where: { id: userId },
+                data: { plan: 'amplifier' }
+            }),
             prisma.userBetaCode.create({
                 data: {
                     userId,

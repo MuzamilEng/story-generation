@@ -233,25 +233,35 @@ const AudioReadyContent: React.FC = () => {
 
     const togglePlay = () => {
         if (!audioRef.current) return;
+        
         if (isPlaying) {
             audioRef.current.pause();
             soundscapeRef.current?.pause();
             binauralRef.current?.pause();
+            setIsPlaying(false);
         } else {
-            audioRef.current.play();
-            if (soundscapeOn) {
-                soundscapeRef.current!.currentTime = audioRef.current.currentTime % (soundscapeRef.current!.duration || 300);
-                soundscapeRef.current?.play();
-            }
-            if (binauralOn) {
-                binauralRef.current!.currentTime = audioRef.current.currentTime % (binauralRef.current!.duration || 300);
-                binauralRef.current?.play();
-            }
-            // Record play if starting from 0 or just once per session
+            audioRef.current.play().then(() => {
+                if (soundscapeOn && soundscapeRef.current) {
+                    const duration = soundscapeRef.current.duration || 300;
+                    soundscapeRef.current.currentTime = audioRef.current!.currentTime % duration;
+                    soundscapeRef.current.play().catch(e => console.warn("Soundscape play failed", e));
+                }
+                if (binauralOn && binauralRef.current) {
+                    const duration = binauralRef.current.duration || 300;
+                    binauralRef.current.currentTime = audioRef.current!.currentTime % duration;
+                    binauralRef.current.play().catch(e => console.warn("Binaural play failed", e));
+                }
+                setIsPlaying(true);
+            }).catch(err => {
+                console.error("Playback failed:", err);
+                setIsPlaying(false);
+            });
+            
+            // Record play event if near start
             if (currentTime < 1) recordEvent('play');
         }
-        setIsPlaying(!isPlaying);
     };
+
 
     // Keep background tracks sync'd on seek
     useEffect(() => {
@@ -354,6 +364,8 @@ const AudioReadyContent: React.FC = () => {
                 <audio
                     ref={audioRef}
                     src={story.audio_url}
+                    preload="auto"
+                    crossOrigin="anonymous"
                     onLoadedMetadata={handleMetadata}
                     onDurationChange={handleMetadata}
                     onTimeUpdate={handleTimeUpdate}
@@ -365,24 +377,33 @@ const AudioReadyContent: React.FC = () => {
                 />
             )}
 
-            {/* Feature C/D: Background Loops */}
-            {story?.user?.soundscape && story.user.soundscape !== 'none' && (
+            {/* Feature C/D: Background Loops — served from authenticated R2 stream */}
+            {story?.soundscape_audio_key && (
                 <audio
                     ref={soundscapeRef}
-                    src={`/audio/landscapes/${story.user.soundscape}.mp3`}
+                    src={`/api/user/audio/stream?key=${encodeURIComponent(story.soundscape_audio_key)}`}
                     loop
                     preload="auto"
+                    onError={() => {
+                        console.warn(`[audio] Failed to load soundscape: ${story.soundscape_audio_key}`);
+                        setSoundscapeOn(false);
+                    }}
                 />
             )}
 
-            {story?.user?.binaural_enabled && story.user.plan === 'amplifier' && (
+            {story?.binaural_audio_key && (
                 <audio
                     ref={binauralRef}
-                    src={`/audio/binaural/theta.mp3`}
+                    src={`/api/user/audio/stream?key=${encodeURIComponent(story.binaural_audio_key)}`}
                     loop
                     preload="auto"
+                    onError={() => {
+                        console.warn(`[audio] Failed to load binaural: ${story.binaural_audio_key}`);
+                        setBinauralOn(false);
+                    }}
                 />
             )}
+
 
             {/* PAGE */}
             <div className={styles.page}>
@@ -471,7 +492,8 @@ const AudioReadyContent: React.FC = () => {
                         </div>
 
                         <div className={styles.layerControls}>
-                            {story?.user?.soundscape && story.user.soundscape !== 'none' && (
+                            {/* Soundscape toggle — only shown if assemble stored a key (plan-gated server-side) */}
+                            {story?.soundscape_audio_key && (
                                 <button
                                     className={`${styles.layerBtn} ${soundscapeOn ? styles.active : ''}`}
                                     onClick={() => {
@@ -482,12 +504,14 @@ const AudioReadyContent: React.FC = () => {
                                             soundscapeRef.current?.pause();
                                         }
                                     }}
+                                    title="Ambient background at −18 dB"
                                 >
                                     🌊 {soundscapeOn ? 'Soundscape: ON' : 'Soundscape: OFF'}
                                 </button>
                             )}
 
-                            {story?.user?.plan === 'amplifier' && story?.user?.binaural_enabled && (
+                            {/* Binaural toggle — Amplifier only, key set by assemble */}
+                            {story?.binaural_audio_key && (
                                 <button
                                     className={`${styles.layerBtn} ${binauralOn ? styles.active : ''}`}
                                     onClick={() => {
@@ -498,9 +522,24 @@ const AudioReadyContent: React.FC = () => {
                                             binauralRef.current?.pause();
                                         }
                                     }}
+                                    title="Theta binaural beats at −18 dB — best with headphones"
                                 >
                                     🎧 {binauralOn ? 'Binaural: ON' : 'Binaural: OFF'}
                                 </button>
+                            )}
+
+                            {/* Headphones reminder when binaural is on */}
+                            {story?.binaural_audio_key && binauralOn && (
+                                <div style={{
+                                    fontSize: '0.75rem',
+                                    color: '#c9a84c',
+                                    padding: '4px 10px',
+                                    background: 'rgba(201,168,76,0.08)',
+                                    borderRadius: '6px',
+                                    border: '1px solid rgba(201,168,76,0.2)',
+                                }}>
+                                    🎧 Best experienced with headphones for full theta effect
+                                </div>
                             )}
                         </div>
 

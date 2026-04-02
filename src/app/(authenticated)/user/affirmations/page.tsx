@@ -594,7 +594,7 @@ const AffirmationsPage: React.FC = () => (
     <Suspense
         fallback={
             <div
-                style={{ minHeight: "100vh", background: "#f4f1eb", display: "flex", alignItems: "center", justifyContent: "center", color: "#1c1a16", fontFamily: "DM Sans" }}
+                style={{ minHeight: "100vh", background: "#08070f", display: "flex", alignItems: "center", justifyContent: "center", color: "#ffffff", fontFamily: "DM Sans" }}
             >
                 <div className={styles.spin} style={{ width: 40, height: 40, borderWidth: 4 }} />
             </div>

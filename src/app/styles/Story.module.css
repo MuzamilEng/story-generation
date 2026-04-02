@@ -14,7 +14,7 @@
     --gold-bg: rgba(255, 140, 60, 0.06);
     --gold-border: rgba(255, 140, 60, 0.25);
     --border: rgba(255, 255, 255, 0.08);
-    --story-bg: #fffdf8;
+    --story-bg: #0c0b16; /* Darker navy for the story card */
 
     height: 100%;
     width: 100%;
@@ -547,8 +547,8 @@
     line-height: 2;
     color: var(--ink);
     width: 100%;
-    border: 1px dashed var(--gold-border);
-    background: #fffef5;
+    border: 1px dashed var(--border);
+    background: transparent;
     resize: none;
     outline: none;
     min-height: 480px;
@@ -700,7 +700,8 @@
 }
 
 .nextStepCard {
-    background: var(--ink);
+    background: var(--surface-raised);
+    border: 1px solid var(--border);
     border-radius: 10px;
     padding: 1.1rem;
     color: #fff;
@@ -1173,7 +1174,7 @@
 .aiAnswerTextarea:focus {
     border-color: var(--accent);
     outline: none;
-    background: #fff;
+    background: var(--surface-raised);
     box-shadow: 0 0 0 4px var(--accent-light);
 }
 

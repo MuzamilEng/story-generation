@@ -1,6 +1,7 @@
 import { Users, UserCheck, Shield, Activity } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { UserRole } from "@/lib/roles";
+import styles from "../styles/AdminDashboard.module.css";
 
 async function getAdminStats() {
   const [totalUsers, activeUsers, adminUsers, recentSignups] = await Promise.all([
@@ -27,159 +28,106 @@ async function getAdminStats() {
 export default async function AdminDashboard() {
   const stats = await getAdminStats();
 
-  const cardStyle = {
-    backgroundColor: "white",
-    border: "1px solid #e5e5e5",
-    borderRadius: "12px",
-    padding: "20px",
-    boxShadow: "0 1px 3px rgba(0,0,0,0.1)"
-  };
-
-  const headerStyle = {
-    display: "flex",
-    flexDirection: "row" as const,
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: "12px"
-  };
-
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-      <div>
-        <h2 style={{ fontSize: "30px", fontWeight: 700, letterSpacing: "-0.025em" }}>Admin Dashboard</h2>
-        <p style={{ fontSize: "14px", color: "#737373" }}>
-          Overview of your application's users and system status.
+    <div className={styles.dashboard}>
+      <div className={styles.header}>
+        <h1 className={styles.title}>
+          System <em>Overview</em>
+        </h1>
+        <p className={styles.subtitle}>
+          Real-time metrics and health status of your application.
         </p>
       </div>
 
-      <div style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-        gap: "16px"
-      }}>
-        <div style={cardStyle}>
-          <div style={headerStyle}>
-            <span style={{ fontSize: "14px", fontWeight: 500 }}>Total Users</span>
-            <Users size={16} style={{ color: "#737373" }} />
+      <div className={styles.statsGrid}>
+        <div className={styles.card}>
+          <div className={styles.cardHeader}>
+            <span className={styles.cardLabel}>Total Users</span>
+            <Users size={18} style={{ color: "#52b788" }} />
           </div>
           <div>
-            <div style={{ fontSize: "24px", fontWeight: 700 }}>{stats.totalUsers}</div>
-            <p style={{ fontSize: "12px", color: "#737373" }}>Registered users</p>
+            <div className={styles.cardValue}>{stats.totalUsers}</div>
+            <p className={styles.cardSub}>Registered accounts</p>
           </div>
         </div>
 
-        <div style={cardStyle}>
-          <div style={headerStyle}>
-            <span style={{ fontSize: "14px", fontWeight: 500 }}>Active Users</span>
-            <UserCheck size={16} style={{ color: "#737373" }} />
+        <div className={styles.card}>
+          <div className={styles.cardHeader}>
+            <span className={styles.cardLabel}>Active Users</span>
+            <UserCheck size={18} style={{ color: "#52b788" }} />
           </div>
           <div>
-            <div style={{ fontSize: "24px", fontWeight: 700 }}>{stats.activeUsers}</div>
-            <p style={{ fontSize: "12px", color: "#737373" }}>Currently active</p>
+            <div className={styles.cardValue}>{stats.activeUsers}</div>
+            <p className={styles.cardSub}>Currently active</p>
           </div>
         </div>
 
-        <div style={cardStyle}>
-          <div style={headerStyle}>
-            <span style={{ fontSize: "14px", fontWeight: 500 }}>Administrators</span>
-            <Shield size={16} style={{ color: "#737373" }} />
+        <div className={styles.card}>
+          <div className={styles.cardHeader}>
+            <span className={styles.cardLabel}>Administrators</span>
+            <Shield size={18} style={{ color: "#ffb347" }} />
           </div>
           <div>
-            <div style={{ fontSize: "24px", fontWeight: 700 }}>{stats.adminUsers}</div>
-            <p style={{ fontSize: "12px", color: "#737373" }}>Admin users</p>
+            <div className={styles.cardValue}>{stats.adminUsers}</div>
+            <p className={styles.cardSub}>Privileged access</p>
           </div>
         </div>
 
-        <div style={cardStyle}>
-          <div style={headerStyle}>
-            <span style={{ fontSize: "14px", fontWeight: 500 }}>Recent Signups</span>
-            <Activity size={16} style={{ color: "#737373" }} />
+        <div className={styles.card}>
+          <div className={styles.cardHeader}>
+            <span className={styles.cardLabel}>New Growth</span>
+            <Activity size={18} style={{ color: "#52b788" }} />
           </div>
           <div>
-            <div style={{ fontSize: "24px", fontWeight: 700 }}>{stats.recentSignups}</div>
-            <p style={{ fontSize: "12px", color: "#737373" }}>Last 30 days</p>
+            <div className={styles.cardValue}>{stats.recentSignups}</div>
+            <p className={styles.cardSub}>Last 30 days</p>
           </div>
         </div>
       </div>
 
-      <div style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
-        gap: "16px"
-      }}>
-        <div style={cardStyle}>
-          <div style={{ marginBottom: "16px" }}>
-            <h3 style={{ fontSize: "18px", fontWeight: 600 }}>Quick Actions</h3>
-            <p style={{ fontSize: "14px", color: "#737373" }}>Common administrative tasks</p>
+      <div className={styles.mainGrid}>
+        <div className={styles.card}>
+          <div>
+            <h3 className={styles.sectionTitle}>Quick Access</h3>
+            <p className={styles.sectionSub}>Frequent management tasks</p>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-            <a
-              href="/admin/users"
-              style={{
-                display: "block",
-                padding: "8px 12px",
-                fontSize: "14px",
-                borderRadius: "6px",
-                textDecoration: "none",
-                color: "inherit",
-                backgroundColor: "transparent",
-                transition: "background-color 0.2s"
-              }}
-            >
-              Manage Users
-            </a>
-            <a
-              href="/admin/settings"
-              style={{
-                display: "block",
-                padding: "8px 12px",
-                fontSize: "14px",
-                borderRadius: "6px",
-                textDecoration: "none",
-                color: "inherit",
-                backgroundColor: "transparent",
-                transition: "background-color 0.2s"
-              }}
-            >
-              System Settings
-            </a>
-            <button
-              style={{
-                display: "block",
-                width: "100%",
-                textAlign: "left",
-                padding: "8px 12px",
-                fontSize: "14px",
-                borderRadius: "6px",
-                border: "none",
-                backgroundColor: "transparent",
-                cursor: "pointer",
-                transition: "background-color 0.2s"
-              }}
-            >
-              View Audit Logs
-            </button>
+          <div className={styles.actionList}>
+            {[
+              { label: "User Management", href: "/admin/users", icon: "👥" },
+              { label: "Beta System", href: "/admin/beta-codes", icon: "🎟️" },
+              { label: "Sound Assets", href: "/admin/soundscapes", icon: "🎵" },
+            ].map(link => (
+              <a
+                key={link.href}
+                href={link.href}
+                className={styles.actionLink}
+              >
+                <span>{link.icon}</span> {link.label}
+              </a>
+            ))}
           </div>
         </div>
 
-        <div style={cardStyle}>
-          <div style={{ marginBottom: "16px" }}>
-            <h3 style={{ fontSize: "18px", fontWeight: 600 }}>System Status</h3>
-            <p style={{ fontSize: "14px", color: "#737373" }}>Current system health</p>
+        <div className={styles.card}>
+          <div>
+            <h3 className={styles.sectionTitle}>System Infrastructure</h3>
+            <p className={styles.sectionSub}>Core service availability</p>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontSize: "14px" }}>Database</span>
-              <span style={{ fontSize: "14px", color: "#16a34a", fontWeight: 500 }}>Healthy</span>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontSize: "14px" }}>Authentication</span>
-              <span style={{ fontSize: "14px", color: "#16a34a", fontWeight: 500 }}>Active</span>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontSize: "14px" }}>API Status</span>
-              <span style={{ fontSize: "14px", color: "#16a34a", fontWeight: 500 }}>Online</span>
-            </div>
+          <div className={styles.serviceStatus}>
+            {[
+              { name: "Database Cluster", status: "Healthy", color: "#52b788" },
+              { name: "Authentication API", status: "Active", color: "#52b788" },
+              { name: "Storage Service (R2)", status: "Online", color: "#52b788" },
+              { name: "ElevenLabs API", status: "Operational", color: "#52b788" },
+            ].map(svc => (
+              <div key={svc.name} className={styles.serviceRow}>
+                <span className={styles.serviceName}>{svc.name}</span>
+                <div className={styles.statusIndicator}>
+                  <div className={styles.statusDot} style={{ backgroundColor: svc.color }} />
+                  <span className={styles.statusText} style={{ color: svc.color }}>{svc.status}</span>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>

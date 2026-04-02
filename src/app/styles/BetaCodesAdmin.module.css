@@ -1,100 +1,103 @@
 .adminContainer {
-    background-color: #f4f1eb;
-    min-height: 100vh;
-    padding: 2rem;
-    font-family: 'Inter', sans-serif;
-    color: #1c1a16;
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+    color: #fff;
+    padding: 32px 0;
 }
 
 .header {
-    margin-bottom: 2.5rem;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+    margin-bottom: 8px;
 }
 
 .title {
     font-family: 'Fraunces', serif;
-    font-size: 2.25rem;
-    color: #1c1a16;
-    margin: 0;
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin-bottom: 8px;
+}
+
+.title em {
+    font-style: italic;
+    color: #52b788;
 }
 
 .subtitle {
-    color: #7a7468;
-    margin-top: 0.5rem;
     font-size: 0.95rem;
+    color: rgba(255, 255, 255, 0.55);
 }
 
 .card {
-    background: #fff;
-    border-radius: 16px;
-    border: 1px solid #e4dfd5;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
-    padding: 2rem;
-    margin-bottom: 2rem;
+    background-color: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 20px;
+    padding: 32px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
 }
 
 .cardTitle {
     font-family: 'Fraunces', serif;
-    font-size: 1.25rem;
-    margin-bottom: 1.5rem;
-    color: #1c1a16;
+    font-size: 1.2rem;
+    font-weight: 600;
+    margin-bottom: 24px;
+    color: #fff;
 }
 
 .formGrid {
     display: grid;
     grid-template-columns: 1fr 120px auto;
-    gap: 1.5rem;
+    gap: 20px;
     align-items: flex-end;
 }
 
 .inputGroup {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 8px;
 }
 
 .label {
     font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.4);
     text-transform: uppercase;
     letter-spacing: 0.05em;
     font-weight: 600;
-    color: #7a7468;
 }
 
 .input {
-    background: #fdf6e3;
-    border: 1px solid #e4dfd5;
-    border-radius: 8px;
-    padding: 0.75rem 1rem;
-    font-family: 'Inter', sans-serif;
-    font-size: 0.95rem;
-    color: #1c1a16;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-family: inherit;
+    font-size: 0.9rem;
+    color: #fff;
     transition: all 0.2s;
+    outline: none;
 }
 
 .input:focus {
-    outline: none;
-    border-color: #2d6a4f;
-    background: #fff;
-    box-shadow: 0 0 0 3px rgba(45, 106, 79, 0.1);
+    border-color: #52b788;
+    background: rgba(255, 255, 255, 0.08);
 }
 
 .button {
-    background: #2d6a4f;
+    background: #52b788;
     color: #fff;
     border: none;
-    border-radius: 8px;
-    padding: 0.75rem 1.5rem;
-    font-weight: 600;
+    border-radius: 12px;
+    padding: 14px 24px;
+    font-weight: 700;
     cursor: pointer;
     transition: all 0.2s;
-    height: calc(0.95rem + 1.5rem + 2px);
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .button:hover {
-    background: #1a3d2b;
+    background: #40916c;
     transform: translateY(-1px);
 }
 
@@ -111,72 +114,77 @@
     width: 100%;
     border-collapse: collapse;
     text-align: left;
+    font-size: 0.9rem;
 }
 
 .table th {
-    padding: 1rem 1.5rem;
-    background: #fdf6e3;
-    color: #7a7468;
-    font-size: 0.75rem;
+    padding: 16px 20px;
+    background: rgba(255, 255, 255, 0.02);
+    color: rgba(255, 255, 255, 0.35);
+    font-size: 0.7rem;
     text-transform: uppercase;
     letter-spacing: 0.05em;
     font-weight: 600;
-    border-bottom: 1px solid #e4dfd5;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .table td {
-    padding: 1.25rem 1.5rem;
-    border-bottom: 1px solid #f4f1eb;
-    font-size: 0.9rem;
+    padding: 16px 20px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    color: rgba(255, 255, 255, 0.9);
 }
 
 .codeCell {
     font-family: 'DM Mono', monospace;
     font-weight: 600;
-    color: #2d6a4f;
-    background: #e8f4ee;
-    padding: 2px 6px;
-    border-radius: 4px;
+    color: #52b788;
+    background: rgba(82, 183, 136, 0.1);
+    border: 1px solid rgba(82, 183, 136, 0.2);
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.85rem;
 }
 
 .badge {
     display: inline-flex;
     align-items: center;
-    padding: 0.25rem 0.75rem;
+    padding: 4px 12px;
     border-radius: 99px;
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
 }
 
 .badgeActive {
-    background: #e8f4ee;
-    color: #2d6a4f;
+    background: rgba(82, 183, 136, 0.1);
+    color: #52b788;
 }
 
 .badgeInactive {
-    background: #fdf0ef;
-    color: #c0392b;
+    background: rgba(255, 107, 107, 0.1);
+    color: #ff6b6b;
 }
 
 .deactivateBtn {
-    background: none;
-    border: 1px solid #e4dfd5;
-    color: #c0392b;
-    padding: 0.4rem 0.8rem;
-    border-radius: 6px;
-    font-size: 0.8rem;
-    font-weight: 600;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: rgba(255, 107, 107, 0.8);
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    font-weight: 500;
     cursor: pointer;
     transition: all 0.2s;
 }
 
 .deactivateBtn:hover {
-    background: #fdf0ef;
-    border-color: #c0392b;
+    background: rgba(255, 107, 107, 0.05);
+    border-color: rgba(255, 107, 107, 0.4);
 }
 
 .emptyState {
-    padding: 4rem 0;
+    padding: 64px 0;
     text-align: center;
-    color: #b8b3a8;
+    color: rgba(255, 255, 255, 0.3);
 }

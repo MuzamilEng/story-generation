@@ -395,30 +395,36 @@ const VoiceRecordingContent: React.FC = () => {
         if (!audioBlob) return;
         setIsSubmitting(true);
         try {
-            // ── Step 1: Clone voice (if not already cloned) ────────────────────
-            const cloneFormData = new FormData();
+            // ── Step 1: Clone voice ONLY — no TTS generated here ──────────────
+            // Uses the dedicated clone-voice endpoint so we don't waste an
+            // ElevenLabs TTS credit before assembly runs.
             const extension = mimeType.includes('mp4') || mimeType.includes('aac') ? 'm4a' : 'webm';
+            const cloneFormData = new FormData();
             cloneFormData.append('audio', audioBlob, `sample.${extension}`);
-            if (storyId) {
-                cloneFormData.append('storyId', storyId);
-            }
 
-            // Call the legacy generate endpoint just for voice cloning + single-segment
-            // audio as a fallback. Then we'll call assemble for the full V2 pipeline.
-            const cloneRes = await fetch('/api/user/audio/generate', {
+            const cloneRes = await fetch('/api/user/audio/clone-voice', {
                 method: 'POST',
-                body: cloneFormData
+                body: cloneFormData,
             });
             const cloneData = await cloneRes.json();
 
-            if (!cloneData.success && !cloneData.storyId) {
-                alert('Voice cloning failed: ' + (cloneData.error || 'Unknown error'));
+            if (!cloneData.success) {
+                const msg = cloneData.code === 'VOICE_LIMIT_REACHED'
+                    ? 'Voice limit reached on ElevenLabs. Please contact support.'
+                    : 'Voice cloning failed: ' + (cloneData.error || 'Unknown error');
+                alert(msg);
                 return;
             }
 
-            const resolvedStoryId = cloneData.storyId || storyId;
+            // Resolve which story to assemble (prefer URL param, fall back to latest)
+            const resolvedStoryId = storyId || null;
+            if (!resolvedStoryId) {
+                alert('No story found. Please create a story first.');
+                return;
+            }
 
-            // ── Step 2: V2 Assembly — Induction → Affirmations → Story → Close ─
+            // ── Step 2: Full assembly — ONE ElevenLabs call for everything ─────
+            // Pipeline: Induction → Opening Affirmations → Story → Closing Affirmations → Guide Close
             const assembleRes = await fetch('/api/user/audio/assemble', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -429,13 +435,11 @@ const VoiceRecordingContent: React.FC = () => {
             if (assembleData.success) {
                 router.push(`/user/audio-download?storyId=${resolvedStoryId}`);
             } else {
-                // Assembly failed gracefully — fall back to the cloned audio already in DB
-                console.warn('V2 assembly failed, using single-segment audio:', assembleData.error);
-                router.push(`/user/audio-download?storyId=${resolvedStoryId}`);
+                alert('Audio generation failed: ' + (assembleData.error || 'Unknown error'));
             }
         } catch (e) {
             console.error(e);
-            alert('Failed to generate audio.');
+            alert('Failed to generate audio. Please try again.');
         } finally {
             setIsSubmitting(false);
         }

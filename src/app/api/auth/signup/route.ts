@@ -53,6 +53,12 @@ export async function POST(request: NextRequest) {
         const twoMonthsFromNow = new Date();
         twoMonthsFromNow.setMonth(twoMonthsFromNow.getMonth() + 2);
 
+        // Update the user's plan to amplifier immediately in the DB
+        await tx.user.update({
+          where: { id: newUser.id },
+          data: { plan: 'amplifier' }
+        });
+
         await tx.userBetaCode.create({
           data: {
             userId: newUser.id,

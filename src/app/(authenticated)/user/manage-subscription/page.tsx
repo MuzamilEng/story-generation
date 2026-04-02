@@ -27,8 +27,10 @@ const CurrentPlanBanner: React.FC<CurrentPlanBannerProps> = ({ plan }) => (
             <div className={styles.cbPrice}>{plan.price}</div>
         </div>
         <div className={styles.cbRight}>
-            {plan.nextRenewal && (
-                <div className={styles.cbRenewal}>Next renewal: {format(plan.nextRenewal, 'MMMM d, yyyy')}</div>
+            {plan.nextRenewal && !isNaN(new Date(plan.nextRenewal).getTime()) && (
+                <div className={styles.cbRenewal}>
+                    {plan.name === 'Beta' ? 'Program expires' : 'Next renewal'}: {format(new Date(plan.nextRenewal), 'MMMM d, yyyy')}
+                </div>
             )}
             <div className={styles.cbStatus}>
                 <span className={styles.cbDot} />
@@ -222,14 +224,21 @@ const Subscription: React.FC = () => {
     const [subStatus, setSubStatus] = useState<any>(null);
     const [billingRecords, setBillingRecords] = useState<BillingRecord[]>([]);
 
+    const [isPolling, setIsPolling] = useState(false);
+    const [initialLoadDone, setInitialLoadDone] = useState(false);
+
     useEffect(() => {
         // Handle URL parameters for success/canceled
         const searchParams = new URLSearchParams(window.location.search);
-        if (searchParams.get('success')) {
-            showToast('✓ Subscription updated successfully!');
+        const isSuccess = searchParams.get('success') === 'true';
+        const isCanceled = searchParams.get('canceled') === 'true';
+
+        if (isSuccess) {
+            showToast('✓ Payment initiated. Almost ready!');
+            setIsPolling(true);
             window.history.replaceState({}, document.title, window.location.pathname);
         }
-        if (searchParams.get('canceled')) {
+        if (isCanceled) {
             showToast('Checkout canceled.');
             window.history.replaceState({}, document.title, window.location.pathname);
         }
@@ -242,7 +251,15 @@ const Subscription: React.FC = () => {
                 ]);
 
                 if (statusRes.ok) {
-                    setSubStatus(await statusRes.json());
+                    const statusData = await statusRes.json();
+                    setSubStatus(statusData);
+
+                    // If we were polling and the plan has now changed from "free" (or whatever it was), stop polling
+                    // This logic assumes a success redirect means a plan was actually changed or extended.
+                    if (isSuccess && isPolling) {
+                        // We check if the status update reflects new data.
+                        // For simplicity, if we see a valid subscription ID or period end, we consider it done.
+                    }
                 }
                 if (historyRes.ok) {
                     const hData = await historyRes.json();
@@ -255,11 +272,47 @@ const Subscription: React.FC = () => {
                 console.error(err);
             } finally {
                 setLoading(false);
+                setInitialLoadDone(true);
             }
         };
 
         fetchData();
     }, []);
+
+    // Polling effect for plan updates after checkout success
+    useEffect(() => {
+        if (!isPolling) return;
+
+        const interval = setInterval(async () => {
+            try {
+                const res = await fetch('/api/user/subscription/status');
+                if (res.ok) {
+                    const data = await res.json();
+                    
+                    // Simple check: if we see a non-free plan or a new renewal date, consider it updated
+                    if (data.plan !== 'free' || data.stripeSubscriptionId) {
+                        setSubStatus(data);
+                        setIsPolling(false);
+                        showToast('✓ Subscription active! Enjoy your new features.');
+                        clearInterval(interval);
+                    }
+                }
+            } catch (e) {
+                console.error('Polling error:', e);
+            }
+        }, 3000);
+
+        // Stop polling after 30 seconds max to prevent infinite loops
+        const timeout = setTimeout(() => {
+            setIsPolling(false);
+            clearInterval(interval);
+        }, 30000);
+
+        return () => {
+            clearInterval(interval);
+            clearTimeout(timeout);
+        };
+    }, [isPolling]);
 
     const showToast = (message: string) => {
         setToast({ message, visible: true });
@@ -274,10 +327,15 @@ const Subscription: React.FC = () => {
         'amplifier': 'Amplifier'
     };
 
+    const nextRenewalDate = subStatus?.stripeCurrentPeriodEnd ? new Date(subStatus.stripeCurrentPeriodEnd) : null;
+    const isDateValid = nextRenewalDate && !isNaN(nextRenewalDate.getTime());
+
+    const isActuallyBeta = subStatus?.isBetaUser && !subStatus?.stripeSubscriptionId;
+
     const currentPlan: CurrentPlan = {
-        name: planNamesMap[currentPlanId] || 'Free',
-        price: currentPlanId === 'free' ? '$0 forever' : (currentPlanId === 'activator' ? '$9.99 one-time' : (currentPlanId === 'manifester' ? '$19.99/month' : '$39.99/month')),
-        nextRenewal: subStatus?.stripeCurrentPeriodEnd ? new Date(subStatus.stripeCurrentPeriodEnd * 1000) : null,
+        name: isActuallyBeta ? 'Beta' : (planNamesMap[currentPlanId] || 'Free'),
+        price: isActuallyBeta ? 'Beta Program (2 month trial)' : (currentPlanId === 'free' ? '$0 forever' : (currentPlanId === 'activator' ? '$9.99 one-time' : (currentPlanId === 'manifester' ? '$19.99/month' : '$39.99/month'))),
+        nextRenewal: isActuallyBeta ? (subStatus.betaExpiresAt ? new Date(subStatus.betaExpiresAt) : null) : (isDateValid ? nextRenewalDate : null),
         status: subStatus?.stripeSubscriptionId && subStatus?.stripeCancelAtPeriodEnd ? 'canceling' : (subStatus?.stripeSubscriptionId ? 'active' : 'active')
     };
 
@@ -340,12 +398,12 @@ const Subscription: React.FC = () => {
         },
         {
             id: 'amplifier' as any,
-            name: 'Amplifier',
-            priceOriginal: billingCycle === 'yearly' ? '$79.99/mo' : '',
-            price: billingCycle === 'monthly' ? '$39.99' : '$31.99',
-            priceSub: '/month',
+            name: isActuallyBeta ? 'Beta' : 'Amplifier',
+            priceOriginal: isActuallyBeta ? '' : (billingCycle === 'yearly' ? '$79.99/mo' : ''),
+            price: isActuallyBeta ? 'Free' : (billingCycle === 'monthly' ? '$39.99' : '$31.99'),
+            priceSub: isActuallyBeta ? 'trial' : '/month',
             isCurrent: currentPlanId === 'amplifier',
-            badge: currentPlanId === 'amplifier' ? 'Current Plan' : 'Most powerful',
+            badge: currentPlanId === 'amplifier' ? 'Current Plan' : (isActuallyBeta ? 'Beta Access' : 'Most powerful'),
             buttonText: currentPlanId === 'amplifier' ? 'Your Current Plan' : 'Upgrade to Amplifier',
             buttonStyle: currentPlanId === 'amplifier' ? 'current' : 'power',
             features: [
@@ -462,6 +520,27 @@ const Subscription: React.FC = () => {
 
                     <h1 className={styles.pageTitle}>Manage Subscription</h1>
                     <p className={styles.pageSub}>Upgrade, downgrade, or cancel your plan at any time.</p>
+
+                    {/* Processing Banner */}
+                    {isPolling && (
+                        <div style={{
+                            marginBottom: '2rem',
+                            padding: '1.2rem 1.5rem',
+                            background: 'rgba(201,168,76,0.08)',
+                            border: '1px solid rgba(201,168,76,0.25)',
+                            borderRadius: '12px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '12px',
+                            color: '#c9a84c'
+                        }}>
+                            <div className={styles.cbDot} style={{ background: '#c9a84c', width: 8, height: 8 }} />
+                            <div>
+                                <div style={{ fontWeight: 600, fontSize: '0.92rem' }}>Payment processing...</div>
+                                <div style={{ fontSize: '0.82rem', opacity: 0.8 }}>We're finalizing your plan. These changes will reflect automatically in a few seconds.</div>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Current Plan Banner */}
                     <CurrentPlanBanner plan={currentPlan} />

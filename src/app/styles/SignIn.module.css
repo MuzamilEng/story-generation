@@ -385,7 +385,16 @@
 
 .field input:focus {
     border-color: var(--accent);
-    background: #fff;
+    background: var(--surface-raised);
+}
+
+.field input:-webkit-autofill,
+.field input:-webkit-autofill:hover, 
+.field input:-webkit-autofill:focus, 
+.field input:-webkit-autofill:active {
+    -webkit-box-shadow: 0 0 0 30px #08070f inset !important;
+    -webkit-text-fill-color: var(--ink) !important;
+    transition: background-color 5000s ease-in-out 0s;
 }
 
 .field input.err {

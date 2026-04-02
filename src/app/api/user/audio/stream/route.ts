@@ -27,21 +27,24 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: 'Key is required' }, { status: 400 });
         }
 
-        // Basic security: Ensure the key belongs to the user
-        if (!key.startsWith(`user_${session.user.id}/`)) {
+        // Security: Ensure the key belongs to the user OR is a system asset
+        const isUserAsset = key.startsWith(`user_${session.user.id}/`);
+        const isSystemAsset = key.startsWith('system/');
+
+        if (!isUserAsset && !isSystemAsset) {
             return NextResponse.json({ error: 'Unauthorized key access' }, { status: 403 });
         }
 
         const bucketName = process.env.R2_BUCKET_NAME || 'manifestmystory-audio';
-        const range = req.headers.get('range');
+        const rangeHeader = req.headers.get('range');
 
         const params: any = {
             Bucket: bucketName,
             Key: key,
         };
 
-        if (range) {
-            params.Range = range;
+        if (rangeHeader) {
+            params.Range = rangeHeader;
         }
 
         const command = new GetObjectCommand(params);
@@ -54,7 +57,9 @@ export async function GET(req: NextRequest) {
         const headers = new Headers();
         headers.set('Content-Type', response.ContentType || 'audio/mpeg');
         headers.set('Accept-Ranges', 'bytes');
-
+        
+        // When a range is requested, S3 returns 206 and the specific Content-Length of the chunk.
+        // We must pass these along exactly for the browser to support seeking.
         if (response.ContentLength) {
             headers.set('Content-Length', response.ContentLength.toString());
         }
@@ -63,19 +68,26 @@ export async function GET(req: NextRequest) {
             headers.set('Content-Range', response.ContentRange);
         }
 
+        // Add Cache-Control to prevent some browsers from being confused by partial content
+        headers.set('Cache-Control', 'public, max-age=3600');
+
         if (download) {
             const fileName = key.split('/').pop() || 'story.mp3';
             headers.set('Content-Disposition', `attachment; filename="${fileName}"`);
         }
 
-        // Stream directly using transformToWebStream() for efficiency
+        // Return a 206 for range requests, or 200 for full file
         return new NextResponse(response.Body.transformToWebStream() as any, {
-            status: range ? 206 : 200,
+            status: rangeHeader ? 206 : 200,
             headers,
         });
 
     } catch (e: any) {
+        if (e.name === 'NoSuchKey') {
+             return NextResponse.json({ error: 'File not found in R2 storage' }, { status: 404 });
+        }
         console.error('API /api/user/audio/stream error:', e);
         return NextResponse.json({ error: e.message || 'Internal Server Error' }, { status: 500 });
     }
+
 }

@@ -63,20 +63,20 @@ export default function BetaCodesAdmin() {
         <div className={styles.adminContainer}>
             <header className={styles.header}>
                 <div>
-                    <h1 className={styles.title}>Beta Codes</h1>
-                    <p className={styles.subtitle}>Generate and manage Amplifier beta access invites</p>
+                    <h1 className={styles.title}>Beta <em>Codes</em></h1>
+                    <p className={styles.subtitle}>Generate and manage premium beta access invites for the platform.</p>
                 </div>
             </header>
 
             <div className={styles.card}>
-                <h2 className={styles.cardTitle}>Generate New Code</h2>
+                <h2 className={styles.cardTitle}>Provision New Identity</h2>
                 <form onSubmit={handleCreate} className={styles.formGrid}>
                     <div className={styles.inputGroup}>
-                        <label className={styles.label}>Code Name</label>
+                        <label className={styles.label}>Identifier / Code</label>
                         <input
                             type="text"
                             required
-                            placeholder="e.g. VIP-BETA-2026"
+                            placeholder="e.g. VIP-ACCESS-2026"
                             value={newCode}
                             onChange={(e) => setNewCode(e.target.value)}
                             className={styles.input}
@@ -84,7 +84,7 @@ export default function BetaCodesAdmin() {
                         />
                     </div>
                     <div className={styles.inputGroup}>
-                        <label className={styles.label}>Max Uses</label>
+                        <label className={styles.label}>Use Limit</label>
                         <input
                             type="number"
                             min="1"
@@ -99,7 +99,7 @@ export default function BetaCodesAdmin() {
                         disabled={creating}
                         className={styles.button}
                     >
-                        {creating ? "Generating..." : "Generate Code"}
+                        {creating ? "Processing..." : "Deploy Access"}
                     </button>
                 </form>
             </div>
@@ -109,25 +109,25 @@ export default function BetaCodesAdmin() {
                     <table className={styles.table}>
                         <thead>
                             <tr>
-                                <th>Invite Code</th>
+                                <th>Access Key</th>
                                 <th>Redemptions</th>
-                                <th>Type</th>
-                                <th>Status</th>
-                                <th>Created Date</th>
-                                <th>Actions</th>
+                                <th>Plan Type</th>
+                                <th>Deployment</th>
+                                <th>Issued On</th>
+                                <th>Management</th>
                             </tr>
                         </thead>
                         <tbody>
                             {loading ? (
                                 <tr>
                                     <td colSpan={6} className={styles.emptyState}>
-                                        Loading beta codes...
+                                        Fetching secure codes...
                                     </td>
                                 </tr>
                             ) : codes.length === 0 ? (
                                 <tr>
                                     <td colSpan={6} className={styles.emptyState}>
-                                        No beta codes found. Generate one above to get started.
+                                        No active access keys found in the registry.
                                     </td>
                                 </tr>
                             ) : (
@@ -135,16 +135,18 @@ export default function BetaCodesAdmin() {
                                     <tr key={code.id}>
                                         <td><span className={styles.codeCell}>{code.code}</span></td>
                                         <td>
-                                            <span style={{ fontWeight: 600, color: code.current_uses >= code.max_uses ? '#c0392b' : '#1c1a16' }}>
+                                            <span style={{ fontWeight: 600, color: code.current_uses >= code.max_uses ? '#ff6666' : '#fff' }}>
                                                 {code.current_uses}
                                             </span>
-                                            <span style={{ color: '#b8b3a8' }}> / {code.max_uses}</span>
+                                            <span style={{ color: 'rgba(255,255,255,0.3)' }}> / {code.max_uses}</span>
                                         </td>
-                                        <td>{code.type.replace(/_/g, ' ')}</td>
+                                        <td style={{ color: 'rgba(255,255,255,0.6)', textTransform: 'capitalize' }}>
+                                          {code.type.replace(/_/g, ' ')}
+                                        </td>
                                         <td>
                                             {code.isActive && code.current_uses < code.max_uses ? (
                                                 <span className={`${styles.badge} ${styles.badgeActive}`}>
-                                                    Active
+                                                    Operational
                                                 </span>
                                             ) : (
                                                 <span className={`${styles.badge} ${styles.badgeInactive}`}>
@@ -152,7 +154,7 @@ export default function BetaCodesAdmin() {
                                                 </span>
                                             )}
                                         </td>
-                                        <td style={{ color: '#7a7468' }}>
+                                        <td style={{ color: 'rgba(255,255,255,0.45)' }}>
                                             {format(new Date(code.createdAt), "MMM d, yyyy")}
                                         </td>
                                         <td>
@@ -161,7 +163,7 @@ export default function BetaCodesAdmin() {
                                                     onClick={() => deactivateCode(code.id)}
                                                     className={styles.deactivateBtn}
                                                 >
-                                                    Deactivate
+                                                    Revoke
                                                 </button>
                                             )}
                                         </td>

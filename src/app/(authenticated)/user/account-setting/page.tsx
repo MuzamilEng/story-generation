@@ -17,6 +17,7 @@ import {
   PlayIcon,
   RefreshIcon,
   DeleteIcon,
+  StopIcon,
 } from "../../../components/icons/SettingsIcons";
 import {
   UserProfile,
@@ -182,6 +183,7 @@ const DangerRow: React.FC<DangerRowProps> = ({
 // Voice Model Component
 interface VoiceModelProps {
   model: VoiceModel;
+  sampleUrl?: string | null;
   onPlay: () => void;
   onReRecord: () => void;
   onDelete: () => void;
@@ -189,83 +191,132 @@ interface VoiceModelProps {
 
 const VoiceModelCard: React.FC<VoiceModelProps> = ({
   model,
+  sampleUrl,
   onPlay,
   onReRecord,
   onDelete,
-}) => (
-  <div className={styles.voiceRow}>
-    <div className={styles.voiceInfo}>
-      <div className={styles.voiceAvatar}>
-        <MicIcon />
-      </div>
-      <div>
-        <div className={styles.voiceName}>{model.name}</div>
-        <div className={styles.voiceMeta}>
-          Created {format(model.createdDate, "MMMM d, yyyy")} &nbsp;·&nbsp; Used
-          in {model.storyCount} stories &nbsp;·&nbsp; Powered by{" "}
-          {model.provider}
+}) => {
+  const [isPlaying, setIsPlaying] = React.useState(false);
+  const audioRef = React.useRef<HTMLAudioElement | null>(null);
+
+  const handlePlay = () => {
+    if (!sampleUrl) {
+      onPlay(); // fallback to parent toast
+      return;
+    }
+    if (!audioRef.current) {
+      audioRef.current = new Audio(sampleUrl);
+      audioRef.current.onended = () => setIsPlaying(false);
+      audioRef.current.onerror = () => setIsPlaying(false);
+    }
+    if (isPlaying) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      setIsPlaying(false);
+    } else {
+      audioRef.current.play();
+      setIsPlaying(true);
+    }
+  };
+
+  return (
+    <div className={styles.voiceRow}>
+      <div className={styles.voiceInfo}>
+        <div className={styles.voiceAvatar}>
+          <MicIcon />
+        </div>
+        <div>
+          <div className={styles.voiceName}>{model.name}</div>
+          <div className={styles.voiceMeta}>
+            Created {format(model.createdDate, "MMMM d, yyyy")} &nbsp;·&nbsp; Used
+            in {model.storyCount} stories &nbsp;·&nbsp; Powered by{" "}
+            {model.provider}
+          </div>
         </div>
       </div>
+      <div className={styles.voiceBtns}>
+        <button className={`${styles.vbtn} ${styles.outline}`} onClick={handlePlay}>
+          {isPlaying ? <StopIcon /> : <PlayIcon />}
+          {isPlaying ? 'Stop' : 'Play Sample'}
+        </button>
+        <button
+          className={`${styles.vbtn} ${styles.outline}`}
+          onClick={onReRecord}
+        >
+          <RefreshIcon />
+          Re-record Voice
+        </button>
+        <button className={`${styles.vbtn} ${styles.red}`} onClick={onDelete}>
+          <DeleteIcon />
+          Delete Voice Model
+        </button>
+      </div>
     </div>
-    <div className={styles.voiceBtns}>
-      <button className={`${styles.vbtn} ${styles.outline}`} onClick={onPlay}>
-        <PlayIcon />
-        Play Sample
-      </button>
-      <button
-        className={`${styles.vbtn} ${styles.outline}`}
-        onClick={onReRecord}
-      >
-        <RefreshIcon />
-        Re-record Voice
-      </button>
-      <button className={`${styles.vbtn} ${styles.red}`} onClick={onDelete}>
-        <DeleteIcon />
-        Delete Voice Model
-      </button>
-    </div>
-  </div>
-);
+  );
+};
 
-// Soundscape Selector Component
-const SOUNDSCAPES = [
-  { value: 'none', label: 'None', emoji: '🔇', desc: 'Story audio only' },
-  { value: 'ocean', label: 'Ocean Waves', emoji: '🌊', desc: 'Gentle coastal rhythm' },
-  { value: 'river', label: 'Running River', emoji: '💧', desc: 'Flowing water ambience' },
-  { value: 'rain', label: 'Soft Rain', emoji: '🌧️', desc: 'Steady, calming rainfall' },
-  { value: 'uplifting', label: 'Uplifting Music', emoji: '🎵', desc: 'Soft instrumental backing' },
-] as const;
+const NONE_SOUNDSCAPE = { value: 'none', label: 'None', emoji: '🔇', desc: 'Story audio only', imageUrl: undefined };
+
+
 
 interface SoundscapeSelectorProps {
   current: string;
   disabled?: boolean;
+  dynamicAssets: any[];
   onChange: (val: string) => void;
 }
 
-const SoundscapeSelector: React.FC<SoundscapeSelectorProps> = ({ current, disabled, onChange }) => (
-  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', padding: '4px 0' }}>
-    {SOUNDSCAPES.map(s => (
-      <button
-        key={s.value}
-        onClick={() => !disabled && onChange(s.value)}
-        disabled={disabled}
-        style={{
-          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px',
-          padding: '10px 14px', borderRadius: '10px', cursor: disabled ? 'not-allowed' : 'pointer',
-          border: current === s.value ? '2px solid #c9a84c' : '2px solid rgba(255,255,255,0.08)',
-          background: current === s.value ? 'rgba(201,168,76,0.1)' : 'rgba(255,255,255,0.03)',
-          color: current === s.value ? '#c9a84c' : '#8a8476',
-          transition: 'all 0.15s', fontSize: '0.78rem', minWidth: '80px',
-          opacity: disabled ? 0.45 : 1,
-        }}
-        title={s.desc}
-      >
-        <span style={{ fontSize: '1.4rem' }}>{s.emoji}</span>
-        <span style={{ fontWeight: current === s.value ? 600 : 400 }}>{s.label}</span>
-      </button>
-    ))}
-  </div>
-);
+const SoundscapeSelector: React.FC<SoundscapeSelectorProps> = ({ current, disabled, dynamicAssets, onChange }) => {
+  // Only show 'none' and the dynamic assets from the admin
+  const allChoices = [
+    NONE_SOUNDSCAPE,
+    ...dynamicAssets.map(a => ({
+      value: a.value,
+      label: a.title,
+      emoji: '🎵',
+      desc: 'Ambient soundscape',
+      imageUrl: a.image_url
+    }))
+  ];
+
+
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', padding: '4px 0' }}>
+      {allChoices.map(s => (
+        <button
+          key={s.value}
+          onClick={() => !disabled && onChange(s.value)}
+          disabled={disabled}
+          style={{
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px',
+            padding: '10px 14px', borderRadius: '10px', cursor: disabled ? 'not-allowed' : 'pointer',
+            border: current === s.value ? '2px solid #c9a84c' : '2px solid rgba(255,255,255,0.08)',
+            background: current === s.value ? 'rgba(201,168,76,0.1)' : 'rgba(255,255,255,0.03)',
+            color: current === s.value ? '#c9a84c' : '#8a8476',
+            transition: 'all 0.15s', fontSize: '0.78rem', minWidth: '80px',
+            opacity: disabled ? 0.45 : 1,
+            position: 'relative',
+            overflow: 'hidden'
+          }}
+          title={s.desc}
+        >
+          {s.imageUrl && (
+              <img 
+                src={s.imageUrl} 
+                alt="" 
+                style={{ 
+                    position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', 
+                    objectFit: 'cover', opacity: 0.15, zIndex: 0 
+                }} 
+              />
+          )}
+          <span style={{ fontSize: '1.4rem', zIndex: 1 }}>{s.emoji}</span>
+          <span style={{ fontWeight: current === s.value ? 600 : 400, zIndex: 1 }}>{s.label}</span>
+        </button>
+      ))}
+    </div>
+  );
+};
 
 // Toast Component
 interface ToastProps {
@@ -310,6 +361,17 @@ const AccountSettings: React.FC = () => {
       return res.json();
     },
   });
+
+  // Fetch dynamic soundscapes
+  const { data: soundscapeData } = useQuery({
+    queryKey: ["available-soundscapes"],
+    queryFn: async () => {
+      const res = await fetch("/api/user/soundscapes");
+      if (!res.ok) throw new Error("Failed to fetch soundscapes");
+      return res.json();
+    },
+  });
+  const dynamicAssets = soundscapeData?.assets || [];
 
   // Update settings mutation
   const updateSettingsMutation = useMutation({
@@ -420,7 +482,10 @@ const AccountSettings: React.FC = () => {
   };
 
   const handlePlaySample = () => {
-    showToast("▶ Playing your voice sample...");
+    if (!userData?.voice_sample_url) {
+      showToast("No sample available yet — re-record your voice first.");
+    }
+    // Playback is handled inside VoiceModelCard when sampleUrl is provided
   };
 
   const handleReRecord = () => {
@@ -474,6 +539,8 @@ const AccountSettings: React.FC = () => {
         <div className={styles.page}>Error loading settings</div>
       </div>
     );
+
+  const isActuallyBeta = userData.isBetaUser && !userData.stripeSubscriptionId;
 
   return (
     <>
@@ -552,6 +619,7 @@ const AccountSettings: React.FC = () => {
                   storyCount: userData._count?.stories || 0,
                   provider: "ElevenLabs",
                 }}
+                sampleUrl={userData.voice_sample_url ?? null}
                 onPlay={handlePlaySample}
                 onReRecord={handleReRecord}
                 onDelete={handleDeleteVoice}
@@ -647,6 +715,7 @@ const AccountSettings: React.FC = () => {
                 </p>
                 <SoundscapeSelector
                   current={userData.soundscape ?? 'none'}
+                  dynamicAssets={dynamicAssets}
                   onChange={(val) => updateSettingsMutation.mutate({ soundscape: val })}
                 />
               </div>
@@ -701,8 +770,10 @@ const AccountSettings: React.FC = () => {
           <div className={styles.settingsSection}>
             <SectionHeader
               icon={<StarIcon />}
-              title={`Current Plan — ${userData.plan.toUpperCase()}`}
-              subtitle={`${userData.plan === "free" ? "Free Plan" : "$9.99 / month"} · Active since ${format(new Date(userData.createdAt), "MMMM d, yyyy")}`}
+              title={`Current Plan — ${isActuallyBeta ? "BETA" : userData.plan.toUpperCase()}`}
+              subtitle={isActuallyBeta 
+                ? `Beta Program (2 month trial)${userData.betaExpiresAt ? ` · Expires ${format(new Date(userData.betaExpiresAt), "MMMM d, yyyy")}` : ""}`
+                : `${userData.plan === "free" ? "Free Plan" : (userData.plan === 'activator' ? '$9.99 one-time' : (userData.plan === 'manifester' ? '$19.99/month' : '$39.99/month'))} · Active since ${format(new Date(userData.createdAt), "MMMM d, yyyy")}`}
               iconColor="gold"
             />
 

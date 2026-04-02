@@ -22,6 +22,7 @@ export async function GET(req: NextRequest) {
                 streak_milestones: true,
                 product_updates: true,
                 voice_model_id: true,
+                voice_sample_url: true,
                 soundscape: true,
                 binaural_enabled: true,
                 createdAt: true,
@@ -29,6 +30,11 @@ export async function GET(req: NextRequest) {
                     select: {
                         stories: true
                     }
+                },
+                betaCodes: {
+                    where: { expiresAt: { gt: new Date() } },
+                    orderBy: { expiresAt: 'desc' },
+                    take: 1
                 }
             }
         })
@@ -37,7 +43,13 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: 'User not found' }, { status: 404 })
         }
 
-        return NextResponse.json(user)
+        const responseData = {
+            ...user,
+            isBetaUser: (user as any).betaCodes?.length > 0,
+            betaExpiresAt: (user as any).betaCodes?.length > 0 ? (user as any).betaCodes[0].expiresAt : null
+        };
+
+        return NextResponse.json(responseData)
     } catch (error) {
         console.error('[SETTINGS_GET]', error)
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
@@ -61,6 +73,33 @@ export async function PATCH(req: NextRequest) {
             soundscape,
             binaural_enabled,
         } = body
+
+        // ── Plan gating for premium audio features ────────────────────────────
+        // Fetch the user's current plan before allowing premium field updates.
+        if (soundscape !== undefined || binaural_enabled !== undefined) {
+            const currentUser = await prisma.user.findUnique({
+                where: { id: session.user.id },
+                select: { plan: true },
+            })
+            const plan = currentUser?.plan ?? 'free'
+
+            const SOUNDSCAPE_PLANS = ['manifester', 'amplifier']
+            const BINAURAL_PLANS = ['amplifier']
+
+            if (soundscape !== undefined && !SOUNDSCAPE_PLANS.includes(plan)) {
+                return NextResponse.json(
+                    { error: 'Background soundscapes require the Manifester or Amplifier plan.' },
+                    { status: 403 }
+                )
+            }
+
+            if (binaural_enabled !== undefined && !BINAURAL_PLANS.includes(plan)) {
+                return NextResponse.json(
+                    { error: 'Binaural beats require the Amplifier plan.' },
+                    { status: 403 }
+                )
+            }
+        }
 
         const updatedUser = await prisma.user.update({
             where: { id: session.user.id },

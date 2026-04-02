@@ -68,8 +68,9 @@ model User {
   stripeSubscriptionId    String?        @unique @map("stripe_subscription_id")
   stripeCancelAtPeriodEnd Boolean        @default(false) @map("stripe_cancel_at_period_end")
   binaural_enabled        Boolean        @default(false) @map("binaural_enabled")
-  soundscape              Soundscape     @default(none) @map("soundscape")
+  soundscape              String         @default("none") @map("soundscape")
   accounts                Account[]
+
   sessions                Session[]
   playEvents              PlayEvent[]
   stories                 Story[]
@@ -106,6 +107,7 @@ model Story {
   binaural_audio_key    String?             @map("binaural_audio_key")
   combined_audio_key    String?             @map("combined_audio_key")
   soundscape_audio_key  String?             @map("soundscape_audio_key")
+  voice_only_r2_key     String?             @map("voice_only_r2_key")
   playEvents            PlayEvent[]
   user                  User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   audioVersions         StoryAudioVersion[]
@@ -231,6 +233,20 @@ model SystemAudio {
 
   @@map("system_audio")
 }
+
+model SoundscapeAsset {
+  id          String   @id @default(cuid())
+  title       String
+  image_url   String?  @map("image_url")
+  r2_key      String   @map("r2_key")
+  isActive    Boolean  @default(true) @map("is_active")
+  duration_s  Int?     @map("duration_s")
+  uploaded_at DateTime @default(now()) @map("uploaded_at")
+  updated_at  DateTime @updatedAt @map("updated_at")
+
+  @@map("soundscape_assets")
+}
+
 
 enum UserRole {
   USER

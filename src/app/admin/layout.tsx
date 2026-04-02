@@ -43,7 +43,11 @@ export default async function AdminLayout({
           <Link href="/admin/system-audio" className={styles.navItem}>
             <span>🔊</span> System Audio
           </Link>
+          <Link href="/admin/soundscapes" className={styles.navItem}>
+            <span>🎵</span> Background Sounds
+          </Link>
         </nav>
+
 
         <div className={styles.footer}>
           <div className={styles.userCard}>

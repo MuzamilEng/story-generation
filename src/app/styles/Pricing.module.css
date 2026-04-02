@@ -392,8 +392,17 @@ input:checked+.slider:before {
     color: #fff;
 }
 
-.btnPower:hover {
-    background: #235840;
+.btnCurrent {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.2);
+    color: #fff;
+    cursor: default;
+    opacity: 0.8;
+}
+
+.btnCurrent:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
 }
 
 /* ── FAQ ── */

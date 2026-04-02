@@ -77,13 +77,17 @@ const PricingPage: React.FC = () => {
         }
     };
 
+    const isBetaUser = (session?.user as any)?.isBetaUser && !(session?.user as any)?.stripeSubscriptionId;
+    const currentPlanId = (session?.user as any)?.plan || 'free';
+
     const plans = [
         {
             id: 'free',
             name: 'Explorer',
             price: '$0',
             priceSub: 'forever',
-            buttonText: 'Get Started Free',
+            buttonText: currentPlanId === 'free' ? 'Your Current Plan' : 'Select Explorer',
+            isCurrent: currentPlanId === 'free',
             features: [
                 { text: 'Unlimited story creation', included: true },
                 { text: 'Save up to 3 stories', included: true },
@@ -98,7 +102,8 @@ const PricingPage: React.FC = () => {
             price: '$9.99',
             priceSub: 'one time',
             badge: 'Launch offer',
-            buttonText: 'Get Activator',
+            buttonText: currentPlanId === 'activator' ? 'Your Current Plan' : 'Get Activator',
+            isCurrent: currentPlanId === 'activator',
             features: [
                 { text: 'Everything in Explorer', included: true },
                 { text: 'Full audio up to 10 min', included: true },
@@ -112,9 +117,10 @@ const PricingPage: React.FC = () => {
             priceOriginal: billingCycle === 'yearly' ? '$39.99/mo' : '',
             price: billingCycle === 'monthly' ? '$19.99' : '$15.99',
             priceSub: '/month',
-            badge: 'Most popular',
+            badge: currentPlanId === 'manifester' ? 'Current Plan' : 'Most popular',
             isHighlighted: true,
-            buttonText: 'Start Manifesting',
+            buttonText: currentPlanId === 'manifester' ? 'Your Current Plan' : 'Start Manifesting',
+            isCurrent: currentPlanId === 'manifester',
             features: [
                 { text: 'Everything in Activator', included: true },
                 { text: '5 audio stories/month', included: true },
@@ -124,12 +130,13 @@ const PricingPage: React.FC = () => {
         },
         {
             id: 'amplifier',
-            name: 'Amplifier',
-            priceOriginal: billingCycle === 'yearly' ? '$79.99/mo' : '',
-            price: billingCycle === 'monthly' ? '$39.99' : '$31.99',
-            priceSub: '/month',
-            badge: 'Most powerful',
-            buttonText: 'Start Amplifying',
+            name: isBetaUser ? 'Beta' : 'Amplifier',
+            priceOriginal: isBetaUser ? '' : (billingCycle === 'yearly' ? '$79.99/mo' : ''),
+            price: isBetaUser ? 'Free' : (billingCycle === 'monthly' ? '$39.99' : '$31.99'),
+            priceSub: isBetaUser ? 'trial' : '/month',
+            badge: currentPlanId === 'amplifier' ? 'Current Plan' : (isBetaUser ? 'Beta Access' : 'Most powerful'),
+            isCurrent: currentPlanId === 'amplifier',
+            buttonText: currentPlanId === 'amplifier' ? 'Your Current Plan' : (isBetaUser ? 'Start Trial' : 'Start Amplifying'),
             features: [
                 { text: 'Everything in Manifester', included: true },
                 { text: '10 hrs audio/month', included: true },
@@ -190,10 +197,10 @@ const PricingPage: React.FC = () => {
                             </div>
                             <button
                                 onClick={() => handlePlanSelect(p.id)}
-                                className={`${styles.planBtn} ${p.isHighlighted ? styles.btnPower : ''}`}
-                                disabled={loadingPlan === p.id}
+                                className={`${styles.planBtn} ${(p as any).isCurrent ? styles.btnCurrent : (p.isHighlighted ? styles.btnPower : '')}`}
+                                disabled={loadingPlan === p.id || (p as any).isCurrent}
                             >
-                                {loadingPlan === p.id ? 'Connecting...' : (p.id === 'free' ? 'Select Explorer' : p.buttonText)}
+                                {loadingPlan === p.id ? 'Connecting...' : p.buttonText}
                             </button>
                         </div>
                     ))}

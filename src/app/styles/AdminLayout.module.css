@@ -1,14 +1,26 @@
 .adminLayout {
+    --bg: #08070f;
+    --surface: rgba(255, 255, 255, 0.04);
+    --surface-raised: rgba(255, 255, 255, 0.06);
+    --ink: #ffffff;
+    --ink-muted: rgba(255, 255, 255, 0.55);
+    --ink-faint: rgba(255, 255, 255, 0.28);
+    --accent: #52b788;
+    --accent-deep: #2d6a4f;
+    --accent-light: rgba(82, 183, 136, 0.08);
+    --border: rgba(255, 255, 255, 0.08);
+
     display: flex;
     min-height: 100vh;
     font-family: 'Inter', sans-serif;
-    background-color: #f4f1eb;
+    background-color: var(--bg);
+    color: var(--ink);
 }
 
 .sidebar {
     width: 280px;
-    background-color: #fff;
-    border-right: 1px solid #e4dfd5;
+    background-color: var(--surface);
+    border-right: 1px solid var(--border);
     display: flex;
     flex-direction: column;
     position: sticky;
@@ -18,31 +30,32 @@
 
 .logoArea {
     padding: 1.5rem 1.75rem;
-    border-bottom: 1px solid #f4f1eb;
+    border-bottom: 1px solid var(--border);
 }
 
 .logo {
     font-family: 'Fraunces', serif;
     font-size: 1.25rem;
-    color: #1c1a16;
+    color: var(--ink);
     text-decoration: none;
 }
 
 .logo span {
-    color: #2d6a4f;
+    color: var(--accent);
 }
 
 .adminBadge {
     margin-top: 0.25rem;
     font-size: 0.65rem;
-    background: #e8f4ee;
-    color: #2d6a4f;
-    padding: 0.1rem 0.5rem;
+    background: var(--accent-light);
+    color: var(--accent);
+    padding: 0.1rem 0.65rem;
     border-radius: 99px;
     display: inline-block;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.05em;
+    border: 1px solid var(--accent);
 }
 
 .nav {
@@ -58,7 +71,7 @@
     align-items: center;
     gap: 0.75rem;
     padding: 0.75rem 1rem;
-    color: #7a7468;
+    color: var(--ink-muted);
     text-decoration: none;
     font-size: 0.9rem;
     font-weight: 500;
@@ -67,22 +80,22 @@
 }
 
 .navItem:hover {
-    background-color: #fdf6e3;
-    color: #1c1a16;
+    background-color: var(--surface-raised);
+    color: var(--ink);
 }
 
 .navItemActive {
-    background-color: #2d6a4f;
+    background-color: var(--accent);
     color: #fff !important;
 }
 
 .navItemActive:hover {
-    background-color: #1a3d2b;
+    background-color: var(--accent-deep);
 }
 
 .footer {
     padding: 1.5rem;
-    border-top: 1px solid #f4f1eb;
+    border-top: 1px solid var(--border);
 }
 
 .userCard {
@@ -90,14 +103,14 @@
     align-items: center;
     gap: 0.75rem;
     padding: 0.75rem;
-    background: #fdf6e3;
+    background: var(--surface-raised);
     border-radius: 12px;
 }
 
 .avatar {
     width: 36px;
     height: 36px;
-    background: #2d6a4f;
+    background: var(--accent);
     color: #fff;
     border-radius: 50%;
     display: grid;
@@ -109,7 +122,7 @@
 .userName {
     font-size: 0.85rem;
     font-weight: 600;
-    color: #1c1a16;
+    color: var(--ink);
 }
 
 .signOutBtn {
@@ -117,8 +130,8 @@
     width: 100%;
     padding: 0.6rem;
     background: none;
-    border: 1px solid #e4dfd5;
-    color: #7a7468;
+    border: 1px solid var(--border);
+    color: var(--ink-muted);
     font-size: 0.8rem;
     font-weight: 600;
     border-radius: 8px;
@@ -127,17 +140,18 @@
 }
 
 .signOutBtn:hover {
-    background: #fdf0ef;
-    color: #c0392b;
+    background: rgba(192, 57, 43, 0.1);
+    color: #ff6b6b;
     border-color: #c0392b;
 }
 
 .main {
     flex: 1;
     padding: 2.5rem;
-    max-width: 1400px;
-    margin: 0 auto;
+    max-width: 1100px;
+    margin: 0;
     width: 100%;
+    overflow-y: auto;
 }
 
 @media (max-width: 1024px) {
