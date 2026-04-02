@@ -18,6 +18,8 @@ export const metadata: Metadata = {
   description: "Your personal productivity app",
 };
 
+import SharedBackground from "./components/SharedBackground";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -26,7 +28,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable}`}>
-        <Providers>{children}</Providers>
+        <Providers>
+          <SharedBackground />
+          {children}
+        </Providers>
       </body>
     </html>
   );

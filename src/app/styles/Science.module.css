@@ -1,21 +1,5 @@
 .mainContainer {
-    --bg: #08070f;
-    --surface: rgba(255, 255, 255, 0.04);
-    --surface-raised: rgba(255, 255, 255, 0.06);
-    --ink: #ffffff;
-    --ink-muted: rgba(255, 255, 255, 0.55);
-    --ink-faint: rgba(255, 255, 255, 0.28);
-    --ink-ghost: rgba(255, 255, 255, 0.12);
-    --accent: #52b788;
-    --accent-deep: #2d6a4f;
-    --accent-light: rgba(82, 183, 136, 0.08); /* changed from #e8f4ee */
-    --accent-mid: #52b788;
-    --gold: #ffb347;
-    --gold-bg: rgba(255, 140, 60, 0.06);
-    --gold-border: rgba(255, 140, 60, 0.25);
-    --border: rgba(255, 255, 255, 0.08);
-
-    background: var(--bg);
+    background: transparent;
     color: var(--ink);
     font-family: 'Inter', sans-serif;
     font-weight: 300;
@@ -27,7 +11,7 @@
     position: sticky;
     top: 0;
     z-index: 50;
-    background: rgba(8, 7, 15, 0.88);
+    background: rgba(8, 7, 15, 0.4);
     backdrop-filter: blur(8px);
     border-bottom: 1px solid var(--border);
     padding: 0.85rem 2rem;

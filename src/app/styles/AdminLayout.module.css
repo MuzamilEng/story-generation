@@ -1,25 +1,15 @@
 .adminLayout {
-    --bg: #08070f;
-    --surface: rgba(255, 255, 255, 0.04);
-    --surface-raised: rgba(255, 255, 255, 0.06);
-    --ink: #ffffff;
-    --ink-muted: rgba(255, 255, 255, 0.55);
-    --ink-faint: rgba(255, 255, 255, 0.28);
-    --accent: #52b788;
-    --accent-deep: #2d6a4f;
-    --accent-light: rgba(82, 183, 136, 0.08);
-    --border: rgba(255, 255, 255, 0.08);
-
     display: flex;
     min-height: 100vh;
     font-family: 'Inter', sans-serif;
-    background-color: var(--bg);
+    background: transparent;
     color: var(--ink);
 }
 
 .sidebar {
     width: 280px;
-    background-color: var(--surface);
+    background: rgba(8, 7, 15, 0.4);
+    backdrop-filter: blur(8px);
     border-right: 1px solid var(--border);
     display: flex;
     flex-direction: column;

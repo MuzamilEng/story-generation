@@ -1,26 +1,8 @@
 .container {
-    --bg: #08070f;
-    --surface: rgba(255, 255, 255, 0.04);
-    --surface-raised: rgba(255, 255, 255, 0.06);
-    --ink: #ffffff;
-    --ink-muted: rgba(255, 255, 255, 0.55);
-    --ink-faint: rgba(255, 255, 255, 0.28);
-    --ink-ghost: rgba(255, 255, 255, 0.12);
-    --accent: #52b788;
-    --accent-deep: #2d6a4f;
-    --accent-light: rgba(82, 183, 136, 0.08); /* changed from #e8f4ee */
-    --accent-mid: #52b788;
-    --gold: #ffb347;
-    --gold-bg: rgba(255, 140, 60, 0.06);
-    --gold-border: rgba(255, 140, 60, 0.25);
-    --border: rgba(255, 255, 255, 0.08);
-    --red: #c0392b;
-    --red-light: #fdf0ef;
-
     height: 100%;
     flex: 1;
     overflow-y: auto;
-    background: var(--bg);
+    background: transparent;
     color: var(--ink);
     font-family: 'Inter', sans-serif;
     font-weight: 300;
@@ -446,6 +428,43 @@
 .pwToggle svg {
     width: 15px;
     height: 15px;
+}
+
+/* Role selector */
+.roleSelector {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.25rem;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+}
+
+.roleOption {
+    flex: 1;
+    padding: 0.65rem;
+    border-radius: 8px;
+    font-size: 0.73rem;
+    font-weight: 500;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: var(--ink-faint);
+    background: transparent;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+.roleOption.active {
+    background: var(--surface-raised);
+    color: var(--accent);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    border: 1px solid var(--accent-light);
+}
+
+.roleOption:hover:not(.active) {
+    color: var(--ink-muted);
+    background: rgba(255, 255, 255, 0.02);
 }
 
 /* Password strength */

@@ -733,53 +733,33 @@ const StoryContent: React.FC = () => {
             <div>
               <div className={styles.panelSectionTitle}>Your Vision</div>
 
-              {/* Main Pillars */}
-              {["identity", "purpose", "location", "emotions"].map((key) => {
-                const val = (userAnswers as any)[key];
-                if (!val || typeof val !== "string" || val.trim() === "")
-                  return null;
-                return (
-                  <VisionItem
-                    key={key}
-                    label={
-                      key === "emotions"
-                        ? "Core Feeling"
-                        : key.charAt(0).toUpperCase() + key.slice(1)
-                    }
-                    value={val}
-                  />
-                );
-              })}
+              <VisionItem label="New Identity" value={userAnswers.identityStatements?.length ? userAnswers.identityStatements.join(', ') : ''} />
+              <VisionItem label="Most Important Goal" value={userAnswers.goals} />
+              <VisionItem label="Proof Action" value={userAnswers.actionsAfter} />
+              
+              {userAnswers.namedPerson && (
+                <VisionItem label="People with you" value={userAnswers.namedPerson} />
+              )}
+              
+              {userAnswers.location && (
+                <VisionItem label="Environment" value={userAnswers.location} />
+              )}
+              
+              {userAnswers.coreFeeling && (
+                <VisionItem label="Core Feeling" value={userAnswers.coreFeeling} />
+              )}
 
-              {/* Any other dynamically captured goals */}
-              {Object.entries(userAnswers)
-                .filter(
-                  ([key, val]) =>
-                    ![
-                      "identity",
-                      "purpose",
-                      "location",
-                      "emotions",
-                      "categories",
-                    ].includes(key) &&
-                    val &&
-                    typeof val === "string" &&
-                    val.trim() !== "",
-                )
-                .map(([key, val]) => (
-                  <VisionItem
-                    key={key}
-                    label={key.charAt(0).toUpperCase() + key.slice(1)}
-                    value={val as string}
-                  />
-                ))}
-
-              {userAnswers.categories && userAnswers.categories.length > 0 && (
+              {userAnswers.selectedAreas && userAnswers.selectedAreas.length > 0 && (
                 <div className={styles.visionItem}>
-                  <div className={styles.visionLabel}>Focus Areas</div>
-                  <CategoryTags categories={userAnswers.categories} />
+                  <div className={styles.visionLabel}>Areas of Focus</div>
+                  <CategoryTags categories={userAnswers.selectedAreas} />
                 </div>
               )}
+              
+              <div className={styles.visionItem}>
+                <div className={styles.visionLabel}>Timeframe</div>
+                <div className={styles.visionValue}>{userAnswers.timeframe}</div>
+              </div>
             </div>
           )}
 

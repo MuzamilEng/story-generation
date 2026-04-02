@@ -1,28 +1,8 @@
- :root {
-     --bg: #08070f;
-    --surface: rgba(255, 255, 255, 0.04);
-    --surface-raised: rgba(255, 255, 255, 0.06);
-    --ink: #ffffff;
-    --ink-muted: rgba(255, 255, 255, 0.55);
-    --ink-faint: rgba(255, 255, 255, 0.28);
-    --ink-ghost: rgba(255, 255, 255, 0.12);
-    --accent: #52b788;
-    --accent-deep: #2d6a4f;
-    --accent-light: rgba(82, 183, 136, 0.08); /* changed from #e8f4ee */
-    --accent-mid: #52b788;
-    --gold: #ffb347;
-    --gold-bg: rgba(255, 140, 60, 0.06);
-    --gold-border: rgba(255, 140, 60, 0.25);
-    --border: rgba(255, 255, 255, 0.08);
-     --red: #c0392b;
-     --red-light: #fdf0ef;
- }
-
- .container {
+.container {
      height: 100%;
      flex: 1;
      overflow-y: auto;
-     background: var(--bg);
+     background: transparent;
      color: var(--ink);
      font-family: 'Inter', sans-serif;
      font-weight: 300;
@@ -248,310 +228,6 @@
      background: #52b788;
  }
 
- /* USAGE */
- .usageCard {
-     background: var(--surface);
-     border: 1px solid var(--border);
-     border-radius: 14px;
-     padding: 1.2rem 1.4rem;
-     margin-bottom: 1.5rem;
- }
-
- .cardLabel {
-     font-size: 0.7rem;
-     letter-spacing: 0.1em;
-     text-transform: uppercase;
-     color: var(--ink-muted);
-     margin-bottom: 1rem;
- }
-
- .usageRow {
-     margin-bottom: 0.9rem;
- }
-
- .usageRow:last-child {
-     margin-bottom: 0;
- }
-
- .usageTop {
-     display: flex;
-     justify-content: space-between;
-     margin-bottom: 0.35rem;
- }
-
- .usageName {
-     font-size: 0.8rem;
-     color: var(--ink);
- }
-
- .usageCount {
-     font-size: 0.72rem;
-     color: var(--ink-faint);
- }
-
- .barTrack {
-     height: 5px;
-     background: var(--border);
-     border-radius: 99px;
-     overflow: hidden;
- }
-
- .barFill {
-     height: 100%;
-     border-radius: 99px;
-     background: var(--accent);
-     transition: width 0.8s ease;
- }
-
- .barFill.warn {
-     background: var(--gold);
- }
-
- .resetsNote {
-     font-size: 0.68rem;
-     color: var(--ink-faint);
-     margin-top: 0.75rem;
- }
-
- /* BILLING CYCLE (Copied from Pricing) */
- .toggleWrapper {
-     display: flex;
-     align-items: center;
-     justify-content: flex-end;
-     gap: 1rem;
- }
-
- .toggleLabel {
-     font-size: 0.75rem;
-     color: var(--ink-faint);
-     font-weight: 500;
-     transition: color 0.2s;
- }
-
- .toggleLabel.active {
-     color: var(--ink-muted);
- }
-
- .switch {
-     position: relative;
-     display: inline-block;
-     width: 38px;
-     height: 20px;
- }
-
- .switch input {
-     opacity: 0;
-     width: 0;
-     height: 0;
- }
-
- .slider {
-     position: absolute;
-     cursor: pointer;
-     inset: 0;
-     background-color: var(--border);
-     transition: .3s;
-     border-radius: 20px;
- }
-
- .slider:before {
-     position: absolute;
-     content: "";
-     height: 14px;
-     width: 14px;
-     left: 3px;
-     bottom: 3px;
-     background-color: var(--surface);
-     transition: .3s;
-     border-radius: 50%;
- }
-
- input:checked+.slider {
-     background-color: var(--accent);
-     border-color: var(--accent);
- }
-
- input:checked+.slider:before {
-     transform: translateX(18px);
-     background-color: #fff;
- }
-
- .saveBadge {
-     font-size: 0.6rem;
-     background: var(--gold-bg);
-     color: var(--gold);
-     padding: 0.2rem 0.6rem;
-     border-radius: 99px;
-     margin-left: 0.4rem;
-     font-weight: 500;
- }
-
- /* PLAN CARDS */
- .sectionLabel {
-     font-size: 0.7rem;
-     letter-spacing: 0.1em;
-     text-transform: uppercase;
-     color: var(--ink-muted);
-     margin-bottom: 0.85rem;
- }
-
- .plansGrid {
-     display: grid;
-     grid-template-columns: repeat(2, 1fr);
-     gap: 0.85rem;
-     margin-bottom: 1.5rem;
- }
-
- .planCard {
-     background: var(--surface);
-     border: 1.5px solid var(--border);
-     border-radius: 14px;
-     padding: 1.2rem 1.3rem;
-     position: relative;
-     transition: all 0.2s;
- }
-
- .planCard.current {
-     border-color: var(--accent);
-     background: var(--accent-light);
- }
-
- .planCard.highlight {
-     border-color: var(--gold-border);
-     background: var(--gold-bg);
- }
-
- .planCard:not(.current):hover {
-     border-color: var(--accent-mid);
-     box-shadow: 0 4px 16px rgba(45, 106, 79, 0.08);
- }
-
- .planPip {
-     position: absolute;
-     top: -1px;
-     right: 14px;
-     font-size: 0.58rem;
-     letter-spacing: 0.1em;
-     text-transform: uppercase;
-     padding: 0.2rem 0.55rem;
-     border-radius: 0 0 6px 6px;
- }
-
- .pipCurrent {
-     background: var(--accent);
-     color: #fff;
- }
-
- .pipPopular {
-     background: var(--gold);
-     color: #fff;
- }
-
- .planName {
-     font-family: 'Fraunces', serif;
-     font-size: 1rem;
-     color: var(--ink);
-     margin-bottom: 0.25rem;
- }
-
- .planPrice {
-     font-size: 1.25rem;
-     font-weight: 500;
-     color: var(--ink);
-     line-height: 1;
- }
-
- .planPriceSub {
-     font-size: 0.7rem;
-     font-weight: 300;
-     color: var(--ink-muted);
- }
-
- .planDivider {
-     height: 1px;
-     background: var(--border);
-     margin: 0.85rem 0;
- }
-
- .planFeats {
-     display: flex;
-     flex-direction: column;
-     gap: 0.4rem;
- }
-
- .feat {
-     display: flex;
-     align-items: flex-start;
-     gap: 0.45rem;
-     font-size: 0.73rem;
-     color: var(--ink-muted);
-     line-height: 1.4;
- }
-
- .feat svg {
-     width: 11px;
-     height: 11px;
-     color: var(--accent);
-     flex-shrink: 0;
-     margin-top: 1px;
- }
-
- .feat.dim {
-     color: var(--ink-faint);
- }
-
- .feat.dim svg {
-     color: var(--ink-faint);
- }
-
- .planBtn {
-     width: 100%;
-     margin-top: 1rem;
-     padding: 0.55rem;
-     border-radius: 8px;
-     font-size: 0.77rem;
-     font-family: 'Inter', sans-serif;
-     font-weight: 500;
-     cursor: pointer;
-     transition: all 0.2s;
-     border: none;
- }
-
- .btnCurrent {
-     background: rgba(45, 106, 79, 0.1);
-     color: var(--accent);
-     cursor: default;
- }
-
- .btnUpgrade {
-     background: var(--accent);
-     color: #fff;
- }
-
- .btnUpgrade:hover {
-     background: #235840;
- }
-
- .btnPower {
-     background: var(--gold);
-     color: #fff;
- }
-
- .btnPower:hover {
-     background: #7d5a08;
- }
-
- .btnDowngrade {
-     background: none;
-     border: 1.5px solid var(--border);
-     color: var(--ink-muted);
- }
-
- .btnDowngrade:hover {
-     border-color: var(--ink-muted);
-     color: var(--ink);
- }
-
  /* BILLING HISTORY */
  .billingCard {
      background: var(--surface);
@@ -626,7 +302,7 @@
  }
 
  .status-paid {
-     background: var(--accent-light);
+     background: var(--surface-raised);
      color: var(--accent);
  }
 
@@ -675,8 +351,8 @@
  }
 
  .cancelBtn:hover {
-     border-color: var(--red);
-     color: var(--red);
+     border-color: #ef4444;
+     color: #ef4444;
  }
 
  .cancelNote {
@@ -711,10 +387,6 @@
  @media (max-width: 520px) {
      .topbarNav {
          display: none;
-     }
-
-     .plansGrid {
-         grid-template-columns: 1fr;
      }
 
      .currentBanner {

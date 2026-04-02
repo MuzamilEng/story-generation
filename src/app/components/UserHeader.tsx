@@ -202,6 +202,22 @@ const UserHeader: React.FC = () => {
                 <div className={styles.ddEmail}>{userEmail}</div>
               </div>
               <Link
+                href="/user/dashboard"
+                className={styles.ddItem}
+                onClick={() => setDropdownOpen(false)}
+              >
+                <div className={styles.ddIcon}>🏠</div>
+                Dashboard
+              </Link>
+              <Link
+                href="/user/stories"
+                className={styles.ddItem}
+                onClick={() => setDropdownOpen(false)}
+              >
+                <div className={styles.ddIcon}>📚</div>
+                My Stories
+              </Link>
+              <Link
                 href="/user/account-setting"
                 className={styles.ddItem}
                 onClick={() => setDropdownOpen(false)}

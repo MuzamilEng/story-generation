@@ -100,6 +100,7 @@ const CreateAccountForm: React.FC = () => {
     email: "",
     password: "",
     betaCode: "",
+    role: "USER", // Default role
     terms: false,
   });
   const [showPassword, setShowPassword] = useState(false);
@@ -175,6 +176,10 @@ const CreateAccountForm: React.FC = () => {
     }
   };
 
+  const handleRoleChange = (role: string) => {
+    setFormData((prev) => ({ ...prev, role }));
+  };
+
   const handleSocial = async (provider: string) => {
     await signIn(provider.toLowerCase(), { callbackUrl: "/user/dashboard" });
   };
@@ -207,6 +212,7 @@ const CreateAccountForm: React.FC = () => {
           email: formData.email,
           password: formData.password,
           betaCode: formData.betaCode.trim().toUpperCase(),
+          role: formData.role,
         }),
       });
 
@@ -466,6 +472,24 @@ const CreateAccountForm: React.FC = () => {
                 >
                   Password must be at least 8 characters
                 </span>
+              </div>
+
+              <div className={styles.field}>
+                <label>Select Role</label>
+                <div className={styles.roleSelector}>
+                  <div 
+                    className={`${styles.roleOption} ${formData.role === "USER" ? styles.active : ""}`}
+                    onClick={() => handleRoleChange("USER")}
+                  >
+                    USER
+                  </div>
+                  <div 
+                    className={`${styles.roleOption} ${formData.role === "ADMIN" ? styles.active : ""}`}
+                    onClick={() => handleRoleChange("ADMIN")}
+                  >
+                    ADMIN
+                  </div>
+                </div>
               </div>
 
               <div className={styles.field}>

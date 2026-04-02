@@ -6,8 +6,31 @@ import { model } from '@/lib/langchain'
 import { HumanMessage, SystemMessage } from "@langchain/core/messages"
 import { buildStoryPrompt, normalizeGoals } from '@/lib/story-utils'
 
-// Section 2 of STORY_PROMPTS_v3: Story Generation System Message
-const STORY_SYSTEM_MESSAGE = `You are a master manifestation story writer and NLP practitioner. Your sole job is to write a deeply personal, sensory-rich, first-person manifestation story built entirely around the specific goals and proof actions the user has provided. You follow instructions precisely. You never generalise, never paraphrase the user's inputs, and never invent details not provided. Every specific thing the user told us must appear in the story — verbatim or near-verbatim — as a vivid, lived scene. The story must feel so personal and specific that the user thinks: "This could only have been written about me."`;
+import { Tier } from '@/lib/story-utils'
+
+// Section 2 of STORY_PROMPTS_v4_FINAL: Story Generation System Message
+const STORY_SYSTEM_MESSAGE = `You are a master manifestation story writer, NLP practitioner, and hypnotic language specialist. Your sole purpose is to write a deeply personal, sensory-rich, first-person night story for ManifestMyStory.com.
+
+This story will be listened to every night in the user's own cloned voice as they drift toward sleep. Its purpose is to rewire the subconscious mind through repeated immersive exposure — making the user's desired future feel like remembered reality.
+
+You follow every instruction in this prompt precisely. You never generalise, never paraphrase the user's inputs, and never invent details not provided. Every specific thing the user shared must appear in the story — verbatim or near-verbatim — as a vivid, lived scene.
+
+The story must feel so intimate and specific that the user thinks: "This could only have been written about me."
+
+Write for the ear, not the eye. Every sentence must flow beautifully when read aloud. Vary sentence length deliberately — long flowing sentences for immersion, short sentences for emotional peaks. Never rush. Every word earns its place.
+
+━━━ SAFETY — NON-NEGOTIABLE ━━━
+ManifestMyStory is a platform for positive creation only. You will never write a story that:
+— Directs harm toward any other person, including scenarios of revenge, punishment, control, or manipulation of another's circumstances
+— Promotes self-harm, self-destruction, or dangerous behavior of any kind
+— Involves harm to property, animals, or any living thing
+— Requires another person to lose, suffer, or be diminished in order for the user to gain
+— Is rooted in fear, jealousy, anger, or the desire to take from someone else
+
+If the user's captured inputs contain any harmful intent, do not write the story. Instead respond:
+"ManifestMyStory is built for positive creation only — calling in what you genuinely want, not redirecting what belongs to others. I'm not able to write this story as requested. If you'd like to redirect toward what you truly want to build in your own life, please restart the intake."
+
+This safety instruction overrides all other instructions in this prompt.`;
 
 async function generateStory(prompt: string): Promise<string> {
     const response = await model.invoke([
@@ -33,6 +56,9 @@ export async function POST(
                 id: storyId,
                 userId: session.user.id,
             },
+            include: {
+                user: true
+            }
         })
 
         if (!story) {
@@ -41,25 +67,35 @@ export async function POST(
 
         const answers = normalizeGoals(story.goal_intake_json)
 
-        // Log answers for pipeline verification
+        // Map Plan to Tier
+        const planToTier: Record<string, Tier> = {
+            'free': 'explorer',
+            'activator': 'activator',
+            'manifester': 'manifester',
+            'amplifier': 'amplifier'
+        };
+        const userTier = planToTier[story.user.plan] || 'explorer';
+
+        // Log context for pipeline verification
         console.log(`[STORY_GENERATE] answers for story ${storyId}:`, JSON.stringify(answers, null, 2));
+        console.log(`[STORY_GENERATE] user tier: ${userTier}`);
 
         // Guard: block generation if critical fields are missing
         if (!answers.goals || answers.goals.trim().length === 0) {
             return NextResponse.json(
-                { error: 'Story cannot be generated: goals are missing. Please complete the goal intake conversation.' },
+                { error: 'Story cannot be generated: your goals/vision are missing. Please complete the goal intake conversation.' },
                 { status: 400 }
             )
         }
 
         if (!answers.actionsAfter || answers.actionsAfter.trim().length === 0) {
             return NextResponse.json(
-                { error: 'Story cannot be generated: proof actions (Life After Goals) are missing. Please complete the goal intake conversation.' },
+                { error: 'Story cannot be generated: proof actions (what you do once it\'s real) are missing. Please complete the goal intake conversation.' },
                 { status: 400 }
             )
         }
 
-        const prompt = buildStoryPrompt(answers, (story?.story_length_option as any) || 'long')
+        const prompt = buildStoryPrompt(answers, userTier)
 
         console.log(`[STORY_GENERATE] Using LangChain OpenAI for story ${storyId}`);
         const rawResponse = await generateStory(prompt);

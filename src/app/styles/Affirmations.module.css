@@ -1,6 +1,6 @@
 .page {
     min-height: 100vh;
-    background: #08070f;
+    background: transparent;
     color: #ffffff;
     font-family: 'Inter', system-ui, sans-serif;
     padding: 0 0 120px;

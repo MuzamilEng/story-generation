@@ -34,14 +34,14 @@
     left: 0;
     height: 100vh;
     width: 236px;
-    background: var(--surface, #fff);
-    border-right: 1px solid var(--border, #e4dfd5);
+    background: var(--bg);
+    border-right: 1px solid var(--border);
     display: flex;
     flex-direction: column;
     z-index: 1000;
     transform: translateX(-100%);
     transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 4px 0 24px rgba(28, 26, 22, 0.12);
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.4);
     overflow: hidden;
 }
 
