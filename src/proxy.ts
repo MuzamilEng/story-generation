@@ -18,11 +18,23 @@ export async function proxy(request: NextRequest) {
 
     console.log('[MIDDLEWARE] Processing:', pathname)
 
-    // 2. Get the user token
-    const token = await getToken({
+    // 2. Get the user token with resilience for production cookie naming
+    let token = await getToken({
         req: request,
         secret: process.env.NEXTAUTH_SECRET,
+        cookieName: 'next-auth.session-token',
+        secureCookie: process.env.NODE_ENV === 'production'
     })
+
+    // Fallback: try default secure cookie name if the first one failed in production
+    if (!token && process.env.NODE_ENV === 'production') {
+        token = await getToken({
+            req: request,
+            secret: process.env.NEXTAUTH_SECRET,
+            cookieName: '__Secure-next-auth.session-token',
+            secureCookie: true
+        })
+    }
 
     console.log('[AUTH DEBUG] Token exists:', !!token, 'Path:', pathname)
 
