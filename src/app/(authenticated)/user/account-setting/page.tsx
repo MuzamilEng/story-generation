@@ -718,7 +718,7 @@ const AccountSettings: React.FC = () => {
             {userData.plan === 'free' || userData.plan === 'activator' ? (
               <div style={{ padding: '16px 24px', color: '#5a5650', fontSize: '0.88rem' }}>
                 🔒 Soundscapes are available on Manifester and Amplifier plans.{' '}
-                <Link href="/user/manage-subscription" style={{ color: '#c9a84c', textDecoration: 'underline' }}>Upgrade →</Link>
+                <Link href="/pricing" style={{ color: '#c9a84c', textDecoration: 'underline' }}>Upgrade →</Link>
               </div>
             ) : (
               <div style={{ padding: '16px 24px' }}>
@@ -746,7 +746,7 @@ const AccountSettings: React.FC = () => {
             {userData.plan !== 'amplifier' ? (
               <div style={{ padding: '16px 24px', color: '#5a5650', fontSize: '0.88rem' }}>
                 🔒 Binaural beats are an Amplifier exclusive.{' '}
-                <Link href="/user/manage-subscription" style={{ color: '#c9a84c', textDecoration: 'underline' }}>Upgrade →</Link>
+                <Link href="/pricing" style={{ color: '#c9a84c', textDecoration: 'underline' }}>Upgrade →</Link>
               </div>
             ) : (
               <>
@@ -801,7 +801,7 @@ const AccountSettings: React.FC = () => {
                 value="Upgrade, downgrade, or cancel"
                 disabled
               />
-              <Link href="/subscription">
+              <Link href="/user/manage-subscription">
                 <button className={styles.editBtn}>Manage →</button>
               </Link>
             </FormRow>
