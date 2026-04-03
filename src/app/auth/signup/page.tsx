@@ -486,7 +486,7 @@ const CreateAccountForm: React.FC = () => {
                 </span>
               </div>
 
-              <div className={styles.field}>
+              {/* <div className={styles.field}>
                 <label>Select Role</label>
                 <div className={styles.roleSelector}>
                   <div 
@@ -502,7 +502,7 @@ const CreateAccountForm: React.FC = () => {
                     ADMIN
                   </div>
                 </div>
-              </div>
+              </div> */}
 
               <div className={styles.field}>
                 <label htmlFor="betaCode">Beta code (Optional)</label>
