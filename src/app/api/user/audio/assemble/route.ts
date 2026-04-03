@@ -173,17 +173,18 @@ async function assembleAndMixWithFFmpeg(
         }
 
         const mixInputs = [`-i "${paths.voiceOnly}"`];
-        // volume=2.2 + acompressor keeps voice loud and punchy over the BG tracks
+        // Normalize voice for consistency
         let filterStr =
-            '[0:a]volume=2.2,acompressor=threshold=-20dB:ratio=4:attack=5:release=50:makeup=2,' +
+            '[0:a]volume=1.8,acompressor=threshold=-18dB:ratio=4:attack=5:release=50:makeup=2,' +
             'aresample=44100:async=1,aformat=sample_fmts=fltp:channel_layouts=stereo[main];';
         const mixIndices = ['[main]'];
 
         if (soundscapeBuffer) {
             mixInputs.push(`-stream_loop -1 -i "${paths.soundscape}"`);
             const idx = mixInputs.length - 1;
+            // Mixed softly at −16dB to −18dB relative to voice
             filterStr +=
-                `[${idx}:a]volume=0.8,aresample=44100:async=1,` +
+                `[${idx}:a]volume=0.25,aresample=44100:async=1,` +
                 `aformat=sample_fmts=fltp:channel_layouts=stereo[bg${idx}];`;
             mixIndices.push(`[bg${idx}]`);
         }
@@ -191,13 +192,14 @@ async function assembleAndMixWithFFmpeg(
         if (binauralBuffer) {
             mixInputs.push(`-stream_loop -1 -i "${paths.binaural}"`);
             const idx = mixInputs.length - 1;
+            // Mixed softly for focus effect
             filterStr +=
-                `[${idx}:a]volume=0.6,aresample=44100:async=1,` +
+                `[${idx}:a]volume=0.20,aresample=44100:async=1,` +
                 `aformat=sample_fmts=fltp:channel_layouts=stereo[bg${idx}];`;
             mixIndices.push(`[bg${idx}]`);
         }
 
-        // normalize=0 keeps the voice at 2.2× regardless of the number of BG inputs
+        // Normalize=0 sums them; with these volumes (1.8 peak voice, 0.25 bg), we stay near 0dB without clipping
         filterStr +=
             `${mixIndices.join('')}amix=inputs=${mixIndices.length}:duration=first:dropout_transition=0:normalize=0[out]`;
 
@@ -207,7 +209,7 @@ async function assembleAndMixWithFFmpeg(
             `-acodec libmp3lame -b:a 192k -minrate 192k -maxrate 192k -bufsize 384k -ar 44100 ` +
             `-id3v2_version 3 -write_id3v1 1 -map_metadata -1 "${paths.output}" -y`;
         
-        console.log('[assemble] Running strict CBR hifi-mix…');
+        console.log('[assemble] Running professional CBR hifi-mix…');
         execSync(mixCmd, { stdio: 'pipe' });
 
 
@@ -386,6 +388,8 @@ export async function POST(req: NextRequest) {
                 audio_duration_secs: durationSecs,
                 elevenlabs_history_id: historyId,
                 audio_generated_at: new Date(),
+                // Store combined key specifically if mixing happened
+                combined_audio_key: mixed ? finalKey : null,
                 // Clean voice-only track (no soundscape / binaural)
                 voice_only_r2_key: voiceOnlyKey,
                 // Metadata about which BG tracks were mixed in

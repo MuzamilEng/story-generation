@@ -123,6 +123,8 @@ const AudioReadyContent: React.FC = () => {
 
     const [story, setStory] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [isMixing, setIsMixing] = useState(false);
+    const [mixProgress, setMixProgress] = useState(0);
     const [isPlaying, setIsPlaying] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
@@ -323,11 +325,179 @@ const AudioReadyContent: React.FC = () => {
         }
     };
 
-    const handleDownload = () => {
+    /**
+     * Client-side Mixing Engine
+     * Bypasses server-side FFmpeg limits (like Vercel) by mixing tracks in the browser context.
+     */
+    const mixAndDownloadInBrowser = async () => {
+        if (!story || !audioRef.current) return;
+        
+        setIsMixing(true);
+        setMixProgress(10);
+
+        try {
+            const voiceUrl = story.audio_url;
+            const soundscapeUrl = soundscapeOn ? `/api/user/audio/stream?key=${encodeURIComponent(story.soundscape_audio_key)}` : null;
+            const binauralUrl = binauralOn ? `/api/user/audio/stream?key=${encodeURIComponent(story.binaural_audio_key)}` : null;
+
+            // 1. Fetch all required audio files as ArrayBuffers
+            const fetchAudio = async (url: string) => {
+                const res = await fetch(url);
+                if (!res.ok) throw new Error(`Failed to fetch ${url}`);
+                return res.arrayBuffer();
+            };
+
+            setMixProgress(20);
+            const [voiceTask, soundscapeTask, binauralTask] = await Promise.all([
+                fetchAudio(voiceUrl),
+                soundscapeUrl ? fetchAudio(soundscapeUrl) : Promise.resolve(null),
+                binauralUrl ? fetchAudio(binauralUrl) : Promise.resolve(null)
+            ]);
+
+            setMixProgress(40);
+            const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+            
+            // 2. Decode all buffers
+            const decode = (buffer: ArrayBuffer) => audioCtx.decodeAudioData(buffer);
+            const [voiceBuffer, soundscapeBuffer, binauralBuffer] = await Promise.all([
+                decode(voiceTask),
+                soundscapeTask ? decode(soundscapeTask) : Promise.resolve(null),
+                binauralTask ? decode(binauralTask) : Promise.resolve(null)
+            ]);
+
+            setMixProgress(60);
+            
+            // 3. Setup OfflineAudioContext
+            // We use the voice buffer length as the master duration
+            const duration = voiceBuffer.duration;
+            const sampleRate = voiceBuffer.sampleRate;
+            const offlineCtx = new OfflineAudioContext(2, duration * sampleRate, sampleRate);
+
+            // 4. Create source nodes & Gain nodes
+            const voiceSource = offlineCtx.createBufferSource();
+            voiceSource.buffer = voiceBuffer;
+            const voiceGain = offlineCtx.createGain();
+            voiceGain.gain.value = 1.0; // Primary voice
+            voiceSource.connect(voiceGain).connect(offlineCtx.destination);
+
+            if (soundscapeBuffer) {
+                const bgSource = offlineCtx.createBufferSource();
+                bgSource.buffer = soundscapeBuffer;
+                bgSource.loop = true;
+                const bgGain = offlineCtx.createGain();
+                bgGain.gain.value = 0.15; // Set softly as per design
+                bgSource.connect(bgGain).connect(offlineCtx.destination);
+                bgSource.start(0);
+            }
+
+            if (binauralBuffer) {
+                const binSource = offlineCtx.createBufferSource();
+                binSource.buffer = binauralBuffer;
+                binSource.loop = true;
+                const binGain = offlineCtx.createGain();
+                binGain.gain.value = 0.12; // Binaural subtle effect
+                binSource.connect(binGain).connect(offlineCtx.destination);
+                binSource.start(0);
+            }
+
+            voiceSource.start(0);
+
+            setMixProgress(80);
+
+            // 5. Render
+            const renderedBuffer = await offlineCtx.startRendering();
+            
+            setMixProgress(95);
+
+            // 6. Convert to WAV (simple helper)
+            const wavBlob = audioBufferToWav(renderedBuffer);
+            const downloadUrl = URL.createObjectURL(wavBlob);
+            
+            // 7. Trigger download
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            link.download = `${story.title || 'My_Manifestation_Story'}_HD_Mix.wav`;
+            link.click();
+            
+            URL.revokeObjectURL(downloadUrl);
+            setMixProgress(100);
+            setShowDownloadPrompt(true);
+            
+            setTimeout(() => {
+                document.getElementById('postDownload')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }, 500);
+
+        } catch (err) {
+            console.error("Browser mixing failed:", err);
+            alert("High-fidelity mixing failed in this browser. Falling back to voice-only download.");
+            handleDownload('voice'); // Fallback to simple download
+        } finally {
+            setIsMixing(false);
+            setMixProgress(0);
+        }
+    };
+
+    /** Simple WAV helper for browser-side output */
+    const audioBufferToWav = (buffer: AudioBuffer) => {
+        const numChannels = buffer.numberOfChannels;
+        const length = buffer.length * numChannels * 2 + 44;
+        const out = new ArrayBuffer(length);
+        const view = new DataView(out);
+        const channels = [];
+        let i, sample, offset = 0;
+
+        // RIFF chunk descriptor
+        const writeString = (s: string) => {
+            for (i = 0; i < s.length; i++) view.setUint8(offset++, s.charCodeAt(i));
+        };
+        writeString('RIFF');
+        view.setUint32(offset, length - 8, true); offset += 4;
+        writeString('WAVE');
+        writeString('fmt ');
+        view.setUint32(offset, 16, true); offset += 4;
+        view.setUint16(offset, 1, true); offset += 2;
+        view.setUint16(offset, numChannels, true); offset += 2;
+        view.setUint32(offset, buffer.sampleRate, true); offset += 4;
+        view.setUint32(offset, buffer.sampleRate * 2 * numChannels, true); offset += 4;
+        view.setUint16(offset, numChannels * 2, true); offset += 2;
+        view.setUint16(offset, 16, true); offset += 2;
+        writeString('data');
+        view.setUint32(offset, length - offset - 4, true); offset += 4;
+
+        for (i = 0; i < numChannels; i++) channels.push(buffer.getChannelData(i));
+        
+        let pos = 0;
+        while (pos < buffer.length) {
+            for (i = 0; i < numChannels; i++) {
+                sample = Math.max(-1, Math.min(1, channels[i][pos]));
+                view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
+                offset += 2;
+            }
+            pos++;
+        }
+        return new Blob([out], { type: 'audio/wav' });
+    };
+
+
+    const handleDownload = (type: 'mixed' | 'voice' = 'mixed') => {
         if (!story?.audio_url) return;
 
+        // If user wants mixed and has backgrounds ON, try browser mixing first
+        // to bypass FFmpeg limits on serverless production (Vercel)
+        if (type === 'mixed' && (soundscapeOn || binauralOn)) {
+            const confirmed = window.confirm(
+                "Experience the 'High Fidelity Master'.\n\nI will now mix your narration with your chosen background sounds directly in your browser. This creates a lossless (WAV) file for the best quality.\n\nContinue?"
+            );
+            if (confirmed) {
+                mixAndDownloadInBrowser();
+                return;
+            }
+        }
+
         const confirmed = window.confirm(
-            "Once you download your audio file, the purchase is final and non-refundable.\n\nHappy with how it sounds? Click OK to download."
+            type === 'mixed'
+                ? "Downloading the standard MP3 version.\n\nNote: If background mixing wasn't completed during generation, this file may only contain voice. Click OK to continue."
+                : "Downloading the clean voice version (no background sounds).\n\nClick OK to download."
         );
 
         if (!confirmed) return;
@@ -335,21 +505,24 @@ const AudioReadyContent: React.FC = () => {
         // Record download event
         recordEvent('download');
 
-        // Trigger real download via our stream API with download=true
-        const downloadUrl = `${story.audio_url}${story.audio_url.includes('?') ? '&' : '?'}download=true`;
+        // Determine which URL to use
+        let targetUrl = story.audio_url; // Default to primary (usually mixed)
+        
+        if (type === 'voice' && story.voice_only_url) {
+            targetUrl = story.voice_only_url;
+        } else if (type === 'mixed' && !soundscapeOn && !binauralOn && story.voice_only_url) {
+            targetUrl = story.voice_only_url;
+        }
+
+        const downloadUrl = `${targetUrl}${targetUrl.includes('?') ? '&' : '?'}download=true`;
         const link = document.createElement('a');
         link.href = downloadUrl;
         link.click();
 
-
         setShowDownloadPrompt(true);
-
         setTimeout(() => {
-            document.getElementById('postDownload')?.scrollIntoView({
-                behavior: 'smooth',
-                block: 'nearest'
-            });
-        }, 1000);
+            document.getElementById('postDownload')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }, 500);
     };
 
     const progressPercentage = duration > 0 ? (currentTime / duration) * 100 : 0;
@@ -583,13 +756,52 @@ const AudioReadyContent: React.FC = () => {
                                 Listen online first — download is final & non-refundable
                             </div>
                         </div>
-                        <button
-                            className={styles.dlBtn}
-                            onClick={handleDownload}
-                        >
-                            <DownloadIcon />
-                            Download
-                        </button>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <button
+                                className={styles.dlBtn}
+                                onClick={() => handleDownload('mixed')}
+                                style={{ width: '100%', position: 'relative' }}
+                                disabled={isMixing}
+                            >
+                                {isMixing ? (
+                                    <>
+                                        <div 
+                                            style={{ 
+                                                position: 'absolute', 
+                                                left: 0, 
+                                                top: 0, 
+                                                bottom: 0, 
+                                                width: `${mixProgress}%`, 
+                                                background: 'rgba(255,255,255,0.1)', 
+                                                transition: 'width 0.3s ease' 
+                                            }} 
+                                        />
+                                        Mixing High-Fidelity... {mixProgress}%
+                                    </>
+                                ) : (
+                                    <>
+                                        <DownloadIcon />
+                                        Download HD Mix
+                                    </>
+                                )}
+                            </button>
+                            
+                            {story?.voice_only_url && (
+                                <button
+                                    className={styles.dlBtn}
+                                    onClick={() => handleDownload('voice')}
+                                    style={{ 
+                                        width: '100%', 
+                                        background: 'rgba(255,255,255,0.05)', 
+                                        border: '1px solid rgba(255,255,255,0.1)',
+                                        color: 'var(--ink-faint)',
+                                        marginTop: '4px'
+                                    }}
+                                >
+                                    Clean Voice Only
+                                </button>
+                            )}
+                        </div>
                     </div>
 
                     <div className={styles.downloadCard}>
