@@ -174,18 +174,6 @@ export default function StoriesPage() {
     const router = useRouter();
     const { data: session } = useSession();
     const [searchTerm, setSearchTerm] = useState('');
-    const [activeStory, setActiveStory] = useState<Story | null>(null);
-    const [isPlaying, setIsPlaying] = useState(false);
-    const [isLooping, setIsLooping] = useState(false);
-    const [currentTime, setCurrentTime] = useState(0);
-    const [duration, setDuration] = useState(0);
-    const [soundscapeOn, setSoundscapeOn] = useState(true);
-    const [binauralOn, setBinauralOn] = useState(true);
-    
-    // Audio Refs
-    const audioRef = useRef<HTMLAudioElement>(null);
-    const soundscapeRef = useRef<HTMLAudioElement>(null);
-    const binauralRef = useRef<HTMLAudioElement>(null);
 
 
     const { data: stories = [], isLoading } = useQuery<Story[]>({
@@ -213,8 +201,7 @@ export default function StoriesPage() {
             return;
         }
 
-        setActiveStory(story);
-        setIsPlaying(true);
+        router.push(`/user/audio-download?storyId=${story.id}&autoplay=true`);
     };
 
     const handleDownload = (story: Story) => {
@@ -229,96 +216,6 @@ export default function StoriesPage() {
         router.push(`/user/story-detail/${story.id}`);
     };
 
-    // Auto-play when activeStory changes
-    useEffect(() => {
-        if (activeStory && isPlaying && audioRef.current) {
-            // Give it 100ms to ensure the src is swapped and the DOM is ready
-            const timer = setTimeout(() => {
-                if (audioRef.current) {
-                    audioRef.current.play().then(() => {
-                        syncBackgroundTracks();
-                    }).catch(e => console.warn("Auto-play failed:", e));
-                }
-            }, 100);
-            return () => clearTimeout(timer);
-        }
-    }, [activeStory?.id]);
-
-    const togglePlay = () => {
-        if (!audioRef.current) return;
-        
-        if (isPlaying) {
-            audioRef.current.pause();
-            soundscapeRef.current?.pause();
-            binauralRef.current?.pause();
-            setIsPlaying(false);
-        } else {
-            audioRef.current.play().then(() => {
-                syncBackgroundTracks();
-                setIsPlaying(true);
-            }).catch(e => console.error("Playback failed", e));
-        }
-    };
-
-
-    const syncBackgroundTracks = () => {
-        if (!audioRef.current) return;
-        if (soundscapeOn && soundscapeRef.current) {
-            soundscapeRef.current.currentTime = audioRef.current.currentTime % (soundscapeRef.current.duration || 300);
-            soundscapeRef.current.play().catch(() => {});
-        }
-        if (binauralOn && binauralRef.current) {
-            binauralRef.current.currentTime = audioRef.current.currentTime % (binauralRef.current.duration || 300);
-            binauralRef.current.play().catch(() => {});
-        }
-    };
-
-    const handleTimeUpdate = () => {
-        if (audioRef.current) {
-            setCurrentTime(audioRef.current.currentTime);
-        }
-    };
-
-    const handleLoadedMetadata = () => {
-        if (audioRef.current) {
-            setDuration(audioRef.current.duration);
-        }
-    };
-
-    const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
-        if (!audioRef.current || !duration) return;
-        const bar = e.currentTarget;
-        const rect = bar.getBoundingClientRect();
-        const pct = (e.clientX - rect.left) / rect.width;
-        audioRef.current.currentTime = pct * duration;
-    };
-
-    const skip = (seconds: number) => {
-        if (audioRef.current) {
-            audioRef.current.currentTime = Math.max(0, Math.min(duration, audioRef.current.currentTime + seconds));
-        }
-    };
-
-    // Auto-sync background tracks when toggled
-    useEffect(() => {
-        if (isPlaying) syncBackgroundTracks();
-        else {
-            soundscapeRef.current?.pause();
-            binauralRef.current?.pause();
-        }
-    }, [soundscapeOn, binauralOn]);
-
-    // Handle end of track
-    const handleEnded = () => {
-        if (isLooping && audioRef.current) {
-            audioRef.current.currentTime = 0;
-            audioRef.current.play();
-        } else {
-            setIsPlaying(false);
-            soundscapeRef.current?.pause();
-            binauralRef.current?.pause();
-        }
-    };
 
     return (
         <div className={styles.container}>
@@ -364,85 +261,6 @@ export default function StoriesPage() {
                 </div>
             </main>
 
-            {activeStory && (
-                <div className={styles.audioOverlay} onClick={() => { setActiveStory(null); setIsPlaying(false); }}>
-                    <div className={styles.audioPanel} onClick={(e) => e.stopPropagation()}>
-                        {/* Hidden Audio Elements */}
-                        <audio
-                            ref={audioRef}
-                            src={activeStory.audio_url}
-                            onTimeUpdate={handleTimeUpdate}
-                            onLoadedMetadata={handleLoadedMetadata}
-                            onEnded={handleEnded}
-                            preload="auto"
-                        />
-                        {activeStory.soundscape_audio_key && (
-                            <audio
-                                ref={soundscapeRef}
-                                src={`/api/user/audio/stream?key=${encodeURIComponent(activeStory.soundscape_audio_key)}`}
-                                loop
-                                onLoadedMetadata={(e) => (e.currentTarget.volume = 0.13)}
-                            />
-                        )}
-                        {activeStory.binaural_audio_key && (
-                            <audio
-                                ref={binauralRef}
-                                src={`/api/user/audio/stream?key=${encodeURIComponent(activeStory.binaural_audio_key)}`}
-                                loop
-                                onLoadedMetadata={(e) => (e.currentTarget.volume = 0.13)}
-                            />
-                        )}
-
-                        <div className={styles.audioTop}>
-                            <div className={styles.audioTitle}>{activeStory.title}</div>
-                            <button className={styles.audioClose} onClick={() => { setActiveStory(null); setIsPlaying(false); }}>
-                                <CloseIcon />
-                            </button>
-                        </div>
-                        <div className={styles.audioControls}>
-                            <div className={styles.progressTrack} onClick={handleSeek}>
-                                <div className={styles.progressFill} style={{ width: `${(currentTime / (duration || 1)) * 100}%` }} />
-                            </div>
-                            <div className={styles.playerBtns}>
-                                <button className={styles.playerBtn} onClick={() => skip(-15)}><SkipBackIcon /></button>
-                                <button className={styles.playerPlay} onClick={togglePlay}>
-                                    {isPlaying ? <PauseIcon /> : <PlayIcon />}
-                                </button>
-                                <button className={styles.playerBtn} onClick={() => skip(15)}><SkipForwardIcon /></button>
-                            </div>
-
-                            <div className={styles.playerRight}>
-                                {activeStory.soundscape_audio_key && (
-                                    <button 
-                                        className={`${styles.playerPlay} ${soundscapeOn ? styles.on : ''}`} 
-                                        style={{ background: 'none', color: soundscapeOn ? 'var(--accent)' : 'var(--ink-faint)', fontSize: '1.2rem', width: 'auto', height: 'auto', boxShadow: 'none' }} 
-                                        onClick={() => setSoundscapeOn(!soundscapeOn)}
-                                        title="Toggle Soundscape"
-                                    >
-                                        🌊
-                                    </button>
-                                )}
-                                {activeStory.binaural_audio_key && (
-                                    <button 
-                                        className={`${styles.playerPlay} ${binauralOn ? styles.on : ''}`} 
-                                        style={{ background: 'none', color: binauralOn ? 'var(--accent)' : 'var(--ink-faint)', fontSize: '1.2rem', width: 'auto', height: 'auto', boxShadow: 'none' }} 
-                                        onClick={() => setBinauralOn(!binauralOn)}
-                                        title="Toggle Binaural"
-                                    >
-                                        🎧
-                                    </button>
-                                )}
-                                <button className={`${styles.playerPlay} ${isLooping ? styles.on : ''}`} style={{ background: 'none', color: isLooping ? 'var(--accent)' : 'var(--ink-faint)', width: 'auto', height: 'auto', boxShadow: 'none' }} onClick={() => setIsLooping(!isLooping)}>
-                                    <LoopIcon />
-                                </button>
-                                <button className={styles.playerBtn} onClick={() => handleDownload(activeStory)}>
-                                    <DownloadIcon />
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
 
         </div>
     );

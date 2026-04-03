@@ -262,6 +262,18 @@ const AudioReadyContent: React.FC = () => {
         }
     };
 
+    // Handle autoplay from dashboard/stories
+    useEffect(() => {
+        const autoplay = searchParams.get('autoplay');
+        if (autoplay === 'true' && story && audioRef.current && !isPlaying) {
+            // Short delay to ensure audio is ready
+            const timer = setTimeout(() => {
+                togglePlay();
+            }, 500);
+            return () => clearTimeout(timer);
+        }
+    }, [story, audioRef.current]);
+
 
     // Keep background tracks sync'd on seek
     useEffect(() => {

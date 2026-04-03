@@ -358,140 +358,6 @@ const VersionHistory: React.FC<VersionHistoryProps> = ({
   </div>
 );
 
-// Audio Player Component
-interface AudioPlayerProps {
-  story: Story;
-  isPlaying: boolean;
-  isLooping: boolean;
-  backgroundEnabled: boolean;
-  currentTime: number;
-  isOpen: boolean;
-  onClose: () => void;
-  onPlayToggle: () => void;
-  onLoopToggle: () => void;
-  onBackgroundToggle: () => void;
-  onSkip: (seconds: number) => void;
-  onSeek: (percentage: number) => void;
-  onDownload: () => void;
-}
-
-const AudioPlayer: React.FC<AudioPlayerProps> = ({
-  story,
-  isPlaying,
-  isLooping,
-  backgroundEnabled,
-  currentTime,
-  isOpen,
-  onClose,
-  onPlayToggle,
-  onLoopToggle,
-  onBackgroundToggle,
-  onSkip,
-  onSeek,
-  onDownload,
-}) => {
-  if (!isOpen) return null;
-
-  const duration = story.audioDuration;
-  const progressPercentage = (currentTime / duration) * 100;
-
-  const formatTime = (seconds: number): string => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, "0")}`;
-  };
-
-  const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
-    const track = e.currentTarget;
-    const rect = track.getBoundingClientRect();
-    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    onSeek(pct);
-  };
-
-  return (
-    <div className={styles.modalOverlay} onClick={onClose}>
-      <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
-        <button
-          className={styles.closeModal}
-          onClick={onClose}
-          title="Close player"
-        >
-          <CloseIcon />
-        </button>
-
-        <div className={styles.modalAudioCard}>
-          <div className={styles.modalAudioHead}>
-            <div className={styles.modalAudioHeadLabel}>
-              Manifestation Audio · MP3
-            </div>
-            <div className={styles.modalAudioHeadTitle}>{story.title}</div>
-
-            <button className={styles.modalAudioDlBtn} onClick={onDownload}>
-              <DownloadIcon />
-              Download MP3
-            </button>
-          </div>
-
-          <div className={styles.modalAudioBody}>
-            <div className={styles.modalProgressRow}>
-              <span className={styles.modalTime}>
-                {formatTime(currentTime)}
-              </span>
-              <div className={styles.modalTrack} onClick={handleSeek}>
-                <div
-                  className={styles.modalFill}
-                  style={{ width: `${progressPercentage}%` }}
-                />
-              </div>
-              <span className={styles.modalTime}>{formatTime(duration)}</span>
-            </div>
-
-            <div className={styles.modalControls}>
-              <button
-                className={styles.modalCtrl}
-                onClick={() => onSkip(-15)}
-                title="Back 15s"
-              >
-                <SkipBackIcon />
-              </button>
-
-              <button
-                className={`${styles.modalCtrl} ${styles.playPause}`}
-                onClick={onPlayToggle}
-              >
-                {isPlaying ? <PauseIcon /> : <PlayIcon />}
-              </button>
-
-              <button
-                className={styles.modalCtrl}
-                onClick={() => onSkip(15)}
-                title="Forward 15s"
-              >
-                <SkipForwardIcon />
-              </button>
-
-              <button
-                className={`${styles.modalCtrl} ${styles.loop} ${isLooping ? styles.on : ""}`}
-                onClick={onLoopToggle}
-                title="Loop"
-              >
-                <LoopIcon />
-              </button>
-
-              <button
-                className={`${styles.modalCtrl} ${styles.background} ${backgroundEnabled ? styles.on : ""}`}
-                onClick={onBackgroundToggle}
-                title={backgroundEnabled ? "Mute Background Sound" : "Enable Background Sound"}
-              >
-                <MusicIcon />
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
 
 // Toast Component
 interface ToastProps {
@@ -515,18 +381,8 @@ const StoryDetail: React.FC = () => {
   const [editedTitle, setEditedTitle] = useState("");
   const [isEditing, setIsEditing] = useState(false);
   const [showRegen, setShowRegen] = useState(false);
-  const [isPlayerOpen, setIsPlayerOpen] = useState(false);
   const [toast, setToast] = useState({ message: "", visible: false });
 
-  // Audio player state
-  const [audioState, setAudioState] = useState<AudioPlayerState>({
-    isPlaying: false,
-    isLooping: false,
-    currentTime: 0,
-    duration: 0,
-    backgroundEnabled: true,
-  });
-  const audioRef = useRef<HTMLAudioElement>(null);
 
   const queryClient = useQueryClient();
 
@@ -617,7 +473,6 @@ const StoryDetail: React.FC = () => {
     if (story) {
       setEditedContent(story.content);
       setEditedTitle(story.title);
-      setAudioState((prev) => ({ ...prev, duration: story.audioDuration }));
       document.title = `ManifestMyStory — ${story.title}`;
     }
   }, [story]);
@@ -710,94 +565,14 @@ const StoryDetail: React.FC = () => {
   };
 
   const handlePlayToggle = () => {
-    if (!audioRef.current || !story?.audioUrl || story.audioUrl === "#") {
+    if (!story?.audioUrl || story.audioUrl === "#") {
       showToast("📥 Audio not generated yet");
       return;
     }
 
-    if (!isPlayerOpen) setIsPlayerOpen(true);
-
-    if (audioState.isPlaying) {
-      audioRef.current.pause();
-    } else {
-      audioRef.current.play().catch((e) => console.error("Play failed:", e));
-      if (audioState.currentTime < 1) recordEvent(story.id, "play");
-    }
-    setAudioState((prev) => ({ ...prev, isPlaying: !prev.isPlaying }));
+    router.push(`/user/audio-download?storyId=${story.id}&autoplay=true`);
   };
 
-  const handleAudioMetadata = () => {
-    if (audioRef.current) {
-      setAudioState((prev) => ({
-        ...prev,
-        duration: audioRef.current?.duration || 0,
-      }));
-    }
-  };
-
-  const handleTimeUpdate = () => {
-    if (audioRef.current) {
-      setAudioState((prev) => ({
-        ...prev,
-        currentTime: audioRef.current?.currentTime || 0,
-      }));
-    }
-  };
-
-  const handleLoopToggle = () => {
-    const nextLoop = !audioState.isLooping;
-    if (audioRef.current) audioRef.current.loop = nextLoop;
-    setAudioState((prev) => ({ ...prev, isLooping: nextLoop }));
-    showToast(nextLoop ? "🔁 Looping on" : "Loop off");
-  };
-
-  const handleBackgroundToggle = () => {
-    if (!audioRef.current || !story) return;
-    if (!story.voiceOnlyUrl) {
-      showToast("This story only has one audio version available.");
-      return;
-    }
-
-    const wasPlaying = audioState.isPlaying;
-    const timeAtToggle = audioState.currentTime;
-
-    setAudioState((prev) => ({ ...prev, backgroundEnabled: !prev.backgroundEnabled }));
-
-    const handleSeekBack = () => {
-      if (audioRef.current) {
-        audioRef.current.currentTime = timeAtToggle;
-        if (wasPlaying) {
-          audioRef.current.play().catch((e) => console.error("Play failed:", e));
-        }
-        audioRef.current.removeEventListener("canplay", handleSeekBack);
-      }
-    };
-
-    audioRef.current.addEventListener("canplay", handleSeekBack);
-  };
-
-  const handleSkip = (seconds: number) => {
-    if (!audioRef.current) return;
-    const duration = audioRef.current.duration || audioState.duration;
-    if (!duration || isNaN(duration)) return;
-
-    const newTime = Math.max(
-      0,
-      Math.min(duration, audioRef.current.currentTime + seconds),
-    );
-    // Setting currentTime will trigger handleTimeUpdate automatically via onTimeUpdate
-    audioRef.current.currentTime = newTime;
-  };
-
-  const handleSeek = (percentage: number) => {
-    if (!audioRef.current) return;
-    const duration = audioRef.current.duration || audioState.duration;
-    if (!duration || isNaN(duration)) return;
-
-    const newTime = percentage * duration;
-    // Setting currentTime will trigger handleTimeUpdate automatically via onTimeUpdate
-    audioRef.current.currentTime = newTime;
-  };
 
   const handleDownload = () => {
     if (!story?.audioUrl || story.audioUrl === "#") {
@@ -852,7 +627,7 @@ const StoryDetail: React.FC = () => {
             onPlayToggle={handlePlayToggle}
             onDownload={handleDownload}
             onDelete={handleDelete}
-            isPlaying={audioState.isPlaying}
+            isPlaying={false}
             onTitleChange={handleTitleChange}
           />
 
@@ -883,37 +658,6 @@ const StoryDetail: React.FC = () => {
               onRestore={handleRestoreVersion}
             />
           )}
-
-          {/* Audio Player Modal */}
-          <AudioPlayer
-            story={story}
-            isPlaying={audioState.isPlaying}
-            isLooping={audioState.isLooping}
-            backgroundEnabled={audioState.backgroundEnabled}
-            currentTime={audioState.currentTime}
-            isOpen={isPlayerOpen}
-            onClose={() => setIsPlayerOpen(false)}
-            onPlayToggle={handlePlayToggle}
-            onLoopToggle={handleLoopToggle}
-            onBackgroundToggle={handleBackgroundToggle}
-            onSkip={handleSkip}
-            onSeek={handleSeek}
-            onDownload={handleDownload}
-          />
-
-          {/* Real Audio Element */}
-          <audio
-            ref={audioRef}
-            src={(audioState.backgroundEnabled ? story.audioUrl : story.voiceOnlyUrl) || story.audioUrl || ""}
-            preload="auto"
-            crossOrigin="anonymous"
-            onLoadedMetadata={handleAudioMetadata}
-            onTimeUpdate={handleTimeUpdate}
-            onEnded={() =>
-              setAudioState((prev) => ({ ...prev, isPlaying: false }))
-            }
-            style={{ display: "none" }}
-          />
         </main>
 
         <Toast message={toast.message} visible={toast.visible} />

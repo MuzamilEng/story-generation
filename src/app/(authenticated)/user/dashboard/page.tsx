@@ -200,7 +200,6 @@ const MetricCard: React.FC<MetricCardProps> = ({
 
 interface StoryCardProps {
   story: Story;
-  isActive: boolean;
   onPlay: (story: Story) => void;
   onDownload: (story: Story) => void;
   onRead: (story: Story) => void;
@@ -208,7 +207,6 @@ interface StoryCardProps {
 
 const StoryCard: React.FC<StoryCardProps> = ({
   story,
-  isActive,
   onPlay,
   onDownload,
   onRead,
@@ -241,15 +239,10 @@ const StoryCard: React.FC<StoryCardProps> = ({
 
   return (
     <div
-      className={`${styles.storyCard} ${isActive ? styles.activeCard : ""}`}
+      className={styles.storyCard}
       onClick={() => onPlay(story)}
     >
       <div className={styles.storyCardTop}>
-        {isActive && (
-          <div className={`${styles.storyPlayingBadge} ${styles.show}`}>
-            Playing
-          </div>
-        )}
         {isDraft && <div className={styles.draftBadge}>{getDraftReason()}</div>}
         <div className={styles.storyCardEyebrow}>
           Created{" "}
@@ -413,18 +406,6 @@ const Dashboard: React.FC = () => {
     };
   }, []);
 
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const audioRef = useRef<HTMLAudioElement>(null);
-
-  const [activeStory, setActiveStory] = useState<Story | null>(null);
-  const [audioPanelOpen, setAudioPanelOpen] = useState(false);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isLooping, setIsLooping] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [totalDuration, setTotalDuration] = useState(0);
-  const [volume, setVolume] = useState(85);
-  const [isAudioReady, setIsAudioReady] = useState(false);
-  const [backgroundEnabled, setBackgroundEnabled] = useState(true);
   const { data: stories = [], isLoading: isLoadingStories } = useQuery<Story[]>(
     {
       queryKey: ["stories"],
@@ -468,31 +449,7 @@ const Dashboard: React.FC = () => {
       timestamp: new Date(a.timestamp),
     })) || [];
 
-  useEffect(() => {
-    if (audioRef.current) {
-      if (isPlaying) {
-        audioRef.current.play().catch(() => setIsPlaying(false));
-      } else {
-        audioRef.current.pause();
-      }
-    }
-  }, [isPlaying, activeStory]);
 
-  useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.loop = isLooping;
-    }
-  }, [isLooping]);
-
-  const handleCanPlay = () => {
-    setIsAudioReady(true);
-  };
-
-  const formatTime = (seconds: number): string => {
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, "0")}`;
-  };
 
   const recordEvent = async (
     storyId: string,
@@ -521,117 +478,10 @@ const Dashboard: React.FC = () => {
       return;
     }
 
-    if (activeStory?.id === story.id) {
-      togglePlay();
-      return;
-    }
-
-    setActiveStory(story);
-    setAudioPanelOpen(true);
-    setIsPlaying(true);
-    setCurrentTime(0);
-    setIsAudioReady(false); // Reset ready state for new story
-
-    // Record the play event
-    recordEvent(story.id, "play");
+    // Redirect to download page and play
+    router.push(`/user/audio-download?storyId=${story.id}&autoplay=true`);
   };
 
-  const handleAudioMetadata = () => {
-    if (audioRef.current) {
-      setTotalDuration(audioRef.current.duration);
-    }
-  };
-
-  const handleTimeUpdate = () => {
-    if (audioRef.current) {
-      setCurrentTime(audioRef.current.currentTime);
-    }
-  };
-
-  const handleClosePlayer = () => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.src = "";
-    }
-    setAudioPanelOpen(false);
-    setActiveStory(null);
-    setIsPlaying(false);
-    setCurrentTime(0);
-    setTotalDuration(0);
-    setIsAudioReady(false);
-  };
-
-  const togglePlay = () => {
-    if (!audioRef.current) return;
-    setIsPlaying(!isPlaying);
-  };
-
-  const toggleLoop = () => {
-    setIsLooping(!isLooping);
-  };
-
-  const skipTime = (seconds: number) => {
-    if (!audioRef.current) return;
-    const duration = audioRef.current.duration || totalDuration;
-    if (!duration || isNaN(duration) || duration === Infinity) return;
-
-    const newTime = Math.max(
-      0,
-      Math.min(duration, audioRef.current.currentTime + seconds),
-    );
-    audioRef.current.currentTime = newTime;
-  };
-
-  const seekAudio = (e: React.MouseEvent, track: HTMLElement) => {
-    const duration = audioRef.current?.duration || totalDuration;
-    if (!audioRef.current || !duration || isNaN(duration)) return;
-    const rect = track.getBoundingClientRect();
-    const percent = (e.clientX - rect.left) / rect.width;
-    audioRef.current.currentTime = percent * duration;
-  };
-
-  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = parseInt(e.target.value);
-    setVolume(val);
-    if (audioRef.current) {
-      audioRef.current.volume = val / 100;
-    }
-  };
-
-  const toggleBackground = () => {
-    if (!audioRef.current || !activeStory) return;
-    if (!activeStory.voice_only_url) {
-      alert("This story only has one audio version available.");
-      return;
-    }
-
-    const wasPlaying = isPlaying;
-    const timeAtToggle = audioRef.current.currentTime;
-
-    setBackgroundEnabled(!backgroundEnabled);
-
-    // After state update, the src will change in the next render.
-    // We'll use a one-time effect to seek back to the correct place.
-    const handleSeekBack = () => {
-      if (audioRef.current) {
-        audioRef.current.currentTime = timeAtToggle;
-        if (wasPlaying) {
-          audioRef.current.play().catch(() => setIsPlaying(false));
-        }
-        audioRef.current.removeEventListener("canplay", handleSeekBack);
-      }
-    };
-
-    audioRef.current.addEventListener("canplay", handleSeekBack);
-  };
-
-  // Effect to sync volume when audio element is ready
-  useEffect(() => {
-    if (audioRef.current && activeStory) {
-      audioRef.current.volume = volume / 100;
-      if (isPlaying) audioRef.current.play().catch(() => setIsPlaying(false));
-    }
-  }, [activeStory?.id]);
 
   const handleDownload = (story: Story) => {
     if (!story.audio_url) {
@@ -742,120 +592,6 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
 
-        <audio
-          ref={audioRef}
-          src={(backgroundEnabled ? activeStory?.audio_url : activeStory?.voice_only_url) || activeStory?.audio_url || ""}
-          loop={isLooping}
-          preload="auto"
-          onLoadedMetadata={handleAudioMetadata}
-          onDurationChange={handleAudioMetadata}
-          onTimeUpdate={handleTimeUpdate}
-          onCanPlay={handleCanPlay}
-          onEnded={() => setIsPlaying(false)}
-          style={{ display: "none" }}
-        />
-
-        {/* INLINE AUDIO PLAYER */}
-        {audioPanelOpen && activeStory && (
-          <div className={`${styles.audioPanel} ${styles.open}`}>
-            <div className={styles.audioTop}>
-              <div className={styles.audioTopInfo}>
-                <div className={styles.audioPlayingLabel}>Now playing</div>
-                <div className={styles.audioTitle}>{activeStory.title}</div>
-              </div>
-              <button
-                className={styles.audioClose}
-                onClick={handleClosePlayer}
-                aria-label="Close player"
-              >
-                <CloseIcon />
-              </button>
-            </div>
-
-            <div className={styles.audioControls}>
-              <div className={styles.progressRow}>
-                <span>{formatTime(currentTime)}</span>
-                <div
-                  className={styles.progressTrack}
-                  onClick={(e) => seekAudio(e, e.currentTarget)}
-                >
-                  <div
-                    className={styles.progressFill}
-                    style={{
-                      width: `${totalDuration > 0 ? (currentTime / totalDuration) * 100 : 0}%`,
-                    }}
-                  />
-                </div>
-                <span>{formatTime(totalDuration)}</span>
-              </div>
-
-              <div className={styles.playerBtns}>
-                <button
-                  className={styles.playerBtn}
-                  onClick={() => skipTime(-15)}
-                  title="Back 15s"
-                >
-                  <SkipBackIcon />
-                </button>
-
-                <button
-                  className={styles.playerPlay}
-                  onClick={togglePlay}
-                  aria-label="Play/pause"
-                >
-                  {isPlaying ? <PauseIcon /> : <PlayIcon />}
-                </button>
-
-                <button
-                  className={styles.playerBtn}
-                  onClick={() => skipTime(15)}
-                  title="Forward 15s"
-                >
-                  <SkipForwardIcon />
-                </button>
-
-                <div className={styles.playerRight}>
-                  <div className={styles.playerVolume}>
-                    <VolumeIcon />
-                    <input
-                      type="range"
-                      className={styles.volSlider}
-                      min="0"
-                      max="100"
-                      value={volume}
-                      onChange={handleVolumeChange}
-                    />
-                  </div>
-                  <button
-                    className={`${styles.playerLoop} ${isLooping ? styles.on : ""}`}
-                    onClick={toggleLoop}
-                    title="Loop recording"
-                  >
-                    <LoopIcon />
-                    <span>{isLooping ? "Looping" : "Loop"}</span>
-                  </button>
-
-                  <button
-                    className={`${styles.playerBackground} ${backgroundEnabled ? styles.on : ""}`}
-                    onClick={toggleBackground}
-                    title={backgroundEnabled ? "Mute Background Sound" : "Enable Background Sound"}
-                  >
-                    <MusicIcon />
-                    <span>{backgroundEnabled ? "Background ON" : "Voice Only"}</span>
-                  </button>
-
-                  <button
-                    className={styles.playerDl}
-                    onClick={() => handleDownload(activeStory)}
-                  >
-                    <DownloadIcon />
-                    Download MP3
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* STORY LIBRARY */}
         <div className={styles.sectionHeader}>
@@ -885,7 +621,6 @@ const Dashboard: React.FC = () => {
                 <StoryCard
                   key={story.id}
                   story={story}
-                  isActive={activeStory?.id === story.id}
                   onPlay={handlePlayStory}
                   onDownload={handleDownload}
                   onRead={handleRead}
