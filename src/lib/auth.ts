@@ -155,41 +155,26 @@ export const authOptions: NextAuthOptions = {
       return true
     },
 
-    // ✅ FIXED: Handle both absolute and relative URLs
+    // ✅ FIXED: Handle both absolute and relative URLs robustly
     async redirect({ url, baseUrl }) {
       console.log('[AUTH] Redirect callback:', { url, baseUrl })
 
-      // Handle relative URLs
-      if (url.startsWith('/')) {
-        // Check if it's a signin page with callbackUrl parameter
-        if (url.includes('/auth/signin')) {
-          try {
-            // Parse the URL properly
-            let callbackUrl = ''
-            if (url.includes('?')) {
-              const params = new URLSearchParams(url.split('?')[1])
-              callbackUrl = params.get('callbackUrl') || ''
-            }
-
-            if (callbackUrl) {
-              // Ensure callbackUrl is properly formatted
-              return `${baseUrl}${callbackUrl.startsWith('/') ? callbackUrl : '/' + callbackUrl}`
-            }
-          } catch (error) {
-            console.error('[AUTH] Error parsing callbackUrl:', error)
-          }
+      // If the URL is absolute and on the same origin, we can use it
+      if (url.startsWith('http')) {
+        const urlObj = new URL(url)
+        if (urlObj.origin === baseUrl) {
+          return url
         }
-
-        // Default: prepend baseUrl to relative URL
-        return `${baseUrl}${url}`
       }
 
-      // Handle absolute URLs
-      else if (url.startsWith('http')) {
-        return url
+      // If it's a relative URL, prepend the base URL
+      if (url.startsWith('/')) {
+        // Prevent double slashes
+        const base = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl
+        return `${base}${url}`
       }
 
-      // Default fallback
+      // Fallback
       return baseUrl
     }
   },
@@ -197,7 +182,7 @@ export const authOptions: NextAuthOptions = {
   pages: {
     signIn: '/auth/signin',
     error: '/auth/error',
-    newUser: '/auth/signup'
+    // newUser: '/auth/signup' // Let NextAuth handle this or redirect to dashboard
   },
 
   debug: process.env.NODE_ENV === 'development',

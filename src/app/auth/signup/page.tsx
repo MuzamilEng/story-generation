@@ -2,7 +2,7 @@
 import React, { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { signIn } from "next-auth/react";
+import { signIn, useSession } from "next-auth/react";
 import styles from "../../styles/CreateAccount.module.css";
 
 // Icons as components
@@ -93,7 +93,19 @@ const StepItem: React.FC<StepItemProps> = ({ number, label, status }) => (
 const CreateAccountForm: React.FC = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const nextUrl = searchParams.get("next") || "/user/dashboard";
+  const nextUrl = searchParams.get("callbackUrl") || searchParams.get("next") || "/user/dashboard";
+  const { data: session, status: authStatus } = useSession();
+
+  // Redirect if already authenticated (e.g. from a social login that ended up back here)
+  useEffect(() => {
+    if (authStatus === "authenticated" && session) {
+      if (session.user?.role === "ADMIN") {
+        router.push("/admin");
+      } else {
+        router.push("/user/dashboard");
+      }
+    }
+  }, [authStatus, session, router]);
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -181,7 +193,7 @@ const CreateAccountForm: React.FC = () => {
   };
 
   const handleSocial = async (provider: string) => {
-    await signIn(provider.toLowerCase(), { callbackUrl: "/user/dashboard" });
+    await signIn(provider.toLowerCase(), { callbackUrl: nextUrl });
   };
 
   const isFormValid = () => {
@@ -237,7 +249,7 @@ const CreateAccountForm: React.FC = () => {
         setIsLoading(false);
       } else {
         // Hard navigation so the session cookie is sent on the very first request
-        window.location.href = nextUrl;
+        window.location.href = formData.role === "ADMIN" ? "/admin" : "/user/dashboard";
       }
     } catch (error) {
       setApiError("An unexpected error occurred. Please try again.");

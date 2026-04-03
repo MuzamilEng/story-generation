@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { signIn } from 'next-auth/react';
+import { signIn, useSession } from 'next-auth/react';
 import styles from '../../styles/SignIn.module.css';
 import {
   GoogleIcon,
@@ -69,7 +69,20 @@ const FieldError: React.FC<FieldErrorProps> = ({ show, message }) => (
 const SignIn: React.FC = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const nextUrl = searchParams.get('next') || '/user/dashboard';
+  const nextUrl = searchParams.get('callbackUrl') || searchParams.get('next') || '/user/dashboard';
+
+  const { data: session, status: authStatus } = useSession();
+
+  // If user is already authenticated, redirect them based on their role
+  useEffect(() => {
+    if (authStatus === 'authenticated' && session) {
+      if (session.user?.role === 'ADMIN') {
+        router.push('/admin');
+      } else {
+        router.push('/user/dashboard');
+      }
+    }
+  }, [authStatus, session, router]);
 
   useEffect(() => {
     document.title = "ManifestMyStory — Sign In";
@@ -132,7 +145,7 @@ const SignIn: React.FC = () => {
   };
 
   const handleSocial = async (provider: string) => {
-    await signIn(provider.toLowerCase(), { callbackUrl: '/user/dashboard' });
+    await signIn(provider.toLowerCase(), { callbackUrl: nextUrl });
   };
 
   const handleSignIn = async () => {
@@ -159,7 +172,7 @@ const SignIn: React.FC = () => {
         if (session?.user?.role === 'ADMIN') {
           router.push('/admin');
         } else {
-          router.push(nextUrl);
+          router.push('/user/dashboard');
         }
       }
     } catch (error) {
@@ -198,7 +211,7 @@ const SignIn: React.FC = () => {
           Manifest<span>MyStory</span>
         </Link>
         <div className={styles.topbarRight}>
-          New here? <Link href="/auth/signup">Create a free account</Link>
+          New here? <Link href={`/auth/signup?next=${encodeURIComponent(nextUrl)}`}>Create a free account</Link>
         </div>
       </header>
 
@@ -328,7 +341,7 @@ const SignIn: React.FC = () => {
               </button>
 
               <p className={styles.signupNote}>
-                Don't have an account? <Link href="/auth/signup">Create one free</Link>
+                Don't have an account? <Link href={`/auth/signup?next=${encodeURIComponent(nextUrl)}`}>Create one free</Link>
               </p>
 
               <div className={styles.securityRow}>
