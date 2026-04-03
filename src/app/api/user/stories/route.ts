@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
                 goal_intake_json: goals,
                 story_length_option: length || 'long',
             },
-        })
+        } as any)
 
         // Increment count
         await prisma.user.update({
@@ -79,9 +79,10 @@ export async function GET(req: NextRequest) {
             },
         })
 
-        const serializedStories = stories.map(story => ({
+        const serializedStories = stories.map((story: any) => ({
             ...story,
             audio_file_size_bytes: story.audio_file_size_bytes != null ? Number(story.audio_file_size_bytes) : null,
+            voice_only_url: story.voice_only_r2_key ? `/api/user/audio/stream?key=${encodeURIComponent(story.voice_only_r2_key)}` : null
         }))
 
         return NextResponse.json(serializedStories)

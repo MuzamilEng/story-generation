@@ -131,6 +131,14 @@ const RefreshIcon = () => (
   </svg>
 );
 
+const MusicIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M9 18V5l12-2v13" />
+    <circle cx="6" cy="18" r="3" />
+    <circle cx="18" cy="16" r="3" />
+  </svg>
+);
+
 const VolumeIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
@@ -154,9 +162,10 @@ interface Story {
   plays: number;
   downloads: number;
   audio_url?: string;
+  voice_only_url?: string;
+  status: "draft" | "approved" | "audio_ready";
   story_text_approved?: string;
   story_text_draft?: string;
-  status: "draft" | "approved" | "audio_ready";
 }
 
 
@@ -415,6 +424,7 @@ const Dashboard: React.FC = () => {
   const [totalDuration, setTotalDuration] = useState(0);
   const [volume, setVolume] = useState(85);
   const [isAudioReady, setIsAudioReady] = useState(false);
+  const [backgroundEnabled, setBackgroundEnabled] = useState(true);
   const { data: stories = [], isLoading: isLoadingStories } = useQuery<Story[]>(
     {
       queryKey: ["stories"],
@@ -433,6 +443,7 @@ const Dashboard: React.FC = () => {
           plays: s.play_count || 0,
           downloads: s.download_count || 0,
           audio_url: s.audio_url,
+          voice_only_url: s.voice_only_url,
           status: s.status,
         }));
 
@@ -587,6 +598,33 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const toggleBackground = () => {
+    if (!audioRef.current || !activeStory) return;
+    if (!activeStory.voice_only_url) {
+      alert("This story only has one audio version available.");
+      return;
+    }
+
+    const wasPlaying = isPlaying;
+    const timeAtToggle = audioRef.current.currentTime;
+
+    setBackgroundEnabled(!backgroundEnabled);
+
+    // After state update, the src will change in the next render.
+    // We'll use a one-time effect to seek back to the correct place.
+    const handleSeekBack = () => {
+      if (audioRef.current) {
+        audioRef.current.currentTime = timeAtToggle;
+        if (wasPlaying) {
+          audioRef.current.play().catch(() => setIsPlaying(false));
+        }
+        audioRef.current.removeEventListener("canplay", handleSeekBack);
+      }
+    };
+
+    audioRef.current.addEventListener("canplay", handleSeekBack);
+  };
+
   // Effect to sync volume when audio element is ready
   useEffect(() => {
     if (audioRef.current && activeStory) {
@@ -706,7 +744,7 @@ const Dashboard: React.FC = () => {
 
         <audio
           ref={audioRef}
-          src={activeStory?.audio_url || ""}
+          src={(backgroundEnabled ? activeStory?.audio_url : activeStory?.voice_only_url) || activeStory?.audio_url || ""}
           loop={isLooping}
           preload="auto"
           onLoadedMetadata={handleAudioMetadata}
@@ -795,6 +833,15 @@ const Dashboard: React.FC = () => {
                   >
                     <LoopIcon />
                     <span>{isLooping ? "Looping" : "Loop"}</span>
+                  </button>
+
+                  <button
+                    className={`${styles.playerBackground} ${backgroundEnabled ? styles.on : ""}`}
+                    onClick={toggleBackground}
+                    title={backgroundEnabled ? "Mute Background Sound" : "Enable Background Sound"}
+                  >
+                    <MusicIcon />
+                    <span>{backgroundEnabled ? "Background ON" : "Voice Only"}</span>
                   </button>
 
                   <button

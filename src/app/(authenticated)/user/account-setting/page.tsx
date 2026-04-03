@@ -281,37 +281,50 @@ const SoundscapeSelector: React.FC<SoundscapeSelectorProps> = ({ current, disabl
 
 
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', padding: '4px 0' }}>
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', padding: '4px 0' }}>
       {allChoices.map(s => (
         <button
           key={s.value}
           onClick={() => !disabled && onChange(s.value)}
           disabled={disabled}
           style={{
-            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px',
-            padding: '10px 14px', borderRadius: '10px', cursor: disabled ? 'not-allowed' : 'pointer',
-            border: current === s.value ? '2px solid #c9a84c' : '2px solid rgba(255,255,255,0.08)',
-            background: current === s.value ? 'rgba(201,168,76,0.1)' : 'rgba(255,255,255,0.03)',
-            color: current === s.value ? '#c9a84c' : '#8a8476',
-            transition: 'all 0.15s', fontSize: '0.78rem', minWidth: '80px',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '4px',
+            padding: s.imageUrl ? '0' : '10px 14px', borderRadius: '12px', cursor: disabled ? 'not-allowed' : 'pointer',
+            border: current === s.value ? '2px solid #52b788' : '2px solid rgba(255,255,255,0.08)',
+            background: current === s.value ? 'rgba(82,183,136,0.1)' : 'rgba(255,255,255,0.03)',
+            color: current === s.value ? '#52b788' : '#8a8476',
+            transition: 'all 0.2s', fontSize: '0.78rem', minWidth: '100px', height: '100px',
             opacity: disabled ? 0.45 : 1,
             position: 'relative',
-            overflow: 'hidden'
+            overflow: 'hidden',
+            boxShadow: current === s.value ? '0 4px 15px rgba(82, 183, 136, 0.2)' : 'none'
           }}
           title={s.desc}
         >
-          {s.imageUrl && (
-              <img 
-                src={s.imageUrl} 
-                alt="" 
-                style={{ 
-                    position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', 
-                    objectFit: 'cover', opacity: 0.15, zIndex: 0 
-                }} 
-              />
+          {s.imageUrl ? (
+              <>
+                 <img 
+                   src={s.imageUrl} 
+                   alt="" 
+                   style={{ 
+                       position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', 
+                       objectFit: 'cover', opacity: current === s.value ? 0.9 : 0.65, zIndex: 0, transition: 'opacity 0.2s' 
+                   }} 
+                 />
+                 <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(8, 7, 15, 0.9) 0%, rgba(8, 7, 15, 0) 70%)', zIndex: 1 }}></div>
+                 <span style={{ fontWeight: current === s.value ? 600 : 500, zIndex: 2, position: 'absolute', bottom: '12px', color: current === s.value ? '#fff' : 'rgba(255,255,255,0.8)', textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
+                    {s.label}
+                 </span>
+                 {current === s.value && (
+                     <div style={{ position: 'absolute', top: '8px', right: '8px', width: '8px', height: '8px', borderRadius: '50%', background: '#52b788', zIndex: 2, boxShadow: '0 0 8px #52b788' }}></div>
+                 )}
+              </>
+          ) : (
+              <>
+                <span style={{ fontSize: '1.6rem', zIndex: 1, marginBottom: '4px' }}>{s.emoji}</span>
+                <span style={{ fontWeight: current === s.value ? 600 : 400, zIndex: 1, color: current === s.value ? '#52b788' : '#8a8476' }}>{s.label}</span>
+              </>
           )}
-          <span style={{ fontSize: '1.4rem', zIndex: 1 }}>{s.emoji}</span>
-          <span style={{ fontWeight: current === s.value ? 600 : 400, zIndex: 1 }}>{s.label}</span>
         </button>
       ))}
     </div>

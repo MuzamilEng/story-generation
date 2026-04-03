@@ -455,7 +455,7 @@
 /* DANGER SECTION */
 .dangerSection {
     background: var(--surface);
-    border: 1px solid #f0d5d3;
+    border: 1px solid rgba(239, 68, 68, 0.25); /* Dark theme red border */
     border-radius: 14px;
     overflow: hidden;
     margin-bottom: 1.25rem;
@@ -463,8 +463,8 @@
 
 .dangerHead {
     padding: 1rem 1.4rem;
-    border-bottom: 1px solid #f0d5d3;
-    background: #fff9f9;
+    border-bottom: 1px solid rgba(239, 68, 68, 0.15);
+    background: rgba(239, 68, 68, 0.06); /* Dark theme red tint */
     display: flex;
     align-items: center;
     gap: 0.6rem;
@@ -474,10 +474,10 @@
     width: 28px;
     height: 28px;
     border-radius: 7px;
-    background: var(--red-light);
+    background: rgba(239, 68, 68, 0.15);
     display: grid;
     place-items: center;
-    color: var(--red);
+    color: #ef4444; /* Tailwind red-500 */
     flex-shrink: 0;
 }
 
@@ -489,7 +489,7 @@
 .dangerTitle {
     font-size: 0.82rem;
     font-weight: 500;
-    color: var(--red);
+    color: #ef4444;
 }
 
 .dangerSub {
@@ -528,15 +528,16 @@
     font-size: 0.73rem;
     font-family: 'Inter', sans-serif;
     cursor: pointer;
-    border: 1.5px solid var(--red);
-    background: none;
-    color: var(--red);
+    border: 1.5px solid rgba(239, 68, 68, 0.4);
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
     transition: all 0.15s;
     white-space: nowrap;
 }
 
 .dangerBtn:hover {
-    background: var(--red-light);
+    background: rgba(239, 68, 68, 0.2);
+    border-color: rgba(239, 68, 68, 0.6);
 }
 
 /* TOAST */
@@ -545,8 +546,10 @@
     bottom: 2rem;
     left: 50%;
     transform: translateX(-50%) translateY(80px);
-    background: var(--ink);
-    color: #fff;
+    background: var(--bg);
+    color: var(--ink);
+    border: 1px solid var(--border);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
     padding: 0.7rem 1.2rem;
     border-radius: 99px;
     font-size: 0.78rem;

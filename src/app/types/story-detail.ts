@@ -8,6 +8,7 @@ export interface Story {
     downloads: number;
     content: string;
     audioUrl?: string;
+    voiceOnlyUrl?: string;
 }
 
 export interface StoryVersion {
@@ -24,4 +25,5 @@ export interface AudioPlayerState {
     isLooping: boolean;
     currentTime: number;
     duration: number;
+    backgroundEnabled: boolean;
 }

@@ -22,6 +22,7 @@ import {
   SkipForwardIcon,
   LoopIcon,
   TrashIcon,
+  MusicIcon,
 } from "../../../../components/icons/StoryDetailIcons";
 import {
   Story,
@@ -362,11 +363,13 @@ interface AudioPlayerProps {
   story: Story;
   isPlaying: boolean;
   isLooping: boolean;
+  backgroundEnabled: boolean;
   currentTime: number;
   isOpen: boolean;
   onClose: () => void;
   onPlayToggle: () => void;
   onLoopToggle: () => void;
+  onBackgroundToggle: () => void;
   onSkip: (seconds: number) => void;
   onSeek: (percentage: number) => void;
   onDownload: () => void;
@@ -376,11 +379,13 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
   story,
   isPlaying,
   isLooping,
+  backgroundEnabled,
   currentTime,
   isOpen,
   onClose,
   onPlayToggle,
   onLoopToggle,
+  onBackgroundToggle,
   onSkip,
   onSeek,
   onDownload,
@@ -472,6 +477,14 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
               >
                 <LoopIcon />
               </button>
+
+              <button
+                className={`${styles.modalCtrl} ${styles.background} ${backgroundEnabled ? styles.on : ""}`}
+                onClick={onBackgroundToggle}
+                title={backgroundEnabled ? "Mute Background Sound" : "Enable Background Sound"}
+              >
+                <MusicIcon />
+              </button>
             </div>
           </div>
         </div>
@@ -511,6 +524,7 @@ const StoryDetail: React.FC = () => {
     isLooping: false,
     currentTime: 0,
     duration: 0,
+    backgroundEnabled: true,
   });
   const audioRef = useRef<HTMLAudioElement>(null);
 
@@ -583,6 +597,7 @@ const StoryDetail: React.FC = () => {
       content:
         storyData.story_text_approved || storyData.story_text_draft || "",
       audioUrl: storyData.audio_url || "#",
+      voiceOnlyUrl: storyData.voice_only_url,
     };
   }, [storyData]);
 
@@ -736,6 +751,31 @@ const StoryDetail: React.FC = () => {
     showToast(nextLoop ? "🔁 Looping on" : "Loop off");
   };
 
+  const handleBackgroundToggle = () => {
+    if (!audioRef.current || !story) return;
+    if (!story.voiceOnlyUrl) {
+      showToast("This story only has one audio version available.");
+      return;
+    }
+
+    const wasPlaying = audioState.isPlaying;
+    const timeAtToggle = audioState.currentTime;
+
+    setAudioState((prev) => ({ ...prev, backgroundEnabled: !prev.backgroundEnabled }));
+
+    const handleSeekBack = () => {
+      if (audioRef.current) {
+        audioRef.current.currentTime = timeAtToggle;
+        if (wasPlaying) {
+          audioRef.current.play().catch((e) => console.error("Play failed:", e));
+        }
+        audioRef.current.removeEventListener("canplay", handleSeekBack);
+      }
+    };
+
+    audioRef.current.addEventListener("canplay", handleSeekBack);
+  };
+
   const handleSkip = (seconds: number) => {
     if (!audioRef.current) return;
     const duration = audioRef.current.duration || audioState.duration;
@@ -849,11 +889,13 @@ const StoryDetail: React.FC = () => {
             story={story}
             isPlaying={audioState.isPlaying}
             isLooping={audioState.isLooping}
+            backgroundEnabled={audioState.backgroundEnabled}
             currentTime={audioState.currentTime}
             isOpen={isPlayerOpen}
             onClose={() => setIsPlayerOpen(false)}
             onPlayToggle={handlePlayToggle}
             onLoopToggle={handleLoopToggle}
+            onBackgroundToggle={handleBackgroundToggle}
             onSkip={handleSkip}
             onSeek={handleSeek}
             onDownload={handleDownload}
@@ -862,7 +904,7 @@ const StoryDetail: React.FC = () => {
           {/* Real Audio Element */}
           <audio
             ref={audioRef}
-            src={story.audioUrl}
+            src={(audioState.backgroundEnabled ? story.audioUrl : story.voiceOnlyUrl) || story.audioUrl || ""}
             preload="auto"
             crossOrigin="anonymous"
             onLoadedMetadata={handleAudioMetadata}

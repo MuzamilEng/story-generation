@@ -47,19 +47,22 @@
 
 .navCta {
     font-size: 0.78rem;
-    background: #fff;
-    color: #08070f;
+    background: var(--accent);
+    color: #fff;
     padding: 0.52rem 1.2rem;
     border-radius: 7px;
     text-decoration: none;
     font-weight: 500;
-    transition: all 0.2s;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
     letter-spacing: -0.01em;
+    border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .navCta:hover {
-    background: rgba(8, 7, 15, 0.88);
+    background: #4ab080;
     transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(82, 183, 136, 0.25);
+    border-color: rgba(255, 255, 255, 0.2);
 }
 
 .topbarContent {

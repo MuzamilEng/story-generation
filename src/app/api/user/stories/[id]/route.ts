@@ -41,6 +41,7 @@ export async function GET(
         const serializedStory = {
             ...story,
             audio_file_size_bytes: story.audio_file_size_bytes != null ? Number(story.audio_file_size_bytes) : null,
+            voice_only_url: (story as any).voice_only_r2_key ? `/api/user/audio/stream?key=${encodeURIComponent((story as any).voice_only_r2_key)}` : null
         }
 
         return NextResponse.json(serializedStory)
