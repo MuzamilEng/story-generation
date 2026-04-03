@@ -63,7 +63,7 @@ interface CategoryTagsProps {
 
 const CategoryTags: React.FC<CategoryTagsProps> = ({ categories }) => (
   <div className={styles.catTags}>
-    {categories.map((cat, idx) => (
+    {Array.isArray(categories) && categories.map((cat, idx) => (
       <span key={idx} className={styles.catTag}>
         {cat}
       </span>
@@ -215,6 +215,7 @@ const StoryContent: React.FC = () => {
   const [isGeneratingQuestions, setIsGeneratingQuestions] = useState(false);
   const [isRefiningStory, setIsRefiningStory] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
+  const [genError, setGenError] = useState<string | null>(null);
 
   const {
     capturedGoals,
@@ -264,6 +265,7 @@ const StoryContent: React.FC = () => {
 
   const generate = useCallback(async (id: string) => {
     setIsGenerating(true);
+    setGenError(null);
     setActiveStep(0);
 
     // UI simulation of steps
@@ -279,12 +281,15 @@ const StoryContent: React.FC = () => {
       const data = await res.json();
       if (data.storyText) {
         setStoryText(data.storyText);
+      } else if (data.error) {
+        setGenError(data.error);
       }
       if (data.title) {
         setStoryTitle(data.title);
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error("Generation failed", e);
+      setGenError(e.message || "Something went wrong while generating your story.");
     } finally {
       setIsGenerating(false);
     }
@@ -338,7 +343,7 @@ const StoryContent: React.FC = () => {
           sessionStorage.removeItem("storyLength");
         } else if (data.error) {
           console.error("API error:", data.error);
-          alert(`Could not save story: ${data.error}`);
+          setGenError(data.error);
         }
       } catch (e) {
         console.error("Failed to save goals", e);
@@ -770,6 +775,21 @@ const StoryContent: React.FC = () => {
         </aside>
 
         <main className={styles.centerPanel} id="centerPanel">
+          {genError && (
+            <div className={styles.errorCard}>
+              <div className={styles.errorIcon}>⚠️</div>
+              <div className={styles.errorTitle}>Generation Failed</div>
+              <div className={styles.errorMsg}>{genError}</div>
+              <button
+                className={styles.primaryBtn}
+                onClick={() => (storyId ? generate(storyId) : userAnswers ? saveAndGenerate(userAnswers) : null)}
+              >
+                <RefreshIcon />
+                Try again
+              </button>
+            </div>
+          )}
+
           {isGenerating && (
             <div className={styles.generatingCard} id="generatingCard">
               <div className={styles.genIcon}>

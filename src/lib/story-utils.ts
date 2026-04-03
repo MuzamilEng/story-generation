@@ -164,8 +164,24 @@ export function normalizeGoals(raw: any): UserAnswers {
         if (normalized[f] === undefined) normalized[f] = '';
     });
 
-    if (!normalized.identityStatements) normalized.identityStatements = [];
-    if (!normalized.selectedAreas) normalized.selectedAreas = [];
+    // Ensure selectedAreas is always an array (AI sometimes sends a string or comma-separated string)
+    if (!Array.isArray(normalized.selectedAreas)) {
+        if (typeof normalized.selectedAreas === 'string' && normalized.selectedAreas.length > 0) {
+            normalized.selectedAreas = normalized.selectedAreas.split(',').map((s: string) => s.trim()).filter(Boolean);
+        } else {
+            normalized.selectedAreas = [];
+        }
+    }
+
+    // Ensure identityStatements is always an array
+    if (!Array.isArray(normalized.identityStatements)) {
+        if (typeof normalized.identityStatements === 'string' && normalized.identityStatements.length > 0) {
+            normalized.identityStatements = [normalized.identityStatements];
+        } else {
+            normalized.identityStatements = [];
+        }
+    }
+
     if (!normalized.orientation) normalized.orientation = 'grounded';
     if (!normalized.tone) normalized.tone = 'Warm & emotional';
 

@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import styles from "../../../styles/GoalDiscovery.module.css";
@@ -120,27 +120,81 @@ const CompletionCard: React.FC<CompletionCardProps> = ({ onGenerate }) => {
 interface MessageBubbleProps {
   message: Message;
   onChipClick?: (text: string) => void;
+  isIdentityPhase?: boolean;
 }
 
 const MessageBubble: React.FC<MessageBubbleProps> = ({
   message,
   onChipClick,
+  isIdentityPhase,
 }) => {
   const isUser = message.role === "user";
+  const [selectedChips, setSelectedChips] = useState<string[]>([]);
 
-  // Extract chips from assistant messages (simple heuristic)
-  const chips =
-    !isUser && message.content.toLowerCase().includes("already have")
-      ? ["Yes, I have my goals ready", "Let's explore together"]
-      : !isUser && message.content.toLowerCase().includes("would you like")
-        ? ["Tell me more", "Let's move on"]
-        : [];
+  // Robustly extract chips from bot messages
+  const extractBotChips = useCallback(() => {
+    if (isUser) return [];
+
+    const lines = message.content.split("\n");
+    const detected: string[] = [];
+
+    // Prioritise lines starting with bullet symbols or numbers
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (
+        trimmed.startsWith("•") ||
+        trimmed.startsWith("-") ||
+        trimmed.startsWith("*") ||
+        /^\d+\./.test(trimmed)
+      ) {
+        // Extract the text part
+        const text = trimmed.replace(/^[•\-*\d\.]+\s*/, "").trim();
+        // Heuristic: chips should be relatively short (usually < 100-120 chars)
+        if (text && text.length > 0 && text.length < 150) {
+          detected.push(text);
+        }
+      }
+    }
+
+    // Heuristic fallbacks
+    if (detected.length === 0) {
+      if (message.content.toLowerCase().includes("already have")) {
+        return ["Yes, I have my goals ready", "Let's explore together"];
+      }
+      if (message.content.toLowerCase().includes("would you like")) {
+        return ["Tell me more", "Let's move on"];
+      }
+    }
+
+    return detected;
+  }, [isUser, message.content]);
+
+  const chips = useMemo(() => extractBotChips(), [extractBotChips]);
+
+  const toggleChip = (chip: string) => {
+    if (isIdentityPhase) {
+      setSelectedChips((prev) =>
+        prev.includes(chip) ? prev.filter((c) => c !== chip) : [...prev, chip],
+      );
+    } else {
+      onChipClick?.(chip);
+    }
+  };
+
+  const handleConfirmMulti = () => {
+    if (selectedChips.length > 0) {
+      // Send as comma-separated or similar format that the AI will understand
+      onChipClick?.(selectedChips.join(", "));
+    }
+  };
 
   // Format text with simple markdown and strip AI markers
   const formatText = (text: string) => {
-    // Strip CAPTURE: and PROGRESS: markers
-    let cleanText = text.replace(/CAPTURE:\s*\{[\s\S]*?\}/g, "");
-    cleanText = cleanText.replace(/PROGRESS:\s*\{[\s\S]*?\}/g, "");
+    // Strip technical markers (all variations)
+    let cleanText = text.replace(
+      /(?:PROGRESS|PROG|CAPTURE|CAPTURED|CAP):\s*(?:```json)?\s*\{[\s\S]*?\}\s*(?:```)?/gi,
+      "",
+    );
 
     const withBold = cleanText.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
     const withItalic = withBold.replace(/\*(.*?)\*/g, "<em>$1</em>");
@@ -160,15 +214,31 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
         />
         {chips.length > 0 && (
           <div className={styles.chips}>
-            {chips.map((chip, i) => (
+            {chips.map((chip, i) => {
+              const isActive = selectedChips.includes(chip);
+              return (
+                <button
+                  key={i}
+                  className={`${styles.chip} ${isActive ? styles.active : ""}`}
+                  onClick={() => toggleChip(chip)}
+                >
+                  {chip}
+                </button>
+              );
+            })}
+            {isIdentityPhase && selectedChips.length > 0 && (
               <button
-                key={i}
                 className={styles.chip}
-                onClick={() => onChipClick?.(chip)}
+                onClick={handleConfirmMulti}
+                style={{
+                  background: "var(--accent)",
+                  color: "#fff",
+                  borderColor: "var(--accent)",
+                }}
               >
-                {chip}
+                Claim Selected Statements →
               </button>
-            ))}
+            )}
           </div>
         )}
       </div>
@@ -342,11 +412,32 @@ const GoalDiscovery: React.FC = () => {
   const [progress, setProgress] = useState<ProgressData>(
     saved?.progress ?? { pct: 0, phase: "Getting Started", covered: [] },
   );
+  const [activeTopicId, setActiveTopicId] = useState<string>(TOPICS[0].id);
+  const activeTopicIdRef = useRef<string>(TOPICS[0].id); // Keep ref for callbacks if needed
 
-  // Keep activeTopicIdRef in sync with the current phase
+  // Keep activeTopicId in sync with the current phase (fallback only if AI doesn't send topic)
   useEffect(() => {
-    const match = TOPICS.find((t) => t.phase === progress.phase);
-    if (match) activeTopicIdRef.current = match.id;
+    const phase = progress.phase;
+    if (activeTopicId && TOPICS.some((t) => t.id === activeTopicId)) {
+        // If we already have a topic set by the AI, don't override it unless phase changes to something disconnected
+    }
+
+    // Map specific AI-driven phases back to the sidebar topics if topic isn't set
+    const phaseToTopicMap: Record<string, string> = {
+      Setup: "orientation",
+      Vision: "goals",
+      "Proof Actions": "actionsAfter",
+      "Story Anchors": "namedPerson",
+      "Identity Builder": "identityStatements",
+      Timeframe: "timeframe",
+      Complete: "timeframe",
+    };
+
+    const topicId = phaseToTopicMap[phase];
+    if (topicId && !activeTopicIdRef.current.includes(topicId)) {
+      setActiveTopicId(topicId);
+      activeTopicIdRef.current = topicId;
+    }
   }, [progress.phase]);
   const [isWaiting, setIsWaiting] = useState(false);
   const [isComplete, setIsComplete] = useState(saved?.isComplete ?? false);
@@ -367,8 +458,6 @@ const GoalDiscovery: React.FC = () => {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  // Always reflects the currently active topic id — safe to read inside callbacks
-  const activeTopicIdRef = useRef<string>(TOPICS[0].id);
   // Set when user sends a message in Evening & Close; triggers isComplete after AI replies
   const triggerCompleteAfterResponseRef = useRef(false);
 
@@ -441,6 +530,10 @@ const GoalDiscovery: React.FC = () => {
             phase: data.phase || prev.phase,
             covered: data.covered || prev.covered,
           }));
+          if (data.topic) {
+            setActiveTopicId(data.topic);
+            activeTopicIdRef.current = data.topic;
+          }
           if (data.phase === "Complete" || data.pct >= 100) {
             setIsComplete(true);
             if (!hasSeenAdditionalDetails) {
@@ -790,12 +883,12 @@ const GoalDiscovery: React.FC = () => {
           <div className={styles.sidebarTitle}>Topics</div>
 
           {TOPICS.map((topic, idx) => {
-            const currentPhaseIdx = TOPICS.findIndex(
-              (t) => t.phase === progress.phase,
+            const isActive = activeTopicId === topic.id;
+            const currentTopicIdx = TOPICS.findIndex(
+              (t) => t.id === activeTopicId,
             );
-            const isActive = progress.phase === topic.phase;
             // A topic is "covered" if it sits before the current active phase
-            const isCovered = !isActive && idx < currentPhaseIdx;
+            const isCovered = !isActive && idx < currentTopicIdx;
             const isResponded = respondedTopics.includes(topic.id);
             return (
               <TopicItem
@@ -858,6 +951,7 @@ const GoalDiscovery: React.FC = () => {
                 key={index}
                 message={msg}
                 onChipClick={handleChipClick}
+                isIdentityPhase={progress.phase === "Identity Builder"}
               />
             ))}
 

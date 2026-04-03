@@ -9,7 +9,7 @@ export interface PlanLimits {
 
 export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
     free: {
-        maxStories: 1,
+        maxStories: 10,
         allowFullAudio: false,
         audioMinutesPerMonth: 0,
     },
