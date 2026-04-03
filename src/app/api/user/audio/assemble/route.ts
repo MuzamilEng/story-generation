@@ -7,6 +7,7 @@ import { execSync } from 'node:child_process';
 import { writeFileSync, readFileSync, unlinkSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import ffmpegStatic from 'ffmpeg-static';
 
 // ── R2 client ────────────────────────────────────────────────────────────────
 const s3 = new S3Client({
@@ -127,7 +128,8 @@ async function assembleAndMixWithFFmpeg(
         if (binauralBuffer) writeFileSync(paths.binaural, binauralBuffer);
 
         try {
-            execSync('ffmpeg -version', { stdio: 'ignore' });
+            if (!ffmpegStatic) throw new Error('ffmpeg-static path not found');
+            execSync(`"${ffmpegStatic}" -version`, { stdio: 'ignore' });
         } catch {
             console.warn('[assemble] FFmpeg missing — falling back.');
             return { voiceOnly: narration, mixed: null };
@@ -152,12 +154,12 @@ async function assembleAndMixWithFFmpeg(
                 `${vInputs.map((_, i) => `[a${i}]`).join('')}concat=n=${vInputs.length}:v=0:a=1[out]`;
             // Force 192k CBR, 44.1 kHz, and strip metadata for best browser compatibility
             voiceCmd =
-                `ffmpeg ${vInputs.map(p => `-i "${p}"`).join(' ')} ` +
+                `"${ffmpegStatic}" ${vInputs.map(p => `-i "${p}"`).join(' ')} ` +
                 `-filter_complex "${concatFilter}" -map "[out]" ` +
                 `-acodec libmp3lame -b:a 192k -minrate 192k -maxrate 192k -bufsize 384k -ar 44100 -map_metadata -1 "${paths.voiceOnly}" -y`;
         } else {
             voiceCmd =
-                `ffmpeg -i "${paths.narration}" ` +
+                `"${ffmpegStatic}" -i "${paths.narration}" ` +
                 `-acodec libmp3lame -b:a 192k -minrate 192k -maxrate 192k -bufsize 384k -ar 44100 -map_metadata -1 "${paths.voiceOnly}" -y`;
         }
         execSync(voiceCmd, { stdio: 'pipe' });
@@ -181,7 +183,7 @@ async function assembleAndMixWithFFmpeg(
             mixInputs.push(`-stream_loop -1 -i "${paths.soundscape}"`);
             const idx = mixInputs.length - 1;
             filterStr +=
-                `[${idx}:a]volume=0.14,aresample=44100:async=1,` +
+                `[${idx}:a]volume=0.8,aresample=44100:async=1,` +
                 `aformat=sample_fmts=fltp:channel_layouts=stereo[bg${idx}];`;
             mixIndices.push(`[bg${idx}]`);
         }
@@ -190,7 +192,7 @@ async function assembleAndMixWithFFmpeg(
             mixInputs.push(`-stream_loop -1 -i "${paths.binaural}"`);
             const idx = mixInputs.length - 1;
             filterStr +=
-                `[${idx}:a]volume=0.10,aresample=44100:async=1,` +
+                `[${idx}:a]volume=0.6,aresample=44100:async=1,` +
                 `aformat=sample_fmts=fltp:channel_layouts=stereo[bg${idx}];`;
             mixIndices.push(`[bg${idx}]`);
         }
@@ -201,7 +203,7 @@ async function assembleAndMixWithFFmpeg(
 
         // Strict 192k CBR, 44.1 kHz, and strip metadata for perfect browser seeking
         const mixCmd =
-            `ffmpeg ${mixInputs.join(' ')} -filter_complex "${filterStr}" -map "[out]" ` +
+            `"${ffmpegStatic}" ${mixInputs.join(' ')} -filter_complex "${filterStr}" -map "[out]" ` +
             `-acodec libmp3lame -b:a 192k -minrate 192k -maxrate 192k -bufsize 384k -ar 44100 ` +
             `-id3v2_version 3 -write_id3v1 1 -map_metadata -1 "${paths.output}" -y`;
         
@@ -213,7 +215,12 @@ async function assembleAndMixWithFFmpeg(
 
     } catch (err: any) {
         console.error('[assemble] FFmpeg Error:', err.message);
-        return { voiceOnly: narration, mixed: null };
+        if (err.stdout) console.error('stdout:', err.stdout.toString());
+        if (err.stderr) console.error('stderr:', err.stderr.toString());
+        
+        let fallbackVoice = narration;
+        try { if (existsSync(paths.voiceOnly)) fallbackVoice = readFileSync(paths.voiceOnly); } catch {}
+        return { voiceOnly: fallbackVoice, mixed: null };
     } finally {
         Object.values(paths).forEach(p => {
             try { if (existsSync(p)) unlinkSync(p); } catch { /* ignore */ }
