@@ -208,7 +208,7 @@ async function assembleAndMixWithFFmpeg(
             `"${ffmpegStatic}" ${mixInputs.join(' ')} -filter_complex "${filterStr}" -map "[out]" ` +
             `-acodec libmp3lame -b:a 192k -minrate 192k -maxrate 192k -bufsize 384k -ar 44100 ` +
             `-id3v2_version 3 -write_id3v1 1 -map_metadata -1 "${paths.output}" -y`;
-        
+
         console.log('[assemble] Running professional CBR hifi-mix…');
         execSync(mixCmd, { stdio: 'pipe' });
 
@@ -219,9 +219,9 @@ async function assembleAndMixWithFFmpeg(
         console.error('[assemble] FFmpeg Error:', err.message);
         if (err.stdout) console.error('stdout:', err.stdout.toString());
         if (err.stderr) console.error('stderr:', err.stderr.toString());
-        
+
         let fallbackVoice = narration;
-        try { if (existsSync(paths.voiceOnly)) fallbackVoice = readFileSync(paths.voiceOnly); } catch {}
+        try { if (existsSync(paths.voiceOnly)) fallbackVoice = readFileSync(paths.voiceOnly); } catch { }
         return { voiceOnly: fallbackVoice, mixed: null };
     } finally {
         Object.values(paths).forEach(p => {
@@ -265,12 +265,12 @@ export async function POST(req: NextRequest) {
         const userPlanStr = String(user.plan).toLowerCase();
         const userSoundscapeStr = String(user.soundscape || 'none').toLowerCase();
         const canUseSoundscape = SOUNDSCAPE_PLANS.has(userPlanStr);
-        const canUseBinaural   = BINAURAL_PLANS.has(userPlanStr);
+        const canUseBinaural = BINAURAL_PLANS.has(userPlanStr);
 
         const [inductionBuf, guideCloseBuf, soundscapeResult, binauralBuf] = await Promise.all([
             fetchAdminAudio('induction'),
             fetchAdminAudio('guide_close'),
-            (canUseSoundscape && userSoundscapeStr !== 'none') 
+            (canUseSoundscape && userSoundscapeStr !== 'none')
                 ? (async () => {
                     const asset = await (prisma as any).soundscapeAsset.findFirst({
                         where: { title: { equals: user.soundscape, mode: 'insensitive' }, isActive: true }
@@ -360,7 +360,7 @@ export async function POST(req: NextRequest) {
 
         console.log('[assemble] Uploading final tracks in parallel…');
         await Promise.all([
-             s3.send(new PutObjectCommand({
+            s3.send(new PutObjectCommand({
                 Bucket: BUCKET,
                 Key: voiceOnlyKey,
                 Body: voiceOnly,
