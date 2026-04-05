@@ -68,6 +68,9 @@ const Header: React.FC = () => {
     const pathname = usePathname();
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const [scrolled, setScrolled] = useState(false);
+    const [isVisible, setIsVisible] = useState(true);
+    const lastScrollY = useRef(0);
+    const scrollTimeout = useRef<NodeJS.Timeout | null>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
     const userName = session?.user?.name || "User";
@@ -115,7 +118,19 @@ const Header: React.FC = () => {
 
     useEffect(() => {
         const handleScroll = () => {
-            setScrolled(window.scrollY > 20);
+            if (scrollTimeout.current) clearTimeout(scrollTimeout.current);
+
+            const currentScrollY = window.scrollY;
+            setScrolled(currentScrollY > 10);
+            setIsVisible(true); // Temporarily keep it always visible to confirm stickiness
+
+
+            lastScrollY.current = currentScrollY;
+
+            // Reveal when scrolling stops
+            scrollTimeout.current = setTimeout(() => {
+                setIsVisible(true);
+            }, 500);
         };
         window.addEventListener("scroll", handleScroll);
 
@@ -130,6 +145,7 @@ const Header: React.FC = () => {
         document.addEventListener("mousedown", handleClickOutside);
         return () => {
             window.removeEventListener("scroll", handleScroll);
+            if (scrollTimeout.current) clearTimeout(scrollTimeout.current);
             document.removeEventListener("mousedown", handleClickOutside);
         };
     }, []);
@@ -137,7 +153,7 @@ const Header: React.FC = () => {
     const toggleDropdown = () => setDropdownOpen(!dropdownOpen);
 
     return (
-        <header className={`${styles.topbar} ${isFlowPage ? styles.hasSteps : ""} ${scrolled ? styles.scrolled : ""} ${isPublicHeader ? styles.public : ""}`}>
+        <header className={`${styles.topbar} ${isFlowPage ? styles.hasSteps : ""} ${scrolled ? styles.scrolled : ""} ${isPublicHeader ? styles.public : ""} ${!isVisible ? styles.hidden : ""}`}>
             {/* Top Row: Main Nav & Logo */}
             <div className={styles.topbarContent}>
                 <Link href="/" className={styles.logo}>

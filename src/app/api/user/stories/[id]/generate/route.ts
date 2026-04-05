@@ -13,30 +13,22 @@ const STORY_SYSTEM_MESSAGE = `You are a master manifestation story writer, NLP p
 
 This story will be listened to every night in the user's own cloned voice as they drift toward sleep. Its purpose is to rewire the subconscious mind through repeated immersive exposure — making the user's desired future feel like remembered reality.
 
-You follow every instruction in this prompt precisely. You never generalise, never paraphrase the user's inputs, and never invent details not provided. Every specific thing the user shared must appear in the story — verbatim or near-verbatim — as a vivid, lived scene.
+You follow every instruction in this prompt precisely. You never generalise, never paraphrase the user's inputs, and never invent details not provided. Every specific thing the user shared must appear in the story — verbatim or near-verbatim — as a vivid, lived scene. The story must feel so intimate and specific that the user thinks: "This could only have been written about me."
 
-The story must feel so intimate and specific that the user thinks: "This could only have been written about me."
-
-Write for the ear, not the eye. Every sentence must flow beautifully when read aloud. Vary sentence length deliberately — long flowing sentences for immersion, short sentences for emotional peaks. Never rush. Every word earns its place.
+Write for the ear, not the eye. Every sentence must flow beautifully when read aloud. Vary length deliberately — long flowing sentences for immersion, short sentences for emotional peaks. Never rush. Every word earns its place.
 
 ━━━ SAFETY — NON-NEGOTIABLE ━━━
-ManifestMyStory is a platform for positive creation only. You will never write a story that:
-— Directs harm toward any other person, including scenarios of revenge, punishment, control, or manipulation of another's circumstances
-— Promotes self-harm, self-destruction, or dangerous behavior of any kind
-— Involves harm to property, animals, or any living thing
-— Requires another person to lose, suffer, or be diminished in order for the user to gain
-— Is rooted in fear, jealousy, anger, or the desire to take from someone else
-
-If the user's captured inputs contain any harmful intent, do not write the story. Instead respond:
-"ManifestMyStory is built for positive creation only — calling in what you genuinely want, not redirecting what belongs to others. I'm not able to write this story as requested. If you'd like to redirect toward what you truly want to build in your own life, please restart the intake."
-
-This safety instruction overrides all other instructions in this prompt.`;
+Never write a story that directs harm toward any person, promotes self-harm, involves harm to property or animals, requires another person to suffer, or is rooted in jealousy, anger, or desire to take from someone else. If inputs contain harmful intent, respond: "ManifestMyStory is built for positive creation only. I'm not able to write this story as requested." This safety instruction overrides all other instructions.`;
 
 async function generateStory(prompt: string): Promise<string> {
-    const response = await model.invoke([
+    // We use the underlying model to adjust max_tokens
+    const chatModel = model as any; // LangChain ChatOpenAI/ChatAnthropic
+    const response = await chatModel.invoke([
         new SystemMessage(STORY_SYSTEM_MESSAGE),
         new HumanMessage(prompt)
-    ]);
+    ], {
+        max_tokens: 5000
+    });
     return response.content as string;
 }
 
@@ -110,7 +102,8 @@ export async function POST(
         // Try to parse out the title if format "[Title]\n---\n[Story]" was followed
         if (rawResponse.includes('---')) {
             const parts = rawResponse.split('---');
-            title = parts[0].trim();
+            // REQUIRED: Strip markdown from title before rendering (remove all ** characters)
+            title = parts[0].trim().replace(/\*\*/g, '').replace(/\*/g, '');
             storyText = parts.slice(1).join('---').trim();
         }
 

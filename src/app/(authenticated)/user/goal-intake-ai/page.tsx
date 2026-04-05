@@ -35,19 +35,59 @@ const TypingIndicator: React.FC = () => (
 // Captured item component
 interface CapturedItemProps {
   label: string;
-  value: string;
+  value: string | string[];
 }
 
-const CapturedItem: React.FC<CapturedItemProps> = ({ label, value }) => (
-  <div className={styles.capturedItem}>
-    <strong>{label}</strong>
-    {value.length > 80 ? `${value.slice(0, 80)}…` : value}
-  </div>
-);
+const CapturedItem: React.FC<CapturedItemProps> = ({ label, value }) => {
+  const displayValue = Array.isArray(value) ? value.join(", ") : value;
+  return (
+    <div className={styles.capturedItem}>
+      <strong>{label}</strong>
+      {displayValue.length > 80 ? `${displayValue.slice(0, 80)}…` : displayValue}
+    </div>
+  );
+};
 
 interface CompletionCardProps {
   onGenerate: (length: "short" | "long") => void;
 }
+
+const OrientationScreen: React.FC<{ onStart: (orientation: string) => void }> = ({ onStart }) => {
+  const [step, setStep] = useState<"start" | "orientation">("start");
+
+  if (step === "start") {
+    return (
+      <div className={styles.orientationScreen}>
+        <div className={styles.orientationIcon}>✦</div>
+        <h1>Your journey begins here</h1>
+        <p>
+          I am Maya, your guide. Together, we will architect the vivid narrative of your future self. 
+          Shall we begin the ceremony of your manifestation?
+        </p>
+        <button className={styles.orientationBtn} onClick={() => setStep("orientation")}>
+          Begin the Ceremony
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className={styles.orientationScreen}>
+      <div className={styles.orientationIcon}>✦</div>
+      <h1>How do you grow?</h1>
+      <p>
+        To assist me in crafting a story that resonates with your worldview, how would you describe your orientation toward personal growth?
+      </p>
+      <div className={styles.orientationOptions}>
+        {["Spiritual", "Scientific", "Both", "Grounded"].map((o) => (
+          <button key={o} className={styles.orientationOption} onClick={() => onStart(o)}>
+            {o}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+};
 
 const CompletionCard: React.FC<CompletionCardProps> = ({ onGenerate }) => {
   const [selected, setSelected] = useState<"short" | "long">("long");
@@ -121,12 +161,14 @@ interface MessageBubbleProps {
   message: Message;
   onChipClick?: (text: string) => void;
   isIdentityPhase?: boolean;
+  isLifeAreasPhase?: boolean;
 }
 
 const MessageBubble: React.FC<MessageBubbleProps> = ({
   message,
   onChipClick,
   isIdentityPhase,
+  isLifeAreasPhase,
 }) => {
   const isUser = message.role === "user";
   const [selectedChips, setSelectedChips] = useState<string[]>([]);
@@ -158,6 +200,9 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
 
     // Heuristic fallbacks
     if (detected.length === 0) {
+      if (message.content.toLowerCase().includes("which areas of your life")) {
+        return ["Wealth & Abundance", "Health & Vitality", "Love & Relationships", "Purpose & Career", "Personal Growth", "Home & Environment", "Spirituality"];
+      }
       if (message.content.toLowerCase().includes("already have")) {
         return ["Yes, I have my goals ready", "Let's explore together"];
       }
@@ -172,7 +217,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
   const chips = useMemo(() => extractBotChips(), [extractBotChips]);
 
   const toggleChip = (chip: string) => {
-    if (isIdentityPhase) {
+    if (isIdentityPhase || isLifeAreasPhase) {
       setSelectedChips((prev) =>
         prev.includes(chip) ? prev.filter((c) => c !== chip) : [...prev, chip],
       );
@@ -226,7 +271,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                 </button>
               );
             })}
-            {isIdentityPhase && selectedChips.length > 0 && (
+            {(isIdentityPhase || isLifeAreasPhase) && selectedChips.length > 0 && (
               <button
                 className={styles.chip}
                 onClick={handleConfirmMulti}
@@ -236,7 +281,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                   borderColor: "var(--accent)",
                 }}
               >
-                Claim Selected Statements →
+                {isLifeAreasPhase ? "Explore These Areas →" : "Claim Selected Statements →"}
               </button>
             )}
           </div>
@@ -425,9 +470,16 @@ const GoalDiscovery: React.FC = () => {
     // Map specific AI-driven phases back to the sidebar topics if topic isn't set
     const phaseToTopicMap: Record<string, string> = {
       Setup: "orientation",
+      "Life Areas": "selectedAreas",
       Vision: "goals",
+      Wealth: "goals",
+      Health: "goals",
+      Love: "goals",
+      Family: "goals",
+      Purpose: "goals",
+      Spirituality: "goals",
       "Proof Actions": "actionsAfter",
-      "Story Anchors": "namedPerson",
+      "Story Anchors": "namedPersons",
       "Identity Builder": "identityStatements",
       Timeframe: "timeframe",
       Complete: "timeframe",
@@ -506,9 +558,15 @@ const GoalDiscovery: React.FC = () => {
     }
   }, [inputValue]);
 
-  // Start conversation on mount — skip if restoring a previous session
+  // Start conversation with orientation
+  const handleStartConversation = (orientation: string) => {
+    sendToAI(`My orientation toward personal growth is: ${orientation}`);
+  };
+
+  // Skip auto-send if showing orientation screen
   useEffect(() => {
-    if (messagesRef.current.length === 0) {
+    // Only auto-start if we have orientation or some history
+    if (messagesRef.current.length === 0 && progress.pct > 0) {
       sendToAI();
     }
   }, []);
@@ -549,7 +607,7 @@ const GoalDiscovery: React.FC = () => {
       const captureRegex =
         /(?:CAPTURE|CAPTURED|CAP):?\s*(?:```json)?\s*(\{[\s\S]*?\})\s*(?:```)?/gi;
       let match;
-      const newGoals: Record<string, string> = {};
+      const newGoals: Record<string, string | string[]> = {};
       while ((match = captureRegex.exec(cleanText)) !== null) {
         try {
           const data = JSON.parse(match[1]) as CaptureData;
@@ -952,6 +1010,7 @@ const GoalDiscovery: React.FC = () => {
                 message={msg}
                 onChipClick={handleChipClick}
                 isIdentityPhase={progress.phase === "Identity Builder"}
+                isLifeAreasPhase={progress.phase === "Vision" && (progress.pct < 20 || !progress.covered.includes('goals'))}
               />
             ))}
 
@@ -980,6 +1039,10 @@ const GoalDiscovery: React.FC = () => {
               <SendIcon />
             </button>
           </div>
+
+          {messages.length === 0 && (
+            <OrientationScreen onStart={handleStartConversation} />
+          )}
 
           <div className={styles.inputHint}>
             Enter to send · Shift+Enter for new line

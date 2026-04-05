@@ -1,7 +1,7 @@
 .mainContainer {
     background: transparent;
-    color: var(--ink);
-    font-family: 'Inter', sans-serif;
+    color: var(--text);
+    font-family: var(--sans);
     font-weight: 300;
     line-height: 1.7;
     min-height: 100vh;
@@ -143,7 +143,7 @@
 }
 
 .heroTitle {
-    font-family: 'Fraunces', serif;
+    font-family: var(--serif);
     font-size: clamp(2.4rem, 5.5vw, 4rem);
     color: #fff;
     line-height: 1.1;

@@ -1,24 +1,29 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Cormorant_Garamond, Inter } from "next/font/google";
 import { Providers } from "@/components/providers";
+import SharedBackground from "./components/SharedBackground";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const cormorant = Cormorant_Garamond({
+  variable: "--font-cormorant",
   subsets: ["latin"],
+  weight: ["300", "400", "500"],
+  style: ["normal"], // upright only — no italic anywhere
+  display: "swap",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
+  weight: ["300", "400", "500"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "ManifestMyStory",
-  description: "Your personal productivity app",
+  title: "ManifestMyStory — Your Future Is Already Speaking",
+  description:
+    "A guided conversation draws out your deepest vision. We turn it into a rich, sensory story — then narrate it back to you in your own voice.",
 };
-
-import SharedBackground from "./components/SharedBackground";
 
 export default function RootLayout({
   children,
@@ -27,7 +32,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable}`}>
+      <body className={`${cormorant.variable} ${inter.variable}`}>
         <Providers>
           <SharedBackground />
           {children}

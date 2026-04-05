@@ -2,19 +2,28 @@
     display: flex;
     flex-direction: column;
     background: var(--surface);
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid var(--border1);
     flex-shrink: 0;
     position: sticky;
     top: 0;
-    z-index: 1000;
-    transition: all 0.3s ease;
+    z-index: 999;
+    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), background 0.3s ease, padding 0.3s ease;
 }
 
+.topbar.hidden {
+    transform: translateY(-100%);
+}
+
+
 .topbar.scrolled {
-    background: rgba(8, 7, 15, 0.88);
-    backdrop-filter: blur(20px);
+    background: rgba(8, 12, 9, 0.82);
+    backdrop-filter: blur(28px);
+    -webkit-backdrop-filter: blur(28px);
+    border-bottom: 1px solid rgba(141, 191, 122, 0.2);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
     padding: 0.2rem 0;
 }
+
 
 .topbar.public {
     background: transparent;
@@ -22,47 +31,48 @@
 }
 
 .topbar.public.scrolled {
-    background: rgba(8, 7, 15, 0.88);
-    backdrop-filter: blur(20px);
-    border-bottom-color: rgba(255, 255, 255, 0.08);
+    background: rgba(8, 12, 9, 0.75);
+    backdrop-filter: blur(28px);
+    -webkit-backdrop-filter: blur(28px);
+    border-bottom: 1px solid rgba(141, 191, 122, 0.1);
 }
 
-/* Specific colors for public/dark header */
+
+/* Public (landing) header colors */
 .topbar.public .logo {
-    color: #fff;
+    color: var(--text);
 }
 
 .topbar.public .navLink {
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--dim);
 }
 
 .topbar.public .navLink:hover {
-    color: #fff;
-    background: rgba(255, 255, 255, 0.05);
+    color: var(--accent);
+    background: transparent;
 }
 
 .topbar.public .navLink.active {
-    color: var(--accent-mid);
+    color: var(--accent);
 }
 
 .navCta {
-    font-size: 0.78rem;
-    background: var(--accent);
-    color: #fff;
-    padding: 0.52rem 1.2rem;
-    border-radius: 7px;
+    font-size: 10px;
+    letter-spacing: 3px;
+    background: var(--gold);
+    color: var(--bg);
+    padding: 12px 28px;
+    border-radius: 2px;
     text-decoration: none;
     font-weight: 500;
-    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-    letter-spacing: -0.01em;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: opacity 0.25s;
+    font-family: var(--sans);
+    text-transform: uppercase;
+    border: none;
 }
 
 .navCta:hover {
-    background: #4ab080;
-    transform: translateY(-1px);
-    box-shadow: 0 6px 20px rgba(82, 183, 136, 0.25);
-    border-color: rgba(255, 255, 255, 0.2);
+    opacity: 0.85;
 }
 
 .topbarContent {
@@ -141,12 +151,16 @@
 /* Responsive Adjustments */
 @media (max-width: 768px) {
     .topbarContent {
-        display: none;
-        /* Hide the entire logo/nav row on mobile */
+        padding: 0.85rem 1rem;
+        display: flex; /* Ensure it's visible on public/landing pages */
+    }
+
+    .topbarNav {
+        display: none; /* Keep nav hidden on mobile but logo/cta visible */
     }
 
     /* Show ONLY the stepsBar on mobile if it exists */
-    .topbar:not(.hasSteps) {
+    .topbar:not(.hasSteps):not(.public) {
         display: none;
     }
 
@@ -182,11 +196,14 @@
 }
 
 .logo {
-    font-family: 'Fraunces', serif;
-    font-size: 1.1rem;
-    color: var(--ink);
+    font-family: var(--serif);
+    font-size: 14px;
+    letter-spacing: 4px;
+    color: var(--text);
     text-decoration: none;
     flex-shrink: 0;
+    font-weight: 300;
+    text-transform: uppercase;
 }
 
 .logo span {
@@ -200,23 +217,25 @@
 }
 
 .navLink {
-    font-size: 0.78rem;
-    color: var(--ink-muted);
+    font-size: 10px;
+    letter-spacing: 2.5px;
+    color: var(--dim);
     text-decoration: none;
     padding: 0.35rem 0.7rem;
-    border-radius: 7px;
-    transition: all 0.15s;
+    border-radius: 2px;
+    transition: color 0.3s;
     white-space: nowrap;
+    text-transform: uppercase;
 }
 
 .navLink:hover {
-    color: var(--ink);
-    background: var(--bg);
+    color: var(--accent);
+    background: transparent;
 }
 
 .navLink.active {
     color: var(--accent);
-    font-weight: 500;
+    font-weight: 400;
 }
 
 .topbarRight {
@@ -230,23 +249,23 @@
     display: flex;
     align-items: center;
     gap: 0.4rem;
-    padding: 0.48rem 1rem;
-    background: var(--accent);
-    color: #fff;
+    padding: 10px 22px;
+    background: var(--gold);
+    color: var(--bg);
     border: none;
-    border-radius: 8px;
-    font-size: 0.78rem;
-    font-family: 'Inter', sans-serif;
+    border-radius: 2px;
+    font-size: 10px;
+    letter-spacing: 2.5px;
+    font-family: var(--sans);
     font-weight: 500;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: opacity 0.25s;
     text-decoration: none;
+    text-transform: uppercase;
 }
 
 .newStoryBtn:hover {
-    background: #235840;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 14px rgba(45, 106, 79, 0.25);
+    opacity: 0.85;
 }
 
 .newStoryBtn svg {
@@ -263,36 +282,34 @@
     width: 36px;
     height: 36px;
     border-radius: 50%;
-    background: linear-gradient(135deg, var(--accent), var(--accent-deep));
-    color: #fff;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--surface);
+    color: var(--accent);
+    border: 0.5px solid var(--border2);
     cursor: pointer;
-    font-size: 0.8rem;
-    font-weight: 600;
-    font-family: 'Inter', sans-serif;
+    font-size: 0.75rem;
+    font-weight: 500;
+    font-family: var(--sans);
     display: grid;
     place-items: center;
     position: relative;
     transition: all 0.2s;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
 .avatarBtn:hover {
-    transform: scale(1.05);
-    box-shadow: 0 4px 12px rgba(82, 183, 136, 0.3);
     border-color: var(--accent);
+    color: var(--text);
 }
 
 .avatarDropdown {
     position: absolute;
-    top: calc(100% + 12px); /* Increased gap */
+    top: calc(100% + 12px);
     right: 0;
-    background: rgba(13, 12, 22, 0.95); /* Darker, slightly translucent */
+    background: var(--surface);
     backdrop-filter: blur(16px);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 14px;
-    min-width: 220px; /* Slightly wider */
-    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.4);
+    border: 0.5px solid var(--border1);
+    border-radius: 3px;
+    min-width: 220px;
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5);
     z-index: 100;
     display: none;
     overflow: hidden;

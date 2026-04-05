@@ -3,10 +3,10 @@ import { persist } from 'zustand/middleware';
 import { UserAnswers } from '@/lib/story-utils';
 
 interface StoryState {
-    capturedGoals: Record<string, string>;
+    capturedGoals: Record<string, string | string[]>;
     normalizedGoals: UserAnswers | null;
     isHydrated: boolean;
-    setCapturedGoals: (goals: Record<string, string> | ((prev: Record<string, string>) => Record<string, string>)) => void;
+    setCapturedGoals: (goals: Record<string, string | string[]> | ((prev: Record<string, string | string[]>) => Record<string, string | string[]>)) => void;
     setNormalizedGoals: (goals: UserAnswers | null) => void;
     setHasHydrated: (val: boolean) => void;
     clearStore: () => void;

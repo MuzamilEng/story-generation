@@ -67,6 +67,10 @@ const UserHeader: React.FC = () => {
   const { clearStore } = useStoryStore();
   const pathname = usePathname();
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  const [isVisible, setIsVisible] = useState(true);
+  const lastScrollY = useRef(0);
+  const scrollTimeout = useRef<NodeJS.Timeout | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const userName = session?.user?.name || "User";
@@ -111,6 +115,23 @@ const UserHeader: React.FC = () => {
   const steps = isFlowPage ? getFlowSteps(pathname) : [];
 
   useEffect(() => {
+    const handleScroll = () => {
+      if (scrollTimeout.current) clearTimeout(scrollTimeout.current);
+
+      const currentScrollY = window.scrollY;
+      setScrolled(currentScrollY > 10);
+
+      // Keep visible for now to confirm stickiness
+      setIsVisible(true);
+
+      lastScrollY.current = currentScrollY;
+
+      scrollTimeout.current = setTimeout(() => {
+        setIsVisible(true);
+      }, 500);
+    };
+    window.addEventListener("scroll", handleScroll);
+
     const handleClickOutside = (event: MouseEvent) => {
       if (
         dropdownRef.current &&
@@ -120,13 +141,17 @@ const UserHeader: React.FC = () => {
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      if (scrollTimeout.current) clearTimeout(scrollTimeout.current);
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
   }, []);
 
   const toggleDropdown = () => setDropdownOpen(!dropdownOpen);
 
   return (
-    <header className={`${styles.topbar} ${isFlowPage ? styles.hasSteps : ""}`}>
+    <header className={`${styles.topbar} ${isFlowPage ? styles.hasSteps : ""} ${scrolled ? styles.scrolled : ""} ${!isVisible ? styles.hidden : ""}`}>
       {/* Top Row: Main Nav & Logo */}
       <div className={styles.topbarContent}>
         <Link href="/" className={styles.logo}>
