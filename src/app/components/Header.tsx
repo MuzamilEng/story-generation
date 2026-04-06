@@ -69,9 +69,27 @@ const Header: React.FC = () => {
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const [scrolled, setScrolled] = useState(false);
     const [isVisible, setIsVisible] = useState(true);
+    const [exploreOpen, setExploreOpen] = useState(false);
+    const exploreTimeout = useRef<NodeJS.Timeout | null>(null);
     const lastScrollY = useRef(0);
     const scrollTimeout = useRef<NodeJS.Timeout | null>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
+
+    const handleExploreEnter = () => {
+        if (exploreTimeout.current) clearTimeout(exploreTimeout.current);
+        setExploreOpen(true);
+    };
+
+    const handleExploreLeave = () => {
+        exploreTimeout.current = setTimeout(() => {
+            setExploreOpen(false);
+        }, 150); // 150ms delay to make the hover more forgiving
+    };
+
+    const handleLinkClick = () => {
+        if (exploreTimeout.current) clearTimeout(exploreTimeout.current);
+        setExploreOpen(false);
+    };
 
     const userName = session?.user?.name || "User";
     const userEmail = session?.user?.email || "";
@@ -163,9 +181,32 @@ const Header: React.FC = () => {
                 {isPublicHeader ? (
                     <nav className={styles.topbarNav}>
                         <Link href="/#how" className={styles.navLink}>How it works</Link>
+                        <div 
+                            className={styles.dropdownWrapper}
+                            onMouseEnter={handleExploreEnter}
+                            onMouseLeave={handleExploreLeave}
+                        >
+                            <button className={`${styles.navLink} ${exploreOpen ? styles.active : ""}`}>
+                                Explore why it works <span className={styles.chevron}></span>
+                            </button>
+                            <div className={`${styles.dropdownMenu} ${exploreOpen ? styles.open : ""}`}>
+                                <Link href="/science" className={styles.dropdownItem} onClick={handleLinkClick}>
+                                    <span className={styles.ddTitle}>The Science</span>
+                                    <span className={styles.ddSub}>Neuroscience, the RAS & theta waves</span>
+                                </Link>
+                                <div className={styles.ddDivider} />
+                                <Link href="/quantum" className={styles.dropdownItem} onClick={handleLinkClick}>
+                                    <span className={styles.ddTitle}>The Quantum Field</span>
+                                    <span className={styles.ddSub}>Observer effect & possibility</span>
+                                </Link>
+                                <div className={styles.ddDivider} />
+                                <Link href="/mystical" className={styles.dropdownItem} onClick={handleLinkClick}>
+                                    <span className={styles.ddTitle}>Ancient Wisdom</span>
+                                    <span className={styles.ddSub}>What every tradition practiced</span>
+                                </Link>
+                            </div>
+                        </div>
                         <Link href="/pricing" className={`${styles.navLink} ${pathname === "/pricing" ? styles.active : ""}`}>Pricing</Link>
-                        <Link href="/science" className={`${styles.navLink} ${pathname === "/science" ? styles.active : ""}`}>Science</Link>
-                        <Link href="/mystical" className={`${styles.navLink} ${pathname === "/mystical" ? styles.active : ""}`}>Ancient Wisdom</Link>
                         {session && <Link href="/user/dashboard" className={styles.navLink}>Dashboard</Link>}
                     </nav>
                 ) : (

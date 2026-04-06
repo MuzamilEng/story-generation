@@ -42,6 +42,25 @@ export async function POST(req: NextRequest) {
         const user = await prisma.user.findUnique({ where: { id: session.user.id } });
         if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
 
+        // ── Plan gate: voice cloning requires Activator+ (or active beta) ─────
+        const VOICE_CLONE_PLANS = new Set(['activator', 'manifester', 'amplifier']);
+        const hasActiveBeta = await prisma.userBetaCode.findFirst({
+            where: {
+                userId: user.id,
+                OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+            },
+        });
+        const userPlan = String(user.plan || 'free').toLowerCase();
+        if (!VOICE_CLONE_PLANS.has(userPlan) && !hasActiveBeta) {
+            console.warn(`[clone-voice] Plan gate: user ${user.id} on plan "${userPlan}" attempted voice clone.`);
+            return NextResponse.json({
+                error: 'Voice cloning is available on the Activator plan and above. Upgrade to use your own voice.',
+                code: 'PLAN_UPGRADE_REQUIRED',
+            }, { status: 403 });
+        }
+
+        console.log(`[clone-voice] User ${user.id} plan="${userPlan}" beta=${!!hasActiveBeta} — voice clone allowed.`);
+
         const elevenLabsApi = process.env.ELEVEN_LABS_API;
         if (!elevenLabsApi) {
             return NextResponse.json({ error: 'ElevenLabs API key not configured' }, { status: 500 });

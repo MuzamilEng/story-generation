@@ -202,6 +202,7 @@ const UserHeader: React.FC = () => {
             className={styles.newStoryBtn}
             onClick={() => {
               clearStore();
+              localStorage.removeItem("mms_chat_session");
               window.location.href = "/user/goal-intake-ai";
             }}
             style={{ cursor: "pointer" }}

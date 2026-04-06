@@ -209,13 +209,11 @@ const StoryContent: React.FC = () => {
   const [activeStep, setActiveStep] = useState(0);
   const [userAnswers, setUserAnswers] = useState<UserAnswers | null>(null);
   const [storyId, setStoryId] = useState<string | null>(storyIdFromUrl);
-  const [isAIEditing, setIsAIEditing] = useState(false);
-  const [aiQuestions, setAiQuestions] = useState<string[]>([]);
-  const [aiAnswers, setAiAnswers] = useState<string[]>([]);
-  const [isGeneratingQuestions, setIsGeneratingQuestions] = useState(false);
+  const [refinementNotes, setRefinementNotes] = useState("");
   const [isRefiningStory, setIsRefiningStory] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
   const [genError, setGenError] = useState<string | null>(null);
+  const [isAIModalOpen, setIsAIModalOpen] = useState(false);
 
   const {
     capturedGoals,
@@ -485,52 +483,8 @@ const StoryContent: React.FC = () => {
     }));
   };
 
-  const FIXED_AI_QUESTIONS_TOP = [
-    "Is there any information in the story that doesn't feel true or accurate — anything you'd like me to update or change?",
-    "Is there anything I can add to make the story feel more realistic and/or more fulfilling?",
-  ];
-
-  const FIXED_AI_QUESTIONS_BOTTOM = [
-    "Any other optional details or additions you'd like to include in your story?",
-  ];
-
-  const handleAIEdit = async () => {
-    if (!storyId) return;
-    setIsAIEditing(true);
-    setIsGeneratingQuestions(true);
-    setAiQuestions([]);
-    setAiAnswers([]);
-
-    try {
-      const res = await fetch(
-        `/api/user/stories/${storyId}/edit-ai/questions`,
-        {
-          method: "POST",
-        },
-      );
-      const data = await res.json();
-      if (data.questions) {
-        const allQuestions = [
-          ...FIXED_AI_QUESTIONS_TOP,
-          ...data.questions,
-          ...FIXED_AI_QUESTIONS_BOTTOM,
-        ];
-        setAiQuestions(allQuestions);
-        setAiAnswers(new Array(allQuestions.length).fill(""));
-      } else {
-        alert("Failed to generate AI questions. Please try again.");
-        setIsAIEditing(false);
-      }
-    } catch (e) {
-      console.error("AI questions failed", e);
-      setIsAIEditing(false);
-    } finally {
-      setIsGeneratingQuestions(false);
-    }
-  };
-
   const handleAIRefine = async () => {
-    if (!storyId) return;
+    if (!storyId || !refinementNotes.trim()) return;
     setIsRefiningStory(true);
 
     try {
@@ -538,15 +492,14 @@ const StoryContent: React.FC = () => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          questions: aiQuestions,
-          answers: aiAnswers,
+          refinementNotes: refinementNotes,
         }),
       });
       const data = await res.json();
       if (data.storyText) {
         setStoryText(data.storyText);
         if (data.title) setStoryTitle(data.title);
-        setIsAIEditing(false);
+        setRefinementNotes("");
       } else {
         alert("Failed to refine story. Please try again.");
       }
@@ -554,13 +507,8 @@ const StoryContent: React.FC = () => {
       console.error("AI refinement failed", e);
     } finally {
       setIsRefiningStory(false);
+      setIsAIModalOpen(false);
     }
-  };
-
-  const handleAnswerChange = (index: number, val: string) => {
-    const next = [...aiAnswers];
-    next[index] = val;
-    setAiAnswers(next);
   };
 
   if (isInitializing) {
@@ -590,101 +538,6 @@ const StoryContent: React.FC = () => {
 
   return (
     <div className={styles.container}>
-      {isAIEditing && (
-        <div
-          className={styles.aiEditModalOverlay}
-          onClick={() => !isRefiningStory && setIsAIEditing(false)}
-        >
-          <div
-            className={styles.aiEditModal}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className={styles.aiEditModalHeader}>
-              <div className={styles.aiEditPromptTitle}>
-                <SparkleIcon />
-                Refine with AI
-              </div>
-              <button
-                className={styles.closeBtn}
-                onClick={() => setIsAIEditing(false)}
-              >
-                ×
-              </button>
-            </div>
-
-            <div className={styles.aiEditModalBody}>
-              {isGeneratingQuestions ? (
-                <div>
-                  <div className={styles.loadingSpinner} />
-                  <div className={styles.aiEditLoadingText}>
-                    AI is analyzing your story for gaps...
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <div className={styles.aiEditPrompt}>
-                    <div className={styles.aiEditPromptText}>
-                      The AI has identified a few areas to make your story even
-                      more potent. Answer these questions to add more personal
-                      nuance.
-                    </div>
-                  </div>
-
-                  <div className={styles.aiQuestionsSection}>
-                    {aiQuestions.map((q, i) => (
-                      <div key={i} className={styles.aiQuestionItem}>
-                        <div className={styles.aiQuestionText}>{q}</div>
-                        <textarea
-                          className={styles.aiAnswerTextarea}
-                          value={aiAnswers[i]}
-                          onChange={(e) =>
-                            handleAnswerChange(i, e.target.value)
-                          }
-                          placeholder="Your answer..."
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-
-            {!isGeneratingQuestions && (
-              <div className={styles.aiEditModalFooter}>
-                <button
-                  className={styles.outlineBtn}
-                  onClick={() => setIsAIEditing(false)}
-                  disabled={isRefiningStory}
-                >
-                  Cancel
-                </button>
-                <button
-                  className={styles.aiEditRegenBtn}
-                  onClick={handleAIRefine}
-                  disabled={
-                    isRefiningStory || aiAnswers.every((a) => !a.trim())
-                  }
-                >
-                  {isRefiningStory ? (
-                    <>
-                      <div
-                        className={styles.spinnerSmall}
-                        style={{ marginRight: "8px" }}
-                      />
-                      Enhancing...
-                    </>
-                  ) : (
-                    <>
-                      <SparkleIcon />
-                      Regenerate Story
-                    </>
-                  )}
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* Mobile Overlay — sits outside pageBody so it covers everything */}
       {(showVisionMobile || showChecklistMobile) && (
@@ -742,8 +595,8 @@ const StoryContent: React.FC = () => {
               <VisionItem label="Most Important Goal" value={userAnswers.goals} />
               <VisionItem label="Proof Action" value={userAnswers.actionsAfter} />
               
-              {userAnswers.namedPerson && (
-                <VisionItem label="People with you" value={userAnswers.namedPerson} />
+              {userAnswers.namedPersons && userAnswers.namedPersons.length > 0 && (
+                <VisionItem label="People with you" value={userAnswers.namedPersons.join(", ")} />
               )}
               
               {userAnswers.location && (
@@ -838,7 +691,10 @@ const StoryContent: React.FC = () => {
                   </div>
                 </div>
                 <div className={styles.footerActions} style={{ gap: "0.6rem" }}>
-                  <button className={styles.aiEditBtn} onClick={handleAIEdit}>
+                  <button
+                    className={styles.editToggle}
+                    onClick={() => setIsAIModalOpen(true)}
+                  >
                     <SparkleIcon />
                     Edit with AI
                   </button>
@@ -872,7 +728,28 @@ const StoryContent: React.FC = () => {
                     placeholder="Start writing your story here..."
                   />
                 ) : (
-                  <div className={styles.storyTextDisplay}>{storyText}</div>
+                  <div className={styles.storyTextDisplay}>
+                    {storyText.split('\n').map((line, idx) => {
+                      const trimmed = line.trim();
+                      if (!trimmed) return <br key={idx} />;
+
+                      // Clean residual markdown symbols
+                      const cleanLine = trimmed.replace(/[\*#_]/g, '').trim();
+
+                      // Detect headers: uppercase words followed by time range (e.g., "0-5 min")
+                      const isHeader = /[A-Z\s]{5,}.*?\d+-\d+\s+min/i.test(cleanLine);
+                      if (isHeader) {
+                        return <h4 key={idx} className={styles.storySectionHeader}>{cleanLine}</h4>;
+                      }
+
+                      // Detect scene dividers
+                      if (cleanLine === '· · ·') {
+                        return <div key={idx} className={styles.sceneDivider}>· · ·</div>;
+                      }
+
+                      return <p key={idx} className={styles.storyPara}>{cleanLine}</p>;
+                    })}
+                  </div>
                 )}
               </div>
 
@@ -905,6 +782,48 @@ const StoryContent: React.FC = () => {
               onEditMore={handleUnapprove}
               onRecordVoice={handleRecordVoice}
             />
+          )}
+
+          {/* AI EDIT MODAL */}
+          {isAIModalOpen && (
+            <div className={styles.modalOverlay} onClick={() => setIsAIModalOpen(false)}>
+              <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+                <button 
+                  className={styles.modalClose} 
+                  onClick={() => setIsAIModalOpen(false)}
+                >
+                  ×
+                </button>
+                
+                <div className={styles.modalTitle}>Refine with AI</div>
+                <p className={styles.modalSubtitle}>
+                  Tell Maya how you'd like to refine your story. You can ask for a different tone, more sensory detail, or specific changes to any part of your vision.
+                </p>
+
+                <div className={styles.modalActionArea}>
+                  <textarea
+                    value={refinementNotes}
+                    onChange={(e) => setRefinementNotes(e.target.value)}
+                    placeholder="Tell Maya what to change... e.g. 'Make the ending more emotional' or 'Focus more on my family'..."
+                    className={styles.refinementTextarea}
+                    disabled={isRefiningStory}
+                  />
+                  
+                  <button 
+                    className={styles.modalBtn}
+                    onClick={handleAIRefine}
+                    disabled={isRefiningStory || !refinementNotes.trim()}
+                  >
+                    {isRefiningStory ? (
+                      <div className={styles.spinnerSmall} />
+                    ) : (
+                      <SparkleIcon />
+                    )}
+                    {isRefiningStory ? "Refining story..." : "Update my story"}
+                  </button>
+                </div>
+              </div>
+            </div>
           )}
         </main>
 
@@ -942,7 +861,7 @@ const StoryContent: React.FC = () => {
   );
 };
 
-const Story: React.FC = () => {
+const StoryPage: React.FC = () => {
   return (
     <Suspense fallback={<div>Loading...</div>}>
       <StoryContent />
@@ -950,4 +869,4 @@ const Story: React.FC = () => {
   );
 };
 
-export default Story;
+export default StoryPage;

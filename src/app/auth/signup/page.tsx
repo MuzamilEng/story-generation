@@ -131,6 +131,13 @@ const CreateAccountForm: React.FC = () => {
   const [apiError, setApiError] = useState("");
 
   useEffect(() => {
+    const code = searchParams.get("betaCode") || searchParams.get("code");
+    if (code) {
+      setFormData((prev) => ({ ...prev, betaCode: code.toUpperCase() }));
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
     document.title = "ManifestMyStory — Create Your Account";
     const link = document.createElement("link");
     link.href =
@@ -193,7 +200,12 @@ const CreateAccountForm: React.FC = () => {
   };
 
   const handleSocial = async (provider: string) => {
-    await signIn(provider.toLowerCase(), { callbackUrl: nextUrl });
+    const baseUrl = nextUrl || "/user/dashboard";
+    const urlWithCode = formData.betaCode 
+      ? `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}betaCode=${formData.betaCode.trim().toUpperCase()}`
+      : baseUrl;
+    
+    await signIn(provider.toLowerCase(), { callbackUrl: urlWithCode });
   };
 
   const isFormValid = () => {

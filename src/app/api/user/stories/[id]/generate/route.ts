@@ -13,7 +13,7 @@ const STORY_SYSTEM_MESSAGE = `You are a master manifestation story writer, NLP p
 
 This story will be listened to every night in the user's own cloned voice as they drift toward sleep. Its purpose is to rewire the subconscious mind through repeated immersive exposure — making the user's desired future feel like remembered reality.
 
-You follow every instruction in this prompt precisely. You never generalise, never paraphrase the user's inputs, and never invent details not provided. Every specific thing the user shared must appear in the story — verbatim or near-verbatim — as a vivid, lived scene. The story must feel so intimate and specific that the user thinks: "This could only have been written about me."
+You follow every instruction in this prompt precisely. You are a creative genius — do not use templates. Generate a unique, dynamic narrative every time. Never generalise, never paraphrase the user's inputs, and never invent details not provided. Every specific thing the user shared must appear in the story — verbatim or near-verbatim — as a vivid, lived scene. The story must feel so intimate and specific that the user thinks: "This could only have been written about me."
 
 Write for the ear, not the eye. Every sentence must flow beautifully when read aloud. Vary length deliberately — long flowing sentences for immersion, short sentences for emotional peaks. Never rush. Every word earns its place.
 
@@ -27,7 +27,7 @@ async function generateStory(prompt: string): Promise<string> {
         new SystemMessage(STORY_SYSTEM_MESSAGE),
         new HumanMessage(prompt)
     ], {
-        max_tokens: 5000
+        max_tokens: 8192 // Ensure enough overhead for Amplifier stories (3000+ words)
     });
     return response.content as string;
 }
@@ -58,6 +58,15 @@ export async function POST(
         }
 
         const answers = normalizeGoals(story.goal_intake_json)
+        
+        // Include custom affirmations if present in DB
+        if (story.affirmations_json) {
+            const affs = story.affirmations_json as any;
+            answers.customAffirmations = {
+                opening: affs.opening || [],
+                closing: affs.closing || []
+            };
+        }
 
         // Map Plan to Tier
         const planToTier: Record<string, Tier> = {
@@ -66,26 +75,28 @@ export async function POST(
             'manifester': 'manifester',
             'amplifier': 'amplifier'
         };
-        const userTier = planToTier[story.user.plan] || 'explorer';
+
+        // Check if user has an active beta code redemption
+        const hasActiveBeta = await prisma.userBetaCode.findFirst({
+            where: {
+                userId: session.user.id,
+                OR: [
+                    { expiresAt: null },
+                    { expiresAt: { gt: new Date() } }
+                ]
+            }
+        });
+
+        let userTier = planToTier[story.user.plan] || 'explorer';
+
+        // Beta testers always get Amplifier tier
+        if (hasActiveBeta) {
+            userTier = 'amplifier';
+        }
 
         // Log context for pipeline verification
         console.log(`[STORY_GENERATE] answers for story ${storyId}:`, JSON.stringify(answers, null, 2));
-        console.log(`[STORY_GENERATE] user tier: ${userTier}`);
-
-        // Guard: block generation if critical fields are missing
-        if (!answers.goals || answers.goals.trim().length === 0) {
-            return NextResponse.json(
-                { error: 'Story cannot be generated: your goals/vision are missing. Please complete the goal intake conversation.' },
-                { status: 400 }
-            )
-        }
-
-        if (!answers.actionsAfter || answers.actionsAfter.trim().length === 0) {
-            return NextResponse.json(
-                { error: 'Story cannot be generated: proof actions (what you do once it\'s real) are missing. Please complete the goal intake conversation.' },
-                { status: 400 }
-            )
-        }
+        console.log(`[STORY_GENERATE] user tier: ${userTier} (Beta: ${!!hasActiveBeta})`);
 
         const prompt = buildStoryPrompt(answers, userTier)
 
@@ -99,11 +110,16 @@ export async function POST(
         let title = story.title;
         let storyText = rawResponse;
 
-        // Try to parse out the title if format "[Title]\n---\n[Story]" was followed
+        // Try to parse out the title if format "TITLE: [Title]\n---\n[Story]" was followed
         if (rawResponse.includes('---')) {
             const parts = rawResponse.split('---');
-            // REQUIRED: Strip markdown from title before rendering (remove all ** characters)
-            title = parts[0].trim().replace(/\*\*/g, '').replace(/\*/g, '');
+            const headerContent = parts[0].trim();
+            const headerLines = headerContent.split('\n');
+            
+            // First line is the title with "TITLE: " prefix
+            title = headerLines[0].trim().replace(/^TITLE:\s*/i, '').replace(/\*\*/g, '').replace(/\*/g, '').trim();
+            
+            // The story body is everything after the first '---'
             storyText = parts.slice(1).join('---').trim();
         }
 

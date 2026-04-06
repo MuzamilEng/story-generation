@@ -447,7 +447,7 @@ const StoryDetail: React.FC = () => {
       title: storyData.title || "My Manifestation Story",
       createdAt: new Date(storyData.createdAt),
       wordCount: storyData.word_count || 0,
-      audioDuration: storyData.audio_duration_seconds || 402,
+      audioDuration: storyData.audio_duration_secs || 0,
       plays: 0,
       downloads: 0,
       content:

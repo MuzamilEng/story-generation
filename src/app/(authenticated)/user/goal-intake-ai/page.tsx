@@ -52,6 +52,138 @@ interface CompletionCardProps {
   onGenerate: (length: "short" | "long") => void;
 }
 
+const LIFE_AREAS = [
+  { id: "wealth", label: "Wealth & Abundance", icon: "◈", desc: "Financial freedom, prosperity, and security", color: "#D4B665" },
+  { id: "health", label: "Health & Vitality", icon: "◉", desc: "Energy, strength, and physical wellbeing", color: "#8DBF7A" },
+  { id: "love", label: "Love & Relationships", icon: "◇", desc: "Deep connection, romance, and partnership", color: "#C97B8A" },
+  { id: "family", label: "Family & Parenting", icon: "◈", desc: "Nurturing bonds and generational legacy", color: "#A685C9" },
+  { id: "purpose", label: "Purpose & Career", icon: "◎", desc: "Meaningful work, impact, and fulfilment", color: "#6AABCC" },
+  { id: "spirituality", label: "Spirituality & Inner Life", icon: "✦", desc: "Peace, alignment, and inner knowing", color: "#C9A46A" },
+  { id: "growth", label: "Personal Growth", icon: "◐", desc: "Mindset, skills, and becoming who you're meant to be", color: "#8DBF7A" },
+  { id: "other", label: "Something else…", icon: "◌", desc: "Describe your own area of transformation", color: "#6E8A7B" },
+];
+
+interface GoalDiscoveryScreenProps {
+  orientation: string;
+  isPaid: boolean;
+  onConfirm: (selectedAreas: string[]) => void;
+}
+
+const GoalDiscoveryScreen: React.FC<GoalDiscoveryScreenProps> = ({ orientation, isPaid, onConfirm }) => {
+  const [selected, setSelected] = useState<string[]>([]);
+  const [customArea, setCustomArea] = useState("");
+  const [hovered, setHovered] = useState<string | null>(null);
+
+  const maxAllowed = isPaid ? LIFE_AREAS.length : 1;
+
+  const toggle = (id: string) => {
+    setSelected(prev => {
+      if (prev.includes(id)) return prev.filter(x => x !== id);
+      if (!isPaid && prev.length >= 1) return [id]; // Explorer: replace
+      return [...prev, id];
+    });
+  };
+
+  const handleConfirm = () => {
+    const areas = [...selected];
+    if (selected.includes("other") && customArea.trim()) {
+      // Replace "other" with the custom text
+      const idx = areas.indexOf("other");
+      areas.splice(idx, 1, customArea.trim());
+    } else if (selected.includes("other")) {
+      areas.splice(areas.indexOf("other"), 1);
+    }
+    if (areas.length === 0) return;
+    onConfirm(areas);
+  };
+
+  return (
+    <div className={styles.discoveryScreen}>
+      <div className={styles.discoveryHeader}>
+        <div className={styles.discoveryIcon}>✦</div>
+        <h1>Where does your transformation begin?</h1>
+        <p>
+          Select the areas of life you're ready to call in right now.
+          {!isPaid && <span className={styles.explorerBadge}> Explorer: 1 area — <a href="/pricing">upgrade to unlock all</a></span>}
+        </p>
+      </div>
+
+      <div className={styles.discoveryGrid}>
+        {LIFE_AREAS.map(area => {
+          const isSelected = selected.includes(area.id);
+          const isDisabled = !isPaid && selected.length >= 1 && !isSelected;
+          return (
+            <button
+              key={area.id}
+              className={`${styles.areaCard} ${isSelected ? styles.areaCardSelected : ""} ${isDisabled ? styles.areaCardDisabled : ""}`}
+              onClick={() => !isDisabled && toggle(area.id)}
+              onMouseEnter={() => setHovered(area.id)}
+              onMouseLeave={() => setHovered(null)}
+              style={isSelected ? { "--area-color": area.color } as React.CSSProperties : {}}
+            >
+              <div className={styles.areaCardInner}>
+                <div
+                  className={styles.areaIcon}
+                  style={{ color: isSelected || hovered === area.id ? area.color : undefined }}
+                >
+                  {area.icon}
+                </div>
+                <div className={styles.areaLabel}>{area.label}</div>
+                <div className={styles.areaDesc}>{area.desc}</div>
+                <div className={`${styles.areaCheck} ${isSelected ? styles.areaCheckSelected : ""}`}>
+                  {isSelected && (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3}>
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  )}
+                </div>
+              </div>
+              {isSelected && <div className={styles.areaCardGlow} style={{ background: area.color }} />}
+            </button>
+          );
+        })}
+      </div>
+
+      {selected.includes("other") && (
+        <div className={styles.discoveryCustom}>
+          <input
+            type="text"
+            className={styles.discoveryCustomInput}
+            placeholder="Describe your area of transformation…"
+            value={customArea}
+            onChange={e => setCustomArea(e.target.value)}
+            autoFocus
+          />
+        </div>
+      )}
+
+      <div className={styles.discoveryFooter}>
+        {selected.length > 0 && (
+          <div className={styles.discoverySelected}>
+            {selected.filter(s => s !== "other").map(id => {
+              const a = LIFE_AREAS.find(x => x.id === id);
+              return a ? <span key={id} className={styles.discoveryTag} style={{ borderColor: a.color, color: a.color }}>{a.label}</span> : null;
+            })}
+            {selected.includes("other") && customArea.trim() && (
+              <span className={styles.discoveryTag}>{customArea.trim()}</span>
+            )}
+          </div>
+        )}
+        <button
+          className={styles.discoveryConfirmBtn}
+          onClick={handleConfirm}
+          disabled={selected.length === 0 || (selected.includes("other") && !customArea.trim() && selected.length === 1)}
+        >
+          Begin My Vision Journey
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+            <path d="M5 12h14M12 5l7 7-7 7" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  );
+};
+
 const OrientationScreen: React.FC<{ onStart: (orientation: string) => void }> = ({ onStart }) => {
   const [step, setStep] = useState<"start" | "orientation">("start");
 
@@ -90,8 +222,6 @@ const OrientationScreen: React.FC<{ onStart: (orientation: string) => void }> = 
 };
 
 const CompletionCard: React.FC<CompletionCardProps> = ({ onGenerate }) => {
-  const [selected, setSelected] = useState<"short" | "long">("long");
-
   return (
     <div className={`${styles.msgRow} ${styles.bot}`}>
       <div className={`${styles.avatar} ${styles.bot}`}>M</div>
@@ -99,50 +229,12 @@ const CompletionCard: React.FC<CompletionCardProps> = ({ onGenerate }) => {
         <h3>✦ Your vision is captured</h3>
         <p>
           I have everything I need to write your personal manifestation story.
-          Choose the depth of your future world:
+          Based on your vision and tier, I've designed an immersive sensory narrative uniquely for you.
         </p>
-
-        <div className={styles.lengthOptions}>
-          <div
-            className={`${styles.lengthOption} ${selected === "short" ? styles.active : ""}`}
-            onClick={() => setSelected("short")}
-          >
-            <div className={styles.lengthInfo}>
-              <div className={styles.lengthTitle}>Short Story</div>
-              <div className={styles.lengthDesc}>Focused on 1-2 core goals</div>
-            </div>
-            <div className={styles.lengthMeta}>
-              <div className={styles.lengthWords}>~500 words</div>
-              <div className={styles.lengthTime}>4-5 min audio</div>
-            </div>
-            <div className={styles.radioCircle}>
-              {selected === "short" && <div className={styles.radioInner} />}
-            </div>
-          </div>
-
-          <div
-            className={`${styles.lengthOption} ${selected === "long" ? styles.active : ""}`}
-            onClick={() => setSelected("long")}
-          >
-            <div className={styles.lengthInfo}>
-              <div className={styles.lengthTitle}>Longer Story</div>
-              <div className={styles.lengthDesc}>
-                Deeply immersive & expansive
-              </div>
-            </div>
-            <div className={styles.lengthMeta}>
-              <div className={styles.lengthWords}>~1000 words</div>
-              <div className={styles.lengthTime}>8-10 min audio</div>
-            </div>
-            <div className={styles.radioCircle}>
-              {selected === "long" && <div className={styles.radioInner} />}
-            </div>
-          </div>
-        </div>
 
         <button
           className={styles.completeBtn}
-          onClick={() => onGenerate(selected)}
+          onClick={() => onGenerate("long")}
         >
           Generate My Story
           <ArrowIcon />
@@ -162,6 +254,7 @@ interface MessageBubbleProps {
   onChipClick?: (text: string) => void;
   isIdentityPhase?: boolean;
   isLifeAreasPhase?: boolean;
+  isExplorer?: boolean;
 }
 
 const MessageBubble: React.FC<MessageBubbleProps> = ({
@@ -169,9 +262,11 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
   onChipClick,
   isIdentityPhase,
   isLifeAreasPhase,
+  isExplorer,
 }) => {
   const isUser = message.role === "user";
   const [selectedChips, setSelectedChips] = useState<string[]>([]);
+  const [customIdentity, setCustomIdentity] = useState("");
 
   // Robustly extract chips from bot messages
   const extractBotChips = useCallback(() => {
@@ -218,18 +313,37 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
 
   const toggleChip = (chip: string) => {
     if (isIdentityPhase || isLifeAreasPhase) {
-      setSelectedChips((prev) =>
-        prev.includes(chip) ? prev.filter((c) => c !== chip) : [...prev, chip],
-      );
+      setSelectedChips((prev) => {
+        const isActive = prev.includes(chip);
+        let next;
+        if (isActive) {
+          next = prev.filter((c) => c !== chip);
+        } else {
+          // Enforce 1-area limit for Explorers
+          if (isLifeAreasPhase && isExplorer && prev.length >= 1) {
+            next = [chip]; // Replace with new selection
+          } else {
+            next = [...prev, chip];
+          }
+        }
+        return next;
+      });
     } else {
       onChipClick?.(chip);
     }
   };
 
   const handleConfirmMulti = () => {
-    if (selectedChips.length > 0) {
-      // Send as comma-separated or similar format that the AI will understand
-      onChipClick?.(selectedChips.join(", "));
+    const combined = [...selectedChips];
+    if (customIdentity.trim()) {
+      combined.push(customIdentity.trim());
+    }
+    if (combined.length > 0) {
+      onChipClick?.(combined.join(", "));
+      setCustomIdentity("");
+    } else if (customIdentity.trim()) {
+      onChipClick?.(customIdentity.trim());
+      setCustomIdentity("");
     }
   };
 
@@ -261,17 +375,29 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
           <div className={styles.chips}>
             {chips.map((chip, i) => {
               const isActive = selectedChips.includes(chip);
+              const isMulti = isIdentityPhase || isLifeAreasPhase;
               return (
                 <button
                   key={i}
-                  className={`${styles.chip} ${isActive ? styles.active : ""}`}
+                  className={`${styles.chip} ${isActive ? styles.active : ""} ${isMulti ? styles.multi : ""}`}
                   onClick={() => toggleChip(chip)}
                 >
                   {chip}
                 </button>
               );
             })}
-            {(isIdentityPhase || isLifeAreasPhase) && selectedChips.length > 0 && (
+            {isIdentityPhase && (
+              <div className={styles.customIdentity}>
+                <input
+                  type="text"
+                  placeholder="Write your own identity statement…"
+                  value={customIdentity}
+                  onChange={(e) => setCustomIdentity(e.target.value)}
+                  className={styles.customIdentityInput}
+                />
+              </div>
+            )}
+            {(isIdentityPhase || isLifeAreasPhase) && (selectedChips.length > 0 || customIdentity.trim()) && (
               <button
                 className={styles.chip}
                 onClick={handleConfirmMulti}
@@ -279,9 +405,13 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                   background: "var(--accent)",
                   color: "#fff",
                   borderColor: "var(--accent)",
+                  marginTop: "12px",
+                  width: "100%",
+                  textAlign: "center",
+                  justifyContent: "center",
                 }}
               >
-                {isLifeAreasPhase ? "Explore These Areas →" : "Claim Selected Statements →"}
+                {isLifeAreasPhase ? "Explore These Areas →" : "Done — these are mine"}
               </button>
             )}
           </div>
@@ -291,49 +421,6 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
   );
 };
 
-// Additional Details Modal
-interface AdditionalDetailsModalProps {
-  onConfirm: (details: string) => void;
-  onSkip: () => void;
-}
-
-const AdditionalDetailsModal: React.FC<AdditionalDetailsModalProps> = ({
-  onConfirm,
-  onSkip,
-}) => {
-  const [details, setDetails] = useState("");
-
-  return (
-    <div className={styles.modalOverlay}>
-      <div className={styles.modal}>
-        <div className={styles.modalIcon}>✦</div>
-        <h3>Personalise your story</h3>
-        <p>
-          Would you like to share any additional details about your story?
-          Please add them here to make it more personalized.
-        </p>
-        <textarea
-          value={details}
-          onChange={(e) => setDetails(e.target.value)}
-          placeholder="e.g. specific names, places, or feelings you want to include..."
-          className={styles.modalTextarea}
-        />
-        <div className={styles.modalActions}>
-          <button className={styles.modalBtnSecondary} onClick={onSkip}>
-            Skip for now
-          </button>
-          <button
-            className={styles.modalBtnPrimary}
-            onClick={() => onConfirm(details)}
-            disabled={!details.trim()}
-          >
-            Add Details
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
 
 // Skip-confirmation modal
 interface SkipConfirmModalProps {
@@ -416,6 +503,9 @@ const TopicItem: React.FC<TopicItemProps> = ({
 const GoalDiscovery: React.FC = () => {
   const router = useRouter();
   const { data: session, status: authStatus } = useSession();
+  // Track the intake flow stage: null = orientation, 'discovery' = area selection, 'chat' = main chat
+  const [intakeStage, setIntakeStage] = useState<"orientation" | "discovery" | "chat">("orientation");
+  const [pendingOrientation, setPendingOrientation] = useState("");
 
   useEffect(() => {
     document.title = "ManifestMyStory — Goal Discovery";
@@ -445,7 +535,7 @@ const GoalDiscovery: React.FC = () => {
   };
   const saved = restoreSession();
 
-  const { capturedGoals, setCapturedGoals, setNormalizedGoals, clearStore } =
+  const { capturedGoals, setCapturedGoals, setNormalizedGoals, clearStore, isHydrated } =
     useStoryStore();
   const [messages, setMessages] = useState<Message[]>(saved?.messages ?? []);
   const messagesRef = useRef<Message[]>(saved?.messages ?? []);
@@ -459,16 +549,32 @@ const GoalDiscovery: React.FC = () => {
   );
   const [activeTopicId, setActiveTopicId] = useState<string>(TOPICS[0].id);
   const activeTopicIdRef = useRef<string>(TOPICS[0].id); // Keep ref for callbacks if needed
+  const [recentGoalKey, setRecentGoalKey] = useState<string | null>(null);
+
+  // Clear highlight after animation
+  useEffect(() => {
+    if (recentGoalKey) {
+      const timer = setTimeout(() => setRecentGoalKey(null), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [recentGoalKey]);
 
   // Keep activeTopicId in sync with the current phase (fallback only if AI doesn't send topic)
   useEffect(() => {
-    const phase = progress.phase;
-    if (activeTopicId && TOPICS.some((t) => t.id === activeTopicId)) {
-        // If we already have a topic set by the AI, don't override it unless phase changes to something disconnected
+    const { phase, topic } = progress;
+
+    // 1. If we have an explicit topic ID (set via navigation or AI tag), use it first
+    if (topic && TOPICS.some((t) => t.id === topic)) {
+      if (activeTopicIdRef.current !== topic) {
+        setActiveTopicId(topic);
+        activeTopicIdRef.current = topic;
+      }
+      return;
     }
 
-    // Map specific AI-driven phases back to the sidebar topics if topic isn't set
+    // 2. Fallback: Map specific AI-driven phases back to the sidebar topics if topic isn't set
     const phaseToTopicMap: Record<string, string> = {
+      Orientation: "orientation",
       Setup: "orientation",
       "Life Areas": "selectedAreas",
       Vision: "goals",
@@ -480,32 +586,46 @@ const GoalDiscovery: React.FC = () => {
       Spirituality: "goals",
       "Proof Actions": "actionsAfter",
       "Story Anchors": "namedPersons",
+      "Story Tone": "tone",
       "Identity Builder": "identityStatements",
       Timeframe: "timeframe",
       Complete: "timeframe",
     };
 
-    const topicId = phaseToTopicMap[phase];
-    if (topicId && !activeTopicIdRef.current.includes(topicId)) {
-      setActiveTopicId(topicId);
-      activeTopicIdRef.current = topicId;
+    const targetTopicId = phaseToTopicMap[phase];
+
+    // Safety: If the current active topic belongs to the same phase group as the incoming phase,
+    // don't force a move. This prevents "jumping back" when skipping through topics in the same phase.
+    const currentTopicId = activeTopicIdRef.current;
+    if (currentTopicId && targetTopicId) {
+      const currentTopic = TOPICS.find((t) => t.id === currentTopicId);
+      const targetTopic = TOPICS.find((t) => t.id === targetTopicId);
+
+      // If we are already on a topic that shares the phase of the target, stay there
+      if (
+        currentTopic &&
+        targetTopic &&
+        currentTopic.phase === targetTopic.phase
+      ) {
+        // If the user manually navigated to a specific topic in a shared phase (like 'selectedAreas' in 'Setup'),
+        // and the AI sends 'Setup', don't pull them back to 'orientation'.
+        return;
+      }
     }
-  }, [progress.phase]);
+
+    if (targetTopicId && activeTopicIdRef.current !== targetTopicId) {
+      setActiveTopicId(targetTopicId);
+      activeTopicIdRef.current = targetTopicId;
+    }
+  }, [progress.phase, progress.topic]);
   const [isWaiting, setIsWaiting] = useState(false);
   const [isComplete, setIsComplete] = useState(saved?.isComplete ?? false);
   const [inputValue, setInputValue] = useState("");
   const [showTyping, setShowTyping] = useState(false);
-  const [pendingSkip, setPendingSkip] = useState<{
-    id: string;
-    label: string;
-  } | null>(null);
+
   // Track which topic IDs the user has sent at least one reply in
   const [respondedTopics, setRespondedTopics] = useState<string[]>(
     saved?.respondedTopics ?? [],
-  );
-  const [showAdditionalDetails, setShowAdditionalDetails] = useState(false);
-  const [hasSeenAdditionalDetails, setHasSeenAdditionalDetails] = useState(
-    saved?.hasSeenAdditionalDetails ?? false,
   );
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -524,7 +644,6 @@ const GoalDiscovery: React.FC = () => {
           progress,
           respondedTopics,
           isComplete,
-          hasSeenAdditionalDetails,
         }),
       );
     } catch {
@@ -535,7 +654,6 @@ const GoalDiscovery: React.FC = () => {
     progress,
     respondedTopics,
     isComplete,
-    hasSeenAdditionalDetails,
   ]);
 
   // ── Helper to wipe the persisted session (called after successful story save) ──
@@ -558,16 +676,51 @@ const GoalDiscovery: React.FC = () => {
     }
   }, [inputValue]);
 
-  // Start conversation with orientation
+  // Step 1: User picks orientation → go to goal discovery screen
+  const handleOrientationSelected = (orientation: string) => {
+    setCapturedGoals(prev => ({ ...prev, orientation: orientation.toLowerCase() }));
+    setRecentGoalKey("orientation");
+    setPendingOrientation(orientation);
+    setIntakeStage("discovery");
+  };
+
+  // Step 2: User picks life areas → start chat with combined context
+  const handleGoalDiscoveryConfirm = (selectedAreas: string[]) => {
+    // Capture selected areas immediately
+    setCapturedGoals(prev => ({ ...prev, selectedAreas }));
+    setRecentGoalKey("selectedAreas");
+    setIntakeStage("chat");
+    // Advance sidebar to selectedAreas
+    setActiveTopicId("selectedAreas");
+    activeTopicIdRef.current = "selectedAreas";
+    setProgress(prev => ({
+      ...prev,
+      pct: 15,
+      phase: "Life Areas",
+      topic: "selectedAreas",
+      covered: ["orientation", "selectedAreas"],
+    }));
+    setRespondedTopics(prev => [...new Set([...prev, "orientation", "selectedAreas"])]);
+    // Send combined message to AI
+    const areasLabel = selectedAreas.join(", ");
+    sendToAI(
+      `My orientation toward personal growth is: ${pendingOrientation}. ` +
+      `The life areas I want to transform are: ${areasLabel}.`
+    );
+  };
+
+  // Legacy: Start conversation with orientation (no discovery screen — not used now)
   const handleStartConversation = (orientation: string) => {
+    setCapturedGoals(prev => ({ ...prev, orientation: orientation.toLowerCase() }));
+    setRecentGoalKey("orientation");
     sendToAI(`My orientation toward personal growth is: ${orientation}`);
   };
 
-  // Skip auto-send if showing orientation screen
+  // Skip auto-send if showing orientation screen or discovery screen
   useEffect(() => {
-    // Only auto-start if we have orientation or some history
-    if (messagesRef.current.length === 0 && progress.pct > 0) {
-      sendToAI();
+    // Only auto-start if we already have chat history (resumed session)
+    if (messagesRef.current.length > 0) {
+      setIntakeStage("chat");
     }
   }, []);
 
@@ -594,9 +747,6 @@ const GoalDiscovery: React.FC = () => {
           }
           if (data.phase === "Complete" || data.pct >= 100) {
             setIsComplete(true);
-            if (!hasSeenAdditionalDetails) {
-              setShowAdditionalDetails(true);
-            }
           }
         } catch (e) {
           console.error("Error parsing progress JSON:", e);
@@ -625,6 +775,9 @@ const GoalDiscovery: React.FC = () => {
           ...prev,
           ...newGoals,
         }));
+        // Trigger highlight for the last one in the set
+        const keys = Object.keys(newGoals);
+        setRecentGoalKey(keys[keys.length - 1]);
       }
 
       // Clean up the text for UI: remove tags and any surrounding artifacts
@@ -665,7 +818,7 @@ const GoalDiscovery: React.FC = () => {
         );
 
         // Flag auto-completion when submitting a message in the last stage
-        if (currentTopicId === "details") {
+        if (currentTopicId === "timeframe") {
           triggerCompleteAfterResponseRef.current = true;
         }
       }
@@ -706,9 +859,6 @@ const GoalDiscovery: React.FC = () => {
         if (triggerCompleteAfterResponseRef.current) {
           triggerCompleteAfterResponseRef.current = false;
           setIsComplete(true);
-          if (!hasSeenAdditionalDetails) {
-            setShowAdditionalDetails(true);
-          }
         }
       } catch (error) {
         console.error("Error calling AI:", error);
@@ -730,8 +880,28 @@ const GoalDiscovery: React.FC = () => {
 
   const handleSend = useCallback(() => {
     if (!inputValue.trim() || isWaiting) return;
-    sendToAI(inputValue.trim());
-  }, [inputValue, isWaiting, sendToAI]);
+    
+    // Preemptive local capture for specific topics to ensure the UI feels responsive
+    // even if the AI fails to send a CAPTURE tag.
+    const text = inputValue.trim();
+    const topic = activeTopicIdRef.current;
+    
+    if (topic === 'orientation') {
+      setCapturedGoals(prev => ({ ...prev, orientation: text.toLowerCase() }));
+    } else if (topic === 'timeframe') {
+      setCapturedGoals(prev => ({ ...prev, timeframe: text }));
+    } else if (topic === 'tone') {
+      setCapturedGoals(prev => ({ ...prev, tone: text }));
+    } else if (topic === 'goals' && progress.phase && !["Vision", "Life Areas", "Setup"].includes(progress.phase)) {
+       // If in a deep-dive phase (Wealth, Health, etc.), capture as a goal for that area
+       const goalKey = `goals (${progress.phase.toLowerCase()})`;
+       setCapturedGoals(prev => ({ ...prev, [goalKey]: text }));
+    } else if (topic === 'actionsAfter') {
+      setCapturedGoals(prev => ({ ...prev, actionsAfter: text }));
+    }
+
+    sendToAI(text);
+  }, [inputValue, isWaiting, sendToAI, progress.phase]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -746,9 +916,36 @@ const GoalDiscovery: React.FC = () => {
   const handleChipClick = useCallback(
     (text: string) => {
       if (isWaiting) return;
+
+      // Real-time instant effect: Capture structured data locally immediately
+      const lowerText = text.toLowerCase();
+      const currentTopic = activeTopicIdRef.current;
+
+      if (progress.phase === "Life Areas" || currentTopic === 'selectedAreas') {
+        const areas = text.split(", ").map(a => a.trim());
+        setCapturedGoals(prev => ({ ...prev, selectedAreas: areas }));
+        setRecentGoalKey("selectedAreas");
+      } else if (progress.phase === "Identity Builder" || currentTopic === 'identityStatements') {
+        const statements = text.split(", ").map(s => s.trim());
+        setCapturedGoals(prev => ({ ...prev, identityStatements: statements }));
+        setRecentGoalKey("identityStatements");
+      } else if (progress.phase === "Story Tone" || currentTopic === "tone") {
+        setCapturedGoals(prev => ({ ...prev, tone: text }));
+        setRecentGoalKey("tone");
+      } else if (progress.phase === "Timeframe" || currentTopic === "timeframe") {
+        setCapturedGoals(prev => ({ ...prev, timeframe: text }));
+        setRecentGoalKey("timeframe");
+      } else if (currentTopic === 'orientation') {
+        setCapturedGoals(prev => ({ ...prev, orientation: text.toLowerCase() }));
+        setRecentGoalKey("orientation");
+      } else if (currentTopic === 'coreFeeling') {
+        setCapturedGoals(prev => ({ ...prev, coreFeeling: text }));
+        setRecentGoalKey("coreFeeling");
+      }
+
       sendToAI(text);
     },
-    [isWaiting, sendToAI],
+    [isWaiting, sendToAI, progress.phase, activeTopicId, setCapturedGoals],
   );
 
   const handleGenerateStory = useCallback(
@@ -828,113 +1025,53 @@ const GoalDiscovery: React.FC = () => {
     ],
   );
 
-  // Execute the actual topic navigation (called directly or after modal confirm)
   const executeTopicNav = useCallback(
     (id: string, label: string) => {
       const topicIndex = TOPICS.findIndex((t) => t.id === id);
-      const targetPct = Math.max(progress.pct, (topicIndex + 1) * 15);
+      
+      setProgress((prev) => {
+        const newlyCovered = TOPICS.slice(0, topicIndex).map((t) => t.id); // Topics before are skipped
+        const uniqueCovered = Array.from(new Set([...prev.covered, ...newlyCovered, id])); // current being active marks it as visited
+        
+        const newPct = Math.max(
+          prev.pct,
+          Math.min(100, Math.round(((topicIndex + 1) / TOPICS.length) * 100))
+        );
 
-      setProgress((prev) => ({
-        pct: targetPct,
-        phase: TOPICS[topicIndex].phase,
-        covered: prev.covered.includes(id)
-          ? prev.covered
-          : [...prev.covered, id],
-      }));
+        return {
+          ...prev,
+          pct: newPct,
+          phase: TOPICS[topicIndex].phase,
+          topic: id,
+          covered: uniqueCovered,
+        };
+      });
 
-      const prompt = `I'd like to dive into ${label} next.`;
+      // Update active topic ID directly for immediate UI feedback
+      setActiveTopicId(id);
+      activeTopicIdRef.current = id;
+
+
+
+      // Prompt AI to transition, acknowledging history and extracting any available goals
+      const prompt = `Let's skip ahead to "${label}". Please reflect on what we've discussed so far, capture any goals or details you've identified in our history using CAPTURE tags, and then ask me about ${label}.`;
       sendToAI(prompt);
     },
-    [progress.pct, sendToAI],
+    [sendToAI],
   );
 
   const handleTopicClick = useCallback(
     (id: string, label: string) => {
       if (isWaiting) return;
-
-      const topicIndex = TOPICS.findIndex((t) => t.id === id);
-      const currentTopicIndex = TOPICS.findIndex(
-        (t) => t.phase === progress.phase,
-      );
-
-      // Allow navigating back to any previously visited stage freely
-      if (topicIndex < currentTopicIndex) {
-        executeTopicNav(id, label);
-        return;
-      }
-
-      // "Getting Started" is mandatory — block any forward jump until the user
-      // has replied at least once in that stage.
-      const firstTopicId = TOPICS[0].id;
-      if (id !== firstTopicId && !respondedTopics.includes(firstTopicId))
-        return;
-
-      const isAlreadyCovered = progress.covered.includes(id);
-
-      // Check if there are uncovered topics before the target (i.e. this is a skip)
-      const hasGapBefore = TOPICS.slice(0, topicIndex).some(
-        (t) => !progress.covered.includes(t.id),
-      );
-
-      if (!isAlreadyCovered && hasGapBefore) {
-        // Allow skipping only if user has already replied in the current topic
-        const currentTopicId = TOPICS[currentTopicIndex]?.id;
-        const hasRespondedToCurrentTopic = currentTopicId
-          ? respondedTopics.includes(currentTopicId)
-          : false;
-
-        if (!hasRespondedToCurrentTopic) {
-          // User hasn't interacted with their current stage — show warning modal
-          setPendingSkip({ id, label });
-          return;
-        }
-        // Has responded → allow navigation without modal
-      }
-
       executeTopicNav(id, label);
     },
-    [
-      isWaiting,
-      progress.phase,
-      progress.covered,
-      respondedTopics,
-      executeTopicNav,
-    ],
+    [isWaiting, executeTopicNav],
   );
 
-  const isPaid = session?.user?.plan && session.user.plan !== "free";
+  const isPaid = !!(session?.user?.plan && session.user.plan !== "free");
 
   return (
     <div className={styles.container}>
-      {pendingSkip && (
-        <SkipConfirmModal
-          topicLabel={pendingSkip.label}
-          onConfirm={() => {
-            const { id, label } = pendingSkip;
-            setPendingSkip(null);
-            executeTopicNav(id, label);
-          }}
-          onCancel={() => setPendingSkip(null)}
-        />
-      )}
-      {showAdditionalDetails && (
-        <AdditionalDetailsModal
-          onConfirm={(details) => {
-            if (details.trim()) {
-              setCapturedGoals((prev) => ({
-                ...prev,
-                "Additional Details": details.trim(),
-              }));
-            }
-            setShowAdditionalDetails(false);
-            setHasSeenAdditionalDetails(true);
-          }}
-          onSkip={() => {
-            setShowAdditionalDetails(false);
-            setHasSeenAdditionalDetails(true);
-          }}
-        />
-      )}
       <div className={styles.main}>
         {/* Sidebar */}
         <aside className={styles.sidebar}>
@@ -942,17 +1079,20 @@ const GoalDiscovery: React.FC = () => {
 
           {TOPICS.map((topic, idx) => {
             const isActive = activeTopicId === topic.id;
-            const currentTopicIdx = TOPICS.findIndex(
-              (t) => t.id === activeTopicId,
-            );
-            // A topic is "covered" if it sits before the current active phase
-            const isCovered = !isActive && idx < currentTopicIdx;
+            const isCovered = progress.covered.includes(topic.id);
             const isResponded = respondedTopics.includes(topic.id);
+
+            // Calculate display label for sub-phases
+            let displayLabel = topic.label;
+            if (topic.id === "goals" && progress.phase && !["Vision", "Life Areas", "Setup"].includes(progress.phase)) {
+              displayLabel = `${topic.label}: ${progress.phase}`;
+            }
+
             return (
               <TopicItem
                 key={topic.id}
                 id={topic.id}
-                label={topic.label}
+                label={displayLabel}
                 isActive={isActive}
                 isCovered={isCovered}
                 isResponded={isResponded}
@@ -963,13 +1103,20 @@ const GoalDiscovery: React.FC = () => {
           <div className={styles.capturedBox}>
             <div className={styles.capturedTitle}>Captured So Far</div>
             <div className={styles.capturedList}>
-              {!capturedGoals || Object.entries(capturedGoals).length === 0 ? (
+              {!isHydrated ? (
+                <div className={styles.loadingCaptured}>Loading...</div>
+              ) : !capturedGoals || Object.entries(capturedGoals).length === 0 ? (
                 <span className={styles.nothingYet}>
                   Your vision will appear here…
                 </span>
               ) : (
                 Object.entries(capturedGoals).map(([label, value]) => (
-                  <CapturedItem key={label} label={label} value={value} />
+                  <div 
+                    key={label} 
+                    className={`${styles.capturedItemWrapper} ${recentGoalKey === label ? styles.recentGoal : ""}`}
+                  >
+                    <CapturedItem label={label} value={value} />
+                  </div>
                 ))
               )}
               <div ref={goalsEndRef} />
@@ -982,9 +1129,6 @@ const GoalDiscovery: React.FC = () => {
               className={styles.finishEarlyBtn}
               onClick={() => {
                 setIsComplete(true);
-                if (!hasSeenAdditionalDetails) {
-                  setShowAdditionalDetails(true);
-                }
               }}
               disabled={
                 !capturedGoals || Object.keys(capturedGoals).length === 0
@@ -1010,7 +1154,8 @@ const GoalDiscovery: React.FC = () => {
                 message={msg}
                 onChipClick={handleChipClick}
                 isIdentityPhase={progress.phase === "Identity Builder"}
-                isLifeAreasPhase={progress.phase === "Vision" && (progress.pct < 20 || !progress.covered.includes('goals'))}
+                isLifeAreasPhase={progress.phase === "Life Areas"}
+                isExplorer={!isPaid}
               />
             ))}
 
@@ -1040,8 +1185,15 @@ const GoalDiscovery: React.FC = () => {
             </button>
           </div>
 
-          {messages.length === 0 && (
-            <OrientationScreen onStart={handleStartConversation} />
+          {intakeStage === "orientation" && messages.length === 0 && (
+            <OrientationScreen onStart={handleOrientationSelected} />
+          )}
+          {intakeStage === "discovery" && messages.length === 0 && (
+            <GoalDiscoveryScreen
+              orientation={pendingOrientation}
+              isPaid={isPaid}
+              onConfirm={handleGoalDiscoveryConfirm}
+            />
           )}
 
           <div className={styles.inputHint}>

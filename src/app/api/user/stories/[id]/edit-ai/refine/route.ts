@@ -12,7 +12,7 @@ export async function POST(
 ) {
     try {
         const { id: storyId } = await params;
-        const { questions, answers } = await req.json();
+        const { questions, answers, refinementNotes } = await req.json();
 
         const session = await getServerSession(authOptions)
         if (!session || !session.user) {
@@ -32,33 +32,41 @@ export async function POST(
 
         const goals = normalizeGoals(story.goal_intake_json)
 
-        const qaPairs = questions.map((q: string, i: number) => ({
-            question: q,
-            answer: answers[i]?.trim() || ''
-        }));
+        let userFeedbackText = '';
 
-        // Separate the three types of feedback so the prompt can be explicit about each
-        const corrections = qaPairs[0]?.answer ? `CORRECTIONS / INACCURACIES TO FIX:\nQ: ${qaPairs[0].question}\nA: ${qaPairs[0].answer}` : '';
-        const enhancements = qaPairs[1]?.answer ? `ADDITIONS / ENHANCEMENTS REQUESTED:\nQ: ${qaPairs[1].question}\nA: ${qaPairs[1].answer}` : '';
-        const gapAndExtra = qaPairs.slice(2).filter((p: { question: string, answer: string }) => p.answer).map((p: { question: string, answer: string }) => `Q: ${p.question}\nA: ${p.answer}`).join('\n\n');
+        if (refinementNotes) {
+            userFeedbackText = `REFINEMENT NOTES:\n${refinementNotes}`;
+        } else if (questions && answers) {
+            const qaPairs = questions.map((q: string, i: number) => ({
+                question: q,
+                answer: answers[i]?.trim() || ''
+            }));
+
+            // Separate the three types of feedback
+            const corrections = qaPairs[0]?.answer ? `CORRECTIONS / INACCURACIES TO FIX:\nQ: ${qaPairs[0].question}\nA: ${qaPairs[0].answer}` : '';
+            const enhancements = qaPairs[1]?.answer ? `ADDITIONS / ENHANCEMENTS REQUESTED:\nQ: ${qaPairs[1].question}\nA: ${qaPairs[1].answer}` : '';
+            const gapAndExtra = qaPairs.slice(2).filter((p: { question: string, answer: string }) => p.answer).map((p: { question: string, answer: string }) => `Q: ${p.question}\nA: ${p.answer}`).join('\n\n');
+            
+            userFeedbackText = [corrections, enhancements, gapAndExtra].filter(Boolean).join('\n\n');
+        }
 
         const refinementPrompt = `
 You are a master manifestation story writer revising an existing personal story.
-Your task is to produce a refined version of the story below, incorporating every piece of user feedback.
+Your task is to produce a refined version of the story below, incorporating the user's feedback.
 
 ORIGINAL GOALS:
 ${JSON.stringify(goals)}
 
-CURRENT STORY DRAFT (your starting point — improve this, do not discard it):
+CURRENT STORY DRAFT:
 """
 ${story.story_text_draft}
 """
 
 ━━━ USER FEEDBACK ━━━
 
-${corrections ? `${corrections}\n\nINSTRUCTION: Any detail the user says feels untrue, inaccurate, or wrong MUST be corrected or removed. Do not soften or keep anything flagged as inaccurate.\n` : ''}
-${enhancements ? `${enhancements}\n\nINSTRUCTION: Weave every requested addition naturally into the narrative. These additions should feel seamless — not bolted on.\n` : ''}
-${gapAndExtra ? `ADDITIONAL DETAILS & GAP-FILLING:\n${gapAndExtra}\n\nINSTRUCTION: Integrate these details to add sensory richness and personal nuance. Use the user's own words and imagery where possible.\n` : ''}
+${userFeedbackText}
+
+INSTRUCTION: Carefully integrate all feedback into the narrative. Correct any inaccuracies, add requested details, and ensure the tone remains consistent with the user's vision.
 
 ━━━ WRITING RULES ━━━
 - First person, present tense throughout.

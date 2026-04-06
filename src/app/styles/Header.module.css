@@ -238,6 +238,129 @@
     font-weight: 400;
 }
 
+.dropdownWrapper {
+    position: relative;
+    height: 100%;
+    display: flex;
+    align-items: center;
+}
+
+.dropdownWrapper button {
+    background: none;
+    border: none;
+    color: var(--dim);
+    cursor: pointer;
+    font-family: var(--sans);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0.35rem 0.7rem;
+    transition: color 0.3s;
+}
+
+.dropdownWrapper button:hover {
+    color: var(--accent);
+}
+
+.chevron {
+    width: 6px;
+    height: 6px;
+    border-right: 1px solid currentColor;
+    border-bottom: 1px solid currentColor;
+    transform: rotate(45deg);
+    margin-top: -3px;
+    transition: transform 0.25s;
+}
+
+.dropdownWrapper:hover .chevron {
+    transform: rotate(225deg);
+    margin-top: 3px;
+}
+
+.dropdownMenu {
+    position: absolute;
+    top: calc(100% + 10px);
+    left: 50%;
+    transform: translateX(-50%) translateY(-10px);
+    background: var(--surface);
+    border: 0.5px solid var(--border1);
+    border-radius: 3px;
+    padding: 10px 0;
+    min-width: 260px;
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.25s ease;
+    z-index: 1000;
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.4);
+}
+
+.dropdownMenu.open {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateX(-50%) translateY(0);
+}
+
+.dropdownMenu::before {
+    content: '';
+    position: absolute;
+    top: -5px;
+    left: 50%;
+    transform: translateX(-50%) rotate(45deg);
+    width: 10px;
+    height: 10px;
+    background: var(--surface);
+    border-left: 0.5px solid var(--border1);
+    border-top: 0.5px solid var(--border1);
+    z-index: 2;
+}
+
+.dropdownMenu::after {
+    content: '';
+    position: absolute;
+    top: -15px;
+    left: 0;
+    right: 0;
+    height: 15px;
+    background: transparent;
+    z-index: 1;
+}
+
+.dropdownItem {
+    display: flex;
+    flex-direction: column;
+    padding: 12px 20px;
+    text-decoration: none;
+    transition: background 0.2s;
+}
+
+.dropdownItem:hover {
+    background: rgba(141, 191, 122, 0.05);
+}
+
+.dropdownItem .ddTitle {
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--text);
+    margin-bottom: 4px;
+    text-transform: uppercase;
+}
+
+.dropdownItem:hover .ddTitle {
+    color: var(--accent);
+}
+
+.dropdownItem .ddSub {
+    font-size: 11px;
+    color: var(--dim);
+    line-height: 1.4;
+}
+
+.ddDivider {
+    height: 1px;
+    background: var(--border1);
+    margin: 6px 0;
+}
+
 .topbarRight {
     display: flex;
     align-items: center;

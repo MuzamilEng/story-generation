@@ -200,7 +200,7 @@
 
 .cardsGrid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr); /* Rule: three columns */
+    grid-template-columns: repeat(4, 1fr); /* Enters 4 columns (Explorer, Activator, Manifester, Amplifier) */
     gap: 32px;
 }
 

@@ -39,6 +39,56 @@
 - **Obstacle proof principle retained from v3** — show resolution through ease, never name the struggle.
 
 ---
+ 
+ ### WORD COUNT SUMMARY BY TIER
+ 
+ ```
+ ━━━ WORD COUNT & PACING — ALL SPOKEN WORDS INCLUDED ━━━
+ 
+ EXPLORER (free tier)
+ Total target: 800-950 words | Est. listen time: 6-7 min
+   Opening time anchor + scene setting: 100-150 words
+   Vision (1 life area, proof actions): 550-650 words
+   Identity statements woven into close: 100-150 words
+   Final resonant line: 20-30 words
+ 
+ ACTIVATOR
+ Total target: 1,270-1,570 words | Est. listen time: 9-11 min
+   Hypnotic induction: 250-300 words
+   Opening time anchor: 80-100 words
+   Vision (up to 3 areas, proof actions): 700-850 words
+   NLP identity statements mid-story: 60-80 words
+   Dissolution + affirmation close (4-5 statements): 150-200 words
+   Final lines: 30-40 words
+ 
+ MANIFESTER
+ Total target: 1,870-2,300 words | Est. listen time: 13-16 min
+   Hypnotic induction: 300-350 words
+   Opening time anchor: 80-100 words
+   Vision (all selected areas, proof actions): 900-1,100 words
+   NLP identity statements mid-story: 100-120 words
+   Future pacing moment: 60-80 words
+   Anchor installation at emotional peak: 100-120 words
+   Dissolution sequence: 80-100 words
+   Affirmation planting (5-7 verbatim + NLP bridges): 150-200 words
+   Sleep seeding: 80-100 words
+   Three closing repetitions: 20-30 words
+ 
+ AMPLIFIER
+ Total target: 2,540-3,090 words | Est. listen time: 18-22 min
+   Hypnotic induction (extended): 350-400 words
+   Opening time anchor: 100-120 words
+   Vision (all areas, 2+ scenes per area): 1,300-1,600 words
+   NLP identity statements throughout: 150-180 words
+   Future pacing moments (2): 100-120 words
+   Anchor installation at emotional peak: 120-150 words
+   Dissolution sequence: 100-120 words
+   Affirmation planting (5-7 verbatim + NLP bridges): 200-250 words
+   Sleep seeding: 100-120 words
+   Three closing repetitions: 20-30 words
+ ```
+ 
+ ---
 
 ## SECTION 1 — DEVELOPER AUDIT & CORRECTION DOCUMENT
 

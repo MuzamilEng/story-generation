@@ -1,7 +1,7 @@
 .container {
-    height: 100%;
+    height: 100vh;
     width: 100%;
-    background: transparent;
+    background: var(--bg);
     color: var(--ink);
     font-family: 'Inter', sans-serif;
     font-weight: 300;
@@ -152,7 +152,7 @@
     display: flex;
     flex: 1;
     overflow: hidden;
-    height: 100%;
+    height: calc(100vh - 60px); /* Adjust based on topbar height */
     min-height: 0;
 }
 
@@ -261,15 +261,14 @@
 /* CENTER PANEL */
 .centerPanel {
     flex: 1;
-    overflow: hidden;
-    /* No scroll on parent */
+    overflow-y: auto;
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 2rem 1.5rem;
+    padding: 2rem 1.5rem 8rem; /* Large bottom padding for better scroll feel */
     gap: 1.5rem;
     position: relative;
-    height: 100%;
+    background: var(--bg);
 }
 
 .centerPanel::-webkit-scrollbar {
@@ -405,16 +404,15 @@
 .storyCard {
     max-width: 720px;
     width: 100%;
-    background: var(--story-bg);
-    border: 1px solid var(--gold-border);
+    background: var(--story-bg, #0C0F0D);
+    border: 1px solid var(--gold-border, rgba(201, 168, 76, 0.2));
     border-radius: 16px;
     overflow: hidden;
-    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.4);
     display: none;
     flex-direction: column;
-    height: 100%;
-    flex: 1;
-    min-height: 0;
+    flex-shrink: 0;
+    min-height: 400px;
 }
 
 .storyCard.visible {
@@ -503,8 +501,6 @@
 
 .storyBody {
     padding: 2.25rem 2.5rem;
-    flex: 1;
-    overflow-y: auto;
 }
 
 .storyBody::-webkit-scrollbar {
@@ -542,12 +538,41 @@
 
 .storyTextDisplay {
     font-family: 'Lora', serif;
-    font-size: 1.1rem;
-    line-height: 2;
+    font-size: 1.12rem;
+    line-height: 2.1;
     color: var(--ink);
-    white-space: pre-wrap;
     word-break: break-word;
     font-weight: 400;
+}
+
+.storySectionHeader {
+    font-family: var(--serif, 'Cormorant Garamond', serif);
+    font-size: 1rem;
+    letter-spacing: 0.15em;
+    color: var(--gold);
+    text-transform: uppercase;
+    margin-top: 3.5rem;
+    margin-bottom: 2rem;
+    border-bottom: 1px solid var(--gold-border, rgba(201, 168, 76, 0.2));
+    padding-bottom: 0.75rem;
+    width: fit-content;
+}
+
+.storySectionHeader:first-child {
+    margin-top: 0;
+}
+
+.storyPara {
+    margin-bottom: 2rem;
+}
+
+.sceneDivider {
+    text-align: center;
+    color: var(--gold);
+    font-size: 1.5rem;
+    margin: 3.5rem 0;
+    letter-spacing: 0.5em;
+    opacity: 0.8;
 }
 
 .storyText::selection {
@@ -1315,4 +1340,291 @@
         margin: 2rem 1rem;
         padding: 2rem 1.5rem;
     }
+}
+
+/* REFINEMENT SECTION */
+.refinementSection {
+    max-width: 720px;
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 2rem 2.5rem;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+    animation: fadeUp 0.6s ease both 0.2s;
+    margin-bottom: 3rem;
+}
+
+.refinementHeader {
+    display: flex;
+    gap: 1.25rem;
+    align-items: flex-start;
+    margin-bottom: 1.5rem;
+}
+
+.refinementIcon {
+    width: 32px;
+    height: 32px;
+    background: var(--accent-light);
+    color: var(--accent);
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    font-size: 1rem;
+}
+
+.refinementHeader p {
+    font-size: 0.88rem;
+    line-height: 1.6;
+    color: var(--ink-muted);
+    margin: 0;
+}
+
+.refinementHeader p br {
+    display: block;
+    content: "";
+    margin-top: 0.5rem;
+}
+
+.refinementInputArea {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.refinementTextarea {
+    width: 100%;
+    min-height: 120px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.9rem;
+    color: var(--ink);
+    resize: vertical;
+    outline: none;
+    transition: all 0.2s;
+}
+
+.refinementTextarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-light);
+}
+
+.refinementActions {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.refineBtn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.75rem;
+    background: var(--surface-raised);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.88rem;
+    font-family: 'Inter', sans-serif;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.refineBtn:hover:not(:disabled) {
+    background: #444;
+    transform: translateY(-1px);
+}
+
+.refineBtn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.perfectBtn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.75rem;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.88rem;
+    font-family: 'Inter', sans-serif;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.perfectBtn:hover:not(:disabled) {
+    background: #235840;
+    transform: translateY(-1px);
+}
+
+.perfectBtn svg {
+    width: 14px;
+    height: 14px;
+}
+
+.refineBtn .spinnerSmall {
+    border-color: rgba(255, 255, 255, 0.2);
+    border-top-color: #fff;
+}
+
+/* MODAL STYLES */
+.modalOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(8px);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.modalContent {
+    background: #0C0F0D;
+    border: 1px solid var(--gold-border, rgba(201, 168, 76, 0.25));
+    border-radius: 20px;
+    padding: 3rem 2.5rem;
+    max-width: 580px;
+    width: 100%;
+    position: relative;
+    box-shadow: 0 32px 80px rgba(0, 0, 0, 0.8), 0 0 40px rgba(201, 168, 76, 0.05);
+    animation: scaleIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    overflow: hidden;
+}
+
+@keyframes scaleIn {
+    from { transform: scale(0.95); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
+.modalClose {
+    position: absolute;
+    top: 1.5rem;
+    right: 1.5rem;
+    background: none;
+    border: none;
+    font-size: 2rem;
+    color: var(--ink-faint);
+    cursor: pointer;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    transition: all 0.2s;
+}
+
+.modalClose:hover {
+    color: var(--accent);
+    transform: rotate(90deg);
+}
+
+.modalTitle {
+    font-family: 'Fraunces', serif;
+    font-size: 1.8rem;
+    color: var(--gold);
+    margin-bottom: 1rem;
+    text-align: center;
+    font-style: italic;
+}
+
+.modalSubtitle {
+    font-size: 0.95rem;
+    color: var(--ink-muted);
+    line-height: 1.6;
+    margin-bottom: 2.5rem;
+    text-align: center;
+}
+
+.modalActionArea {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.modalActionArea .refinementTextarea {
+    background: rgba(0,0,0,0.3);
+    min-height: 140px;
+}
+
+.modalBtn {
+    width: 100%;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    padding: 0.85rem 1.5rem;
+    font-size: 0.95rem;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    transition: all 0.2s;
+    margin-top: 0.5rem;
+}
+
+.modalBtn svg {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+}
+
+.modalBtn:hover:not(:disabled) {
+    background: #235840;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 20px rgba(82, 183, 136, 0.4);
+}
+
+.modalBtn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.sparkleBtn {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.7rem;
+    color: var(--gold);
+    background: rgba(201, 168, 76, 0.1);
+    border: 1px solid var(--gold-border);
+    padding: 0.35rem 0.9rem;
+    border-radius: 99px;
+    cursor: pointer;
+    font-family: 'Inter', sans-serif;
+    transition: all 0.2s;
+    font-weight: 500;
+}
+
+.sparkleBtn:hover {
+    background: rgba(201, 168, 76, 0.2);
+    box-shadow: 0 0 15px rgba(201, 168, 76, 0.2);
+}
+
+.sparkleBtn svg {
+    width: 13px;
+    height: 13px;
 }

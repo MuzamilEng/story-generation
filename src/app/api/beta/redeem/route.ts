@@ -18,6 +18,16 @@ export async function POST(req: NextRequest) {
 
         const userId = session.user.id;
 
+        // 0. Check if user is already on a paid plan
+        const currentUser = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { plan: true }
+        });
+
+        if (currentUser && currentUser.plan !== 'free') {
+            return NextResponse.json({ error: "Beta codes can only be used on free accounts." }, { status: 400 });
+        }
+
         // 1. Validate Beta Code
         const betaCode = await prisma.betaCode.findUnique({
             where: { code: code.toUpperCase() }

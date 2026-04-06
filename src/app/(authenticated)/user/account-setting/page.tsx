@@ -363,7 +363,7 @@ const AccountSettings: React.FC = () => {
   }, []);
 
   const queryClient = useQueryClient();
-  const { data: session } = useSession();
+  const { data: session, update } = useSession();
 
   // Fetch user settings
   const { data: userData, isLoading } = useQuery({
@@ -445,6 +445,8 @@ const AccountSettings: React.FC = () => {
   );
   const [nameInput, setNameInput] = useState("");
   const [emailInput, setEmailInput] = useState("");
+  const [betaCodeInput, setBetaCodeInput] = useState("");
+  const [isRedeemingBeta, setIsRedeemingBeta] = useState(false);
 
   const isEditingName = editingField === "name";
   const isEditingEmail = editingField === "email";
@@ -518,6 +520,35 @@ const AccountSettings: React.FC = () => {
 
   const handlePasswordChange = () => {
     showToast("✉ Password reset email sent");
+  };
+
+  const handleRedeemBeta = async () => {
+    if (!betaCodeInput.trim()) return;
+
+    setIsRedeemingBeta(true);
+    try {
+      const res = await fetch("/api/beta/redeem", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: betaCodeInput.trim().toUpperCase() }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        showToast(`❌ ${data.error || "Failed to redeem code"}`);
+      } else {
+        showToast("✓ Beta code redeemed! Plan updated to Amplifier.");
+        setBetaCodeInput("");
+        queryClient.invalidateQueries({ queryKey: ["user-settings"] });
+        // Refresh the session to update the plan in the UI
+        update();
+      }
+    } catch (error) {
+      showToast("❌ An error occurred while redeeming the code.");
+    } finally {
+      setIsRedeemingBeta(false);
+    }
   };
 
   const handleDeleteStories = () => {
@@ -805,6 +836,43 @@ const AccountSettings: React.FC = () => {
                 <button className={styles.editBtn}>Manage →</button>
               </Link>
             </FormRow>
+          </div>
+
+          {/* Beta Code Section */}
+          <div className={styles.settingsSection}>
+            <SectionHeader
+              icon={<StarIcon />}
+              title="Redeem Beta Code"
+              subtitle="Enter a beta or VIP code for special access"
+            />
+            <div className={styles.formRow}>
+              <div className={styles.rowLabel}>Beta Code</div>
+              <div className={styles.rowValue}>
+                <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
+                  <input
+                    className={styles.formInput}
+                    type="text"
+                    placeholder="Enter code (e.g. VIP-BETA)"
+                    value={betaCodeInput}
+                    onChange={(e) => setBetaCodeInput(e.target.value.toUpperCase())}
+                    style={{ textTransform: 'uppercase' }}
+                  />
+                  <button 
+                    className={styles.saveBtn} 
+                    onClick={handleRedeemBeta}
+                    disabled={!betaCodeInput.trim() || isRedeemingBeta}
+                    style={{ minWidth: '100px' }}
+                  >
+                    {isRedeemingBeta ? "Redeeming..." : "Redeem"}
+                  </button>
+                </div>
+              </div>
+            </div>
+            {isActuallyBeta && (
+              <div style={{ padding: '0 24px 16px', fontSize: '0.84rem', color: 'var(--accent-mid)' }}>
+                ✓ You currently have an active beta plan.
+              </div>
+            )}
           </div>
 
           {/* Danger Zone */}

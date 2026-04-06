@@ -382,6 +382,7 @@ const Footer: React.FC = () => (
       <Link href="#how">HOW IT WORKS</Link>
       <Link href="/pricing">PRICING</Link>
       <Link href="/science">THE SCIENCE</Link>
+      <Link href="/quantum">THE QUANTUM FIELD</Link>
       <Link href="/mystical">ANCIENT WISDOM</Link>
       <Link href="#">PRIVACY</Link>
       <Link href="#">TERMS</Link>

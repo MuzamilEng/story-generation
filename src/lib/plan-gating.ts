@@ -38,13 +38,25 @@ export async function checkPlanGating(userId: string, action: 'create_story' | '
 
     if (!user) return { allowed: false, message: "User not found" };
 
-    const limits = PLAN_LIMITS[user.plan];
+    // Check if user has an active beta code redemption
+    const hasActiveBeta = await prisma.userBetaCode.findFirst({
+        where: {
+            userId: userId,
+            OR: [
+                { expiresAt: null },
+                { expiresAt: { gt: new Date() } }
+            ]
+        }
+    });
+
+    const limits = hasActiveBeta ? PLAN_LIMITS['amplifier'] : PLAN_LIMITS[user.plan];
+    const userPlanName = hasActiveBeta ? 'amplifier' : user.plan;
 
     if (action === 'create_story') {
         if (user.total_stories_ever >= limits.maxStories) {
             return {
                 allowed: false,
-                message: `You have reached the story limit for your ${user.plan} plan. Please upgrade to create more.`
+                message: `You have reached the story limit for your ${userPlanName} plan. Please upgrade to create more.`
             };
         }
     }
@@ -53,7 +65,7 @@ export async function checkPlanGating(userId: string, action: 'create_story' | '
         if (!limits.allowFullAudio) {
             return {
                 allowed: false,
-                message: "Full audio generation is not available on your current plan. Please upgrade to activate this feature."
+                message: `Full audio generation is not available on your current ${userPlanName} plan. Please upgrade to activate this feature.`
             };
         }
 

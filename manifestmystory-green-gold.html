@@ -73,53 +73,73 @@
   }
   .reveal.visible { opacity: 1; transform: translateY(0); }
 
+  
   /* NAV */
   nav {
-    position: fixed;
-    top: 0; left: 0; right: 0;
-    z-index: 100;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    display: flex; justify-content: space-between; align-items: center;
     padding: 28px 60px;
     background: linear-gradient(to bottom, rgba(8,12,9,0.97) 0%, rgba(8,12,9,0) 100%);
     animation: fadeIn 1.2s ease 0.3s both;
   }
-  .nav-logo {
-    font-family: var(--serif);
-    font-size: 14px;
-    letter-spacing: 5px;
-    color: var(--text);
-    text-decoration: none;
-    font-weight: 300;
-  }
-  .nav-links {
-    display: flex;
-    gap: 40px;
-    list-style: none;
-  }
-  .nav-links a {
-    font-size: 10px;
-    letter-spacing: 2.5px;
-    color: var(--dim);
-    text-decoration: none;
-    transition: color 0.3s;
-  }
+  .nav-logo { font-family: var(--serif); font-size: 14px; letter-spacing: 5px; color: var(--text); text-decoration: none; font-weight: 300; }
+  .nav-links { display: flex; gap: 36px; list-style: none; align-items: center; }
+  .nav-links a { font-size: 10px; letter-spacing: 2.5px; color: var(--dim); text-decoration: none; transition: color 0.3s; }
   .nav-links a:hover { color: var(--accent); }
-  .nav-cta {
-    font-size: 10px;
-    letter-spacing: 3px;
-    color: var(--bg);
-    background: var(--gold);
-    padding: 12px 28px;
-    border-radius: 2px;
-    text-decoration: none;
-    font-weight: 500;
-    transition: opacity 0.25s;
+  .nav-links a.active { color: var(--accent); }
+  .nav-links > li { position: relative; }
+
+  /* DROPDOWN */
+  .nav-dropdown-trigger {
+    font-size: 10px; letter-spacing: 2.5px; color: var(--dim);
+    cursor: pointer; display: flex; align-items: center; gap: 6px;
+    transition: color 0.3s; background: none; border: none; font-family: var(--sans);
+    padding: 0;
   }
+  .nav-dropdown-trigger:hover { color: var(--accent); }
+  .nav-dropdown-trigger.active { color: var(--accent); }
+  .chevron {
+    width: 8px; height: 8px; border-right: 0.8px solid currentColor;
+    border-bottom: 0.8px solid currentColor; transform: rotate(45deg);
+    margin-top: -3px; transition: transform 0.25s;
+  }
+  .nav-dropdown-trigger:hover .chevron,
+  .nav-has-dropdown:hover .nav-dropdown-trigger .chevron { transform: rotate(225deg); margin-top: 3px; }
+
+  .nav-dropdown {
+    position: absolute; top: calc(100% + 16px); left: 50%;
+    transform: translateX(-50%);
+    background: #0C0F0D; border: 0.5px solid #2A3D2F;
+    border-radius: 3px; padding: 8px 0; min-width: 240px;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    transform: translateX(-50%) translateY(-6px);
+    z-index: 200;
+  }
+  .nav-dropdown::before {
+    content: ''; position: absolute; top: -5px; left: 50%; transform: translateX(-50%);
+    width: 8px; height: 8px; background: #0C0F0D;
+    border-left: 0.5px solid #2A3D2F; border-top: 0.5px solid #2A3D2F;
+    transform: translateX(-50%) rotate(45deg);
+  }
+  .nav-has-dropdown:hover .nav-dropdown {
+    opacity: 1; pointer-events: auto;
+    transform: translateX(-50%) translateY(0);
+  }
+  .nav-dropdown a {
+    display: block; padding: 12px 20px; text-decoration: none;
+    transition: background 0.2s;
+  }
+  .nav-dropdown a:hover { background: #111812; }
+  .nav-dropdown a:hover .dd-title { color: var(--accent); }
+  .dd-title { font-size: 11px; letter-spacing: 2px; color: #D0CCC4; display: block; margin-bottom: 3px; font-family: var(--sans); }
+  .dd-sub { font-size: 11px; color: var(--dim); line-height: 1.5; font-family: var(--sans); }
+  .nav-dropdown-divider { height: 0.5px; background: #1A2A1F; margin: 6px 0; }
+
+  .nav-cta { font-size: 10px; letter-spacing: 3px; color: var(--bg); background: var(--gold); padding: 12px 28px; border-radius: 2px; text-decoration: none; font-weight: 500; transition: opacity 0.25s; }
   .nav-cta:hover { opacity: 0.85; }
 
-  /* HERO */
+/* HERO */
   .hero {
     min-height: 100vh;
     display: flex;
@@ -734,13 +754,31 @@
 
 <!-- NAV -->
 <nav>
-  <a href="#" class="nav-logo">MANIFEST MY STORY</a>
+  <a href="/" class="nav-logo">MANIFEST MY STORY</a>
   <ul class="nav-links">
-    <li><a href="#how">HOW IT WORKS</a></li>
-    <li><a href="#pricing">PRICING</a></li>
-    <li><a href="#science">THE SCIENCE</a></li>
+    <li><a href="/#how">THE PRACTICE</a></li>
+    <li class="nav-has-dropdown">
+      <button class="nav-dropdown-trigger">EXPLORE WHY IT WORKS <span class="chevron"></span></button>
+      <div class="nav-dropdown">
+        <a href="/science">
+          <span class="dd-title">THE SCIENCE</span>
+          <span class="dd-sub">Neuroscience, the RAS &amp; theta brain waves</span>
+        </a>
+        <div class="nav-dropdown-divider"></div>
+        <a href="/quantum">
+          <span class="dd-title">THE QUANTUM FIELD</span>
+          <span class="dd-sub">Observer effect &amp; the physics of possibility</span>
+        </a>
+        <div class="nav-dropdown-divider"></div>
+        <a href="/mystical">
+          <span class="dd-title">ANCIENT WISDOM</span>
+          <span class="dd-sub">What every tradition practiced &amp; knew</span>
+        </a>
+      </div>
+    </li>
+    <li><a href="/#pricing">PRICING</a></li>
   </ul>
-  <a href="#start" class="nav-cta">START FREE →</a>
+  <a href="/user/goal-intake-ai" class="nav-cta">START FREE →</a>
 </nav>
 
 <!-- HERO -->
@@ -1077,7 +1115,7 @@
 <footer>
   <span class="footer-logo">MANIFEST MY STORY</span>
   <ul class="footer-links">
-    <li><a href="#">HOW IT WORKS</a></li>
+    <li><a href="/#how">THE PRACTICE</a></li>
     <li><a href="#">PRICING</a></li>
     <li><a href="#">THE SCIENCE</a></li>
     <li><a href="#">ANCIENT WISDOM</a></li>

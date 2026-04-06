@@ -4,6 +4,7 @@ import Stripe from "stripe";
 import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/prisma";
 import { getPlanByPriceId } from "@/lib/plans";
+import { Plan } from "@prisma/client";
 
 export async function POST(req: Request) {
     const body = await req.text();
@@ -47,8 +48,9 @@ export async function POST(req: Request) {
 
             const priceId = subscription.items.data[0].price.id;
             const plan = getPlanByPriceId(priceId);
+            const metadataPlanId = session.metadata.planId as Plan;
 
-            console.log(`[STRIPE_WEBHOOK] Updating user ${session.metadata.userId} to recurring plan ${plan?.name || 'unknown'}`);
+            console.log(`[STRIPE_WEBHOOK] Updating user ${session.metadata.userId} to recurring plan. PriceResolved: ${plan?.id || 'none'}, MetadataPlan: ${metadataPlanId}`);
 
             await prisma.user.update({
                 where: { id: session.metadata.userId },
@@ -57,9 +59,17 @@ export async function POST(req: Request) {
                     stripeCustomerId: subscription.customer as string,
                     stripePriceId: priceId,
                     stripeCurrentPeriodEnd: new Date((subscription as any).current_period_end * 1000),
-                    plan: plan?.id || "free",
+                    plan: plan?.id || metadataPlanId || "free",
                 },
             });
+
+            // If a paid plan was purchased, remove beta access records
+            if (plan?.id !== "free" && metadataPlanId !== "free") {
+                await prisma.userBetaCode.deleteMany({
+                    where: { userId: session.metadata.userId }
+                });
+                console.log(`[STRIPE_WEBHOOK] Beta access removed for user ${session.metadata.userId}`);
+            }
         } else if (session.mode === "payment") {
             const planId = session.metadata.planId;
             console.log(`[STRIPE_WEBHOOK] Updating user ${session.metadata.userId} to one-time plan: ${planId}`);
@@ -71,6 +81,14 @@ export async function POST(req: Request) {
                     stripeCustomerId: session.customer as string,
                 },
             });
+
+            // If a one-time paid plan was purchased, remove beta access records
+            if (planId && planId !== "free") {
+                await prisma.userBetaCode.deleteMany({
+                    where: { userId: session.metadata.userId }
+                });
+                console.log(`[STRIPE_WEBHOOK] One-time purchase: Beta access removed for user ${session.metadata.userId}`);
+            }
         }
         console.log(`[STRIPE_WEBHOOK] User ${session.metadata.userId} updated successfully via checkout`);
     }
@@ -100,7 +118,7 @@ export async function POST(req: Request) {
 
                 planId = planFromSub?.id || planId;
                 stripePriceId = priceIdFromSub;
-                currentPeriodEnd = new Date(subscription.current_period_end * 1000);
+                currentPeriodEnd = new Date((subscription as any).current_period_end * 1000);
             } else {
                 // For one-time payments, use the line item to guess the plan if the user is still 'free'
                 const priceIdFromInvoice = (invoice.lines.data[0] as any)?.price?.id;
@@ -122,6 +140,14 @@ export async function POST(req: Request) {
                     plan: planId,
                 },
             });
+
+            // If a paid plan was updated/renewed, ensure beta access is removed
+            if (planId && planId !== "free") {
+                await prisma.userBetaCode.deleteMany({
+                    where: { userId: user.id }
+                });
+                console.log(`[STRIPE_WEBHOOK] Invoice payment for user ${user.id}: Beta access removed/verified clean`);
+            }
             console.log(`[STRIPE_WEBHOOK] User ${user.email} updated successfully via invoice`);
         } else {
             console.warn(`[STRIPE_WEBHOOK] No user found for customer ${customerId}`);
@@ -165,6 +191,18 @@ export async function POST(req: Request) {
                 plan: plan?.id || "free",
             },
         });
+
+        // Ensure beta access is removed on paid plan update
+        if (plan?.id && plan.id !== "free") {
+            const user = await prisma.user.findFirst({
+                where: { stripeSubscriptionId: subscription.id }
+            });
+            if (user) {
+                await prisma.userBetaCode.deleteMany({
+                    where: { userId: user.id }
+                });
+            }
+        }
         console.log(`[STRIPE_WEBHOOK] User subscription dates synchronized`);
     }
 

@@ -42,6 +42,22 @@ export async function POST(req: Request) {
             return new NextResponse("User not found", { status: 404 });
         }
 
+        // --- BETA USER LOGIC ---
+        // If they are a beta user and claiming amplifier, skip Stripe and activate immediately
+        if ((user as any).isBetaUser && planId === "amplifier") {
+            await prisma.user.update({
+                where: { id: user.id },
+                data: {
+                    plan: "amplifier",
+                    // We don't set stripeSubscriptionId because it's a beta gift
+                },
+            });
+            return NextResponse.json({ 
+                url: `${process.env.NEXTAUTH_URL}/pricing?success=true` 
+            });
+        }
+        // -----------------------
+
         let stripeCustomerId = user.stripeCustomerId;
 
         if (!stripeCustomerId) {

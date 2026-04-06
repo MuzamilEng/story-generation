@@ -143,8 +143,18 @@ const AudioReadyContent: React.FC = () => {
     const { clearStore } = useStoryStore();
 
     useEffect(() => {
-        document.title = "ManifestMyStory — Your Audio is Ready";
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                togglePlay();
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isPlaying]);
 
+    useEffect(() => {
+        document.title = "ManifestMyStory — Your Audio is Ready";
         // Reset the store as the process is successfully complete
         clearStore();
 
@@ -194,16 +204,19 @@ const AudioReadyContent: React.FC = () => {
         setWaveformBars(heights.map(height => ({ height, played: false })));
     }, []);
 
+    // Use live audio duration; fall back to DB-stored value (audio_duration_secs) until metadata loads or if Infinity (common in large streams)
+    const displayDuration = (duration > 0 && duration !== Infinity) ? duration : (story?.audio_duration_secs ?? 0);
+
     useEffect(() => {
-        if (!duration) return;
-        const playedBars = Math.floor((currentTime / duration) * waveformCount);
+        if (!displayDuration) return;
+        const playedBars = Math.floor((currentTime / displayDuration) * waveformCount);
         setWaveformBars(prev =>
             prev.map((bar, index) => ({
                 ...bar,
                 played: index < playedBars
             }))
         );
-    }, [currentTime, duration]);
+    }, [currentTime, displayDuration]);
 
     // Ensure audio element volumes are synced
     useEffect(() => {
@@ -233,34 +246,35 @@ const AudioReadyContent: React.FC = () => {
         }
     };
 
+    const handlePlay = () => {
+        setIsPlaying(true);
+        if (soundscapeOn && soundscapeRef.current && audioRef.current) {
+            const bgDuration = soundscapeRef.current.duration || 300;
+            soundscapeRef.current.currentTime = audioRef.current.currentTime % bgDuration;
+            soundscapeRef.current.play().catch(e => console.warn("Soundscape play failed", e));
+        }
+        if (binauralOn && binauralRef.current && audioRef.current) {
+            const binDuration = binauralRef.current.duration || 300;
+            binauralRef.current.currentTime = audioRef.current.currentTime % binDuration;
+            binauralRef.current.play().catch(e => console.warn("Binaural play failed", e));
+        }
+        if (currentTime < 1) recordEvent('play');
+    };
+
+    const handlePause = () => {
+        setIsPlaying(false);
+        if (soundscapeRef.current) soundscapeRef.current.pause();
+        if (binauralRef.current) binauralRef.current.pause();
+    };
+
     const togglePlay = () => {
         if (!audioRef.current) return;
-        
         if (isPlaying) {
             audioRef.current.pause();
-            soundscapeRef.current?.pause();
-            binauralRef.current?.pause();
-            setIsPlaying(false);
         } else {
-            audioRef.current.play().then(() => {
-                if (soundscapeOn && soundscapeRef.current) {
-                    const duration = soundscapeRef.current.duration || 300;
-                    soundscapeRef.current.currentTime = audioRef.current!.currentTime % duration;
-                    soundscapeRef.current.play().catch(e => console.warn("Soundscape play failed", e));
-                }
-                if (binauralOn && binauralRef.current) {
-                    const duration = binauralRef.current.duration || 300;
-                    binauralRef.current.currentTime = audioRef.current!.currentTime % duration;
-                    binauralRef.current.play().catch(e => console.warn("Binaural play failed", e));
-                }
-                setIsPlaying(true);
-            }).catch(err => {
+            audioRef.current.play().catch(err => {
                 console.error("Playback failed:", err);
-                setIsPlaying(false);
             });
-            
-            // Record play event if near start
-            if (currentTime < 1) recordEvent('play');
         }
     };
 
@@ -294,15 +308,15 @@ const AudioReadyContent: React.FC = () => {
 
     const skip = (seconds: number) => {
         if (!audioRef.current) return;
-        audioRef.current.currentTime = Math.max(0, Math.min(duration, audioRef.current.currentTime + seconds));
+        const total = displayDuration || audioRef.current.duration;
+        audioRef.current.currentTime = Math.max(0, Math.min(total, audioRef.current.currentTime + seconds));
     };
 
-    const seekTo = (e: React.MouseEvent<HTMLDivElement>) => {
-        if (!audioRef.current || !duration) return;
-        const bar = e.currentTarget;
-        const rect = bar.getBoundingClientRect();
-        const pct = (e.clientX - rect.left) / rect.width;
-        audioRef.current.currentTime = pct * duration;
+    const seekTo = (pct: number) => {
+        if (!audioRef.current) return;
+        const total = displayDuration || audioRef.current.duration;
+        if (!total || total === Infinity) return;
+        audioRef.current.currentTime = pct * total;
     };
 
     const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -525,7 +539,7 @@ const AudioReadyContent: React.FC = () => {
         }, 500);
     };
 
-    const progressPercentage = duration > 0 ? (currentTime / duration) * 100 : 0;
+    const progressPercentage = displayDuration > 0 ? (currentTime / displayDuration) * 100 : 0;
 
     if (isLoading) {
         return (
@@ -534,7 +548,6 @@ const AudioReadyContent: React.FC = () => {
             </div>
         );
     }
-
     if (!story) {
         return (
             <div className={styles.container}>
@@ -545,24 +558,7 @@ const AudioReadyContent: React.FC = () => {
 
     return (
         <div className={styles.container}>
-            {story?.audio_url && (
-                <audio
-                    ref={audioRef}
-                    src={story.audio_url}
-                    preload="auto"
-                    crossOrigin="anonymous"
-                    onLoadedMetadata={handleMetadata}
-                    onDurationChange={handleMetadata}
-                    onTimeUpdate={handleTimeUpdate}
-                    onEnded={() => {
-                        setIsPlaying(false);
-                        soundscapeRef.current?.pause();
-                        binauralRef.current?.pause();
-                    }}
-                />
-            )}
-
-            {/* Feature C/D: Background Loops — served from authenticated R2 stream */}
+            {/* Background audio elements kept hidden but active */}
             {story?.soundscape_audio_key && (
                 <audio
                     ref={soundscapeRef}
@@ -575,7 +571,6 @@ const AudioReadyContent: React.FC = () => {
                     }}
                 />
             )}
-
             {story?.binaural_audio_key && (
                 <audio
                     ref={binauralRef}
@@ -589,8 +584,6 @@ const AudioReadyContent: React.FC = () => {
                 />
             )}
 
-
-            {/* PAGE */}
             <div className={styles.page}>
                 {/* CELEBRATION */}
                 <div className={styles.celebrateHeader}>
@@ -621,63 +614,52 @@ const AudioReadyContent: React.FC = () => {
                         <div className={styles.playerEyebrow}>Your Personal Audio Story</div>
                         <div className={styles.playerTitle}>{story?.title || 'A Day in the Life of My Highest Self'}</div>
                         <div className={styles.playerMeta}>
-                            Personalized Story Experience · {formatTime(duration || 0)}
+                            Personalized Story Experience · {formatTime(displayDuration || 0)}
                         </div>
                         <div className={styles.playerMetaSub}>
                             Opening Affirmations + Your Vision Story + Closing Affirmations
                         </div>
-                        <div className={styles.waveformDisplay} onClick={seekTo} style={{ cursor: 'pointer' }}>
-                            {waveformBars.map((bar, index) => (
-                                <div
-                                    key={index}
-                                    className={`${styles.wdBar} ${bar.played ? styles.played : ''}`}
-                                    style={{ height: `${bar.height}px` }}
+
+                        {/* Native Web Browser Audio Player */}
+                        <div style={{ 
+                            marginTop: '2rem', 
+                            marginBottom: '0.5rem',
+                            position: 'relative',
+                            zIndex: 10
+                        }}>
+                            {story?.audio_url && (
+                                <audio
+                                    ref={audioRef}
+                                    src={story.audio_url}
+                                    controls
+                                    preload="auto"
+                                    crossOrigin="anonymous"
+                                    onPlay={handlePlay}
+                                    onPause={handlePause}
+                                    onLoadedMetadata={handleMetadata}
+                                    onDurationChange={handleMetadata}
+                                    onTimeUpdate={handleTimeUpdate}
+                                    onEnded={() => {
+                                        setIsPlaying(false);
+                                        if (soundscapeRef.current) soundscapeRef.current.pause();
+                                        if (binauralRef.current) binauralRef.current.pause();
+                                    }}
+                                    style={{
+                                        width: '100%',
+                                        height: '50px',
+                                        borderRadius: '8px',
+                                        filter: 'invert(1) hue-rotate(180deg) brightness(1.2)', 
+                                        opacity: 0.9,
+                                        cursor: 'pointer'
+                                    }}
                                 />
-                            ))}
+                            )}
                         </div>
                     </div>
 
-                    <div className={styles.playerControls}>
-                        <div className={styles.progressRow}>
-                            <div className={styles.progressBar} onClick={seekTo}>
-                                <div
-                                    className={styles.progressBarFill}
-                                    style={{ width: `${progressPercentage}%` }}
-                                />
-                            </div>
-                            <div className={styles.timeRow}>
-                                <span>{formatTime(currentTime)}</span>
-                                <span>{formatTime(duration)}</span>
-                            </div>
-                        </div>
-
-                        <div className={styles.ctrlRow}>
-                            <button
-                                className={styles.ctrlSkip}
-                                title="Back 15s"
-                                onClick={() => skip(-15)}
-                            >
-                                <SkipBackIcon />
-                            </button>
-                            <button
-                                className={styles.ctrlPlay}
-                                onClick={togglePlay}
-                            >
-                                <div className={styles.playPauseIcon}>
-                                    {isPlaying ? <PauseIcon /> : <PlayIcon />}
-                                </div>
-                            </button>
-                            <button
-                                className={styles.ctrlSkip}
-                                title="Forward 15s"
-                                onClick={() => skip(15)}
-                            >
-                                <SkipForwardIcon />
-                            </button>
-                        </div>
-
+                    <div className={styles.playerControls} style={{ paddingTop: '0.5rem' }}>
                         <div className={styles.layerControls}>
-                            {/* Soundscape toggle — only shown if assemble stored a key (plan-gated server-side) */}
+                            {/* Soundscape toggle */}
                             {story?.soundscape_audio_key && (
                                 <button
                                     className={`${styles.layerBtn} ${soundscapeOn ? styles.active : ''}`}
@@ -689,13 +671,12 @@ const AudioReadyContent: React.FC = () => {
                                             soundscapeRef.current?.pause();
                                         }
                                     }}
-                                    title="Ambient background at −18 dB"
                                 >
                                     🌊 {soundscapeOn ? 'Soundscape: ON' : 'Soundscape: OFF'}
                                 </button>
                             )}
 
-                            {/* Binaural toggle — Amplifier only, key set by assemble */}
+                            {/* Binaural toggle */}
                             {story?.binaural_audio_key && (
                                 <button
                                     className={`${styles.layerBtn} ${binauralOn ? styles.active : ''}`}
@@ -707,42 +688,26 @@ const AudioReadyContent: React.FC = () => {
                                             binauralRef.current?.pause();
                                         }
                                     }}
-                                    title="Theta binaural beats at −18 dB — best with headphones"
                                 >
                                     🎧 {binauralOn ? 'Binaural: ON' : 'Binaural: OFF'}
                                 </button>
                             )}
-
-                            {/* Headphones reminder when binaural is on */}
-                            {story?.binaural_audio_key && binauralOn && (
-                                <div style={{
-                                    fontSize: '0.75rem',
-                                    color: '#c9a84c',
-                                    padding: '4px 10px',
-                                    background: 'rgba(201,168,76,0.08)',
-                                    borderRadius: '6px',
-                                    border: '1px solid rgba(201,168,76,0.2)',
-                                }}>
-                                    🎧 Best experienced with headphones for full theta effect
-                                </div>
-                            )}
                         </div>
 
-                        <div className={styles.volumeRow}>
-                            <div className={styles.volIcon}>
-                                <VolumeIcon />
+                        {/* Headphones reminder */}
+                        {story?.binaural_audio_key && binauralOn && (
+                            <div style={{
+                                fontSize: '0.7rem',
+                                color: 'rgba(255,255,255,0.4)',
+                                textAlign: 'center',
+                                marginTop: '-0.2rem'
+                            }}>
+                                🎧 Best with headphones for theta effects
                             </div>
-                            <input
-                                type="range"
-                                className={styles.volSlider}
-                                min="0"
-                                max="100"
-                                value={volume}
-                                onChange={handleVolumeChange}
-                            />
-                        </div>
+                        )}
                     </div>
                 </div>
+
 
                 {/* DOWNLOADS */}
                 <div className={styles.downloadSection}>

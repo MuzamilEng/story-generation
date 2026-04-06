@@ -377,7 +377,7 @@ const ActivityRow: React.FC<ActivityRowProps> = ({ activity }) => {
 
 const Dashboard: React.FC = () => {
   const router = useRouter();
-  const { data: session } = useSession();
+  const { data: session, update } = useSession();
   const { clearStore } = useStoryStore();
 
   const userName = session?.user?.name || "User";
@@ -442,6 +442,33 @@ const Dashboard: React.FC = () => {
     },
     enabled: !!session,
   });
+
+  // Automatic beta code redemption from URL
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get("betaCode");
+
+    if (code && session?.user && !stats?.isBetaUser) {
+      const redeem = async () => {
+        try {
+          const res = await fetch("/api/beta/redeem", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ code: code.toUpperCase() }),
+          });
+          if (res.ok) {
+            update(); // Refresh session
+            // Clear the param from URL
+            const newUrl = window.location.pathname;
+            window.history.replaceState({}, "", newUrl);
+          }
+        } catch (e) {
+          console.error("Auto-redemption failed:", e);
+        }
+      };
+      redeem();
+    }
+  }, [session, stats, update]);
 
   const activities =
     stats?.activities?.map((a: any) => ({

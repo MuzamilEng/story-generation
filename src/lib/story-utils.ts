@@ -3,19 +3,19 @@ export interface UserAnswers {
     orientation: 'spiritual' | 'scientific' | 'both' | 'grounded';
     tone: string;
     selectedAreas: string[];
-    
+
     // Tier 1 (Core)
     goals: string;
     actionsAfter: string;
     identityStatements: string[];
     timeframe: string;
     coreFeeling: string;
-    
+
     // Phase 4/Tier 2
     namedPersons: string[]; // Array — ["Tiz", "Ryder", "Beckett"]
     location: string;
     home: string;
-    
+
     // Tier 3 (Sensory/Context)
     work: string;
     relationships: string;
@@ -23,7 +23,7 @@ export interface UserAnswers {
     spirit: string;
     community: string;
     dreams: string;
-    
+
     // Legacy / Others
     identity?: string;
     purpose?: string;
@@ -46,6 +46,10 @@ export interface UserAnswers {
     proof3?: string;
     futureVision?: string;
     givingBack?: string;
+    customAffirmations?: {
+        opening: string[];
+        closing: string[];
+    };
 }
 
 export function normalizeGoals(raw: any): UserAnswers {
@@ -53,11 +57,17 @@ export function normalizeGoals(raw: any): UserAnswers {
 
     const normalized: any = {};
     const mapping: Record<string, keyof UserAnswers> = {
-        // New V4 Fields
         'orientation': 'orientation',
         'tone': 'tone',
         'selectedAreas': 'selectedAreas',
         'goals': 'goals',
+        'goals (wealth)': 'goals',
+        'goals (health)': 'goals',
+        'goals (love)': 'goals',
+        'goals (family)': 'goals',
+        'goals (purpose)': 'goals',
+        'goals (spirituality)': 'goals',
+        'goals (spirit)': 'goals',
         'actionsAfter': 'actionsAfter',
         'identityStatements': 'identityStatements',
         'timeframe': 'timeframe',
@@ -71,6 +81,7 @@ export function normalizeGoals(raw: any): UserAnswers {
         'spirit': 'spirit',
         'community': 'community',
         'dreams': 'dreams',
+        'emotions': 'coreFeeling',
 
         // Legacy / Alternative Mapping
         'Identity': 'identity',
@@ -125,15 +136,32 @@ export function normalizeGoals(raw: any): UserAnswers {
     };
 
     const mainKeys = ['identity', 'purpose', 'location', 'coreFeeling', 'goals', 'actionsAfter', 'identityStatements'];
+    const textFieldsToAppend = ['goals', 'actionsAfter', 'purpose', 'futureVision'];
     const auxiliaryCategories: string[] = [];
 
     Object.keys(raw).forEach(key => {
         const val = raw[key];
-        const normalizedKey = mapping[key] || mapping[key.trim()] || key.trim();
-        normalized[normalizedKey] = val;
+        if (val === undefined || val === null) return;
 
-        // Collect auxiliary goals into categories for sidebar display
-        if (!mainKeys.includes(normalizedKey) && val && typeof val === 'string' && val.length > 0) {
+        const normalizedKey = mapping[key] || mapping[key.trim()] || key.trim();
+
+        if (textFieldsToAppend.includes(normalizedKey as string)) {
+            const existing = normalized[normalizedKey] || '';
+            const newVal = Array.isArray(val) ? val.join(', ') : String(val);
+            if (existing && !existing.includes(newVal)) {
+                normalized[normalizedKey] = `${existing}\n\n${newVal}`;
+            } else if (!existing) {
+                normalized[normalizedKey] = newVal;
+            }
+        } else if (Array.isArray(normalized[normalizedKey]) && Array.isArray(val)) {
+            const merged = Array.from(new Set([...normalized[normalizedKey], ...val]));
+            normalized[normalizedKey] = merged;
+        } else {
+            normalized[normalizedKey] = val;
+        }
+
+        // Handle auxiliary goals into categories for sidebar/legacy compatibility
+        if (!mainKeys.includes(normalizedKey) && typeof val === 'string' && val.length > 0) {
             if (!auxiliaryCategories.includes(key)) {
                 auxiliaryCategories.push(key);
             }
@@ -164,7 +192,7 @@ export function normalizeGoals(raw: any): UserAnswers {
         if (normalized[f] === undefined) normalized[f] = '';
     });
 
-    // Ensure selectedAreas is always an array (AI sometimes sends a string or comma-separated string)
+    // Ensure selectedAreas is always an array
     if (!Array.isArray(normalized.selectedAreas)) {
         if (typeof normalized.selectedAreas === 'string' && normalized.selectedAreas.length > 0) {
             normalized.selectedAreas = normalized.selectedAreas.split(',').map((s: string) => s.trim()).filter(Boolean);
@@ -190,7 +218,6 @@ export function normalizeGoals(raw: any): UserAnswers {
         if (typeof normalized.namedPersons === 'string' && normalized.namedPersons.length > 0) {
             normalized.namedPersons = [normalized.namedPersons];
         } else if (normalized.namedPerson && typeof normalized.namedPerson === 'string') {
-            // Handle legacy field if it exists
             normalized.namedPersons = [normalized.namedPerson];
         } else {
             normalized.namedPersons = [];
@@ -239,6 +266,8 @@ const TONAL_MODES = [
     'RADIANTLY CONFIDENT: The person in this story knows exactly who they are. They make choices with ease and grace. They walk through their world with the quiet certainty of someone who has done the inner work and won.',
     'ENERGISING AND UPLIFTING: The story pulses with forward motion and optimism. It makes the reader want to get up, take action, and believe — with fire — in what they are becoming.',
     'TENDERLY CELEBRATORY: Like a warm hand on the shoulder. The story honours how hard this person worked and celebrates, gently but powerfully, where they have arrived.',
+    'LUMINOUS & TRANSCENDENT: Higher-state consciousness. The language is poetic, floating, almost ethereal. It focuses on the vibration of the new life and the sacred alignment of everything. Best for spiritual-leaning users.',
+    'GROUNDED & POWERFUL: Maximum tangible reality. Heavy on textures, weight, physical movement, and concrete results. The power of this story comes from its undeniable, physical factuality.',
 ];
 
 const SEASONAL_CONTEXTS = [
@@ -294,37 +323,54 @@ The core feeling must be present as an emotional undertone in EVERY scene — no
 BLOCK A — HYPNOTIC INDUCTION
 TARGET WORD COUNT: ${targetWords} words
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Open the story with a full self-directed hypnotic induction. The narrator IS the user — they guide themselves into a receptive state in their own voice. There is no external guide. This creates a seamless identity bridge: the same voice inducing the state is the voice that lives the vision.
+OPENING VOICE MODE: GUIDED (2nd person "you").
+The induction is written in second person — "you" — as if the listener's own cloned voice is gently guiding them into sleep. This is not a contradiction of the first-person vision that follows — it is the bridge INTO it. The same voice that says "close your eyes" is the same voice that later says "I am here." This creates a profound identity loop that standard first-person cannot achieve.
 
-THE INDUCTION MUST FOLLOW THIS SEQUENCE:
-1. Begin with breath awareness — "I simply notice... that I am already breathing."
-2. Physical anchoring — body weight, jaw softening, shoulders releasing
-3. Progressive relaxation — head to feet, each area releasing completely
-4. Deepening technique — calibrated to orientation:
-   • Spiritual → golden light, divine presence, a sacred space opening
-   • Scientific → brainwave descent, neurological opening, theta state arriving
-   • Both → "the science and the sacred meet here"
-   • Grounded → pure physical sensation only — no framework language
-5. Threshold moment — the listener has arrived somewhere open and receptive. They are ready.
+Once the vision begins (Block B), switch fully and permanently to first person — "I" and "my" — for the rest of the story.
+
+THE INDUCTION MUST FOLLOW THIS PRECISE SEQUENCE:
+1. BREATH AWARENESS: Invite the listener to simply notice they are already breathing. Effortless. Natural. Already happening. "The breath is already happening. You don't have to do a single thing."
+2. BODY GROUNDING: Weight of the body against the surface beneath. Sinking deeper. Jaw softens. Shoulders release.
+3. ONE LONG BREATH: A single long breath in — hold gently at the top — and as they breathe out, every muscle from crown to sole... simply lets go.
+4. DEEPENING THROUGH LANGUAGE — calibrated to orientation:
+   • Spiritual → golden light, divine presence, the subconscious opening like a golden door
+   • Scientific → brainwave descent, the conscious mind stepping aside, theta state arriving
+   • Both → "the science and the sacred meet here — the mind and something larger"
+   • Grounded → pure physical sensation — weight, warmth, gravity — no framework language
+5. COUNTDOWN STAIRCASE DEEPENER (MANDATORY for all orientations):
+   Describe a grand staircase descending into warm, golden light. Count down from TEN to ONE. Each number goes deeper:
+   "Ten... the first step down... warmth rising to meet you."
+   "Nine... deeper now... your mind growing quieter and more still."
+   "Eight... every thought dissolving like mist..."
+   "Seven... six... halfway down, the golden light closer, warmer, more real."
+   "Five... four... your body completely at rest... your mind completely open..."
+   "Three... two... almost there..."
+   "One. You step into the light."
+   Adapt this rhythm to the user's orientation — spiritual users experience divine light; scientific users experience a theta-state threshold; grounded users experience pure physical ease.
+6. THRESHOLD MOMENT: The listener has arrived somewhere completely open and receptive. Something extraordinary is already beginning in the deep, intelligent, all-knowing part of their mind. That part is listening. And it is ready.
 
 NLP LANGUAGE THROUGHOUT THE INDUCTION:
-Embedded commands (first person): "...and as I notice myself sinking deeper..." / "...I find my mind growing quieter and more open..."
-Universal quantifiers: "With every breath..." / "With every sound I hear..." / "With each passing moment..."
-Presuppositions: "Something extraordinary is already beginning in the deep, intelligent part of my mind..." / "That part of me is listening now. And it is ready."
+Embedded commands (2nd person for induction): "...and as you notice yourself sinking deeper..." / "...you find your mind growing quieter and more open..."
+Universal quantifiers: "With every breath..." / "With every sound you hear..." / "With every word that lands..."
+Presuppositions: "Something extraordinary is already beginning in the deep, intelligent part of your mind..." / "That part of you is listening now. And it is ready."
 
 INDUCTION LANGUAGE RULES:
-- First person ONLY throughout — "I" and "my." Never "you."
-- NEVER use "I wake up" anywhere in the induction or the entire story
+- 2nd person ("you") ONLY in Block A. Switch to 1st person ("I") from Block B onwards — permanently.
+- NEVER use "you wake up" or "I wake up" anywhere in the story
 - Write as if the listener is already drifting — invited, not commanded
-- Do NOT reference the word "story" — the listener IS the story from the first word
-- Tone: slow, warm, unhurried — every sentence gives permission to go deeper\n\n`;
+- Do NOT reference the word "story" — the listener IS living this from the first word
+- Tone: the voice of quiet authority — slow, warm, certain, unhurried — every sentence gives permission to go deeper
+- Write in short, breath-sized sentences during the countdown. Short sentences = slower pace = deeper state.
+
+STRUCTURAL GUIDELINE (Dynamically adapt — DO NOT copy verbatim):
+Breath → body weight → jaw/shoulders release → one long breath out → deepening language calibrated to orientation → countdown staircase 10→1 → golden/threshold arrival → "That part of you is listening. And it is ready."\n\n`;
     }
 
     // BLOCK B — THE VISION: all tiers
     const visionWordCounts: Record<Tier, string> = {
-        explorer: '550-650 words (1 area)',
-        activator: '700-850 words (up to 3 areas)',
-        manifester: '900-1,100 words (all selected areas)',
+        explorer: '550-650 words (1 life area, proof actions)',
+        activator: '700-850 words (up to 3 areas, proof actions)',
+        manifester: '900-1,100 words (all selected areas, proof actions)',
         amplifier: '1,300-1,600 words (all areas, 2+ scenes per area)'
     };
 
@@ -338,7 +384,14 @@ Open by grounding the story in a specific future moment:
 Or a natural variation that communicates the same: this is a specific future, not a vague someday.
 The listener must know immediately: I am inside a real moment, not a fantasy.
 
-The user's goals are ALREADY achieved. This is not the day they achieve them — this is a day deep inside the life that achievement made possible. The struggle is over. Only its absence is shown.
+The user's goals are ALREADY achieved. This is not the day they achieve them — this is a day deep inside the life that achievement made possible. The struggle is over. Only its absence is shown through ease and freedom.
+
+━━━ STORY QUALITY: CINEMATIC SENSORY DEPTH ━━━
+Do not just list sights and sounds. Layer them to create a "Nested Sensory Loop":
+- Mention a texture (the cold glaze of a coffee mug)
+- That reminds the character of a feeling (the cooling ease of their financial life)
+- Which anchors a sound (the quiet whisper of the bay outside)
+Every paragraph must feel like a scene from a high-end film. Focus on the "spaces between" actions — the quiet pauses where the new reality really sinks in.
 
 ACT BREAKS:
 Use centered dot leaders between major life area scenes:
@@ -356,10 +409,22 @@ Use the user's exact words from goals and proof actions. Do not paraphrase. Do n
 - "my surf city Bayfront home" → scene at that specific home
 Every proof action must appear as a vivid, physical, present-tense scene. Not background. Not summary. These ARE the story.
 
+━━━ NUMERIC SPECIFICITY RULE — EQUALLY CRITICAL ━━━
+If the user provided any numbers, figures, or metrics in their goals — revenue targets, net worth, multiples, portfolio values, income numbers — you MUST use those exact figures. Do not round them. Do not generalise them.
+- "fifty million dollars" → say "fifty million dollars" — not "substantial revenue" or "financial freedom"
+- "one hundred times return" → say "a hundred times over" — not "significant investment gains"
+- "one billion net worth" → say "one billion" — not "extraordinary wealth"
+The specific number IS the subconscious anchor. Vague language destroys the reprogramming. Be exact. Be specific. The listener must hear the number they wrote down and feel it settle into their body as already real.
+
+━━━ EMBODIED REALITY RULE ━━━
+When the vision describes any major achievement — financial, physical, relational — do not just show the scene. For 2-3 key moments, pause the narrative and direct the listener to FEEL it in the body. Not the idea of it. The actual cellular, physical feeling. Use language like:
+"And now feel what it feels like to know that. Not to hope it — to know it. The way you know your own name. Solid. Unmovable. Real."
+This is the difference between a pleasant story and a genuine subconscious reprogramming experience.
+
 ━━━ NAMED PERSONS ━━━
 ${answers.namedPersons && answers.namedPersons.length > 0
-  ? `The user named these people as part of their vision: ${answers.namedPersons.join(", ")}. Use each name naturally and with warmth — never announce them, let each name land with intimacy and emotional weight.`
-  : `No specific people were named. Reference loved ones warmly but without invented names.`}
+            ? `The user named these people as part of their vision: ${answers.namedPersons.join(", ")}. Use each name naturally and with warmth — never announce them, let each name land with intimacy and emotional weight.`
+            : `No specific people were named. Reference loved ones warmly but without invented names.`}
 
 ━━━ NLP TECHNIQUE 1 — SUBMODALITY ENGINEERING ━━━
 Every major scene must be bright, close, vivid, immersive. The listener is inside the moment — not watching it from outside.
@@ -380,13 +445,13 @@ These must be woven throughout EVERY PARAGRAPH — not just occasional moments.
 
 EMBEDDED COMMANDS (hide directives inside descriptive sentences):
 The conscious mind hears description. The subconscious receives instruction.
-Required throughout: "...and as I notice myself moving with complete ease..." / "...I find myself feeling deeply certain about where my life is going..." / "...I continue to grow into the person I always knew I was becoming..." / "...and I allow this knowing to settle deeper with every breath..."
+Integrate commands within your descriptions — for example, describing a state of moving with ease, feeling certain about the future, or allowing a "knowing" to settle with each breath. Phrase these so they are received as natural parts of the story, not as direct orders.
 
 PRESUPPOSITIONS (assume the desired state is already permanently true):
-Required in every scene: "As I continue building on everything I've created..." / "Each morning I wake into this life..." / "The version of me who lives here..." / "As my abundance continues to grow..."
+Assumptive language should appear in every scene — referencing the version of you who lives here, the way abundance continues to grow, or how you wake into this life each morning. Ensure the language assumes the goal is already a long-standing reality.
 
 UNIVERSAL QUANTIFIERS (signal permanence to the subconscious):
-Required throughout: "Every morning..." / "Always..." / "Each time..." / "Whenever I..." / "Every single day..."
+Use words like "Every morning," "Always," "Each time," or "Whenever I" to signal the permanence of the new reality.
 
 ━━━ NLP TECHNIQUE 3 — IDENTITY-LEVEL STATEMENTS ━━━
 Include 2-3 moments mid-story where the narrator quietly recognises who they ARE — not what they have. These feel like private knowings, not declarations. They arise naturally from the story's flow — never announced:
@@ -406,25 +471,38 @@ Each struggle is already resolved. Show its resolution through a vivid proof mom
 
 ━━━ ORIENTATION-SPECIFIC LANGUAGE ━━━
 ${answers.orientation === 'spiritual'
-  ? 'Weave spiritual language naturally throughout — divine alignment, Source, co-creation, being guided, God\'s hand, universal intelligence. Never preachy. Always intimate, like a private knowing.'
-  : ''}
+            ? 'Weave spiritual language naturally throughout — divine alignment, Source, co-creation, being guided, God\'s hand, universal intelligence. Never preachy. Always intimate, like a private knowing.'
+            : ''}
 ${answers.orientation === 'scientific'
-  ? 'Frame through neurological and performance language — rewired subconscious, peak state, aligned decision-making, biological certainty. No spiritual language unless user introduced it.'
-  : ''}
+            ? 'Frame through neurological and performance language — rewired subconscious, peak state, aligned decision-making, biological certainty. No spiritual language unless user introduced it.'
+            : ''}
 ${answers.orientation === 'both'
-  ? 'Blend science and spirituality freely — they coexist naturally in this story. Use whichever serves the emotional moment.'
-  : ''}
+            ? 'Blend science and spirituality freely — they coexist naturally in this story. Use whichever serves the emotional moment.'
+            : ''}
 ${answers.orientation === 'grounded'
-  ? 'No framework language at all. Pure sensory and emotional immersion only. The story earns its power through specificity and feeling, not framing.'
-  : ''}
+            ? 'No framework language at all. Pure sensory and emotional immersion only. The story earns its power through specificity and feeling, not framing.'
+            : ''}
+
+━━━ FORMATTING & STRUCTURE ━━━
+This story is pure flowing prose. There are NO section headers. NO timestamps. NO labels like "INDUCTION" or "THE VISION". The story flows as one seamless, unbroken piece of writing — exactly like a great piece of literary fiction read aloud.
+
+The internal structure (induction → vision → anchor → close) exists in the writing itself — through tone, pacing, and language — not through visible headers. The listener should never be aware they are moving between sections.
+
+Separation: Use one blank line between paragraphs. Use three centered dots · · · on their own line to separate major scene or life-area transitions within the vision. These are the ONLY structural markers allowed.
+
+Pure flowing prose. No bullets anywhere in the story body. No headers. No timestamps. No labels.
 
 ━━━ RE-LISTABILITY ━━━
 This story will be listened to dozens or hundreds of times. Build for that:
 - At least one moment of unexpected beauty or emotional truth that catches the listener off guard
 - Create at least one scene so specific it becomes a personal touchstone — a scene the listener can return to by memory
 - Closing lines must be so resonant the listener carries them into sleep
-- NEVER use "I manifest," "I am attracting," "I am aligned," or law-of-attraction language
-- No headings, bullets, or section breaks within the vision — pure flowing prose\n\n`;
+- NEVER use "I manifest," "I am attracting," "I am aligned," or law-of-attraction language.
+- AVOID generic adjectives like "wonderful," "great," or "successful." Use specific, evocative ones: "unshakeable," "luminous," "symphonic," "anchored."
+- Each scene must have an internal "emotional shift" where the character recognizes a proof of their growth.
+- DO NOT use markdown symbols (*, **, #, _, etc.) for emphasis or headers. 
+- Use plain text only. The UI will handle the styling.
+- Avoid any "bold" or "italic" formatting patterns.\n\n`;
 
     // BLOCK C — KINESTHETIC ANCHOR INSTALLATION (Manifester+)
     if (['manifester', 'amplifier'].includes(userTier)) {
@@ -442,126 +520,126 @@ THE ANCHOR MUST:
 - Feel completely natural — never announced as a technique
 - Build the gesture into the scene as if the narrator is following a deep instinct
 
-ANCHOR LANGUAGE (adapt to story's voice and tone):
-"And in this moment — with all of this completely, undeniably real — I bring the thumb and first finger of my right hand gently together. I hold them. I breathe. I feel everything. [Name 3-4 specific feelings present in this exact scene, using the user's own language.] This is real. This is mine. My body knows it now."
+STRUCTURAL GUIDELINE (Dynamically adapt this logic to the user's tone – DO NOT copy verbatim):
+The anchor installation should occur at the absolute emotional peak of a scene. The narrator follows a deep instinct to bring their thumb and first finger together, anchoring the specific high-frequency feelings of that moment into this physical gesture. It concludes with a reinforcement that this state is now retrievable any time those fingers meet.
 
-ANCHOR REINFORCEMENT immediately after:
-"Every time I bring these fingers together — before any decision, before any important conversation, before I walk into any room — this entire state returns to me. Completely. Instantly. My nervous system has learned it. My subconscious does not forget."
-
-Then flow naturally into Block D.\n\n`;
+DO NOT USE TEMPLATES OR EXAMPLES ABOVE VERBATIM. Generation must be 100% unique to this user.\n\n`;
     }
 
-    // BLOCK D — AFFIRMATIONS & CLOSE
+    // BLOCK D — THE CLOSE (RESIDENT LANDING)
     prompt += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-BLOCK D — AFFIRMATIONS & CLOSE
+BLOCK D — THE CLOSE (RESIDENT LANDING)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+The close is written in 2nd person again — returning to the guided voice of the induction. The same voice that opened the experience now gently closes it, like a hand placed softly over the heart. This symmetry signals to the subconscious: the loop is complete. The new reality is sealed.
 
-━━━ AFFIRMATION SOURCE — CRITICAL ━━━
-The user selected their own identity statements during the intake (identityStatements field).
-These statements must be used VERBATIM — they are the user's own claimed identity.
+STEP 1 — DISSOLUTION:
+The scene slowly dissolves, not into nothingness, but into the deep subconscious. The feeling remains even as the details fade. Use transitional language that invites release: "You can let it all go now. Let every image soften. Let every vision dissolve into warm light. You don't need to hold on to any of it. Your subconscious mind has received every word. Every feeling. Every instruction. It is already working."
 
-Priority order:
-1. User's own written statement (highest priority — use exactly as written)
-2. User's selected chips (use verbatim — do not rewrite or polish)
-3. Claude-generated statements (only if identityStatements is empty — generate from goals/proof actions)
+STEP 2 — SUBCONSCIOUS PROGRAMMING (CRITICAL):
+Before the final sleep seeding, include 4-6 short, declarative identity statements — the most important things from the vision — as quiet facts. Not affirmations being wished for. Facts being confirmed. Write them as simple, clean declarations without lists or bullets — woven into the flowing close. Example approach (DO NOT copy verbatim — adapt to the user's actual goals and identity):
+"Tonight your dreams will carry the frequency of your highest life. Your cells will repair and renew. Your subconscious will begin assembling the circumstances, the connections, the ideas, the opportunities that make every single one of these visions physical reality. You will notice something different tomorrow. A quiet shift. A new certainty. The feeling of someone who knows something the world doesn't know yet. Because you do."
 
-━━━ AFFIRMATION STRUCTURE — THREE LEVELS (All Tiers) ━━━
-Affirmations must escalate through three levels in order:
+STEP 3 — SLEEP SEEDING:
+The narrator seeds the subconscious for sleep.
+- Invoke the specific feeling of safety, provision, and love
+- Explicitly affirm the subconscious continues its work through the night
+- Use present tense: "it is already working. Right now. As you drift. As you sleep. As you dream."
 
-LEVEL 1 — HAVING (most immediately believable):
-Present-tense possession drawn from specific goals.
-"My finances are completely free. Every obligation is met with ease."
+STEP 4 — THREE SLOW REPETITIONS (MANDATORY — 8-12 words each, one breath apart):
+Three final lines — the last sounds before sleep. Each one is a breath. Each one lands in the subconscious like a stone dropped into still water. They should vary slightly, not be identical:
+"Sleep now... and receive."
+"Sleep now... and receive."
+"Sleep now... and receive."
+Adapt the closing word to the user's orientation: spiritual → "receive" or "rest in the knowing"; scientific → "integrate" or "consolidate"; grounded → "rest" or "trust". The exact repetition signals: this is the end. It is sealed.
 
-LEVEL 2 — DOING (behavioural identity):
-Present-tense action drawn from proof actions.
-"I invest with certainty. I make decisions that build wealth effortlessly."
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WORD COUNT TARGET
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+This story is for building a future. Do not rush. Write every word with intention.
+Maximum Output Tokens: 5,000
 
-LEVEL 3 — BEING (deepest identity — most transformational — always lands last):
-Pure identity statement — the most powerful position.
-"I am a person of extraordinary abundance. This is simply who I am now."
+EXPLORER (free tier)
+Total target: 700-800 words
+  Induction: not included
+  Vision (1 life area, proof actions): 600-700 words
+  Resonant close: 100-150 words
 
-The final affirmation of the entire story must always be a BEING-level statement.
+ACTIVATOR
+Total target: 1,100-1,350 words
+  Hypnotic induction: 250-300 words
+  Vision (up to 3 areas, proof actions): 700-850 words
+  Dissolution + close: 150-250 words
 
-━━━ AFFIRMATION NLP RULES (All Tiers) ━━━
-- NEVER present as a list — affirmations arrive as flowing prose, quiet first-person recognitions
-- Weave Milton Model language BETWEEN affirmations:
-  "And as these truths settle deeper into every cell..."
-  "Each time I hear these words, they become more completely mine..."
-  "I find myself already knowing, in the deepest part of my being..."
-- Each affirmation separated by a beat — a pause, a breath, a moment of landing
-- Affirmations feel like things the subconscious is already thinking — not declarations being made
-- Use user's exact language from identityStatements — do not rewrite
+MANIFESTER
+Total target: 1,600-2,000 words
+  Hypnotic induction: 300-350 words
+  Vision (all selected areas, proof actions): 900-1,100 words
+  Future pacing moment: 60-80 words
+  Anchor installation at emotional peak: 100-120 words
+  Dissolution + Seeded Close: 200-350 words
 
-━━━ TIER-SPECIFIC CLOSE ━━━
+AMPLIFIER
+Total target: 2,400-2,900 words
+  Hypnotic induction: 350-400 words
+  Vision (all areas, 2+ scenes per area): 1,300-1,600 words
+  Future pacing moments: 100-120 words
+  Anchor installation: 120-150 words
+  Dissolution + Lush Seeded Close: 300-450 words
 
-─── EXPLORER CLOSE (Target: 120-180 words) ───
-The vision naturally settles. No formal dissolution needed.
-Deliver 3-4 affirmations (Having → Doing → Being) woven into the final paragraph as quiet recognitions — not a list.
-End on a single resonant BEING-level line — the last thing the listener carries into sleep.
+━━━ STRICT LENGTH & DEPTH ENFORCEMENT (Amplifier Only) ━━━
+${userTier === 'amplifier' ? `You are writing for our most premium user. A 200-word story is unacceptable and will be rejected. You MUST reach the target length of ~3,000 words.
+If the user provided few details, do NOT summarize. Instead:
+1. Imagine the architecture, textures, and sensory landscape of their home in cinematic detail.
+2. Narrate the unhurried thoughts and feelings during their successful, achieved daily rituals.
+3. Describe the taste, scent, and temperature of their environment in every single scene.
+4. Expand on each "proof action" into a long, lush, unhurried memory.
+The listener needs 20 minutes of immersive experience. Write a cinematic masterpiece. Never summarize.` : ''}\n\n`;
 
-─── ACTIVATOR CLOSE (Target: 180-240 words) ───
-Begin a gentle dissolution — scenes soften, light fades, listener is drifting.
-In this liminal state, deliver 4-5 affirmations (Having → Doing → Being) as quiet recognitions, one breath apart.
-Between affirmations, weave ONE Milton Model bridge sentence to deepen receptive state.
-Final line: so quiet and certain it dissolves naturally into rest.
+    prompt += `━━━ OUTPUT FORMAT — CRITICAL ━━━
+Write the story now. Format your response EXACTLY as follows — no deviations:
 
-─── MANIFESTER / AMPLIFIER CLOSE (Target: 430-580 words total) ───
-STEP 1 — DISSOLUTION (80-100 words):
-"And now... I let it all go. I let every image soften. Let every vision dissolve into warm light. I don't need to hold on. My subconscious mind has received every word of this. Every feeling. Every vision. It is already working. Right now. As I drift. As I sleep."
+TITLE: [Write a short evocative title — no brackets, no asterisks, plain text only]
 
-STEP 2 — AFFIRMATION PLANTING (150-200 words):
-Post-dissolution, directly into open subconscious. This is the most receptive moment of the entire story. Critical faculty is fully offline.
-Use identityStatements verbatim.
-Structure: 2 Having → 2 Doing → 2-3 Being, escalating to deepest identity statement last.
-Between each affirmation, one Milton Model bridge.
-Format as flowing prose — never a list.
-
-STEP 3 — SLEEP SEEDING (80-120 words):
-"Tonight my dreams carry the frequency of my highest life. My cells repair and renew. My subconscious mind assembles everything — the circumstances, the connections, the ideas, the opportunities. I will feel the shift tomorrow. A quiet certainty. The feeling of someone who knows something the world doesn't know yet."
-
-Orientation-specific final line:
-  Spiritual → "God's hand is on my life as I sleep."
-  Scientific → "My subconscious works powerfully through the night."
-  Both → "The universe and my own subconscious mind work together as I sleep."
-  Grounded → "Everything I need is already in motion."
-
-STEP 4 — THREE SLOW REPETITIONS (20-30 words):
-Three final lines, each one breath apart — the last sounds before sleep:
-"Sleep... and receive."
-"Sleep... and receive."
-"Sleep... and receive."
-(Adapt phrasing to orientation if needed — keep the rhythm, the pause, the finality.)\n\n`;
-
-    prompt += `━━━ FORMAT ━━━
-Write the story now. Format your response exactly as:
-
-[Short evocative title — never generic, never "My Story." Strip all markdown formatting — no asterisks, no bold, plain text only.]
 ---
-[Full story text — pure flowing prose. No headings. No bullets. No section breaks except the centered dot leaders · · · between major life area acts.]
+[The full story begins here as pure, unbroken flowing prose.]
 
-Begin now.\n`;
+RULES FOR THE STORY BODY:
+- NO section headers of any kind (no "INDUCTION", no "THE VISION", no "BLOCK A", nothing)
+- NO timestamps or time ranges anywhere (no "0-5 min", no "5-22 min", nothing)
+- NO labels, NO dividers except · · · between major scene transitions
+- The story flows as one continuous piece — like the reference story provided
+- Begin immediately with the first word of the induction (for Activator+) or the first word of the vision (for Explorer)
+- Use · · · on its own line between major life area transitions in the vision
+- End the story with the three sleep repetitions, then nothing more
+
+The output must look exactly like a beautifully written piece of literary prose — pure text, no structure visible to the reader.
+
+Begin now. Write the full story with no preamble, no explanation. Start directly with the story itself.\n`;
 
     return prompt;
 }
 
 export function buildDynamicVision(answers: UserAnswers): string {
     let result = '';
-    
-    // ── TIER 1: GOALS, PROOF ACTIONS & IDENTITY — NON-NEGOTIABLE STORY CORE ───────────────
-    result += `\n╔══ TIER 1: GOALS, PROOF ACTIONS & IDENTITY — NON-NEGOTIABLE STORY CORE ══╗\n`;
-    result += `CRITICAL: Every item in this tier MUST appear in the story. Goals and proof actions as vivid present-tense scenes. Identity statements verbatim in the affirmation close.\n\n`;
-    
-    if (answers.goals) result += `GOALS — show each as already completely real. Not pursued. Simply lived:\n${answers.goals}\n\n`;
-    
-    if (answers.actionsAfter) result += `PROOF ACTIONS — the single most important field. Build every major scene around these. Use exact words — no paraphrasing:\n${answers.actionsAfter}\n\n`;
-    
-    if (answers.identityStatements && answers.identityStatements.length > 0) {
-        result += `IDENTITY STATEMENTS — user's own claimed identity. Use VERBATIM in affirmation close. Do not rewrite:\n${answers.identityStatements.join(", ")}\n\n`;
-    }
-    
-    result += `TIMEFRAME — open the story in this specific future moment:\n${answers.timeframe}\n\n`;
-    result += `CORE FEELING — present as undertone in EVERY scene throughout the entire story:\n${answers.coreFeeling}\n`;
-    result += `╚══ END TIER 1 ══╝\n\n`;
+
+    result += `╔══ TIER 1: GOALS, PROOF ACTIONS & IDENTITY — NON-NEGOTIABLE STORY CORE ══╗
+Every item in this tier MUST appear in the story. Goals and proof actions as vivid present-tense scenes. Identity statements verbatim in the affirmation close.
+
+GOALS — show each as already completely real. Not pursued. Simply lived:
+${answers.goals}
+
+PROOF ACTIONS — the single most important field. Build every major scene around these. Use exact words — no paraphrasing:
+${answers.actionsAfter}
+
+IDENTITY STATEMENTS — user's own claimed identity. Use VERBATIM in affirmation close. Do not rewrite:
+${Array.isArray(answers.identityStatements) ? answers.identityStatements.join(", ") : answers.identityStatements}
+
+TIMEFRAME — open the story in this specific future moment:
+${answers.timeframe}
+
+CORE FEELING — present as undertone in EVERY scene throughout the entire story:
+${answers.coreFeeling}
+╚══ END TIER 1 ══╝\n\n`;
 
     // ── TIER 2: IDENTITY CONTEXT & VOICE ──────────────────────────────────────────────
     result += `╔══ TIER 2: IDENTITY CONTEXT & VOICE ══╗\n`;
@@ -582,6 +660,7 @@ export function buildDynamicVision(answers: UserAnswers): string {
     if (answers.spirit) result += `Spirituality & inner life: ${answers.spirit}\n`;
     if (answers.community) result += `Community & contribution: ${answers.community}\n`;
     if (answers.dreams) result += `Dreams and deeper intentions: ${answers.dreams}\n`;
+    if (answers.futureVision) result += `Overall Future Vision: ${answers.futureVision}\n`;
     result += `╚══ END TIER 3 ══╝\n`;
 
     if (!answers.goals && !answers.actionsAfter) {

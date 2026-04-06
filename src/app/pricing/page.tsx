@@ -79,11 +79,6 @@ const PricingContent: React.FC = () => {
     }
   };
 
-  const isBetaUser =
-    (session?.user as any)?.isBetaUser &&
-    !(session?.user as any)?.stripeSubscriptionId;
-  const currentPlanId = (session?.user as any)?.plan || "free";
-
   const prices = {
     monthly: { act: [10, 19], man: [20, 39], amp: [35, 69] },
     yearly: { act: [7, 13], man: [14, 27], amp: [25, 48] },
@@ -181,9 +176,8 @@ const PricingContent: React.FC = () => {
               <button
                 onClick={() => handlePlanSelect("free")}
                 className={styles.pcta}
-                disabled={currentPlanId === "free"}
               >
-                {currentPlanId === "free" ? "Current Plan" : "Start free"}
+                Start free
               </button>
               <div className={styles.fdiv}></div>
               <ul className={styles.flist}>
@@ -239,9 +233,9 @@ const PricingContent: React.FC = () => {
               <button
                 onClick={() => handlePlanSelect("activator")}
                 className={styles.pcta}
-                disabled={loadingPlan === "activator" || currentPlanId === "activator"}
+                disabled={loadingPlan === "activator"}
               >
-                {loadingPlan === "activator" ? "Connecting..." : currentPlanId === "activator" ? "Current Plan" : "Get started"}
+                {loadingPlan === "activator" ? "Connecting..." : "Get started"}
               </button>
               <div className={styles.fdiv}></div>
               <ul className={styles.flist}>
@@ -289,9 +283,9 @@ const PricingContent: React.FC = () => {
               <button
                 onClick={() => handlePlanSelect("manifester")}
                 className={styles.pcta}
-                disabled={loadingPlan === "manifester" || currentPlanId === "manifester"}
+                disabled={loadingPlan === "manifester"}
               >
-                {loadingPlan === "manifester" ? "Connecting..." : currentPlanId === "manifester" ? "Current Plan" : "Begin manifesting"}
+                {loadingPlan === "manifester" ? "Connecting..." : "Begin manifesting"}
               </button>
               <div className={styles.fdiv}></div>
               <ul className={styles.flist}>
@@ -314,36 +308,34 @@ const PricingContent: React.FC = () => {
               </ul>
             </div>
 
-            {/* AMPLIFIER / BETA */}
+            {/* AMPLIFIER */}
             <div className={`${styles.pcard}`}>
-              <div className={`${styles.cbadge} ${styles.badgePurple}`}>
-                {isBetaUser ? "Beta Access" : "Most powerful"}
-              </div>
+              <div className={`${styles.cbadge} ${styles.badgePurple}`}>Most powerful</div>
               <div className={styles.picon}>
                 <svg viewBox="0 0 18 18" fill="none" width="18" height="18">
                   <path d="M3 9h2l2-5 3 10 2-5h3" stroke="var(--accent)" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </div>
-              <div className={styles.pname}>{isBetaUser ? "Beta" : "Amplifier"}</div>
+              <div className={styles.pname}>Amplifier</div>
               <div className={styles.ptagline}>
                 Night + morning. Theta binaural beats. The deepest reprogramming
                 available.
               </div>
               <div className={styles.priceBlock}>
-                <div className={styles.pwas}>{isBetaUser ? "\u00a0" : `Was $${prices.monthly.amp[1]}/mo`}</div>
+                <div className={styles.pwas}>Was ${prices.monthly.amp[1]}/mo</div>
                 <div className={styles.prow}>
-                  <span className={styles.pamt}>{isBetaUser ? "Free" : `$${p.amp[0]}`}</span>
-                  <span className={styles.pper}>{isBetaUser ? "trial" : "/mo"}</span>
-                  {!isBetaUser && <span className={styles.ftag}>Founding rate</span>}
+                  <span className={styles.pamt}>${p.amp[0]}</span>
+                  <span className={styles.pper}>/mo</span>
+                  <span className={styles.ftag}>Founding rate</span>
                 </div>
-                <div className={styles.pnote}>{!isBetaUser && isAnnual ? `($${prices.yearly.amp[0]}/mo billed annually)` : "\u00a0"}</div>
+                <div className={styles.pnote}>{isAnnual ? `($${prices.yearly.amp[0]}/mo billed annually)` : "\u00a0"}</div>
               </div>
               <button
                 onClick={() => handlePlanSelect("amplifier")}
                 className={styles.pcta}
-                disabled={loadingPlan === "amplifier" || currentPlanId === "amplifier"}
+                disabled={loadingPlan === "amplifier"}
               >
-                {loadingPlan === "amplifier" ? "Connecting..." : currentPlanId === "amplifier" ? "Current Plan" : isBetaUser ? "Start Trial" : "Go all in"}
+                {loadingPlan === "amplifier" ? "Connecting..." : "Go all in"}
               </button>
               <div className={styles.fdiv}></div>
               <ul className={styles.flist}>
