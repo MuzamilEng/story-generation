@@ -36,6 +36,29 @@ const PLAN_WORD_TARGETS: Record<string, string> = {
     amplifier: '2,400–2,900 words  (~20 min)',
 };
 
+// Story length option → approximate target character count for validation
+const LENGTH_OPTION_TARGETS: Record<string, { words: string; minChars: number }> = {
+    short:  { words: '~700 words  (~6 min)',  minChars: 3_500 },
+    medium: { words: '~1,200 words (~10 min)', minChars: 6_000 },
+    long:   { words: '~1,700 words (~14 min)', minChars: 8_500 },
+    epic:   { words: '~2,600 words (~20 min)', minChars: 13_000 },
+};
+
+/**
+ * Professional narration voice settings for ElevenLabs.
+ * Tuned for calm, authoritative story narration:
+ *  - stability 0.75  → very steady, no pitch wandering (essential for long-form)
+ *  - similarity_boost 0.65 → preserve clone timbre without over-boosting artefacts
+ *  - style 0         → neutral delivery, no stylistic exaggeration
+ *  - use_speaker_boost true → improves clarity and presence of cloned voices
+ */
+const NARRATION_VOICE_SETTINGS = {
+    stability:         0.75,
+    similarity_boost:  0.65,
+    style:             0,
+    use_speaker_boost: true,
+} as const;
+
 // ── R2 helper ─────────────────────────────────────────────────────────────────
 async function fetchR2Buffer(key: string): Promise<Buffer | null> {
     try {
@@ -112,6 +135,17 @@ function splitTextIntoChunks(text: string, maxChars: number = 4800): string[] {
 
 /**
  * Generates TTS for the entire story, handling chunking for long texts.
+ *
+ * Uses professional narration voice settings optimised for:
+ *  - Calm, steady delivery over long-form manifestation stories
+ *  - Faithful reproduction of the user's cloned voice
+ *  - Clear articulation without stylistic exaggeration
+ *
+ * @param voiceId         ElevenLabs voice ID (cloned or default fallback)
+ * @param apiKey          ElevenLabs API key
+ * @param fullNarration   Complete narration text already assembled by the caller
+ * @param isClonedVoice   Whether this is a user cloned voice (affects model choice)
+ * @param storyLengthOption Optional story_length_option from the DB for logging/validation
  */
 async function generateUserNarration(
     voiceId: string,
@@ -119,29 +153,57 @@ async function generateUserNarration(
     openingAffirmations: string[],
     storyText: string,
     closingAffirmations: string[],
+    isClonedVoice = false,
+    storyLengthOption?: string | null,
 ): Promise<{ chunks: Buffer[]; historyId: string | null }> {
     const parts: string[] = [];
     if (openingAffirmations.length > 0) parts.push(openingAffirmations.join('\n\n'));
     parts.push(storyText);
     if (closingAffirmations.length > 0) parts.push(closingAffirmations.join('\n\n'));
 
+    // Join sections with double newlines so ElevenLabs inserts natural pauses between
     const fullText = parts.join('\n\n');
 
-    // ElevenLabs character limit handling
+    // Select model:
+    //  - Cloned voices → eleven_turbo_v2_5 (better prosody for IVC, lower latency per chunk)
+    //  - Fallback default voice → eleven_multilingual_v2 (highest quality for named voices)
+    const modelId = isClonedVoice ? 'eleven_turbo_v2_5' : 'eleven_multilingual_v2';
+
+    // Validate story length against expected range
+    const lenTarget = storyLengthOption ? LENGTH_OPTION_TARGETS[storyLengthOption] : null;
+    if (lenTarget) {
+        const actualChars = fullText.length;
+        const pct = Math.round((actualChars / lenTarget.minChars) * 100);
+        console.log(
+            `[generateUserNarration] story_length_option="${storyLengthOption}" ` +
+            `target=${lenTarget.words}, actual=${actualChars} chars (${pct}% of min target)`,
+        );
+        if (actualChars < lenTarget.minChars * 0.7) {
+            console.warn(
+                `[generateUserNarration] ⚠️  Story text is significantly shorter than expected for ` +
+                `"${storyLengthOption}" length. Consider regenerating the story.`,
+            );
+        }
+    }
+
+    // ElevenLabs character limit handling (4800 chars per request to stay safely under 5000)
     const chunks = splitTextIntoChunks(fullText, 4800);
-    console.log(`[generateUserNarration] Total text length: ${fullText.length}. Splitting into ${chunks.length} chunks.`);
+    console.log(
+        `[generateUserNarration] model=${modelId} isCloned=${isClonedVoice} ` +
+        `totalChars=${fullText.length} chunks=${chunks.length}`,
+    );
 
     const buffers: Buffer[] = [];
     let lastHistoryId: string | null = null;
 
     for (let i = 0; i < chunks.length; i++) {
         const chunk = chunks[i];
-        console.log(`[generateUserNarration] Generating chunk ${i + 1}/${chunks.length} (${chunk.length} chars)…`);
+        console.log(`[generateUserNarration] Chunk ${i + 1}/${chunks.length} → ${chunk.length} chars`);
 
         let res;
         let attempts = 0;
         const maxAttempts = 3;
-        
+
         while (attempts < maxAttempts) {
             try {
                 res = await fetch(
@@ -151,14 +213,14 @@ async function generateUserNarration(
                         headers: { 'Content-Type': 'application/json', 'xi-api-key': apiKey },
                         body: JSON.stringify({
                             text: chunk,
-                            model_id: 'eleven_multilingual_v2',
-                            voice_settings: { stability: 0.5, similarity_boost: 0.75 },
+                            model_id: modelId,
+                            voice_settings: NARRATION_VOICE_SETTINGS,
                         }),
                     },
                 );
-                
+
                 if (res.ok) break;
-                
+
                 const errText = await res.text();
                 if (res.status >= 500 || res.status === 429) {
                     throw new Error(`Retriable error: ${res.status} - ${errText}`);
@@ -167,27 +229,25 @@ async function generateUserNarration(
                 }
             } catch (e: any) {
                 attempts++;
-                console.warn(`[generateUserNarration] Attempt ${attempts} failed for chunk ${i+1}:`, e.message);
+                console.warn(`[generateUserNarration] Attempt ${attempts} failed for chunk ${i + 1}:`, e.message);
                 if (attempts === maxAttempts || e.message.includes('Fatal error')) throw e;
+                // Exponential back-off: 2s, 4s
                 await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempts)));
             }
         }
 
         if (!res || !res.ok) {
-            throw new Error(`ElevenLabs TTS failed after ${maxAttempts} attempts.`);
+            throw new Error(`ElevenLabs TTS failed for chunk ${i + 1} after ${maxAttempts} attempts.`);
         }
 
         const chunkBuffer = Buffer.from(await res.arrayBuffer());
         buffers.push(chunkBuffer);
 
-        // Track the last historyId provided by ElevenLabs
+        // Track the last request-id provided by ElevenLabs for history linkage
         lastHistoryId = res.headers.get('request-id') || lastHistoryId;
     }
 
-    return {
-        chunks: buffers,
-        historyId: lastHistoryId
-    };
+    return { chunks: buffers, historyId: lastHistoryId };
 }
 
 /**
@@ -391,20 +451,27 @@ export async function POST(req: NextRequest) {
         const canUseBinaural = BINAURAL_PLANS.has(effectivePlan);
 
         // ── Voice selection ───────────────────────────────────────────────────
-        const FALLBACK_VOICE_ID = 'pNInz6obpgDQGcFmaJgB'; // Adam — Premium
-        const voiceId = (canUseClonedVoice && user.voice_model_id)
-            ? user.voice_model_id
-            : FALLBACK_VOICE_ID;
+        // Adam (pNInz6obpgDQGcFmaJgB) is used as the default calm narrator fallback.
+        // Users on Activator+ with a cloned voice get their own recorded voice.
+        const FALLBACK_VOICE_ID = 'pNInz6obpgDQGcFmaJgB'; // Adam — calm, narrative-focused
+        const isClonedVoice = canUseClonedVoice && !!user.voice_model_id;
+        const voiceId = isClonedVoice ? user.voice_model_id : FALLBACK_VOICE_ID;
 
         const storyText = (story.story_text_approved || story.story_text_draft || '') as string;
         const wordCount = storyText.trim().split(/\s+/).length;
+        const storyLengthOption = (story.story_length_option as string | null) || null;
         const expectedWc = PLAN_WORD_TARGETS[effectivePlan] || PLAN_WORD_TARGETS['free'];
+        const lenTarget = storyLengthOption ? LENGTH_OPTION_TARGETS[storyLengthOption] : null;
 
         console.log(
             `[assemble] plan=${userPlanStr} effective=${effectivePlan} beta=${!!hasActiveBeta}\n` +
-            `           voice=${canUseClonedVoice ? 'cloned' : 'fallback'} (${voiceId})\n` +
+            `           voice=${isClonedVoice ? 'CLONED ✓' : 'fallback'} (${voiceId})\n` +
+            `           model=${isClonedVoice ? 'eleven_turbo_v2_5' : 'eleven_multilingual_v2'}\n` +
+            `           narration_settings=stability:0.75 similarity:0.65 style:0 speaker_boost:true\n` +
             `           adminAudio=${canUseAdminAudio} soundscape=${canUseSoundscape} binaural=${canUseBinaural}\n` +
-            `           storyWords=${wordCount} (expected: ${expectedWc})`
+            `           storyWords=${wordCount} (plan expected: ${expectedWc})\n` +
+            `           story_length_option=${storyLengthOption || 'not set'}` +
+            (lenTarget ? ` → target ${lenTarget.words}` : '')
         );
 
         const affirmations = story.affirmations_json as any;
@@ -464,14 +531,21 @@ export async function POST(req: NextRequest) {
         narrParts.push(storyText);
         if (closing.length > 0 && !isDynamicStory) narrParts.push(closing.join('\n\n'));
 
-        // 4. Generate user narration — ONE ElevenLabs call
-        console.log(`[assemble] Generating user narration (${narrParts.length} parts)…`);
+        // 4. Generate user narration — calls ElevenLabs in chunks as needed
+        const narrationText = narrParts.join('\n\n');
+        console.log(
+            `[assemble] Generating narration: ${narrationText.length} chars, ` +
+            `voice=${isClonedVoice ? 'cloned' : 'fallback'}, ` +
+            `story_length_option=${storyLengthOption || 'n/a'}`,
+        );
         const { chunks: narrationChunks, historyId } = await generateUserNarration(
             voiceId,
             elevenLabsApi!,
-            [],                         // already joined above
-            narrParts.join('\n\n'),
+            [],                 // already joined into narrationText below
+            narrationText,
             [],
+            isClonedVoice,
+            storyLengthOption,
         );
 
         // 6. Assemble + Mix

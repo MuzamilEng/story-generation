@@ -110,7 +110,15 @@ export async function POST(req: NextRequest) {
         const elForm = new FormData();
         elForm.append('name', `${user.name || 'User'} Voice ${Date.now()}`);
         elForm.append('files', audioFile, `sample.${ext}`);
-        elForm.append('description', 'Instant Voice Clone');
+        // Description hints at professional calm story narration — used by ElevenLabs to
+        // calibrate the voice model for spoken-word long-form content.
+        elForm.append(
+            'description',
+            'Professional calm story narrator. Long-form manifestation audio. ' +
+            'Steady, warm, and authoritative delivery with minimal emotional fluctuation.',
+        );
+        // Labels let us identify this as a narrator voice in the ElevenLabs dashboard
+        elForm.append('labels', JSON.stringify({ use_case: 'story_narration', style: 'calm' }));
 
         const cloneRes = await fetch('https://api.elevenlabs.io/v1/voices/add', {
             method: 'POST',
@@ -138,7 +146,33 @@ export async function POST(req: NextRequest) {
         const cloneJson = await cloneRes.json();
         const newVoiceId: string = cloneJson.voice_id;
 
-        // ── 3. Delete old ElevenLabs voice to preserve quota ──────────────────
+        // ── 3. Apply professional narration settings to the new voice ─────────
+        // PATCH the voice settings so ElevenLabs stores calm-narration defaults on the
+        // voice itself. This ensures consistent output even when called from other tools.
+        try {
+            const patchRes = await fetch(
+                `https://api.elevenlabs.io/v1/voices/${newVoiceId}/settings/edit`,
+                {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'xi-api-key': elevenLabsApi },
+                    body: JSON.stringify({
+                        stability:         0.75,  // Very steady — no pitch wandering over long stories
+                        similarity_boost:  0.65,  // Faithful clone timbre without artefact boost
+                        style:             0,     // Neutral delivery — no stylistic exaggeration
+                        use_speaker_boost: true,  // Enhances clarity and presence for cloned voices
+                    }),
+                },
+            );
+            if (patchRes.ok) {
+                console.log(`[clone-voice] ✓ Narration voice settings applied to ${newVoiceId}`);
+            } else {
+                console.warn(`[clone-voice] Voice settings patch failed (non-fatal): ${await patchRes.text()}`);
+            }
+        } catch (e) {
+            console.warn('[clone-voice] Voice settings patch error (non-fatal):', e);
+        }
+
+        // ── 4. Delete old ElevenLabs voice to preserve quota ──────────────────
         if (user.voice_model_id && user.voice_model_id !== newVoiceId) {
             try {
                 await fetch(`https://api.elevenlabs.io/v1/voices/${user.voice_model_id}`, {
@@ -151,7 +185,7 @@ export async function POST(req: NextRequest) {
             }
         }
 
-        // ── 4. Upload raw audio sample to R2 for "Play Sample" in settings ────
+        // ── 5. Upload raw audio sample to R2 for "Play Sample" in settings ────
         let voiceSampleUrl: string | null = null;
         try {
             const sampleKey = `user_${user.id}/voice_sample_${Date.now()}.${ext}`;
@@ -170,7 +204,7 @@ export async function POST(req: NextRequest) {
             console.warn('[clone-voice] Voice sample upload failed:', e);
         }
 
-        // ── 5. Persist voice_model_id + voice_sample_url ──────────────────────
+        // ── 6. Persist voice_model_id + voice_sample_url ──────────────────────
         await prisma.user.update({
             where: { id: user.id },
             data: {
