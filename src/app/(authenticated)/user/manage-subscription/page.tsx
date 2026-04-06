@@ -227,7 +227,7 @@ const Subscription: React.FC = () => {
 
     const currentPlan: CurrentPlan = {
         name: isActuallyBeta ? 'Beta' : (planNamesMap[currentPlanId] || 'Free'),
-        price: isActuallyBeta ? 'Beta Program (2 month trial)' : (currentPlanId === 'free' ? '$0 forever' : (currentPlanId === 'activator' ? '$9.99 one-time' : (currentPlanId === 'manifester' ? '$19.99/month' : '$39.99/month'))),
+        price: isActuallyBeta ? 'Beta Program (2 month trial)' : (currentPlanId === 'free' ? '$0 forever' : (currentPlanId === 'activator' ? '$9.99/month' : (currentPlanId === 'manifester' ? '$19.99/month' : '$39.99/month'))),
         nextRenewal: isActuallyBeta ? (subStatus.betaExpiresAt ? new Date(subStatus.betaExpiresAt) : null) : (isDateValid ? nextRenewalDate : null),
         status: subStatus?.stripeSubscriptionId && subStatus?.stripeCancelAtPeriodEnd ? 'canceling' : (subStatus?.stripeSubscriptionId ? 'active' : 'active')
     };

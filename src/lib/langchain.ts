@@ -12,6 +12,7 @@ export const model = isAzure
     })
     : new ChatOpenAI({
         apiKey: process.env.OPENAI_API_KEY,
-        model: "gpt-4o",
+        model: "gpt-4o-2024-08-06",
         temperature: 0.88,
+        maxTokens: 16384,
     });

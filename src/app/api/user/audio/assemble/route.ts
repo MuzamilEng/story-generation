@@ -23,7 +23,7 @@ const BUCKET = process.env.R2_BUCKET_NAME || 'manifestmystory-audio';
 
 // ── Plan capability definitions ──────────────────────────────────────────────
 // Centralised — all plan feature gates derive from these sets.
-const VOICE_CLONE_PLANS = new Set(['activator', 'manifester', 'amplifier']);
+const VOICE_CLONE_PLANS = new Set(['free', 'activator', 'manifester', 'amplifier']);
 const ADMIN_AUDIO_PLANS = new Set(['activator', 'manifester', 'amplifier']); // induction + guide-close segments
 const SOUNDSCAPE_PLANS = new Set(['manifester', 'amplifier']);
 const BINAURAL_PLANS = new Set(['amplifier']);
@@ -91,7 +91,7 @@ async function fetchAdminAudio(segmentKey: 'induction' | 'guide_close'): Promise
  * Splits text into chunks of maximum length, preferably at paragraph boundaries.
  * ElevenLabs has a 5000 character limit per request for many models.
  */
-function splitTextIntoChunks(text: string, maxChars: number = 4800): string[] {
+function splitTextIntoChunks(text: string, maxChars: number = 2500): string[] {
     if (!text) return [];
     if (text.length <= maxChars) return [text];
 
@@ -186,8 +186,8 @@ async function generateUserNarration(
         }
     }
 
-    // ElevenLabs character limit handling (4800 chars per request to stay safely under 5000)
-    const chunks = splitTextIntoChunks(fullText, 4800);
+    // ElevenLabs character limit handling (2500 chars per request for stability and prosody)
+    const chunks = splitTextIntoChunks(fullText, 2500);
     console.log(
         `[generateUserNarration] model=${modelId} isCloned=${isClonedVoice} ` +
         `totalChars=${fullText.length} chunks=${chunks.length}`,
@@ -460,7 +460,7 @@ export async function POST(req: NextRequest) {
         const effectivePlan = hasActiveBeta ? 'amplifier' : userPlanStr;
         const userSoundscapeStr = String(user.soundscape || 'none').toLowerCase();
 
-        const canUseClonedVoice = VOICE_CLONE_PLANS.has(effectivePlan);   // Explorer → fallback always
+        const canUseClonedVoice = VOICE_CLONE_PLANS.has(effectivePlan);   // All plans (free/Explorer up to 10 stories) can use cloned voice now.
         const canUseAdminAudio = ADMIN_AUDIO_PLANS.has(effectivePlan);   // induction + guide-close segments
         const canUseSoundscape = SOUNDSCAPE_PLANS.has(effectivePlan);
         const canUseBinaural = BINAURAL_PLANS.has(effectivePlan);

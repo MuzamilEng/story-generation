@@ -318,6 +318,9 @@ ${instruction ? `━━━ REGENERATION INSTRUCTION — HIGH PRIORITY ━━━
 The user has requested these specific changes to their previous version. You MUST prioritise this instruction while still following all core manifesto and safety rules:
 "${instruction}"
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` : ''}
+USER PLAN: ${userTier.toUpperCase()}
+Target Experience: Full Deep-Immigration Night Story
+Story Status: Achieved Life Final Version
 The core feeling must be present as an emotional undertone in EVERY scene — not just the close. The listener should feel it growing from the opening to the final word.\n\n` ;
 
     // BLOCK A — HYPNOTIC INDUCTION (Activator+)
@@ -379,7 +382,12 @@ Breath → body weight → jaw/shoulders release → one long breath out → dee
         'epic': 2.2,
     };
 
-    const multiplier = (targetLength && lengthMultipliers[targetLength]) ? lengthMultipliers[targetLength] : 1.0;
+    let multiplier = (targetLength && lengthMultipliers[targetLength]) ? lengthMultipliers[targetLength] : 1.0;
+    
+    // Explorer tier is strictly capped at 'medium' length (~750 words) to prevent over-generation on free accounts
+    if (userTier === 'explorer' && multiplier > 1.0) {
+        multiplier = 1.0;
+    }
 
     const visionWordCounts: Record<Tier, string> = {
         explorer: `${Math.round(550 * multiplier)}-${Math.round(650 * multiplier)} words (1 life area, proof actions)`,
@@ -388,9 +396,11 @@ Breath → body weight → jaw/shoulders release → one long breath out → dee
         amplifier: `${Math.round(1300 * multiplier)}-${Math.round(1600 * multiplier)} words (all areas, 2+ scenes per area)`
     };
 
+    const currentVisionTarget = visionWordCounts[userTier];
+
     prompt += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 BLOCK B — THE VISION (THE ACHIEVED LIFE)
-TARGET WORD COUNT: ${visionWordCounts[userTier]}
+TARGET WORD COUNT: ${currentVisionTarget}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 OPENING TIME ANCHOR (required for all tiers):
 Open by grounding the story in a specific future moment:
@@ -572,42 +582,42 @@ WORD COUNT TARGET
 This story is for building a future. Do not rush. Write every word with intention.
 Maximum Output Tokens: 5,000
 
-EXPLORER (free tier)
+${userTier === 'explorer' ? `EXPLORER (free tier)
 Total target: ${Math.round(700 * multiplier)}-${Math.round(800 * multiplier)} words
   Induction: not included
   Vision (1 life area, proof actions): ${Math.round(600 * multiplier)}-${Math.round(700 * multiplier)} words
-  Resonant close: 100-150 words
-
-ACTIVATOR
+  Resonant close: 100-150 words` : ''}${userTier === 'activator' ? `ACTIVATOR
 Total target: ${Math.round(1100 * multiplier)}-${Math.round(1350 * multiplier)} words
   Hypnotic induction: 250-300 words
   Vision (up to 3 areas, proof actions): ${Math.round(700 * multiplier)}-${Math.round(850 * multiplier)} words
-  Dissolution + close: 150-250 words
-
-MANIFESTER
-Total target: 1,600-2,000 words
+  Dissolution + close: 150-250 words` : ''}${userTier === 'manifester' ? `MANIFESTER
+Total target: ${Math.round(1800 * multiplier)}-${Math.round(2200 * multiplier)} words
   Hypnotic induction: 300-350 words
-  Vision (all selected areas, proof actions): 900-1,100 words
+  Vision (all selected areas, proof actions): ${Math.round(1100 * multiplier)}-${Math.round(1300 * multiplier)} words
   Future pacing moment: 60-80 words
   Anchor installation at emotional peak: 100-120 words
-  Dissolution + Seeded Close: 200-350 words
-
-AMPLIFIER
-Total target: 2,400-2,900 words
+  Dissolution + Seeded Close: 200-350 words` : ''}${userTier === 'amplifier' ? `AMPLIFIER
+Total target: ${Math.round(3000 * multiplier)}-${Math.round(3500 * multiplier)} words
   Hypnotic induction: 350-400 words
-  Vision (all areas, 2+ scenes per area): 1,300-1,600 words
+  Vision (all areas, 2+ scenes per area): ${Math.round(2000 * multiplier)}-${Math.round(2500 * multiplier)} words
   Future pacing moments: 100-120 words
   Anchor installation: 120-150 words
-  Dissolution + Lush Seeded Close: 300-450 words
+  Dissolution + Lush Seeded Close: 300-450 words` : ''}
 
-━━━ STRICT LENGTH & DEPTH ENFORCEMENT (Amplifier Only) ━━━
-${userTier === 'amplifier' ? `You are writing for our most premium user. A 200-word story is unacceptable and will be rejected. You MUST reach the target length of ~3,000 words.
-If the user provided few details, do NOT summarize. Instead:
-1. Imagine the architecture, textures, and sensory landscape of their home in cinematic detail.
-2. Narrate the unhurried thoughts and feelings during their successful, achieved daily rituals.
-3. Describe the taste, scent, and temperature of their environment in every single scene.
-4. Expand on each "proof action" into a long, lush, unhurried memory.
-The listener needs 20 minutes of immersive experience. Write a cinematic masterpiece. Never summarize.` : ''}\n\n`;
+━━━ STRICT LENGTH & DEPTH ENFORCEMENT ━━━
+You are writing for a ${userTier.toUpperCase()} user. A short story is a failure and will be rejected. You MUST meet the large word count targets above.
+If the provided inputs are brief, do NOT summarize. Instead:
+1. Improvise cinematic surroundings — textures, smells, the quality of light.
+2. Narrate the character's internal thoughts and emotional shifts in great detail.
+3. Slow down every scene. Describe the unhurried ease of the achieved life.
+4. Expand every "proof action" into a significant sensory scene.
+The listener is here for an unhurried, deeply immersive experience. Write a literary masterpiece. NEVER summarize anything. Short outputs will be ignored.
+
+${userTier === 'amplifier' ? `━━━ AMPLIFIER SPECIAL DIRECTIVE ━━━
+You are writing for our most premium user. A 200-word story is unacceptable and will be rejected. 
+You MUST reach the target length of ~3,000 words. Describe everything with extreme sensory depth. 
+Describe the architecture, textures, and sensory landscape of their home in cinematic detail. 
+Expand on each "proof action" into a long, lush, unhurried memory.` : ''}\n\n`;
 
     prompt += `━━━ OUTPUT FORMAT — CRITICAL ━━━
 Write the story now. Format your response EXACTLY as follows — no deviations:

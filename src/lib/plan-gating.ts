@@ -10,8 +10,8 @@ export interface PlanLimits {
 export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
     free: {
         maxStories: 10,
-        allowFullAudio: false,
-        audioMinutesPerMonth: 0,
+        allowFullAudio: true, // Explorer users get up to 10 stories with full audio
+        audioMinutesPerMonth: 60, // Give them an hour of audio time for their 10 stories
     },
     activator: {
         maxStories: 10000, // Based on the "first 10,000 stories" badge logic

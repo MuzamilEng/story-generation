@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
                 title: title || 'My Manifestation Story',
                 status: 'draft',
                 goal_intake_json: goals,
-                story_length_option: length || 'long',
+                story_length_option: length || 'medium',
             },
         } as any)
 

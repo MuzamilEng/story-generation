@@ -183,7 +183,7 @@ const PricingContent: React.FC = () => {
               <ul className={styles.flist}>
                 <li className={styles.fitem}>
                   <LeafBullet active />
-                  <span className={`${styles.ft} ${styles.hi}`}>1 personalized night story</span>
+                  <span className={`${styles.ft} ${styles.hi}`}>10 personalized night stories</span>
                 </li>
                 <li className={styles.fitem}>
                   <LeafBullet active />

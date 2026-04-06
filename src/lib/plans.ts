@@ -30,8 +30,9 @@ export const PLAN_DETAILS: Record<Plan, PlanDetails> = {
         },
         stripePriceId: {},
         features: [
-            "Unlimited story creation",
-            "2-minute voice sample",
+            "10 personalized night stories",
+            "Full audio generation",
+            "AI voice cloning",
             "Standard quality audio",
             "Community support"
         ],
@@ -39,22 +40,23 @@ export const PLAN_DETAILS: Record<Plan, PlanDetails> = {
     activator: {
         id: "activator",
         name: "Activator",
-        description: "One-time boost for early adopters",
+        description: "Open your subconscious before the vision begins.",
         price: {
-            monthly: 0, // Not applicable
-            yearly: 0,  // Not applicable
-            oneTime: 9.99,
+            monthly: 9.99,
+            yearly: 6.99,
         },
         stripePriceId: {
-            oneTime: process.env.STRIPE_ACTIVATOR_PRICE_ID,
+            monthly: process.env.STRIPE_ACTIVATOR_MONTHLY_PRICE_ID,
+            yearly: process.env.STRIPE_ACTIVATOR_YEARLY_PRICE_ID,
         },
         features: [
-            "First 10,000 stories pool",
-            "50% launch discount",
-            "Lifetime access to core features",
-            "Priority story processing"
+            "Everything in Explorer",
+            "Full hypnotic induction",
+            "Story focused on up to 3 life areas",
+            "Advanced story customization",
+            "Downloadable MP3"
         ],
-        badge: "Launch offer — 50% off — first 10,000 stories",
+        badge: "Founding member pricing — 50% off",
     },
     manifester: {
         id: "manifester",

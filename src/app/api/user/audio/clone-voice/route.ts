@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
         }
 
         // ── Plan gate: voice cloning requires Activator+ (or active beta) ─────
-        const VOICE_CLONE_PLANS = new Set(['activator', 'manifester', 'amplifier']);
+        const VOICE_CLONE_PLANS = new Set(['free', 'activator', 'manifester', 'amplifier']);
         const hasActiveBeta = await prisma.userBetaCode.findFirst({
             where: {
                 userId: user.id,
@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
         if (!VOICE_CLONE_PLANS.has(userPlan) && !hasActiveBeta) {
             console.warn(`[clone-voice] Plan gate: user ${user.id} on plan "${userPlan}" attempted voice clone.`);
             return NextResponse.json({
-                error: 'Voice cloning is available on the Activator plan and above. Upgrade to use your own voice.',
+                error: 'Voice cloning is available for Explorer and above tiers.',
                 code: 'PLAN_UPGRADE_REQUIRED',
             }, { status: 403 });
         }

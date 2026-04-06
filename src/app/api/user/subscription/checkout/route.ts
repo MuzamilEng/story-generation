@@ -24,13 +24,12 @@ export async function POST(req: Request) {
         // Final Price ID verification
         let resolvedPriceId = priceId;
         if (!resolvedPriceId) {
-            if (planId === "activator") resolvedPriceId = plan.stripePriceId.oneTime;
-            else if (billingCycle === "yearly") resolvedPriceId = plan.stripePriceId.yearly;
+            if (billingCycle === "yearly") resolvedPriceId = plan.stripePriceId.yearly;
             else resolvedPriceId = plan.stripePriceId.monthly;
         }
 
         if (!resolvedPriceId) {
-            return new NextResponse("Price ID not found for selection", { status: 400 });
+            return new NextResponse(`Price ID not found for selection. Check env: STRIPE_${planId.toUpperCase()}_${billingCycle.toUpperCase()}_PRICE_ID`, { status: 400 });
         }
 
         // Get or Create Stripe Customer
@@ -81,7 +80,7 @@ export async function POST(req: Request) {
                     quantity: 1,
                 },
             ],
-            mode: planId === "activator" ? "payment" : "subscription",
+            mode: "subscription",
             success_url: `${process.env.NEXTAUTH_URL}/user/manage-subscription?success=true`,
             cancel_url: `${process.env.NEXTAUTH_URL}/user/manage-subscription?canceled=true`,
             metadata: {

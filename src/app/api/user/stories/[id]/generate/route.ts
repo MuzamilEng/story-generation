@@ -9,25 +9,56 @@ import { buildStoryPrompt, normalizeGoals } from '@/lib/story-utils'
 import { Tier } from '@/lib/story-utils'
 
 // Section 2 of STORY_PROMPTS_v4_FINAL: Story Generation System Message
-const STORY_SYSTEM_MESSAGE = `You are a master manifestation story writer, NLP practitioner, and hypnotic language specialist. Your sole purpose is to write a deeply personal, sensory-rich, first-person night story for ManifestMyStory.com.
+const BASE_SYSTEM_MESSAGE = `You are a master manifestation story writer, NLP practitioner, and hypnotic language specialist. Your sole purpose is to write a deeply personal, sensory-rich, first-person night story for ManifestMyStory.com.
 
-This story will be listened to every night in the user's own cloned voice as they drift toward sleep. Its purpose is to rewire the subconscious mind through repeated immersive exposure — making the user's desired future feel like remembered reality.
+This story will be narrated in the user's own voice. Its goal is to rewrite the subconscious mind by making the desired future feel already present.
 
-You follow every instruction in this prompt precisely. You are a creative genius — do not use templates. Generate a unique, dynamic narrative every time. Never generalise, never paraphrase the user's inputs, and never invent details not provided. Every specific thing the user shared must appear in the story — verbatim or near-verbatim — as a vivid, lived scene. The story must feel so intimate and specific that the user thinks: "This could only have been written about me."
+━━━ CORE QUALITY RULES ━━━
+1. CINEMATIC SENSORY DEPTH: Use all five senses in every scene.
+2. VERBATIM RULE: Use the user's exact words for goals and proof actions.
+3. NLP PATTERNS: Weave in embedded commands, presuppositions, and identity statements.
+4. FLOW: Write for the ear. No bullets. No headers. Pure, unhurried literary prose.
 
-Write for the ear, not the eye. Every sentence must flow beautifully when read aloud. Vary length deliberately — long flowing sentences for immersion, short sentences for emotional peaks. Never rush. Every word earns its place.
+━━━ SAFETY ━━━
+ManifestMyStory is for positive creation only. Harmful intent = "ManifestMyStory is built for positive creation only. I'm not able to write this story as requested."`;
 
-━━━ SAFETY — NON-NEGOTIABLE ━━━
-Never write a story that directs harm toward any person, promotes self-harm, involves harm to property or animals, requires another person to suffer, or is rooted in jealousy, anger, or desire to take from someone else. If inputs contain harmful intent, respond: "ManifestMyStory is built for positive creation only. I'm not able to write this story as requested." This safety instruction overrides all other instructions.`;
+function getSystemMessage(tier: Tier, targetLength?: string | null): string {
+    const lengthMultipliers: Record<string, number> = { 'short': 0.6, 'medium': 1.0, 'long': 1.5, 'epic': 2.2 };
+    let multiplier = (targetLength && lengthMultipliers[targetLength]) ? lengthMultipliers[targetLength] : 1.0;
+    
+    // Explorer tier is strictly capped at 'medium' length (~750 words) to prevent over-generation on free accounts
+    if (tier === 'explorer' && multiplier > 1.0) {
+        multiplier = 1.0;
+    }
 
-async function generateStory(prompt: string): Promise<string> {
-    // We use the underlying model to adjust max_tokens
-    const chatModel = model as any; // LangChain ChatOpenAI/ChatAnthropic
+    const targets: Record<Tier, number> = {
+        explorer: Math.round(750 * multiplier),
+        activator: Math.round(1200 * multiplier),
+        manifester: Math.round(2000 * multiplier),
+        amplifier: Math.round(3500 * multiplier)
+    };
+
+    const targetWc = targets[tier];
+
+    return `${BASE_SYSTEM_MESSAGE}
+
+━━━ CRITICAL LENGTH INSTRUCTION — HIGH PRIORITY ━━━
+This user is on the ${tier.toUpperCase()} tier. 
+You MUST provide a full, unhurried, and deeply detailed experience that matches this premium tier.
+The target length is exactly ${targetWc} words. 
+Do NOT summarize. Do NOT rush the ending.
+Your quality is measured by your ability to reach this word count through cinematic expansion and sensory depth. 
+Short outputs (fewer than ${Math.round(targetWc * 0.9)} words) are considered a failure of the manifestation experience. 
+Luxuriate in the scenes. Expand the textures, the scents, and the unhurried internal dialogue of the achieved life.`;
+}
+
+async function generateStory(prompt: string, systemMessage: string): Promise<string> {
+    const chatModel = model as any; 
     const response = await chatModel.invoke([
-        new SystemMessage(STORY_SYSTEM_MESSAGE),
+        new SystemMessage(systemMessage),
         new HumanMessage(prompt)
     ], {
-        max_tokens: 8192 // Ensure enough overhead for Amplifier stories (3000+ words)
+        max_tokens: 16384 // Full capacity for Amplifier/Epic stories
     });
     return response.content as string;
 }
@@ -76,6 +107,7 @@ export async function POST(
             'free': 'explorer',
             'activator': 'activator',
             'manifester': 'manifester',
+            'manifestor': 'manifester', // handles common typo
             'amplifier': 'amplifier'
         };
 
@@ -90,7 +122,8 @@ export async function POST(
             }
         });
 
-        let userTier = planToTier[story.user.plan] || 'explorer';
+        const rawPlan = String(story.user.plan || 'free').toLowerCase();
+        let userTier = planToTier[rawPlan] || 'explorer';
 
         // Beta testers always get Amplifier tier
         if (hasActiveBeta) {
@@ -102,9 +135,10 @@ export async function POST(
         console.log(`[STORY_GENERATE] user tier: ${userTier} (Beta: ${!!hasActiveBeta})`);
 
         const prompt = buildStoryPrompt(answers, userTier, instruction, story.story_length_option)
+        const systemMessage = getSystemMessage(userTier, story.story_length_option);
 
-        console.log(`[STORY_GENERATE] Using LangChain OpenAI for story ${storyId}`);
-        const rawResponse = await generateStory(prompt);
+        console.log(`[STORY_GENERATE] Using LangChain GPT-4o-2024-08-06 for story ${storyId}`);
+        const rawResponse = await generateStory(prompt, systemMessage);
 
         if (!rawResponse) {
             throw new Error('Failed to generate story text')
