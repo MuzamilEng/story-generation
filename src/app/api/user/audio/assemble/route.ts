@@ -23,17 +23,17 @@ const BUCKET = process.env.R2_BUCKET_NAME || 'manifestmystory-audio';
 
 // ── Plan capability definitions ──────────────────────────────────────────────
 // Centralised — all plan feature gates derive from these sets.
-const VOICE_CLONE_PLANS  = new Set(['activator', 'manifester', 'amplifier']);
-const ADMIN_AUDIO_PLANS  = new Set(['activator', 'manifester', 'amplifier']); // induction + guide-close segments
-const SOUNDSCAPE_PLANS   = new Set(['manifester', 'amplifier']);
-const BINAURAL_PLANS     = new Set(['amplifier']);
+const VOICE_CLONE_PLANS = new Set(['activator', 'manifester', 'amplifier']);
+const ADMIN_AUDIO_PLANS = new Set(['activator', 'manifester', 'amplifier']); // induction + guide-close segments
+const SOUNDSCAPE_PLANS = new Set(['manifester', 'amplifier']);
+const BINAURAL_PLANS = new Set(['amplifier']);
 
 // Expected story word-count ranges by plan (mirrors story-utils.ts targets)
 const PLAN_WORD_TARGETS: Record<string, string> = {
-    free:        '700–800 words  (~6 min)',
-    activator:   '1,100–1,350 words  (~10 min)',
-    manifester:  '1,600–2,000 words  (~14 min)',
-    amplifier:   '2,400–2,900 words  (~20 min)',
+    free: '700–800 words  (~6 min)',
+    activator: '1,100–1,350 words  (~10 min)',
+    manifester: '1,600–2,000 words  (~14 min)',
+    amplifier: '2,400–2,900 words  (~20 min)',
 };
 
 // ── R2 helper ─────────────────────────────────────────────────────────────────
@@ -83,7 +83,7 @@ function splitTextIntoChunks(text: string, maxChars: number = 4800): string[] {
                 chunks.push(currentChunk.trim());
                 currentChunk = "";
             }
-            
+
             // If a single paragraph is still too long, split it by sentences
             if (paragraph.length > maxChars) {
                 const sentences = paragraph.match(/[^.!?]+[.!?]+|\s+$/g) || [paragraph];
@@ -102,11 +102,11 @@ function splitTextIntoChunks(text: string, maxChars: number = 4800): string[] {
             currentChunk += (currentChunk ? "\n\n" : "") + paragraph;
         }
     }
-    
+
     if (currentChunk) {
         chunks.push(currentChunk.trim());
     }
-    
+
     return chunks;
 }
 
@@ -119,14 +119,14 @@ async function generateUserNarration(
     openingAffirmations: string[],
     storyText: string,
     closingAffirmations: string[],
-): Promise<{ buffer: Buffer; historyId: string | null }> {
+): Promise<{ chunks: Buffer[]; historyId: string | null }> {
     const parts: string[] = [];
     if (openingAffirmations.length > 0) parts.push(openingAffirmations.join('\n\n'));
     parts.push(storyText);
     if (closingAffirmations.length > 0) parts.push(closingAffirmations.join('\n\n'));
 
     const fullText = parts.join('\n\n');
-    
+
     // ElevenLabs character limit handling
     const chunks = splitTextIntoChunks(fullText, 4800);
     console.log(`[generateUserNarration] Total text length: ${fullText.length}. Splitting into ${chunks.length} chunks.`);
@@ -137,35 +137,56 @@ async function generateUserNarration(
     for (let i = 0; i < chunks.length; i++) {
         const chunk = chunks[i];
         console.log(`[generateUserNarration] Generating chunk ${i + 1}/${chunks.length} (${chunk.length} chars)…`);
-        
-        const res = await fetch(
-            `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`,
-            {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'xi-api-key': apiKey },
-                body: JSON.stringify({
-                    text: chunk,
-                    model_id: 'eleven_multilingual_v2',
-                    voice_settings: { stability: 0.5, similarity_boost: 0.75 },
-                }),
-            },
-        );
 
-        if (!res.ok) {
-            const err = await res.text();
-            throw new Error(`ElevenLabs TTS failed at chunk ${i + 1}: ${err.slice(0, 200)}`);
+        let res;
+        let attempts = 0;
+        const maxAttempts = 3;
+        
+        while (attempts < maxAttempts) {
+            try {
+                res = await fetch(
+                    `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`,
+                    {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'xi-api-key': apiKey },
+                        body: JSON.stringify({
+                            text: chunk,
+                            model_id: 'eleven_multilingual_v2',
+                            voice_settings: { stability: 0.5, similarity_boost: 0.75 },
+                        }),
+                    },
+                );
+                
+                if (res.ok) break;
+                
+                const errText = await res.text();
+                if (res.status >= 500 || res.status === 429) {
+                    throw new Error(`Retriable error: ${res.status} - ${errText}`);
+                } else {
+                    throw new Error(`Fatal error: ${res.status} - ${errText}`);
+                }
+            } catch (e: any) {
+                attempts++;
+                console.warn(`[generateUserNarration] Attempt ${attempts} failed for chunk ${i+1}:`, e.message);
+                if (attempts === maxAttempts || e.message.includes('Fatal error')) throw e;
+                await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempts)));
+            }
+        }
+
+        if (!res || !res.ok) {
+            throw new Error(`ElevenLabs TTS failed after ${maxAttempts} attempts.`);
         }
 
         const chunkBuffer = Buffer.from(await res.arrayBuffer());
         buffers.push(chunkBuffer);
-        
+
         // Track the last historyId provided by ElevenLabs
         lastHistoryId = res.headers.get('request-id') || lastHistoryId;
     }
 
-    return { 
-        buffer: Buffer.concat(buffers), 
-        historyId: lastHistoryId 
+    return {
+        chunks: buffers,
+        historyId: lastHistoryId
     };
 }
 
@@ -180,7 +201,7 @@ async function generateUserNarration(
  */
 async function assembleAndMixWithFFmpeg(
     induction: Buffer | null,
-    narration: Buffer,
+    narrationChunks: Buffer[],
     guideClose: Buffer | null,
     soundscapeBuffer: Buffer | null,
     binauralBuffer: Buffer | null,
@@ -189,7 +210,6 @@ async function assembleAndMixWithFFmpeg(
     const ts = Date.now() + Math.random().toString(36).substring(7);
     const paths = {
         induction: join(workDir, `ind_${ts}.mp3`),
-        narration: join(workDir, `narr_${ts}.mp3`),
         guideClose: join(workDir, `close_${ts}.mp3`),
         soundscape: join(workDir, `bg_${ts}.mp3`),
         binaural: join(workDir, `bin_${ts}.mp3`),
@@ -197,25 +217,37 @@ async function assembleAndMixWithFFmpeg(
         output: join(workDir, `out_${ts}.mp3`),
     };
 
+    const narrPaths: string[] = [];
+    let voiceOnlyBuf: Buffer | null = null;
+
     try {
         if (induction) writeFileSync(paths.induction, induction);
-        writeFileSync(paths.narration, narration);
+        
+        // Write all narration chunks to separate files
+        for (let i = 0; i < narrationChunks.length; i++) {
+            const p = join(workDir, `narr_chunk_${i}_${ts}.mp3`);
+            writeFileSync(p, narrationChunks[i]);
+            narrPaths.push(p);
+        }
+        
         if (guideClose) writeFileSync(paths.guideClose, guideClose);
         if (soundscapeBuffer) writeFileSync(paths.soundscape, soundscapeBuffer);
         if (binauralBuffer) writeFileSync(paths.binaural, binauralBuffer);
+
 
         try {
             if (!ffmpegStatic) throw new Error('ffmpeg-static path not found');
             execSync(`"${ffmpegStatic}" -version`, { stdio: 'ignore' });
         } catch {
             console.warn('[assemble] FFmpeg missing — falling back.');
-            return { voiceOnly: narration, mixed: null, durationSecs: Math.round(narration.byteLength / (128000 / 8)) };
+            const fallback = (narrationChunks.length > 0 ? narrationChunks[0] : Buffer.alloc(0));
+            return { voiceOnly: fallback, mixed: null, durationSecs: Math.round(fallback.byteLength / (128000 / 8)) };
         }
 
         // ── Step 1: Concat + resample voice segments ─────────────────────────
         const vInputs: string[] = [];
         if (induction) vInputs.push(paths.induction);
-        vInputs.push(paths.narration);
+        vInputs.push(...narrPaths);
         if (guideClose) vInputs.push(paths.guideClose);
 
         console.log(`[assemble] Concat ${vInputs.length} segment(s) at 44.1 kHz…`);
@@ -236,13 +268,13 @@ async function assembleAndMixWithFFmpeg(
                 `-acodec libmp3lame -b:a 192k -minrate 192k -maxrate 192k -bufsize 384k -ar 44100 -map_metadata -1 "${paths.voiceOnly}" -y`;
         } else {
             voiceCmd =
-                `"${ffmpegStatic}" -i "${paths.narration}" ` +
+                `"${ffmpegStatic}" -i "${vInputs[0]}" ` +
                 `-acodec libmp3lame -b:a 192k -minrate 192k -maxrate 192k -bufsize 384k -ar 44100 -map_metadata -1 "${paths.voiceOnly}" -y`;
         }
         execSync(voiceCmd, { stdio: 'pipe' });
 
 
-        const voiceOnlyBuf = readFileSync(paths.voiceOnly);
+        voiceOnlyBuf = readFileSync(paths.voiceOnly);
 
         // ── Duration Check (Voice Only) ──────────────────────────────────────
         let durationSecs = 0;
@@ -301,18 +333,21 @@ async function assembleAndMixWithFFmpeg(
         console.log('[assemble] Running professional CBR hifi-mix…');
         execSync(mixCmd, { stdio: 'pipe' });
 
-        return { voiceOnly: voiceOnlyBuf, mixed: readFileSync(paths.output), durationSecs };
+        return { voiceOnly: voiceOnlyBuf!, mixed: readFileSync(paths.output), durationSecs };
 
     } catch (err: any) {
         console.error('[assemble] FFmpeg Error:', err.message);
         if (err.stdout) console.error('stdout:', err.stdout.toString());
         if (err.stderr) console.error('stderr:', err.stderr.toString());
 
-        let fallbackVoice = narration;
-        try { if (existsSync(paths.voiceOnly)) fallbackVoice = readFileSync(paths.voiceOnly); } catch { }
+        const fallbackVoice = voiceOnlyBuf || (narrationChunks.length > 0 ? narrationChunks[0] : Buffer.alloc(0));
         return { voiceOnly: fallbackVoice, mixed: null, durationSecs: Math.round(fallbackVoice.byteLength / (192000 / 8)) };
     } finally {
         Object.values(paths).forEach(p => {
+            try { if (existsSync(p)) unlinkSync(p); } catch { /* ignore */ }
+        });
+        // cleanup narration chunks
+        narrPaths.forEach(p => {
             try { if (existsSync(p)) unlinkSync(p); } catch { /* ignore */ }
         });
     }
@@ -346,14 +381,14 @@ export async function POST(req: NextRequest) {
             },
         });
 
-        const userPlanStr      = String(user.plan || 'free').toLowerCase();
-        const effectivePlan    = hasActiveBeta ? 'amplifier' : userPlanStr;
+        const userPlanStr = String(user.plan || 'free').toLowerCase();
+        const effectivePlan = hasActiveBeta ? 'amplifier' : userPlanStr;
         const userSoundscapeStr = String(user.soundscape || 'none').toLowerCase();
 
         const canUseClonedVoice = VOICE_CLONE_PLANS.has(effectivePlan);   // Explorer → fallback always
-        const canUseAdminAudio  = ADMIN_AUDIO_PLANS.has(effectivePlan);   // induction + guide-close segments
-        const canUseSoundscape  = SOUNDSCAPE_PLANS.has(effectivePlan);
-        const canUseBinaural    = BINAURAL_PLANS.has(effectivePlan);
+        const canUseAdminAudio = ADMIN_AUDIO_PLANS.has(effectivePlan);   // induction + guide-close segments
+        const canUseSoundscape = SOUNDSCAPE_PLANS.has(effectivePlan);
+        const canUseBinaural = BINAURAL_PLANS.has(effectivePlan);
 
         // ── Voice selection ───────────────────────────────────────────────────
         const FALLBACK_VOICE_ID = 'pNInz6obpgDQGcFmaJgB'; // Adam — Premium
@@ -361,8 +396,8 @@ export async function POST(req: NextRequest) {
             ? user.voice_model_id
             : FALLBACK_VOICE_ID;
 
-        const storyText  = (story.story_text_approved || story.story_text_draft || '') as string;
-        const wordCount  = storyText.trim().split(/\s+/).length;
+        const storyText = (story.story_text_approved || story.story_text_draft || '') as string;
+        const wordCount = storyText.trim().split(/\s+/).length;
         const expectedWc = PLAN_WORD_TARGETS[effectivePlan] || PLAN_WORD_TARGETS['free'];
 
         console.log(
@@ -380,7 +415,7 @@ export async function POST(req: NextRequest) {
         console.log('[assemble] Fetching segments and background tracks in parallel…');
         const [inductionBuf, guideCloseBuf, soundscapeResult, binauralBuf] = await Promise.all([
             // Admin induction + guide-close only for Activator+
-            canUseAdminAudio ? fetchAdminAudio('induction')   : Promise.resolve(null),
+            canUseAdminAudio ? fetchAdminAudio('induction') : Promise.resolve(null),
             canUseAdminAudio ? fetchAdminAudio('guide_close') : Promise.resolve(null),
             // Soundscape — Manifester+
             (canUseSoundscape && userSoundscapeStr !== 'none')
@@ -423,7 +458,7 @@ export async function POST(req: NextRequest) {
         // If the story was generated dynamically, these affirmations are already woven in.
         // We detect this by checking if the first opening affirmation is present in the text.
         const isDynamicStory = opening.length > 0 && storyText.includes(opening[0].substring(0, 20));
-        
+
         const narrParts: string[] = [];
         if (opening.length > 0 && !isDynamicStory) narrParts.push(opening.join('\n\n'));
         narrParts.push(storyText);
@@ -431,7 +466,7 @@ export async function POST(req: NextRequest) {
 
         // 4. Generate user narration — ONE ElevenLabs call
         console.log(`[assemble] Generating user narration (${narrParts.length} parts)…`);
-        const { buffer: narrationBuf, historyId } = await generateUserNarration(
+        const { chunks: narrationChunks, historyId } = await generateUserNarration(
             voiceId,
             elevenLabsApi!,
             [],                         // already joined above
@@ -442,7 +477,7 @@ export async function POST(req: NextRequest) {
         // 6. Assemble + Mix
         const { voiceOnly, mixed, durationSecs } = await assembleAndMixWithFFmpeg(
             inductionBuf,
-            narrationBuf,
+            narrationChunks,
             guideCloseBuf,
             soundscapeBuf,
             binauralBuf,

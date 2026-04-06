@@ -291,7 +291,7 @@ function pickRandom<T>(arr: T[]): T {
     return arr[Math.floor(Math.random() * arr.length)];
 }
 
-export function buildStoryPrompt(answers: UserAnswers, userTier: Tier = 'explorer'): string {
+export function buildStoryPrompt(answers: UserAnswers, userTier: Tier = 'explorer', instruction?: string): string {
     const narrativeStructure = pickRandom(NARRATIVE_STRUCTURES);
     const emotionalArc = pickRandom(EMOTIONAL_ARCS);
     const tonalMode = pickRandom(TONAL_MODES);
@@ -314,7 +314,11 @@ ORIENTATION: ${answers.orientation}
 STORY TONE: ${answers.tone}
 CORE FEELING: ${answers.coreFeeling}
 
-The core feeling must be present as an emotional undertone in EVERY scene — not just the close. The listener should feel it growing from the opening to the final word.\n\n`;
+${instruction ? `━━━ REGENERATION INSTRUCTION — HIGH PRIORITY ━━━
+The user has requested these specific changes to their previous version. You MUST prioritise this instruction while still following all core manifesto and safety rules:
+"${instruction}"
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` : ''}
+The core feeling must be present as an emotional undertone in EVERY scene — not just the close. The listener should feel it growing from the opening to the final word.\n\n` ;
 
     // BLOCK A — HYPNOTIC INDUCTION (Activator+)
     if (['activator', 'manifester', 'amplifier'].includes(userTier)) {

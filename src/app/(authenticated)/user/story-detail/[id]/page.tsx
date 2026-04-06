@@ -196,23 +196,31 @@ const EditToolbar: React.FC<EditToolbarProps> = ({ onCancel, onSave }) => (
 // Regenerate Panel Component
 interface RegenPanelProps {
   isVisible: boolean;
+  isLoading: boolean;
+  activeStep: number | null;
   onClose: () => void;
   onRegenerate: (prompt: string) => void;
 }
 
 const RegenPanel: React.FC<RegenPanelProps> = ({
   isVisible,
+  isLoading,
+  activeStep,
   onClose,
   onRegenerate,
 }) => {
   const [prompt, setPrompt] = useState("");
 
   const handleRegenerate = () => {
-    if (!prompt.trim()) return;
+    if (!prompt.trim() || isLoading) return;
     onRegenerate(prompt);
-    setPrompt("");
-    onClose();
   };
+
+  useEffect(() => {
+    if (!isLoading && !isVisible) {
+      setPrompt("");
+    }
+  }, [isLoading, isVisible]);
 
   if (!isVisible) return null;
 
@@ -227,25 +235,59 @@ const RegenPanel: React.FC<RegenPanelProps> = ({
         in mind. Your current version will be saved to history so you can always
         go back.
       </div>
-      <textarea
-        className={styles.regenTextarea}
-        value={prompt}
-        onChange={(e) => setPrompt(e.target.value)}
-        placeholder="e.g. Make it more emotionally vivid. Focus more on my family life. Add a morning exercise scene..."
-      />
+      {!isLoading && (
+        <textarea
+          className={styles.regenTextarea}
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          placeholder="e.g. Make it more emotionally vivid. Focus more on my family life. Add a morning exercise scene..."
+        />
+      )}
+      {isLoading && (
+        <div className={styles.genSteps}>
+          <div className={`${styles.genStep} ${activeStep === 1 ? styles.active : activeStep && activeStep > 1 ? styles.done : ""}`}>
+            <div className={styles.genStepIcon}>
+              {activeStep === 1 ? <div className={styles.spinnerSmall} /> : activeStep && activeStep > 1 ? <RefreshIcon /> : null}
+            </div>
+            Rewriting your future manifestation story...
+          </div>
+          <div className={`${styles.genStep} ${activeStep === 2 ? styles.active : activeStep && activeStep > 2 ? styles.done : ""}`}>
+            <div className={styles.genStepIcon}>
+              {activeStep === 2 ? <div className={styles.spinnerSmall} /> : activeStep && activeStep > 2 ? <RefreshIcon /> : null}
+            </div>
+            Updating your personal affirmations...
+          </div>
+          <div className={`${styles.genStep} ${activeStep === 3 ? styles.active : activeStep && activeStep > 3 ? styles.done : ""}`}>
+            <div className={styles.genStepIcon}>
+              {activeStep === 3 ? <div className={styles.spinnerSmall} /> : activeStep && activeStep > 3 ? <RefreshIcon /> : null}
+            </div>
+            Refreshing your unique voice clone...
+          </div>
+          <div className={`${styles.genStep} ${activeStep === 4 ? styles.active : ""}`}>
+            <div className={styles.genStepIcon}>
+              {activeStep === 4 ? <div className={styles.spinnerSmall} /> : null}
+            </div>
+            Generating and mixing your final audio...
+          </div>
+        </div>
+      )}
+
       <div className={styles.regenActions}>
         <button
           className={`${styles.regenBtn} ${styles.go}`}
           onClick={handleRegenerate}
+          disabled={isLoading || !prompt.trim()}
         >
-          Regenerate Story
+          {isLoading ? "Regenerating..." : "Regenerate Story"}
         </button>
-        <button
-          className={`${styles.regenBtn} ${styles.closeRegen}`}
-          onClick={onClose}
-        >
-          Cancel
-        </button>
+        {!isLoading && (
+          <button
+            className={`${styles.regenBtn} ${styles.closeRegen}`}
+            onClick={onClose}
+          >
+            Cancel
+          </button>
+        )}
       </div>
     </div>
   );
@@ -280,7 +322,7 @@ const StoryBody: React.FC<StoryBodyProps> = ({
   };
 
   return (
-    <div className={styles.storyBodyCard}>
+    <div className={`${styles.storyBodyCard} ${isEditing ? styles.editing : ""}`}>
       <div className={styles.storyBodyHead}>
         <div className={styles.storyBodyLabel}>Story Text</div>
         <div className={styles.wordCount}>
@@ -381,6 +423,7 @@ const StoryDetail: React.FC = () => {
   const [editedTitle, setEditedTitle] = useState("");
   const [isEditing, setIsEditing] = useState(false);
   const [showRegen, setShowRegen] = useState(false);
+  const [activeRegenStep, setActiveRegenStep] = useState<number | null>(null);
   const [toast, setToast] = useState({ message: "", visible: false });
 
 
@@ -435,6 +478,106 @@ const StoryDetail: React.FC = () => {
     },
     onError: () => {
       showToast("❌ Failed to delete story");
+    },
+  });
+
+  const regenerateMutation = useMutation({
+    mutationFn: async (instruction: string) => {
+      setActiveRegenStep(1);
+      const res = await fetch(`/api/user/stories/${id}/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ instruction }),
+      });
+      if (!res.ok) throw new Error("Failed to regenerate story");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["story", id] });
+      showToast("✨ Story rewritten. Generating affirmations...");
+      generateAffirmationsMutation.mutate();
+    },
+    onError: () => {
+      showToast("❌ Failed to rewrite story");
+      setActiveRegenStep(null);
+    },
+  });
+
+  const generateAffirmationsMutation = useMutation({
+    mutationFn: async () => {
+      setActiveRegenStep(2);
+      const res = await fetch(`/api/user/affirmations`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ storyId: id, action: "generate" }),
+      });
+      if (!res.ok) throw new Error("Failed to generate affirmations");
+      return res.json();
+    },
+    onSuccess: (data) => {
+      saveAffirmationsMutation.mutate(data.affirmations);
+    },
+    onError: () => {
+      showToast("❌ Failed to generate affirmations");
+      assembleAudioMutation.mutate(); // Fallback: try audio anyway
+    },
+  });
+
+  const saveAffirmationsMutation = useMutation({
+    mutationFn: async (affirmations: { opening: string[]; closing: string[] }) => {
+      const res = await fetch(`/api/user/affirmations`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ storyId: id, ...affirmations }),
+      });
+      if (!res.ok) throw new Error("Failed to save affirmations");
+      return res.json();
+    },
+    onSuccess: () => {
+      cloneVoiceMutation.mutate();
+    },
+    onError: () => {
+      cloneVoiceMutation.mutate(); // Fallback
+    },
+  });
+
+  const cloneVoiceMutation = useMutation({
+    mutationFn: async () => {
+      setActiveRegenStep(3);
+      const res = await fetch(`/api/user/audio/clone-voice`, {
+        method: "POST",
+      });
+      if (!res.ok) throw new Error("Failed to refresh voice clone");
+      return res.json();
+    },
+    onSuccess: () => {
+      assembleAudioMutation.mutate();
+    },
+    onError: () => {
+      assembleAudioMutation.mutate(); // Fallback
+    },
+  });
+
+  const assembleAudioMutation = useMutation({
+    mutationFn: async () => {
+      setActiveRegenStep(4);
+      const res = await fetch(`/api/user/audio/assemble`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ storyId: id }),
+      });
+      if (!res.ok) throw new Error("Failed to generate audio");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["story", id] });
+      showToast("🎵 New audio version is ready!");
+      setShowRegen(false);
+      setActiveRegenStep(null);
+    },
+    onError: () => {
+      showToast("❌ Audio generation failed");
+      setActiveRegenStep(null);
     },
   });
 
@@ -560,8 +703,7 @@ const StoryDetail: React.FC = () => {
   };
 
   const handleRegenerate = (prompt: string) => {
-    showToast("✨ Regenerating your story...");
-    // TODO: Call API with prompt
+    regenerateMutation.mutate(prompt);
   };
 
   const handlePlayToggle = () => {
@@ -639,6 +781,8 @@ const StoryDetail: React.FC = () => {
           {/* Regenerate Panel */}
           <RegenPanel
             isVisible={showRegen}
+            isLoading={regenerateMutation.isPending || generateAffirmationsMutation.isPending || saveAffirmationsMutation.isPending || cloneVoiceMutation.isPending || assembleAudioMutation.isPending}
+            activeStep={activeRegenStep}
             onClose={handleRegenToggle}
             onRegenerate={handleRegenerate}
           />

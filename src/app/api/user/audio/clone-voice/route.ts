@@ -32,15 +32,49 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const formData = await req.formData();
-        const audioFile = formData.get('audio') as Blob | null;
-
-        if (!audioFile) {
-            return NextResponse.json({ error: 'Audio file is required' }, { status: 400 });
+        // ── Safe body parsing to avoid Content-Type errors ──────────────────
+        let audioFile: Blob | null = null;
+        try {
+            const contentType = req.headers.get('content-type') || '';
+            if (contentType.includes('multipart/form-data')) {
+                const formData = await req.formData();
+                audioFile = formData.get('audio') as Blob | null;
+            }
+        } catch (e) {
+            console.warn('[clone-voice] No form data found in request');
         }
 
         const user = await prisma.user.findUnique({ where: { id: session.user.id } });
         if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
+
+        // ── If no audio file provided, try to use existing sample from R2 ────
+        let mimeType = '';
+        if (!audioFile && user.voice_sample_url) {
+            console.log(`[clone-voice] No audio provided, attempting to use existing sample for user ${user.id}`);
+            try {
+                // The URL is like /api/user/audio/stream?key=...
+                const url = new URL(user.voice_sample_url, 'http://localhost');
+                const key = url.searchParams.get('key');
+                if (key) {
+                    const { GetObjectCommand } = await import('@aws-sdk/client-s3');
+                    const getRes = await s3.send(new GetObjectCommand({
+                        Bucket: BUCKET,
+                        Key: key,
+                    }));
+                    if (getRes.Body) {
+                        const buffer = await (getRes.Body as any).transformToByteArray();
+                        mimeType = getRes.ContentType || 'audio/webm';
+                        audioFile = new Blob([buffer], { type: mimeType });
+                    }
+                }
+            } catch (e) {
+                console.warn('[clone-voice] Failed to fetch existing sample:', e);
+            }
+        }
+
+        if (!audioFile) {
+            return NextResponse.json({ error: 'Audio file or existing sample is required' }, { status: 400 });
+        }
 
         // ── Plan gate: voice cloning requires Activator+ (or active beta) ─────
         const VOICE_CLONE_PLANS = new Set(['activator', 'manifester', 'amplifier']);
@@ -67,7 +101,7 @@ export async function POST(req: NextRequest) {
         }
 
         // ── 1. Determine file extension ───────────────────────────────────────
-        const mimeType = audioFile.type || '';
+        if (!mimeType) mimeType = audioFile.type || '';
         const ext = mimeType.includes('mp4') || mimeType.includes('m4a') || mimeType.includes('aac')
             ? 'm4a'
             : 'webm';

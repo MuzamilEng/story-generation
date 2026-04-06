@@ -75,3 +75,41 @@ export async function DELETE(
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
     }
 }
+export async function PATCH(
+    req: NextRequest,
+    { params }: { params: Promise<{ id: string }> }
+) {
+    try {
+        const { id: storyId } = await params;
+        const session = await getServerSession(authOptions)
+        if (!session || !session.user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        }
+
+        const body = await req.json();
+        const { title, content } = body;
+
+        // Perform update — ensure ownership
+        const updatedStory = await prisma.story.update({
+            where: {
+                id: storyId,
+                userId: session.user.id,
+            },
+            data: {
+                title: title !== undefined ? title : undefined,
+                story_text_approved: content !== undefined ? content : undefined,
+                word_count: content !== undefined ? content.split(/\s+/).filter(Boolean).length : undefined,
+            },
+        });
+
+        const serializedStory = {
+            ...updatedStory,
+            audio_file_size_bytes: updatedStory.audio_file_size_bytes != null ? Number(updatedStory.audio_file_size_bytes) : null,
+        }
+
+        return NextResponse.json(serializedStory);
+    } catch (error) {
+        console.error('[STORY_SINGLE_PATCH]', error);
+        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    }
+}

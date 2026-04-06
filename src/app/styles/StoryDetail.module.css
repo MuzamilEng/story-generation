@@ -395,6 +395,13 @@
     border-radius: 14px;
     overflow: hidden;
     margin-bottom: 1.25rem;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.storyBodyCard.editing {
+    border-color: var(--accent);
+    background: #111612;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(141, 191, 122, 0.1);
 }
 
 .storyBodyHead {
@@ -435,18 +442,19 @@
     padding: 1.75rem 1.8rem;
     font-family: 'Lora', serif;
     font-style: italic;
-    font-size: 1rem;
+    font-size: 1.05rem;
     color: var(--ink);
-    line-height: 1.9;
+    line-height: 2;
     border: none;
     outline: none;
     resize: none;
-    background: var(--surface);
+    background: transparent;
     min-height: 500px;
+    transition: background 0.2s ease;
 }
 
 .storyTextarea:focus {
-    background: #fffef9;
+    background: rgba(141, 191, 122, 0.03);
 }
 
 /* REGEN CARD */
@@ -488,21 +496,71 @@
 .regenTextarea {
     width: 100%;
     padding: 0.75rem;
-    border: 1.5px solid var(--gold-border);
+    border: 1.5px solid var(--border2);
     border-radius: 8px;
     font-family: 'Inter', sans-serif;
     font-size: 0.82rem;
-    color: var(--ink);
-    background: #fff;
+    color: var(--text);
+    background: #111512;
     outline: none;
     resize: none;
     min-height: 80px;
-    transition: border-color 0.15s;
+    transition: all 0.2s ease;
 }
 
 .regenTextarea:focus {
     border-color: var(--gold);
 }
+
+.genSteps {
+    margin-top: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+}
+
+.genStep {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 0.8rem;
+    color: var(--ink-faint);
+}
+
+.genStep.active {
+    color: var(--gold);
+}
+
+.genStep.done {
+    color: var(--accent);
+}
+
+.genStepIcon {
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.genStepIcon svg {
+    width: 14px;
+    height: 14px;
+}
+
+.spinnerSmall {
+    width: 12px;
+    height: 12px;
+    border: 1.5px solid rgba(201, 168, 76, 0.2);
+    border-top-color: var(--gold);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
 
 .regenActions {
     display: flex;

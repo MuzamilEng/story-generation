@@ -43,6 +43,9 @@ export async function POST(
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
+        const body = await req.json().catch(() => ({}));
+        const instruction = body.instruction;
+
         const story = await prisma.story.findUnique({
             where: {
                 id: storyId,
@@ -98,7 +101,7 @@ export async function POST(
         console.log(`[STORY_GENERATE] answers for story ${storyId}:`, JSON.stringify(answers, null, 2));
         console.log(`[STORY_GENERATE] user tier: ${userTier} (Beta: ${!!hasActiveBeta})`);
 
-        const prompt = buildStoryPrompt(answers, userTier)
+        const prompt = buildStoryPrompt(answers, userTier, instruction)
 
         console.log(`[STORY_GENERATE] Using LangChain OpenAI for story ${storyId}`);
         const rawResponse = await generateStory(prompt);
@@ -139,7 +142,8 @@ export async function POST(
                         title: title,
                         body: storyText,
                         word_count: storyText.trim().split(/\s+/).length,
-                        source: 'original',
+                        source: instruction ? 'regenerated' : 'original',
+                        regen_prompt: instruction || null,
                     },
                 },
             },
