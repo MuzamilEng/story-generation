@@ -251,23 +251,11 @@ const RegenPanel: React.FC<RegenPanelProps> = ({
             </div>
             Rewriting your future manifestation story...
           </div>
-          <div className={`${styles.genStep} ${activeStep === 2 ? styles.active : activeStep && activeStep > 2 ? styles.done : ""}`}>
+          <div className={`${styles.genStep} ${activeStep === 2 ? styles.active : ""}`}>
             <div className={styles.genStepIcon}>
-              {activeStep === 2 ? <div className={styles.spinnerSmall} /> : activeStep && activeStep > 2 ? <RefreshIcon /> : null}
+              {activeStep === 2 ? <div className={styles.spinnerSmall} /> : null}
             </div>
-            Updating your personal affirmations...
-          </div>
-          <div className={`${styles.genStep} ${activeStep === 3 ? styles.active : activeStep && activeStep > 3 ? styles.done : ""}`}>
-            <div className={styles.genStepIcon}>
-              {activeStep === 3 ? <div className={styles.spinnerSmall} /> : activeStep && activeStep > 3 ? <RefreshIcon /> : null}
-            </div>
-            Refreshing your unique voice clone...
-          </div>
-          <div className={`${styles.genStep} ${activeStep === 4 ? styles.active : ""}`}>
-            <div className={styles.genStepIcon}>
-              {activeStep === 4 ? <div className={styles.spinnerSmall} /> : null}
-            </div>
-            Generating and mixing your final audio...
+            Redirecting to affirmations selection...
           </div>
         </div>
       )}
@@ -494,8 +482,12 @@ const StoryDetail: React.FC = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["story", id] });
-      showToast("✨ Story rewritten. Generating affirmations...");
-      generateAffirmationsMutation.mutate();
+      setActiveRegenStep(2);
+      showToast("✨ Story rewritten! Redirecting to affirmations...");
+      // Give the user a moment to see the step, then redirect to affirmations
+      setTimeout(() => {
+        router.push(`/user/affirmations?storyId=${id}`);
+      }, 1200);
     },
     onError: () => {
       showToast("❌ Failed to rewrite story");
@@ -781,7 +773,7 @@ const StoryDetail: React.FC = () => {
           {/* Regenerate Panel */}
           <RegenPanel
             isVisible={showRegen}
-            isLoading={regenerateMutation.isPending || generateAffirmationsMutation.isPending || saveAffirmationsMutation.isPending || cloneVoiceMutation.isPending || assembleAudioMutation.isPending}
+            isLoading={regenerateMutation.isPending || activeRegenStep === 2}
             activeStep={activeRegenStep}
             onClose={handleRegenToggle}
             onRegenerate={handleRegenerate}

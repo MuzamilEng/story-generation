@@ -80,7 +80,7 @@ export async function GET(req: NextRequest) {
         const stats = {
             isBetaUser,
             metrics: {
-                stories_ever: user?.total_stories_ever || storyCount || 0,
+                stories_ever: storyCount || 0,
                 streak_days: user?.streak_days || 0,
                 total_plays: user?.total_audio_plays || 0,
                 total_downloads: user?.total_downloads || 0,
