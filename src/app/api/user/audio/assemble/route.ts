@@ -304,34 +304,41 @@ async function assembleAndMixWithFFmpeg(
             return { voiceOnly: fallback, mixed: null, durationSecs: Math.round(fallback.byteLength / (128000 / 8)) };
         }
 
-        // ── Step 1: Concat + resample voice segments ─────────────────────────
+        // ── Step 1: Concat voice segments ────────────────────────────────────
         const vInputs: string[] = [];
         if (induction) vInputs.push(paths.induction);
         vInputs.push(...narrPaths);
         if (guideClose) vInputs.push(paths.guideClose);
 
-        console.log(`[assemble] Concat ${vInputs.length} segment(s) at 44.1 kHz…`);
+        console.log(`[assemble] Assembling ${vInputs.length} segments matching target length profile…`);
 
         let voiceCmd: string;
+        
+        // If we have many segments, use the concat demuxer (most robust for long audio)
         if (vInputs.length > 1) {
-            // Force 44.1 kHz, stereo, and normalize volume for every segment to prevent inconsistencies
-            const filterParts = vInputs.map((_, i) =>
-                `[${i}:a]aresample=44100:async=1,loudnorm=I=-16:TP=-1.5:LRA=11,aformat=sample_fmts=fltp:channel_layouts=stereo[a${i}]`,
-            );
-            const concatFilter =
-                `${filterParts.join(';')};` +
-                `${vInputs.map((_, i) => `[a${i}]`).join('')}concat=n=${vInputs.length}:v=0:a=1[out]`;
-            // Force 192k CBR, 44.1 kHz, and strip metadata for best browser compatibility
-            voiceCmd =
-                `"${ffmpegStatic}" ${vInputs.map(p => `-i "${p}"`).join(' ')} ` +
-                `-filter_complex "${concatFilter}" -map "[out]" ` +
-                `-acodec libmp3lame -b:a 192k -minrate 192k -maxrate 192k -bufsize 384k -ar 44100 -map_metadata -1 "${paths.voiceOnly}" -y`;
+            const listPath = join(workDir, `list_${ts}.txt`);
+            const listContent = vInputs.map(p => `file '${p}'`).join('\n');
+            writeFileSync(listPath, listContent);
+            
+            // First pass: Just concat raw segments (fast, robust)
+            // We use -c copy where possible, but since we want standard 192k CBR, we re-encode once
+            voiceCmd = `"${ffmpegStatic}" -f concat -safe 0 -i "${listPath}" -acodec libmp3lame -b:a 192k -ar 44100 -map_metadata -1 "${paths.voiceOnly}" -y`;
+            
+            console.log(`[assemble] Running robust concat demuxer with ${vInputs.length} inputs…`);
+            try {
+                execSync(voiceCmd, { stdio: 'pipe' });
+            } catch (vErr: any) {
+                console.error('[assemble] Concat demuxer failed, falling back to filter_complex:', vErr.message);
+                // Fallback to the original filter_complex method if demuxer fails
+                const filterParts = vInputs.map((_, i) => `[${i}:a]aresample=44100:async=1[a${i}]`);
+                const concatFilter = `${filterParts.join(';')};${vInputs.map((_, i) => `[a${i}]`).join('')}concat=n=${vInputs.length}:v=0:a=1[out]`;
+                voiceCmd = `"${ffmpegStatic}" ${vInputs.map(p => `-i "${p}"`).join(' ')} -filter_complex "${concatFilter}" -map "[out]" -acodec libmp3lame -b:a 192k -ar 44100 -map_metadata -1 "${paths.voiceOnly}" -y`;
+                execSync(voiceCmd, { stdio: 'pipe' });
+            }
         } else {
-            voiceCmd =
-                `"${ffmpegStatic}" -i "${vInputs[0]}" ` +
-                `-acodec libmp3lame -b:a 192k -minrate 192k -maxrate 192k -bufsize 384k -ar 44100 -map_metadata -1 "${paths.voiceOnly}" -y`;
+            voiceCmd = `"${ffmpegStatic}" -i "${vInputs[0]}" -acodec libmp3lame -b:a 192k -ar 44100 -map_metadata -1 "${paths.voiceOnly}" -y`;
+            execSync(voiceCmd, { stdio: 'pipe' });
         }
-        execSync(voiceCmd, { stdio: 'pipe' });
 
 
         voiceOnlyBuf = readFileSync(paths.voiceOnly);
@@ -400,7 +407,15 @@ async function assembleAndMixWithFFmpeg(
         if (err.stdout) console.error('stdout:', err.stdout.toString());
         if (err.stderr) console.error('stderr:', err.stderr.toString());
 
-        const fallbackVoice = voiceOnlyBuf || (narrationChunks.length > 0 ? narrationChunks[0] : Buffer.alloc(0));
+        // Binary fallback for MP3s — better than just the first chunk
+        // Join all parts (induction + narration chunks + guide close)
+        const allSegments = [];
+        if (induction) allSegments.push(induction);
+        allSegments.push(...narrationChunks);
+        if (guideClose) allSegments.push(guideClose);
+        
+        console.warn(`[assemble] FFmpeg failed. Returning binary merge of ${allSegments.length} segments.`);
+        const fallbackVoice = Buffer.concat(allSegments);
         return { voiceOnly: fallbackVoice, mixed: null, durationSecs: Math.round(fallbackVoice.byteLength / (192000 / 8)) };
     } finally {
         Object.values(paths).forEach(p => {

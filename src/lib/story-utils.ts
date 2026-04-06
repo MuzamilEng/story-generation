@@ -291,7 +291,7 @@ function pickRandom<T>(arr: T[]): T {
     return arr[Math.floor(Math.random() * arr.length)];
 }
 
-export function buildStoryPrompt(answers: UserAnswers, userTier: Tier = 'explorer', instruction?: string): string {
+export function buildStoryPrompt(answers: UserAnswers, userTier: Tier = 'explorer', instruction?: string, targetLength?: string | null): string {
     const narrativeStructure = pickRandom(NARRATIVE_STRUCTURES);
     const emotionalArc = pickRandom(EMOTIONAL_ARCS);
     const tonalMode = pickRandom(TONAL_MODES);
@@ -371,11 +371,21 @@ Breath → body weight → jaw/shoulders release → one long breath out → dee
     }
 
     // BLOCK B — THE VISION: all tiers
+    // Map of length options to multipliers/modifications
+    const lengthMultipliers: Record<string, number> = {
+        'short': 0.6,
+        'medium': 1.0,
+        'long': 1.5,
+        'epic': 2.2,
+    };
+
+    const multiplier = (targetLength && lengthMultipliers[targetLength]) ? lengthMultipliers[targetLength] : 1.0;
+
     const visionWordCounts: Record<Tier, string> = {
-        explorer: '550-650 words (1 life area, proof actions)',
-        activator: '700-850 words (up to 3 areas, proof actions)',
-        manifester: '900-1,100 words (all selected areas, proof actions)',
-        amplifier: '1,300-1,600 words (all areas, 2+ scenes per area)'
+        explorer: `${Math.round(550 * multiplier)}-${Math.round(650 * multiplier)} words (1 life area, proof actions)`,
+        activator: `${Math.round(700 * multiplier)}-${Math.round(850 * multiplier)} words (up to 3 areas, proof actions)`,
+        manifester: `${Math.round(900 * multiplier)}-${Math.round(1100 * multiplier)} words (all selected areas, proof actions)`,
+        amplifier: `${Math.round(1300 * multiplier)}-${Math.round(1600 * multiplier)} words (all areas, 2+ scenes per area)`
     };
 
     prompt += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -563,15 +573,15 @@ This story is for building a future. Do not rush. Write every word with intentio
 Maximum Output Tokens: 5,000
 
 EXPLORER (free tier)
-Total target: 700-800 words
+Total target: ${Math.round(700 * multiplier)}-${Math.round(800 * multiplier)} words
   Induction: not included
-  Vision (1 life area, proof actions): 600-700 words
+  Vision (1 life area, proof actions): ${Math.round(600 * multiplier)}-${Math.round(700 * multiplier)} words
   Resonant close: 100-150 words
 
 ACTIVATOR
-Total target: 1,100-1,350 words
+Total target: ${Math.round(1100 * multiplier)}-${Math.round(1350 * multiplier)} words
   Hypnotic induction: 250-300 words
-  Vision (up to 3 areas, proof actions): 700-850 words
+  Vision (up to 3 areas, proof actions): ${Math.round(700 * multiplier)}-${Math.round(850 * multiplier)} words
   Dissolution + close: 150-250 words
 
 MANIFESTER

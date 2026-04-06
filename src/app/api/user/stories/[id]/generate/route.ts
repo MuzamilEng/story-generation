@@ -101,7 +101,7 @@ export async function POST(
         console.log(`[STORY_GENERATE] answers for story ${storyId}:`, JSON.stringify(answers, null, 2));
         console.log(`[STORY_GENERATE] user tier: ${userTier} (Beta: ${!!hasActiveBeta})`);
 
-        const prompt = buildStoryPrompt(answers, userTier, instruction)
+        const prompt = buildStoryPrompt(answers, userTier, instruction, story.story_length_option)
 
         console.log(`[STORY_GENERATE] Using LangChain OpenAI for story ${storyId}`);
         const rawResponse = await generateStory(prompt);
