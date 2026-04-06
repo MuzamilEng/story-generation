@@ -64,7 +64,7 @@ export async function proxy(request: NextRequest) {
         '/user/account-setting',
         '/user/manage-subscription',
         '/user/story',
-        '/science' // Matches the 'science' folder under (authenticated)
+
     ]
 
     // Check if the current pathname is one of the user app pages or starts with /user/
