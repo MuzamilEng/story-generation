@@ -86,6 +86,9 @@ export async function GET(req: NextRequest) {
         if (e.name === 'NoSuchKey') {
              return NextResponse.json({ error: 'File not found in R2 storage' }, { status: 404 });
         }
+        if (e.name === 'InvalidRange') {
+             return NextResponse.json({ error: 'Range not satisfiable (empty file)' }, { status: 416 });
+        }
         console.error('API /api/user/audio/stream error:', e);
         return NextResponse.json({ error: e.message || 'Internal Server Error' }, { status: 500 });
     }

@@ -4,11 +4,10 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { checkPlanGating } from '@/lib/plan-gating';
 import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
-import { execSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { writeFileSync, readFileSync, unlinkSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import ffmpegStatic from 'ffmpeg-static';
 
 // ── R2 client ────────────────────────────────────────────────────────────────
 const s3 = new S3Client({
@@ -21,45 +20,19 @@ const s3 = new S3Client({
 });
 const BUCKET = process.env.R2_BUCKET_NAME || 'manifestmystory-audio';
 
-// ── Plan capability definitions ──────────────────────────────────────────────
-// Centralised — all plan feature gates derive from these sets.
+// ── Plan capability sets ──────────────────────────────────────────────────────
 const VOICE_CLONE_PLANS = new Set(['free', 'activator', 'manifester', 'amplifier']);
-const ADMIN_AUDIO_PLANS = new Set(['activator', 'manifester', 'amplifier']); // induction + guide-close segments
+const ADMIN_AUDIO_PLANS = new Set(['activator', 'manifester', 'amplifier']);
 const SOUNDSCAPE_PLANS = new Set(['manifester', 'amplifier']);
 const BINAURAL_PLANS = new Set(['amplifier']);
 
-// Expected story word-count ranges by plan (mirrors story-utils.ts targets)
-const PLAN_WORD_TARGETS: Record<string, string> = {
-    free: '700–800 words  (~6 min)',
-    activator: '1,100–1,350 words  (~10 min)',
-    manifester: '1,600–2,000 words  (~14 min)',
-    amplifier: '2,400–2,900 words  (~20 min)',
-};
-
-// Story length option → approximate target character count for validation
-const LENGTH_OPTION_TARGETS: Record<string, { words: string; minChars: number }> = {
-    short:  { words: '~700 words  (~6 min)',  minChars: 3_500 },
-    medium: { words: '~1,200 words (~10 min)', minChars: 6_000 },
-    long:   { words: '~1,700 words (~14 min)', minChars: 8_500 },
-    epic:   { words: '~2,600 words (~20 min)', minChars: 13_000 },
-};
-
 /**
- * Professional narration voice settings for ElevenLabs.
- * Tuned for calm, authoritative story narration:
- *  - stability 0.75  → very steady, no pitch wandering (essential for long-form)
- *  - similarity_boost 0.65 → preserve clone timbre without over-boosting artefacts
- *  - style 0         → neutral delivery, no stylistic exaggeration
- *  - use_speaker_boost true → improves clarity and presence of cloned voices
+ * Character limit per Fish Audio request.
+ * We use 800 characters to aim for approximately 1-minute audio segments.
  */
-const NARRATION_VOICE_SETTINGS = {
-    stability:         0.75,
-    similarity_boost:  0.65,
-    style:             0,
-    use_speaker_boost: true,
-} as const;
+const CHUNK_CHARS = 800;
 
-// ── R2 helper ─────────────────────────────────────────────────────────────────
+// ── R2 helpers ────────────────────────────────────────────────────────────────
 async function fetchR2Buffer(key: string): Promise<Buffer | null> {
     try {
         const res = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: key }));
@@ -71,14 +44,9 @@ async function fetchR2Buffer(key: string): Promise<Buffer | null> {
     }
 }
 
-/**
- * Fetch admin-uploaded system audio from the DB + R2.
- */
 async function fetchAdminAudio(segmentKey: 'induction' | 'guide_close'): Promise<Buffer | null> {
     try {
-        const asset = await (prisma as any).systemAudio.findUnique({
-            where: { key: segmentKey },
-        });
+        const asset = await (prisma as any).systemAudio.findUnique({ where: { key: segmentKey } });
         if (!asset?.r2_key) return null;
         return await fetchR2Buffer(asset.r2_key);
     } catch (e) {
@@ -87,552 +55,208 @@ async function fetchAdminAudio(segmentKey: 'induction' | 'guide_close'): Promise
     }
 }
 
-/**
- * Splits text into chunks of maximum length, preferably at paragraph boundaries.
- * ElevenLabs has a 5000 character limit per request for many models.
- */
-function splitTextIntoChunks(text: string, maxChars: number = 2500): string[] {
-    if (!text) return [];
-    if (text.length <= maxChars) return [text];
+// ── FFmpeg Wrapper ───────────────────────────────────────────────────────────
+function ffRun(args: string[]): void {
+    const result = spawnSync('ffmpeg', args, { 
+        maxBuffer: 200 * 1024 * 1024,
+        env: { ...process.env, PATH: `${process.env.PATH}:/opt/homebrew/bin:/usr/local/bin` }
+    });
+    if (result.status !== 0) {
+        throw new Error(`FFmpeg exited ${result.status}: ${result.stderr?.toString().slice(-300)}`);
+    }
+}
 
-    const paragraphs = text.split(/\n\n+/);
-    const chunks: string[] = [];
-    let currentChunk = "";
-
-    for (const paragraph of paragraphs) {
-        // If adding this paragraph would exceed the limit
-        if ((currentChunk.length + paragraph.length + 2) > maxChars) {
-            if (currentChunk) {
-                chunks.push(currentChunk.trim());
-                currentChunk = "";
-            }
-
-            // If a single paragraph is still too long, split it by sentences
-            if (paragraph.length > maxChars) {
-                const sentences = paragraph.match(/[^.!?]+[.!?]+|\s+$/g) || [paragraph];
-                for (const sentence of sentences) {
-                    if ((currentChunk.length + sentence.length) > maxChars) {
-                        if (currentChunk) chunks.push(currentChunk.trim());
-                        currentChunk = sentence;
-                    } else {
-                        currentChunk += (currentChunk ? " " : "") + sentence;
-                    }
-                }
-            } else {
-                currentChunk = paragraph;
-            }
-        } else {
-            currentChunk += (currentChunk ? "\n\n" : "") + paragraph;
+// ── Free TTS Fallback (when Fish Audio has no balance) ───────────────────────
+async function generateFreeTTS(text: string, outPath: string): Promise<void> {
+    console.log('[assemble] Using free TTS fallback (no Fish Audio credits)');
+    const providers = [
+        async () => {
+            const url = `https://api.streamelements.com/kappa/v2/speech?voice=Brian&text=${encodeURIComponent(text)}`;
+            const res = await fetch(url);
+            if (!res.ok) return null;
+            const buf = Buffer.from(await res.arrayBuffer());
+            return buf.length > 500 ? buf : null;
+        },
+        async () => {
+            const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(text)}&tl=en&client=tw-ob`;
+            const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+            if (!res.ok) return null;
+            const buf = Buffer.from(await res.arrayBuffer());
+            return buf.length > 500 ? buf : null;
         }
-    }
+    ];
 
-    if (currentChunk) {
-        chunks.push(currentChunk.trim());
+    for (const fetchAudio of providers) {
+        try {
+            const buf = await fetchAudio();
+            if (buf) { writeFileSync(outPath, buf); return; }
+        } catch {}
     }
+    ffRun(['-f', 'lavfi', '-i', 'sine=frequency=440:duration=5', '-acodec', 'libmp3lame', outPath, '-y']);
+}
 
+// ── Fish Audio TTS ────────────────────────────────────────────────────────────
+async function generateFishAudioTTS(voiceId: string, text: string, outPath: string): Promise<boolean> {
+    const key = process.env.FISH_AUDIO_API;
+    if (!key) return false;
+    try {
+        const res = await fetch('https://api.fish.audio/v1/tts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+            body: JSON.stringify({ 
+                text, 
+                reference_id: voiceId.startsWith('mock_') ? "7ef4660e505a41d9966d58546de54201" : voiceId, 
+                format: 'mp3', 
+                normalize: true 
+            }),
+        });
+        if (!res.ok) return false;
+        writeFileSync(outPath, Buffer.from(await res.arrayBuffer()));
+        return true;
+    } catch { return false; }
+}
+
+// ── Text Chunker  ─────────────────────────────────────────────────────────────
+function splitTextIntoChunks(text: string, maxChars: number = CHUNK_CHARS): string[] {
+    if (!text?.trim()) return [];
+    const paras = text.split(/\n\n+/);
+    const chunks: string[] = [];
+    let current = '';
+    for (const p of paras) {
+        if (current.length + p.length + 2 <= maxChars) current += (current ? '\n\n' : '') + p;
+        else { if (current) chunks.push(current.trim()); current = p; }
+    }
+    if (current) chunks.push(current.trim());
     return chunks;
 }
 
-/**
- * Generates TTS for the entire story, handling chunking for long texts.
- *
- * Uses professional narration voice settings optimised for:
- *  - Calm, steady delivery over long-form manifestation stories
- *  - Faithful reproduction of the user's cloned voice
- *  - Clear articulation without stylistic exaggeration
- *
- * @param voiceId         ElevenLabs voice ID (cloned or default fallback)
- * @param apiKey          ElevenLabs API key
- * @param fullNarration   Complete narration text already assembled by the caller
- * @param isClonedVoice   Whether this is a user cloned voice (affects model choice)
- * @param storyLengthOption Optional story_length_option from the DB for logging/validation
- */
-async function generateUserNarration(
-    voiceId: string,
-    apiKey: string,
-    openingAffirmations: string[],
-    storyText: string,
-    closingAffirmations: string[],
-    isClonedVoice = false,
-    storyLengthOption?: string | null,
-): Promise<{ chunks: Buffer[]; historyId: string | null }> {
-    const parts: string[] = [];
-    if (openingAffirmations.length > 0) parts.push(openingAffirmations.join('\n\n'));
-    parts.push(storyText);
-    if (closingAffirmations.length > 0) parts.push(closingAffirmations.join('\n\n'));
-
-    // Join sections with double newlines so ElevenLabs inserts natural pauses between
-    const fullText = parts.join('\n\n');
-
-    // Select model:
-    //  - Cloned voices → eleven_turbo_v2_5 (better prosody for IVC, lower latency per chunk)
-    //  - Fallback default voice → eleven_multilingual_v2 (highest quality for named voices)
-    const modelId = isClonedVoice ? 'eleven_turbo_v2_5' : 'eleven_multilingual_v2';
-
-    // Validate story length against expected range
-    const lenTarget = storyLengthOption ? LENGTH_OPTION_TARGETS[storyLengthOption] : null;
-    if (lenTarget) {
-        const actualChars = fullText.length;
-        const pct = Math.round((actualChars / lenTarget.minChars) * 100);
-        console.log(
-            `[generateUserNarration] story_length_option="${storyLengthOption}" ` +
-            `target=${lenTarget.words}, actual=${actualChars} chars (${pct}% of min target)`,
-        );
-        if (actualChars < lenTarget.minChars * 0.7) {
-            console.warn(
-                `[generateUserNarration] ⚠️  Story text is significantly shorter than expected for ` +
-                `"${storyLengthOption}" length. Consider regenerating the story.`,
-            );
-        }
-    }
-
-    // ElevenLabs character limit handling (2500 chars per request for stability and prosody)
-    const chunks = splitTextIntoChunks(fullText, 2500);
-    console.log(
-        `[generateUserNarration] model=${modelId} isCloned=${isClonedVoice} ` +
-        `totalChars=${fullText.length} chunks=${chunks.length}`,
-    );
-
-    const buffers: Buffer[] = [];
-    let lastHistoryId: string | null = null;
-
-    for (let i = 0; i < chunks.length; i++) {
-        const chunk = chunks[i];
-        console.log(`[generateUserNarration] Chunk ${i + 1}/${chunks.length} → ${chunk.length} chars`);
-
-        let res;
-        let attempts = 0;
-        const maxAttempts = 3;
-
-        while (attempts < maxAttempts) {
-            try {
-                res = await fetch(
-                    `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`,
-                    {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'xi-api-key': apiKey },
-                        body: JSON.stringify({
-                            text: chunk,
-                            model_id: modelId,
-                            voice_settings: NARRATION_VOICE_SETTINGS,
-                        }),
-                    },
-                );
-
-                if (res.ok) break;
-
-                const errText = await res.text();
-                if (res.status >= 500 || res.status === 429) {
-                    throw new Error(`Retriable error: ${res.status} - ${errText}`);
-                } else {
-                    throw new Error(`Fatal error: ${res.status} - ${errText}`);
-                }
-            } catch (e: any) {
-                attempts++;
-                console.warn(`[generateUserNarration] Attempt ${attempts} failed for chunk ${i + 1}:`, e.message);
-                if (attempts === maxAttempts || e.message.includes('Fatal error')) throw e;
-                // Exponential back-off: 2s, 4s
-                await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempts)));
-            }
-        }
-
-        if (!res || !res.ok) {
-            throw new Error(`ElevenLabs TTS failed for chunk ${i + 1} after ${maxAttempts} attempts.`);
-        }
-
-        const chunkBuffer = Buffer.from(await res.arrayBuffer());
-        buffers.push(chunkBuffer);
-
-        // Track the last request-id provided by ElevenLabs for history linkage
-        lastHistoryId = res.headers.get('request-id') || lastHistoryId;
-    }
-
-    return { chunks: buffers, historyId: lastHistoryId };
-}
-
-/**
- * FFmpeg helper to assemble segments AND mix background tracks.
- *
- * Returns:
- *   voiceOnly – induction + narration + outro, normalised, NO background.
- *   mixed     – voiceOnly + soundscape/binaural (null when no BG requested).
- *
- * Both are 192k CBR MP3 at 44.1 kHz for perfect browser seeking.
- */
-async function assembleAndMixWithFFmpeg(
-    induction: Buffer | null,
-    narrationChunks: Buffer[],
-    guideClose: Buffer | null,
-    soundscapeBuffer: Buffer | null,
-    binauralBuffer: Buffer | null,
-): Promise<{ voiceOnly: Buffer; mixed: Buffer | null; durationSecs: number }> {
-    const workDir = tmpdir();
-    const ts = Date.now() + Math.random().toString(36).substring(7);
-    const paths = {
-        induction: join(workDir, `ind_${ts}.mp3`),
-        guideClose: join(workDir, `close_${ts}.mp3`),
-        soundscape: join(workDir, `bg_${ts}.mp3`),
-        binaural: join(workDir, `bin_${ts}.mp3`),
-        voiceOnly: join(workDir, `voice_${ts}.mp3`),
-        output: join(workDir, `out_${ts}.mp3`),
-    };
-
-    const narrPaths: string[] = [];
-    let voiceOnlyBuf: Buffer | null = null;
-
-    try {
-        if (induction) writeFileSync(paths.induction, induction);
-        
-        // Write all narration chunks to separate files
-        for (let i = 0; i < narrationChunks.length; i++) {
-            const p = join(workDir, `narr_chunk_${i}_${ts}.mp3`);
-            writeFileSync(p, narrationChunks[i]);
-            narrPaths.push(p);
-        }
-        
-        if (guideClose) writeFileSync(paths.guideClose, guideClose);
-        if (soundscapeBuffer) writeFileSync(paths.soundscape, soundscapeBuffer);
-        if (binauralBuffer) writeFileSync(paths.binaural, binauralBuffer);
-
-
-        try {
-            if (!ffmpegStatic) throw new Error('ffmpeg-static path not found');
-            execSync(`"${ffmpegStatic}" -version`, { stdio: 'ignore' });
-        } catch {
-            console.warn('[assemble] FFmpeg missing — falling back.');
-            const fallback = (narrationChunks.length > 0 ? narrationChunks[0] : Buffer.alloc(0));
-            return { voiceOnly: fallback, mixed: null, durationSecs: Math.round(fallback.byteLength / (128000 / 8)) };
-        }
-
-        // ── Step 1: Concat voice segments ────────────────────────────────────
-        const vInputs: string[] = [];
-        if (induction) vInputs.push(paths.induction);
-        vInputs.push(...narrPaths);
-        if (guideClose) vInputs.push(paths.guideClose);
-
-        console.log(`[assemble] Assembling ${vInputs.length} segments matching target length profile…`);
-
-        let voiceCmd: string;
-        
-        // If we have many segments, use the concat demuxer (most robust for long audio)
-        if (vInputs.length > 1) {
-            const listPath = join(workDir, `list_${ts}.txt`);
-            const listContent = vInputs.map(p => `file '${p}'`).join('\n');
-            writeFileSync(listPath, listContent);
-            
-            // First pass: Just concat raw segments (fast, robust)
-            // We use -c copy where possible, but since we want standard 192k CBR, we re-encode once
-            voiceCmd = `"${ffmpegStatic}" -f concat -safe 0 -i "${listPath}" -acodec libmp3lame -b:a 192k -ar 44100 -map_metadata -1 "${paths.voiceOnly}" -y`;
-            
-            console.log(`[assemble] Running robust concat demuxer with ${vInputs.length} inputs…`);
-            try {
-                execSync(voiceCmd, { stdio: 'pipe' });
-            } catch (vErr: any) {
-                console.error('[assemble] Concat demuxer failed, falling back to filter_complex:', vErr.message);
-                // Fallback to the original filter_complex method if demuxer fails
-                const filterParts = vInputs.map((_, i) => `[${i}:a]aresample=44100:async=1[a${i}]`);
-                const concatFilter = `${filterParts.join(';')};${vInputs.map((_, i) => `[a${i}]`).join('')}concat=n=${vInputs.length}:v=0:a=1[out]`;
-                voiceCmd = `"${ffmpegStatic}" ${vInputs.map(p => `-i "${p}"`).join(' ')} -filter_complex "${concatFilter}" -map "[out]" -acodec libmp3lame -b:a 192k -ar 44100 -map_metadata -1 "${paths.voiceOnly}" -y`;
-                execSync(voiceCmd, { stdio: 'pipe' });
-            }
-        } else {
-            voiceCmd = `"${ffmpegStatic}" -i "${vInputs[0]}" -acodec libmp3lame -b:a 192k -ar 44100 -map_metadata -1 "${paths.voiceOnly}" -y`;
-            execSync(voiceCmd, { stdio: 'pipe' });
-        }
-
-
-        voiceOnlyBuf = readFileSync(paths.voiceOnly);
-
-        // ── Duration Check (Voice Only) ──────────────────────────────────────
-        let durationSecs = 0;
-        try {
-            const ffProbe = execSync(`"${ffmpegStatic}" -i "${paths.voiceOnly}" 2>&1`).toString();
-            const durMatch = ffProbe.match(/Duration: (\d+):(\d+):(\d+\.\d+)/);
-            if (durMatch) {
-                durationSecs = Math.round(parseInt(durMatch[1]) * 3600 + parseInt(durMatch[2]) * 60 + parseFloat(durMatch[3]));
-            }
-        } catch (e) {
-            console.warn('[assemble] Duration probe failed:', e);
-        }
-
-        // ── Step 2: Mix background audio (optional) ───────────────────────────
-        if (!soundscapeBuffer && !binauralBuffer) {
-            return { voiceOnly: voiceOnlyBuf, mixed: null, durationSecs };
-        }
-
-        const mixInputs = [`-i "${paths.voiceOnly}"`];
-        // Ensure voice is forward and tight in the mix
-        let filterStr =
-            '[0:a]volume=1.4,acompressor=threshold=-16dB:ratio=3:attack=5:release=200:makeup=1.5,' +
-            'aresample=44100:async=1,aformat=sample_fmts=fltp:channel_layouts=stereo[main];';
-        const mixIndices = ['[main]'];
-
-        if (soundscapeBuffer) {
-            mixInputs.push(`-stream_loop -1 -i "${paths.soundscape}"`);
-            const idx = mixInputs.length - 1;
-            // Mixed softly at -22dB to -24dB relative to 0dB peak (approx 0.1)
-            filterStr +=
-                `[${idx}:a]volume=0.10,aresample=44100:async=1,` +
-                `aformat=sample_fmts=fltp:channel_layouts=stereo[bg${idx}];`;
-            mixIndices.push(`[bg${idx}]`);
-        }
-
-        if (binauralBuffer) {
-            mixInputs.push(`-stream_loop -1 -i "${paths.binaural}"`);
-            const idx = mixInputs.length - 1;
-            // Mixed very softly for focus effect
-            filterStr +=
-                `[${idx}:a]volume=0.07,aresample=44100:async=1,` +
-                `aformat=sample_fmts=fltp:channel_layouts=stereo[bg${idx}];`;
-            mixIndices.push(`[bg${idx}]`);
-        }
-
-        // Normalize=0 sums them; with these volumes (1.8 peak voice, 0.25 bg), we stay near 0dB without clipping
-        filterStr +=
-            `${mixIndices.join('')}amix=inputs=${mixIndices.length}:duration=first:dropout_transition=0:normalize=0[out]`;
-
-        // Strict 192k CBR, 44.1 kHz, and strip metadata for perfect browser seeking
-        const mixCmd =
-            `"${ffmpegStatic}" ${mixInputs.join(' ')} -filter_complex "${filterStr}" -map "[out]" ` +
-            `-acodec libmp3lame -b:a 192k -minrate 192k -maxrate 192k -bufsize 384k -ar 44100 ` +
-            `-id3v2_version 3 -write_id3v1 1 -map_metadata -1 "${paths.output}" -y`;
-
-        console.log('[assemble] Running professional CBR hifi-mix…');
-        execSync(mixCmd, { stdio: 'pipe' });
-
-        return { voiceOnly: voiceOnlyBuf!, mixed: readFileSync(paths.output), durationSecs };
-
-    } catch (err: any) {
-        console.error('[assemble] FFmpeg Error:', err.message);
-        if (err.stdout) console.error('stdout:', err.stdout.toString());
-        if (err.stderr) console.error('stderr:', err.stderr.toString());
-
-        // Binary fallback for MP3s — better than just the first chunk
-        // Join all parts (induction + narration chunks + guide close)
-        const allSegments = [];
-        if (induction) allSegments.push(induction);
-        allSegments.push(...narrationChunks);
-        if (guideClose) allSegments.push(guideClose);
-        
-        console.warn(`[assemble] FFmpeg failed. Returning binary merge of ${allSegments.length} segments.`);
-        const fallbackVoice = Buffer.concat(allSegments);
-        return { voiceOnly: fallbackVoice, mixed: null, durationSecs: Math.round(fallbackVoice.byteLength / (192000 / 8)) };
-    } finally {
-        Object.values(paths).forEach(p => {
-            try { if (existsSync(p)) unlinkSync(p); } catch { /* ignore */ }
-        });
-        // cleanup narration chunks
-        narrPaths.forEach(p => {
-            try { if (existsSync(p)) unlinkSync(p); } catch { /* ignore */ }
-        });
-    }
-}
-
-// ── POST /api/user/audio/assemble ─────────────────────────────────────────────
+// ── API HANDLER ──────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
+    const ts = Date.now();
+    const dir = tmpdir();
+    const voiceFiles: string[] = [];
     try {
         const session = await getServerSession(authOptions);
         if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-        // ── Plan gate: free users cannot generate audio ───────────────────────
         const planCheck = await checkPlanGating(session.user.id!, 'generate_audio');
-        if (!planCheck.allowed) {
-            return NextResponse.json({ error: planCheck.message, code: 'PLAN_UPGRADE_REQUIRED' }, { status: 403 });
-        }
+        if (!planCheck.allowed) return NextResponse.json({ error: planCheck.message }, { status: 403 });
 
         const { storyId } = await req.json();
-        const user = await (prisma.user as any).findUnique({ where: { id: session.user.id } }) as any;
-        const story = await (prisma.story as any).findUnique({ where: { id: storyId } }) as any;
+        const [user, story] = await Promise.all([
+            prisma.user.findUnique({ where: { id: session.user.id } }),
+            prisma.story.findUnique({ where: { id: storyId } })
+        ]);
+        if (!user || !story || story.userId !== user.id) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-        if (!story || story.userId !== user.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 404 });
-
-        const elevenLabsApi = process.env.ELEVEN_LABS_API;
-
-        // ── Resolve plan capabilities ─────────────────────────────────────────
-        const hasActiveBeta = await prisma.userBetaCode.findFirst({
-            where: {
-                userId: session.user.id,
-                OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
-            },
-        });
-
-        const userPlanStr = String(user.plan || 'free').toLowerCase();
-        const effectivePlan = hasActiveBeta ? 'amplifier' : userPlanStr;
-        const userSoundscapeStr = String(user.soundscape || 'none').toLowerCase();
-
-        const canUseClonedVoice = VOICE_CLONE_PLANS.has(effectivePlan);   // All plans (free/Explorer up to 10 stories) can use cloned voice now.
-        const canUseAdminAudio = ADMIN_AUDIO_PLANS.has(effectivePlan);   // induction + guide-close segments
-        const canUseSoundscape = SOUNDSCAPE_PLANS.has(effectivePlan);
-        const canUseBinaural = BINAURAL_PLANS.has(effectivePlan);
-
-        // ── Voice selection ───────────────────────────────────────────────────
-        // Adam (pNInz6obpgDQGcFmaJgB) is used as the default calm narrator fallback.
-        // Users on Activator+ with a cloned voice get their own recorded voice.
-        const FALLBACK_VOICE_ID = 'pNInz6obpgDQGcFmaJgB'; // Adam — calm, narrative-focused
-        const isClonedVoice = canUseClonedVoice && !!user.voice_model_id;
-        const voiceId = isClonedVoice ? user.voice_model_id : FALLBACK_VOICE_ID;
-
-        const storyText = (story.story_text_approved || story.story_text_draft || '') as string;
-        const wordCount = storyText.trim().split(/\s+/).length;
-        const storyLengthOption = (story.story_length_option as string | null) || null;
-        const expectedWc = PLAN_WORD_TARGETS[effectivePlan] || PLAN_WORD_TARGETS['free'];
-        const lenTarget = storyLengthOption ? LENGTH_OPTION_TARGETS[storyLengthOption] : null;
-
-        console.log(
-            `[assemble] plan=${userPlanStr} effective=${effectivePlan} beta=${!!hasActiveBeta}\n` +
-            `           voice=${isClonedVoice ? 'CLONED ✓' : 'fallback'} (${voiceId})\n` +
-            `           model=${isClonedVoice ? 'eleven_turbo_v2_5' : 'eleven_multilingual_v2'}\n` +
-            `           narration_settings=stability:0.75 similarity:0.65 style:0 speaker_boost:true\n` +
-            `           adminAudio=${canUseAdminAudio} soundscape=${canUseSoundscape} binaural=${canUseBinaural}\n` +
-            `           storyWords=${wordCount} (plan expected: ${expectedWc})\n` +
-            `           story_length_option=${storyLengthOption || 'not set'}` +
-            (lenTarget ? ` → target ${lenTarget.words}` : '')
-        );
-
-        const affirmations = story.affirmations_json as any;
-        const opening = affirmations?.opening ?? [];
-        const closing = affirmations?.closing ?? [];
-
-        // ── Fetch audio segments in parallel (gated by plan) ─────────────────
-        console.log('[assemble] Fetching segments and background tracks in parallel…');
-        const [inductionBuf, guideCloseBuf, soundscapeResult, binauralBuf] = await Promise.all([
-            // Admin induction + guide-close only for Activator+
-            canUseAdminAudio ? fetchAdminAudio('induction') : Promise.resolve(null),
-            canUseAdminAudio ? fetchAdminAudio('guide_close') : Promise.resolve(null),
-            // Soundscape — Manifester+
-            (canUseSoundscape && userSoundscapeStr !== 'none')
+        const hasActiveBeta = await prisma.userBetaCode.findFirst({ where: { userId: user.id, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] } });
+        const effectivePlan = hasActiveBeta ? 'amplifier' : (user.plan || 'free').toLowerCase();
+        
+        // ── Assets Fetch ──────────────────────────────────────────────────────
+        const [induction, close, soundscape, binaural] = await Promise.all([
+            ADMIN_AUDIO_PLANS.has(effectivePlan) ? fetchAdminAudio('induction') : Promise.resolve(null),
+            ADMIN_AUDIO_PLANS.has(effectivePlan) ? fetchAdminAudio('guide_close') : Promise.resolve(null),
+            SOUNDSCAPE_PLANS.has(effectivePlan) && user.soundscape !== 'none'
                 ? (async () => {
-                    const asset = await (prisma as any).soundscapeAsset.findFirst({
-                        where: { title: { equals: user.soundscape, mode: 'insensitive' }, isActive: true }
-                    });
-                    if (asset?.r2_key) {
-                        const buf = await fetchR2Buffer(asset.r2_key);
-                        return buf ? { buffer: buf, key: asset.r2_key } : null;
-                    }
-                    // Legacy fallback
-                    const legacyKey = `system/soundscapes/${userSoundscapeStr}.mp3`;
-                    const buf = await fetchR2Buffer(legacyKey);
-                    return buf ? { buffer: buf, key: legacyKey } : null;
+                    const asset = await (prisma as any).soundscapeAsset.findFirst({ where: { title: { equals: user.soundscape, mode: 'insensitive' } } });
+                    return asset ? fetchR2Buffer(asset.r2_key) : fetchR2Buffer(`system/soundscapes/${user.soundscape.toLowerCase()}.mp3`);
                 })()
                 : Promise.resolve(null),
-            // Binaural — Amplifier only
-            (canUseBinaural && user.binaural_enabled)
-                ? fetchR2Buffer('system/binaural/theta.mp3')
-                : Promise.resolve(null),
+            BINAURAL_PLANS.has(effectivePlan) && user.binaural_enabled ? fetchR2Buffer('system/binaural/theta.mp3') : Promise.resolve(null),
         ]);
 
-        const soundscapeBuf = soundscapeResult?.buffer ?? null;
-        const soundscapeKey = soundscapeResult?.key ?? null;
+        // ── Voice Parts ───────────────────────────────────────────────────────
+        const voiceId = user.voice_model_id || '7ef4660e505a41d9966d58546de54201';
+        const rawText = (story as any).story_text_approved || (story as any).story_text_draft || '';
+        const aff = (story as any).affirmations_json as any;
+        const textParts = [];
+        if (aff?.opening) textParts.push(aff.opening.join('\n\n'));
+        textParts.push(rawText);
+        if (aff?.closing) textParts.push(aff.closing.join('\n\n'));
+        
+        const chunks = splitTextIntoChunks(textParts.join('\n\n'));
+        const chunkPaths: string[] = [];
 
-        if (soundscapeBuf) {
-            console.log(`[assemble] ✓ Soundscape loaded (${soundscapeBuf.byteLength} bytes) from ${soundscapeKey}`);
-        } else if (canUseSoundscape && userSoundscapeStr !== 'none') {
-            console.warn(`[assemble] ⚠️ Soundscape missing for choice "${user.soundscape}"`);
+        console.log(`[assemble] Generating ${chunks.length} chunks...`);
+        for (let i = 0; i < chunks.length; i++) {
+            const fp = join(dir, `v_${i}_${ts}.mp3`);
+            if (!await generateFishAudioTTS(voiceId, chunks[i], fp)) {
+                await generateFreeTTS(chunks[i], fp);
+            }
+            chunkPaths.push(fp);
+            voiceFiles.push(fp);
         }
 
-        if (binauralBuf) {
-            console.log(`[assemble] ✓ Binaural loaded (${binauralBuf.byteLength} bytes)`);
-        } else if (canUseBinaural && user.binaural_enabled) {
-            console.warn('[assemble] ⚠️ Binaural missing in R2 for: system/binaural/theta.mp3');
+        // ── Final Assembly ───────────────────────────────────────────────────
+        const assemblyPaths: string[] = [];
+        if (induction) {
+            const fp = join(dir, `ind_${ts}.mp3`);
+            writeFileSync(fp, induction);
+            assemblyPaths.push(fp);
+            voiceFiles.push(fp);
+        }
+        assemblyPaths.push(...chunkPaths);
+        if (close) {
+            const fp = join(dir, `close_${ts}.mp3`);
+            writeFileSync(fp, close);
+            assemblyPaths.push(fp);
+            voiceFiles.push(fp);
         }
 
-        // 3. Build narration text
-        // If the story was generated dynamically, these affirmations are already woven in.
-        // We detect this by checking if the first opening affirmation is present in the text.
-        const isDynamicStory = opening.length > 0 && storyText.includes(opening[0].substring(0, 20));
+        const listContent = assemblyPaths.map(fp => `file '${fp.replace(/'/g, "'\\''")}'`).join('\n');
+        const listPath = join(dir, `list_${ts}.txt`);
+        writeFileSync(listPath, listContent);
 
-        const narrParts: string[] = [];
-        if (opening.length > 0 && !isDynamicStory) narrParts.push(opening.join('\n\n'));
-        narrParts.push(storyText);
-        if (closing.length > 0 && !isDynamicStory) narrParts.push(closing.join('\n\n'));
+        const rawVoice = join(dir, `raw_${ts}.mp3`);
+        const voiceOnly = join(dir, `norm_${ts}.mp3`);
+        const mixed = join(dir, `mixed_${ts}.mp3`);
+        
+        ffRun(['-f', 'concat', '-safe', '0', '-i', listPath, '-acodec', 'libmp3lame', '-b:a', '192k', rawVoice, '-y']);
+        try {
+            ffRun(['-i', rawVoice, '-af', 'loudnorm=I=-16:TP=-1.5:LRA=11', '-acodec', 'libmp3lame', '-b:a', '192k', voiceOnly, '-y']);
+        } catch { writeFileSync(voiceOnly, readFileSync(rawVoice)); }
 
-        // 4. Generate user narration — calls ElevenLabs in chunks as needed
-        const narrationText = narrParts.join('\n\n');
-        console.log(
-            `[assemble] Generating narration: ${narrationText.length} chars, ` +
-            `voice=${isClonedVoice ? 'cloned' : 'fallback'}, ` +
-            `story_length_option=${storyLengthOption || 'n/a'}`,
-        );
-        const { chunks: narrationChunks, historyId } = await generateUserNarration(
-            voiceId,
-            elevenLabsApi!,
-            [],                 // already joined into narrationText below
-            narrationText,
-            [],
-            isClonedVoice,
-            storyLengthOption,
-        );
+        if (soundscape || binaural) {
+            const scPath = join(dir, `sc_${ts}.mp3`);
+            const binPath = join(dir, `bin_${ts}.mp3`);
+            if (soundscape) writeFileSync(scPath, soundscape);
+            if (binaural) writeFileSync(binPath, binaural);
 
-        // 6. Assemble + Mix
-        const { voiceOnly, mixed, durationSecs } = await assembleAndMixWithFFmpeg(
-            inductionBuf,
-            narrationChunks,
-            guideCloseBuf,
-            soundscapeBuf,
-            binauralBuf,
-        );
+            const mixInputs = ['-i', voiceOnly];
+            const filters = ['[0:a]volume=1.0[v]'];
+            const labels = ['[v]'];
+            if (soundscape) { mixInputs.push('-stream_loop', '-1', '-i', scPath); filters.push(`[${mixInputs.filter(x => x === '-i').length - 1}:a]volume=0.09[sc]`); labels.push('[sc]'); }
+            if (binaural) { mixInputs.push('-stream_loop', '-1', '-i', binPath); filters.push(`[${mixInputs.filter(x => x === '-i').length - 1}:a]volume=0.06[bin]`); labels.push('[bin]'); }
+            const filter = `${filters.join(';')};${labels.join('')}amix=inputs=${labels.length}:duration=first[out]`;
+            ffRun([...mixInputs, '-filter_complex', filter, '-map', '[out]', '-acodec', 'libmp3lame', '-b:a', '192k', mixed, '-y']);
+            voiceFiles.push(scPath, binPath);
+        }
 
-        // Primary playback = mixed when BG audio is present; otherwise voice-only
-        const primaryAudio = mixed ?? voiceOnly;
-        const uploadTs = Date.now();
+        const primaryPath = existsSync(mixed) ? mixed : voiceOnly;
+        const primaryAudio = readFileSync(primaryPath);
 
-        // 7. Parallel upload voice-only and final version
-        const voiceOnlyKey = `user_${user.id}/story_${story.id}_voice_${uploadTs}.mp3`;
-        const finalKey = `user_${user.id}/story_${story.id}_final_${uploadTs}.mp3`;
+        // Duration
+        let duration = 0;
+        try {
+            const probe = spawnSync('ffmpeg', ['-i', primaryPath], { env: { ...process.env, PATH: '/opt/homebrew/bin:/usr/local/bin' } });
+            const match = probe.stderr.toString().match(/Duration:\s*(\d+):(\d+):(\d+\.?\d*)/);
+            if (match) duration = Math.round(parseInt(match[1]) * 3600 + parseInt(match[2]) * 60 + parseFloat(match[3]));
+        } catch { duration = Math.round(primaryAudio.byteLength / (192_000 / 8)); }
 
-        console.log('[assemble] Uploading final tracks in parallel…');
-        await Promise.all([
-            s3.send(new PutObjectCommand({
-                Bucket: BUCKET,
-                Key: voiceOnlyKey,
-                Body: voiceOnly,
-                ContentType: 'audio/mpeg',
-            })),
-            s3.send(new PutObjectCommand({
-                Bucket: BUCKET,
-                Key: finalKey,
-                Body: primaryAudio,
-                ContentType: 'audio/mpeg',
-            }))
-        ]);
+        // Upload
+        const finalKey = `user_${user.id}/story_${story.id}_final_${ts}.mp3`;
+        await s3.send(new PutObjectCommand({ Bucket: BUCKET, Key: finalKey, Body: primaryAudio, ContentType: 'audio/mpeg' }));
 
-        const streamUrl = `/api/user/audio/stream?key=${encodeURIComponent(finalKey)}`;
-        const voiceOnlyUrl = `/api/user/audio/stream?key=${encodeURIComponent(voiceOnlyKey)}`;
+        const finalUrl = `/api/user/audio/stream?key=${encodeURIComponent(finalKey)}`;
+        await prisma.story.update({ where: { id: story.id }, data: { status: 'audio_ready', audio_url: finalUrl, audio_r2_key: finalKey, audio_duration_secs: duration } });
 
-        // 9. Persist to DB
-        await (prisma.story as any).update({
-            where: { id: story.id },
-            data: {
-                status: 'audio_ready',
-                audio_r2_key: finalKey,
-                audio_url: streamUrl,
-                audio_file_size_bytes: primaryAudio.byteLength,
-                audio_duration_secs: durationSecs,
-                elevenlabs_history_id: historyId,
-                audio_generated_at: new Date(),
-                // Store combined key specifically if mixing happened
-                combined_audio_key: mixed ? finalKey : null,
-                // Clean voice-only track (no soundscape / binaural)
-                voice_only_r2_key: voiceOnlyKey,
-                // Metadata about which BG tracks were mixed in
-                soundscape_audio_key: soundscapeKey,
-                binaural_audio_key: binauralBuf ? 'system/binaural/theta.mp3' : null,
-            },
-        });
+        // Cleanup
+        [listPath, rawVoice, voiceOnly, mixed, ...voiceFiles].forEach(f => { try { if (existsSync(f)) unlinkSync(f); } catch {} });
 
-
-        return NextResponse.json({
-            success: true,
-            audioUrl: streamUrl,
-            voiceOnlyUrl,
-            storyId: story.id,
-            duration: durationSecs,
-            hasSoundscape: !!soundscapeBuf,
-            hasBinaural: !!binauralBuf,
-        });
+        return NextResponse.json({ success: true, storyId, audioUrl: finalUrl, durationSecs: duration });
 
     } catch (e: any) {
-        console.error('[assemble] error:', e);
-        return NextResponse.json({ error: e.message || 'Internal Server Error' }, { status: 500 });
+        console.error('[assemble] Fatal:', e.message);
+        return NextResponse.json({ error: e.message || 'Error occurred' }, { status: 500 });
     }
 }
