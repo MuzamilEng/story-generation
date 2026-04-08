@@ -6,15 +6,20 @@ import { checkPlanGating } from '@/lib/plan-gating';
 import { betaTypeToPlan } from '@/lib/beta-utils';
 import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { spawnSync } from 'node:child_process';
-import { writeFileSync, readFileSync, unlinkSync, existsSync } from 'node:fs';
+import { writeFileSync, readFileSync, unlinkSync, existsSync, chmodSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+
+// Allow up to 300s for audio assembly (TTS generation + ffmpeg processing)
+export const maxDuration = 300;
 
 // Resolve the ffmpeg binary path: prefer ffmpeg-static, fall back to system ffmpeg
 let ffmpegPath = 'ffmpeg';
 try {
     const staticPath = require('ffmpeg-static') as string;
     if (staticPath && existsSync(staticPath)) {
+        // Ensure the binary has execute permission (Vercel strips this during bundling)
+        try { chmodSync(staticPath, 0o755); } catch {}
         ffmpegPath = staticPath;
         console.log('[assemble] Using ffmpeg-static at:', staticPath);
     } else {
@@ -42,11 +47,12 @@ const SOUNDSCAPE_PLANS = new Set(['manifester', 'amplifier']);
 const BINAURAL_PLANS = new Set(['amplifier']);
 
 /**
- * ElevenLabs Pro plan supports up to 100,000 characters per request.
- * We use generous 5,000-character chunks to keep individual requests reliable
- * while avoiding the aggressive 800-char Fish Audio limit that compressed audio.
+ * ElevenLabs can technically accept very long text per request, but the
+ * eleven_multilingual_v2 model frequently truncates / drops the tail of long
+ * chunks.  2 500 characters gives reliable end-to-end coverage while still
+ * keeping the number of API calls low.
  */
-const CHUNK_CHARS = 5000;
+const CHUNK_CHARS = 2500;
 
 // ── R2 helpers ────────────────────────────────────────────────────────────────
 async function fetchR2Buffer(key: string): Promise<Buffer | null> {
@@ -75,7 +81,7 @@ async function fetchAdminAudio(segmentKey: 'induction' | 'guide_close'): Promise
 function ffRun(args: string[]): void {
     const result = spawnSync(ffmpegPath, args, { 
         maxBuffer: 200 * 1024 * 1024,
-        env: { ...process.env, PATH: `${process.env.PATH}:/opt/homebrew/bin:/usr/local/bin` }
+        env: { ...process.env, PATH: `${process.env.PATH}:/usr/local/bin:/usr/bin:/opt/homebrew/bin` }
     });
     if (result.error) {
         throw new Error(`FFmpeg failed to start (${ffmpegPath}): ${result.error.message}`);
@@ -185,14 +191,27 @@ function splitTextIntoChunks(text: string, maxChars: number = CHUNK_CHARS): stri
             if (current) chunks.push(current.trim());
             // If a single paragraph exceeds maxChars, split on sentence boundaries
             if (p.length > maxChars) {
-                const sentences = p.match(/[^.!?]+[.!?]+\s*/g) || [p];
+                const sentenceMatches = p.match(/[^.!?]+[.!?]+\s*/g) || [];
+                // Capture any trailing text the regex missed (no ending punctuation)
+                const matchedLen = sentenceMatches.reduce((n, s) => n + s.length, 0);
+                const remainder = p.slice(matchedLen);
+                const sentences = remainder.trim()
+                    ? [...sentenceMatches, remainder]
+                    : sentenceMatches.length ? sentenceMatches : [p];
                 let sentChunk = '';
                 for (const s of sentences) {
                     if (sentChunk.length + s.length <= maxChars) {
                         sentChunk += s;
                     } else {
                         if (sentChunk) chunks.push(sentChunk.trim());
-                        sentChunk = s;
+                        // If a single sentence still exceeds maxChars, push it anyway
+                        // so no text is silently dropped
+                        if (s.length > maxChars) {
+                            chunks.push(s.trim());
+                            sentChunk = '';
+                        } else {
+                            sentChunk = s;
+                        }
                     }
                 }
                 current = sentChunk;

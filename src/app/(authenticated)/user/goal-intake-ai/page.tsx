@@ -1620,7 +1620,7 @@ const GoalDiscovery: React.FC = () => {
 
             {showTyping && <TypingIndicator />}
 
-            {isComplete && capturedGoals?.timeframe && (
+            {isComplete && capturedGoals && Object.keys(capturedGoals).length > 0 && (
               <CompletionCard
                 onGenerate={handleGenerateStory}
                 capturedGoals={capturedGoals}
