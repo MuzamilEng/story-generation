@@ -6,6 +6,13 @@ import { checkPlanGating } from '@/lib/plan-gating';
 import { betaTypeToPlan } from '@/lib/beta-utils';
 import { splitIntroFromStory } from '@/lib/story-utils';
 import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+import fs from 'fs/promises';
+import path from 'path';
+import os from 'os';
+
+const execAsync = promisify(exec);
 
 // Allow up to 300s for audio assembly (TTS generation)
 export const maxDuration = 300;
@@ -14,6 +21,7 @@ export const maxDuration = 300;
 const s3 = new S3Client({
     region: 'us-east-1',
     endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+    forcePathStyle: true,
     credentials: {
         accessKeyId: process.env.R2_ACCESS_KEY_ID || '',
         secretAccessKey: process.env.R2_SECRET_ACCESS_KEY || '',
@@ -26,12 +34,11 @@ const VOICE_CLONE_PLANS = new Set(['free', 'activator', 'manifester', 'amplifier
 const ADMIN_AUDIO_PLANS = new Set(['activator', 'manifester', 'amplifier']);
 
 /**
- * ElevenLabs can technically accept very long text per request, but the
- * eleven_multilingual_v2 model frequently truncates / drops the tail of long
- * chunks.  2 500 characters gives reliable end-to-end coverage while still
- * keeping the number of API calls low.
+ * ElevenLabs eleven_multilingual_v2 frequently truncates / drops the tail
+ * of long chunks.  Keep chunks short (~800 chars) so every word is spoken.
+ * At average narration speed this is roughly 25-30 seconds of audio per chunk.
  */
-const CHUNK_CHARS = 2500;
+const CHUNK_CHARS = 800;
 
 // ── R2 helpers ────────────────────────────────────────────────────────────────
 async function fetchR2Buffer(key: string): Promise<Buffer | null> {
@@ -45,11 +52,87 @@ async function fetchR2Buffer(key: string): Promise<Buffer | null> {
     }
 }
 
+/**
+ * Strip the VBR/Xing/Info/VBRI header frame from an MP3 buffer.
+ *
+ * When an admin-uploaded MP3 (which has its own VBR frame saying e.g. "3 s")
+ * is concatenated with ElevenLabs output, the browser reads the VBR header
+ * and believes the ENTIRE assembled file is only 3 seconds long.  It then
+ * requests only the first ~48 KB via Range, plays just the intro, and stops.
+ *
+ * Removing the VBR header frame forces the browser to fall back to the
+ * Content-Length / bitrate calculation, which gives the correct duration.
+ */
+function stripMP3VBRHeader(buf: Buffer): Buffer {
+    if (buf.length < 10) return buf;
+    let offset = 0;
+
+    // Skip ID3v2 tag if present ('ID3')
+    if (buf[0] === 0x49 && buf[1] === 0x44 && buf[2] === 0x33) {
+        const tagSize = ((buf[6] & 0x7f) << 21) | ((buf[7] & 0x7f) << 14) |
+                        ((buf[8] & 0x7f) << 7)  |  (buf[9] & 0x7f);
+        offset = 10 + tagSize;
+        if (buf[5] & 0x10) offset += 10; // extended header
+    }
+
+    // Scan for the first MP3 sync word (0xFF 0xEx)
+    while (offset + 4 < buf.length) {
+        if (buf[offset] === 0xFF && (buf[offset + 1] & 0xE0) === 0xE0) break;
+        offset++;
+    }
+    if (offset + 36 >= buf.length) return buf;
+
+    const b1 = buf[offset + 1];
+    const b2 = buf[offset + 2];
+    const b3 = buf[offset + 3];
+
+    const isMPEG1   = ((b1 >> 3) & 0x03) === 3;
+    const isMono    = ((b3 >> 6) & 0x03) === 3;
+    const sideLen   = isMPEG1 ? (isMono ? 17 : 32) : (isMono ? 9 : 17);
+    const tagOffset = offset + 4 + sideLen;
+
+    if (tagOffset + 4 > buf.length) return buf;
+    const tag = buf.toString('ascii', tagOffset, tagOffset + 4);
+    if (tag !== 'Xing' && tag !== 'Info' && tag !== 'VBRI') return buf;
+
+    // Calculate this frame's byte length so we can skip exactly it
+    const bitrateTable = [0,32,40,48,56,64,80,96,112,128,160,192,224,256,320,0];
+    const srTable      = isMPEG1 ? [44100,48000,32000,0] : [22050,24000,16000,0];
+    const birIdx = (b2 >> 4) & 0x0F;
+    const srIdx  = (b2 >> 2) & 0x03;
+    const pad    = (b2 >> 1) & 0x01;
+    if (!bitrateTable[birIdx] || !srTable[srIdx]) return buf;
+
+    const frameSize = Math.floor(144 * bitrateTable[birIdx] * 1000 / srTable[srIdx]) + pad;
+    console.log(`[assemble] Stripped VBR header (${tag}) from admin audio — frame was ${frameSize} bytes`);
+    return Buffer.concat([buf.subarray(0, offset), buf.subarray(offset + frameSize)]);
+}
+
+/**
+ * Check whether a buffer looks like a valid MP3 file.
+ * Accepts ID3v2 header (49 44 33) or raw MPEG sync word (FF Ex / FF Fx).
+ */
+function isMP3Buffer(buf: Buffer): boolean {
+    if (!buf || buf.length < 4) return false;
+    // ID3v2 tag
+    if (buf[0] === 0x49 && buf[1] === 0x44 && buf[2] === 0x33) return true;
+    // MPEG audio frame sync (11 set bits)
+    if (buf[0] === 0xFF && (buf[1] & 0xE0) === 0xE0) return true;
+    return false;
+}
+
 async function fetchAdminAudio(segmentKey: 'induction' | 'guide_close'): Promise<Buffer | null> {
     try {
         const asset = await (prisma as any).systemAudio.findUnique({ where: { key: segmentKey } });
         if (!asset?.r2_key) return null;
-        return await fetchR2Buffer(asset.r2_key);
+        const raw = await fetchR2Buffer(asset.r2_key);
+        if (!raw) return null;
+        if (!isMP3Buffer(raw)) {
+            console.warn(`[assemble] Admin audio '${segmentKey}' is NOT MP3 (first bytes: ${raw.subarray(0, 8).toString('hex')}). Skipping — will use TTS fallback.`);
+            return null;
+        }
+        // Strip VBR header before concatenating so browser duration calc is correct
+        return stripMP3VBRHeader(raw);
     } catch (e) {
         console.error(`[assemble] fetchAdminAudio(${segmentKey}) error:`, e);
         return null;
@@ -101,8 +184,8 @@ async function generateElevenLabsTTS(voiceId: string, text: string): Promise<Buf
                         text,
                         model_id: 'eleven_multilingual_v2',
                         voice_settings: {
-                            stability: 0.80,
-                            similarity_boost: 0.75,
+                            stability: 0.75,
+                            similarity_boost: 0.90,
                             style: 0,
                             use_speaker_boost: true,
                         },
@@ -150,78 +233,99 @@ async function generateFishAudioTTS(voiceId: string, text: string): Promise<Buff
     } catch { return null; }
 }
 
-// ── Silence Generator ─────────────────────────────────────────────────────────
+// ── Pause Generator ───────────────────────────────────────────────────────────
 /**
- * Generate an MP3 buffer of silence for the given duration.
- * Uses a minimal valid MPEG Audio Layer 3 frame (MPEG1, 128 kbps, 44100 Hz,
- * Joint Stereo).  Each frame is 417 bytes and represents ~26.12 ms of audio.
- * We repeat that frame enough times to cover the requested duration.
+ * Generate a short audible pause using the SAME TTS engine / voice as the
+ * story.  A single period "." produces ~1 s of natural trailing silence
+ * that is encoded identically to the rest of the audio, so the browser
+ * decoder never chokes on mismatched MP3 frame parameters.
+ *
+ * Falls back to a hand-crafted silence only as a last resort.
  */
-function generateSilenceMP3(durationSeconds: number): Buffer {
-    // Minimal valid MP3 frame: sync word 0xFFFB, 128kbps, 44100Hz, joint-stereo
-    // Frame length = 144 * bitrate / sampleRate + padding = 144*128000/44100 = 417 bytes
+let _pauseBufferCache: Buffer | null = null;
+async function generatePauseBuffer(
+    elevenLabsVoiceId: string,
+    voiceModelId: string,
+    useElevenLabs: boolean,
+    useFishAudio: boolean,
+): Promise<Buffer> {
+    if (_pauseBufferCache) return _pauseBufferCache;
+
+    let buf: Buffer | null = null;
+    // Use the same TTS provider that generates the story
+    if (useElevenLabs) buf = await generateElevenLabsTTS(elevenLabsVoiceId, '.');
+    if (!buf && useFishAudio) buf = await generateFishAudioTTS(voiceModelId, '.');
+    if (buf && buf.length > 200) {
+        _pauseBufferCache = buf;
+        console.log(`[assemble] ✓ Pause buffer generated via TTS (${buf.length} bytes)`);
+        return buf;
+    }
+
+    // Absolute fallback: minimal valid MPEG1 Layer 3 silence frame
+    console.warn('[assemble] TTS pause failed — using raw silence fallback');
     const FRAME_SIZE = 417;
     const header = Buffer.alloc(FRAME_SIZE, 0);
-    // MPEG sync + header bytes
-    header[0] = 0xFF;
-    header[1] = 0xFB; // MPEG1, Layer 3, no CRC
-    header[2] = 0x90; // 128kbps, 44100Hz
-    header[3] = 0x00; // joint stereo, no padding
-    // Rest stays zero (silence)
-
-    const frameDuration = 1152 / 44100; // ~0.02612 s per frame
-    const frameCount = Math.ceil(durationSeconds / frameDuration);
+    header[0] = 0xFF; header[1] = 0xFB; header[2] = 0x90; header[3] = 0x00;
+    const frameDuration = 1152 / 44100;
+    const frameCount = Math.ceil(1.0 / frameDuration);
     const frames: Buffer[] = [];
     for (let i = 0; i < frameCount; i++) frames.push(header);
-    return Buffer.concat(frames);
+    _pauseBufferCache = Buffer.concat(frames);
+    return _pauseBufferCache;
+}
+
+/**
+ * Normalise text before sending to ElevenLabs.
+ * • Strips scene-transition markers (· · ·) and decorative punctuation.
+ * • Collapses ALL newlines and paragraph breaks into a single space so
+ *   ElevenLabs reads it as one continuous flowing narration — no dead-air
+ *   gaps.  Natural pauses come from commas, periods, and sentence endings
+ *   which ElevenLabs handles with proper prosody automatically.
+ * • Strips ellipses (… / ...) that cause long unnatural pauses.
+ */
+function normaliseForTTS(text: string): string {
+    return text
+        .replace(/\r\n/g, '\n')                // normalise line endings
+        .replace(/·\s*·\s*·/g, '')              // strip · · · scene markers
+        .replace(/^[·•\-–—*_~#\s]+$/gm, '')    // strip decorative-only lines
+        .replace(/\.\.\./g, ',')               // ellipsis → comma (gentle pause, not silence)
+        .replace(/\u2026/g, ',')                // unicode ellipsis → comma
+        .replace(/\n+/g, ' ')                   // ALL newlines → single space
+        .replace(/\s{2,}/g, ' ')               // collapse multiple spaces
+        .trim();
 }
 
 // ── Text Chunker  ─────────────────────────────────────────────────────────────
-function splitTextIntoChunks(text: string, maxChars: number = CHUNK_CHARS): string[] {
-    if (!text?.trim()) return [];
-    // For ElevenLabs Pro, try to send the entire text as one chunk if under limit
-    if (text.length <= maxChars) return [text.trim()];
-    
-    const paras = text.split(/\n\n+/);
+function splitTextIntoChunks(rawText: string, maxChars: number = CHUNK_CHARS): string[] {
+    const text = normaliseForTTS(rawText);
+    if (!text) return [];
+    if (text.length <= maxChars) return [text];
+
+    // Split on sentence boundaries — keeps punctuation with the sentence
+    const sentenceMatches = text.match(/[^.!?]+[.!?]+[\s]*/g) || [];
+    const matchedLen = sentenceMatches.reduce((n, s) => n + s.length, 0);
+    const remainder = text.slice(matchedLen).trim();
+    const sentences = remainder
+        ? [...sentenceMatches, remainder]
+        : sentenceMatches.length ? sentenceMatches : [text];
+
     const chunks: string[] = [];
     let current = '';
-    for (const p of paras) {
-        if (current.length + p.length + 2 <= maxChars) {
-            current += (current ? '\n\n' : '') + p;
+    for (const s of sentences) {
+        if (current.length + s.length <= maxChars) {
+            current += s;
         } else {
             if (current) chunks.push(current.trim());
-            // If a single paragraph exceeds maxChars, split on sentence boundaries
-            if (p.length > maxChars) {
-                const sentenceMatches = p.match(/[^.!?]+[.!?]+\s*/g) || [];
-                // Capture any trailing text the regex missed (no ending punctuation)
-                const matchedLen = sentenceMatches.reduce((n, s) => n + s.length, 0);
-                const remainder = p.slice(matchedLen);
-                const sentences = remainder.trim()
-                    ? [...sentenceMatches, remainder]
-                    : sentenceMatches.length ? sentenceMatches : [p];
-                let sentChunk = '';
-                for (const s of sentences) {
-                    if (sentChunk.length + s.length <= maxChars) {
-                        sentChunk += s;
-                    } else {
-                        if (sentChunk) chunks.push(sentChunk.trim());
-                        // If a single sentence still exceeds maxChars, push it anyway
-                        // so no text is silently dropped
-                        if (s.length > maxChars) {
-                            chunks.push(s.trim());
-                            sentChunk = '';
-                        } else {
-                            sentChunk = s;
-                        }
-                    }
-                }
-                current = sentChunk;
+            if (s.length > maxChars) {
+                // Single sentence exceeds limit — push anyway, never drop text
+                chunks.push(s.trim());
+                current = '';
             } else {
-                current = p;
+                current = s;
             }
         }
     }
-    if (current) chunks.push(current.trim());
+    if (current.trim()) chunks.push(current.trim());
     return chunks;
 }
 
@@ -245,11 +349,13 @@ export async function POST(req: NextRequest) {
         const hasActiveBeta = await prisma.userBetaCode.findFirst({ where: { userId: user.id, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] }, include: { betaCode: { select: { type: true } } } });
         const effectivePlan = hasActiveBeta ? betaTypeToPlan((hasActiveBeta as any).betaCode?.type || 'amplifier_2_months') : (user.plan || 'free').toLowerCase();
         
-        // ── Assets Fetch (induction / close — pre/appended as MP3) ────────────
+        // ── Assets Fetch (induction / close — admin-uploaded MP3s) ─────────
+        // Always try to fetch the admin intro; if it doesn't exist that's fine.
         const [induction, close] = await Promise.all([
-            ADMIN_AUDIO_PLANS.has(effectivePlan) ? fetchAdminAudio('induction') : Promise.resolve(null),
-            ADMIN_AUDIO_PLANS.has(effectivePlan) ? fetchAdminAudio('guide_close') : Promise.resolve(null),
+            fetchAdminAudio('induction'),
+            fetchAdminAudio('guide_close'),
         ]);
+        console.log(`[assemble] Admin audio — induction: ${induction ? `${induction.length} bytes` : 'not set'}, close: ${close ? `${close.length} bytes` : 'not set'}`);
 
         // ── Voice Parts ───────────────────────────────────────────────────────
         const voiceModelId = user.voice_model_id || '';
@@ -271,6 +377,13 @@ export async function POST(req: NextRequest) {
         // ── TTS helper — honours the provider priority chain ──────────────────
         async function generateTTSForText(text: string, label: string): Promise<Buffer[]> {
             const chunks = splitTextIntoChunks(text);
+            const totalInputChars = normaliseForTTS(text).length;
+            const totalChunkChars = chunks.reduce((n, c) => n + c.length, 0);
+            console.log(`[assemble] ${label}: ${totalInputChars} chars → ${chunks.length} chunks (${totalChunkChars} chars total)`);
+            if (totalChunkChars < totalInputChars * 0.95) {
+                console.warn(`[assemble] ⚠ ${label}: chunker may have dropped text! input=${totalInputChars} vs chunks=${totalChunkChars}`);
+            }
+
             const buffers: Buffer[] = [];
             for (let i = 0; i < chunks.length; i++) {
                 let buf: Buffer | null = null;
@@ -279,7 +392,7 @@ export async function POST(req: NextRequest) {
                 if (!buf) buf = await generateFreeTTS(chunks[i]);
                 if (buf) {
                     buffers.push(buf);
-                    console.log(`[assemble] ✓ ${label} chunk ${i + 1}/${chunks.length} — ${buf.length} bytes`);
+                    console.log(`[assemble] ✓ ${label} chunk ${i + 1}/${chunks.length} — ${chunks[i].length} chars → ${buf.length} bytes`);
                 } else {
                     console.error(`[assemble] ✗ ${label} chunk ${i + 1}/${chunks.length} FAILED — aborting`);
                     throw new Error(`Voice generation failed on ${label} chunk ${i + 1}/${chunks.length}. Please try again.`);
@@ -291,8 +404,12 @@ export async function POST(req: NextRequest) {
         // ── Generate TTS for each segment separately ──────────────────────────
         // Sequence: Intro → pause → Opening Affirmation → pause → Story → pause → Closing Affirmation
 
-        const PAUSE_SECONDS = 2.5;
-        const pauseBuffer = generateSilenceMP3(PAUSE_SECONDS);
+        // Generate a TTS-based pause that uses the same encoder as the voice
+        // so the browser decoder never encounters mismatched MP3 frames.
+        _pauseBufferCache = null; // reset per-request
+        const pauseBuffer = await generatePauseBuffer(
+            elevenLabsVoiceId, voiceModelId, useElevenLabs, useFishAudio
+        );
 
         // Split the generated text into intro (induction) and story body
         const { intro: introText, storyBody: storyBodyText } = splitIntroFromStory(rawText);
@@ -347,7 +464,8 @@ export async function POST(req: NextRequest) {
             parts.push(...introBuffers);
             segmentLog.push('Intro');
             parts.push(pauseBuffer);
-            segmentLog.push(`pause(${PAUSE_SECONDS}s)`);
+            segmentLog.push('pause');
+            console.log(`[assemble] Final Parts check: Intro is ${introBuffers.length} buffers, ~${introBuffers.reduce((n, b) => n + b.byteLength, 0)} bytes`);
         }
 
         // Opening Affirmations
@@ -355,32 +473,71 @@ export async function POST(req: NextRequest) {
             parts.push(...openingAffBuffers);
             segmentLog.push('Opening Affirmations');
             parts.push(pauseBuffer);
-            segmentLog.push(`pause(${PAUSE_SECONDS}s)`);
+            segmentLog.push('pause');
+            console.log(`[assemble] Final Parts check: Opening Aff is ${openingAffBuffers.length} buffers, ~${openingAffBuffers.reduce((n, b) => n + b.byteLength, 0)} bytes`);
         }
 
         // Story Body
         parts.push(...storyBuffers);
         segmentLog.push('Story');
+        console.log(`[assemble] Final Parts check: Story is ${storyBuffers.length} buffers, ~${storyBuffers.reduce((n, b) => n + b.byteLength, 0)} bytes`);
 
         // Closing Affirmations
         if (closingAffBuffers.length > 0) {
             parts.push(pauseBuffer);
-            segmentLog.push(`pause(${PAUSE_SECONDS}s)`);
+            segmentLog.push('pause');
             parts.push(...closingAffBuffers);
             segmentLog.push('Closing Affirmations');
+            console.log(`[assemble] Final Parts check: Closing Aff is ${closingAffBuffers.length} buffers, ~${closingAffBuffers.reduce((n, b) => n + b.byteLength, 0)} bytes`);
         }
 
         // Guide Close (admin MP3)
         if (close) {
             parts.push(pauseBuffer);
-            segmentLog.push(`pause(${PAUSE_SECONDS}s)`);
+            segmentLog.push('pause');
             parts.push(close);
             segmentLog.push('Guide Close');
         }
 
         console.log(`[assemble] Segment order: ${segmentLog.join(' → ')}`);
 
-        const finalAudio = Buffer.concat(parts);
+        // ── FFmpeg Assembly ──────────────────────────────────────────────────
+        // Instead of raw Buffer concatenation (which can lead to mismatched
+        // headers or VBR durations), we use system FFmpeg to remux everything
+        // into a clean, single-stream MP3 at 128kbps constant bitrate.
+        let finalAudio: Buffer;
+        const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'assemble-'));
+        try {
+            const inputFiles: string[] = [];
+            for (let i = 0; i < parts.length; i++) {
+                const f = path.join(tempDir, `part_${i}.mp3`);
+                await fs.writeFile(f, parts[i]);
+                inputFiles.push(f);
+            }
+
+            const outputFile = path.join(tempDir, 'final.mp3');
+            // Using the 'concat' demuxer for maximum reliability
+            const listFile = path.join(tempDir, 'list.txt');
+            const listContent = inputFiles.map(f => `file '${f}'`).join('\n');
+            await fs.writeFile(listFile, listContent);
+
+            // -c:a libmp3lame: ensure output is standard MP3
+            // -b:a 128k: constant bitrate helps with duration calculation
+            // -ar 44100: standard sample rate
+            // -write_xing 0: EXPLICITLY disable Xing/VBR headers so browsers see true duration
+            await execAsync(
+                `ffmpeg -f concat -safe 0 -i "${listFile}" -c:a libmp3lame -b:a 128k -ar 44100 -write_xing 0 -y "${outputFile}"`
+            );
+            
+            finalAudio = await fs.readFile(outputFile);
+            console.log(`[assemble] FFmpeg assembly complete — ${finalAudio.byteLength} bytes`);
+        } catch (e: any) {
+            console.error('[assemble] FFmpeg failure, falling back to raw Buffer concatenation:', e.message);
+            finalAudio = Buffer.concat(parts);
+        } finally {
+            // Cleanup temp files
+            await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+        }
 
         // Estimate duration from MP3 byte size (128 kbps = 16000 bytes/sec)
         const duration = Math.round(finalAudio.byteLength / 16000);
@@ -390,7 +547,19 @@ export async function POST(req: NextRequest) {
         await s3.send(new PutObjectCommand({ Bucket: BUCKET, Key: finalKey, Body: finalAudio, ContentType: 'audio/mpeg' }));
 
         const finalUrl = `/api/user/audio/stream?key=${encodeURIComponent(finalKey)}`;
-        await prisma.story.update({ where: { id: story.id }, data: { status: 'audio_ready', audio_url: finalUrl, audio_r2_key: finalKey, audio_duration_secs: duration } });
+        await prisma.story.update({
+            where: { id: story.id },
+            data: {
+                status: 'audio_ready',
+                audio_url: finalUrl,
+                audio_r2_key: finalKey,
+                audio_duration_secs: duration,
+                // Clear any legacy voice_only_r2_key so the download page
+                // always uses audio_url (which contains the full assembly
+                // including intro, affirmations, story and closing).
+                voice_only_r2_key: null,
+            },
+        });
 
         console.log(`[assemble] ✅ Done — ${finalAudio.byteLength} bytes, ~${duration}s`);
         return NextResponse.json({ success: true, storyId, audioUrl: finalUrl, durationSecs: duration });
@@ -399,4 +568,4 @@ export async function POST(req: NextRequest) {
         console.error('[assemble] Fatal:', e.message);
         return NextResponse.json({ error: e.message || 'Error occurred' }, { status: 500 });
     }
-}
+}   

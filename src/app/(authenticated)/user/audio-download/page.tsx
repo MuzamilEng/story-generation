@@ -206,8 +206,19 @@ const AudioReadyContent: React.FC = () => {
         setWaveformBars(heights.map(height => ({ height, played: false })));
     }, []);
 
-    // Use live audio duration; fall back to DB-stored value (audio_duration_secs) until metadata loads or if Infinity (common in large streams)
-    const displayDuration = (duration > 0 && duration !== Infinity) ? duration : (story?.audio_duration_secs ?? 0);
+    // Use DB-stored duration as authoritative source.
+    // Only override with live browser value if it's plausible (within 20% of DB
+    // value, or DB has no value). This prevents a stale VBR header in a cached
+    // audio file from overriding with a bogus short duration (e.g. 3 seconds).
+    const dbDuration = story?.audio_duration_secs ?? 0;
+    const displayDuration = (() => {
+        if (duration > 0 && isFinite(duration)) {
+            // Reject the live value if it looks like VBR-truncated nonsense
+            if (dbDuration > 0 && duration < dbDuration * 0.5) return dbDuration;
+            return duration;
+        }
+        return dbDuration;
+    })();
 
     useEffect(() => {
         if (!displayDuration) return;
@@ -310,14 +321,15 @@ const AudioReadyContent: React.FC = () => {
 
     const skip = (seconds: number) => {
         if (!audioRef.current) return;
-        const total = displayDuration || audioRef.current.duration;
+        const total = displayDuration;
+        if (!total || total <= 0) return;
         audioRef.current.currentTime = Math.max(0, Math.min(total, audioRef.current.currentTime + seconds));
     };
 
     const seekTo = (pct: number) => {
         if (!audioRef.current) return;
-        const total = displayDuration || audioRef.current.duration;
-        if (!total || total === Infinity) return;
+        const total = displayDuration;
+        if (!total || total <= 0) return;
         audioRef.current.currentTime = pct * total;
     };
 
@@ -331,13 +343,22 @@ const AudioReadyContent: React.FC = () => {
 
     const handleMetadata = () => {
         if (audioRef.current) {
-            setDuration(audioRef.current.duration);
+            const d = audioRef.current.duration;
+            if (d && isFinite(d) && d > 0) {
+                setDuration(d);
+            }
         }
     };
 
     const handleTimeUpdate = () => {
         if (audioRef.current) {
             setCurrentTime(audioRef.current.currentTime);
+            // Browser progressively refines duration as it buffers more data.
+            // Keep updating so we always have the most accurate value.
+            const d = audioRef.current.duration;
+            if (d && isFinite(d) && d > 0 && d !== duration) {
+                setDuration(d);
+            }
         }
     };
 
@@ -522,14 +543,16 @@ const AudioReadyContent: React.FC = () => {
                 // Record download event
                 recordEvent('download');
 
-                // Determine which URL to use
-                let targetUrl = story.audio_url; // Default to primary (usually mixed)
-                
+                // Determine which URL to use.
+                // audio_url = fully assembled file (intro + affirmations + story + closing).
+                // voice_only_url = legacy field; may predate intro assembly — only used
+                //                  for the explicit "Clean Voice Only" button (type='voice').
+                let targetUrl = story.audio_url;
+
                 if (type === 'voice' && story.voice_only_url) {
                     targetUrl = story.voice_only_url;
-                } else if (type === 'mixed' && !soundscapeOn && !binauralOn && story.voice_only_url) {
-                    targetUrl = story.voice_only_url;
                 }
+                // For type='mixed': always use audio_url which contains the full assembly.
 
                 const downloadUrl = `${targetUrl}${targetUrl.includes('?') ? '&' : '?'}download=true`;
                 const link = document.createElement('a');
@@ -638,7 +661,6 @@ const AudioReadyContent: React.FC = () => {
                                     src={story.audio_url}
                                     controls
                                     preload="auto"
-                                    crossOrigin="anonymous"
                                     onPlay={handlePlay}
                                     onPause={handlePause}
                                     onLoadedMetadata={handleMetadata}

@@ -8,6 +8,7 @@ import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3
 const s3 = new S3Client({
     region: 'us-east-1',
     endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+    forcePathStyle: true,
     credentials: {
         accessKeyId: process.env.R2_ACCESS_KEY_ID || '',
         secretAccessKey: process.env.R2_SECRET_ACCESS_KEY || '',
@@ -27,14 +28,14 @@ const VOICE_CLONE_PLANS = new Set(['free', 'activator', 'manifester', 'amplifier
  * These are stored on the ElevenLabs voice itself (PATCH call) so they act
  * as sensible defaults in the dashboard and any other integration.
  *
- * stability 0.80        → rock-steady pitch; prevents drift over long stories
- * similarity_boost 0.75 → faithful timbre without artefact amplification
+ * stability 0.75        → steady pitch with slight natural variation
+ * similarity_boost 0.90 → high fidelity to the user's recorded voice timbre
  * style 0               → neutral; zero stylistic exaggeration
  * use_speaker_boost true → +2 dB presence/clarity for cloned voices
  */
 const PROFESSIONAL_NARRATION_SETTINGS = {
-    stability: 0.80,
-    similarity_boost: 0.75,
+    stability: 0.75,
+    similarity_boost: 0.90,
     style: 0,
     use_speaker_boost: true,
 } as const;
@@ -150,6 +151,25 @@ export async function POST(req: NextRequest) {
                 elevenLabsVoiceId = elCloneJson.voice_id;
                 newVoiceId = elevenLabsVoiceId;
                 console.log(`[clone-voice] ✓ ElevenLabs voice cloned — voiceId: ${elevenLabsVoiceId}`);
+
+                // PATCH the new voice with professional narration settings
+                try {
+                    const patchRes = await fetch(`https://api.elevenlabs.io/v1/voices/${elevenLabsVoiceId}/settings/edit`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'xi-api-key': elevenLabsApi,
+                        },
+                        body: JSON.stringify(PROFESSIONAL_NARRATION_SETTINGS),
+                    });
+                    if (patchRes.ok) {
+                        console.log(`[clone-voice] ✓ Applied professional narration settings to voice ${elevenLabsVoiceId}`);
+                    } else {
+                        console.warn(`[clone-voice] Failed to PATCH voice settings (${patchRes.status}):`, await patchRes.text().catch(() => ''));
+                    }
+                } catch (e) {
+                    console.warn('[clone-voice] PATCH voice settings error (non-fatal):', e);
+                }
 
                 // Delete previous ElevenLabs voice to preserve quota
                 const oldElVoiceId = (user as any).elevenlabs_voice_id;
