@@ -792,12 +792,12 @@ const StoryDetail: React.FC = () => {
           />
 
           {/* Version History */}
-          {versions.length > 0 && (
+          {/* {versions.length > 0 && (
             <VersionHistory
               versions={versions}
               onRestore={handleRestoreVersion}
             />
-          )}
+          )} */}
         </main>
 
         <Toast message={toast.message} visible={toast.visible} />
