@@ -29,6 +29,7 @@ import {
   StoryVersion,
   AudioPlayerState,
 } from "../../../../types/story-detail";
+import { useGlobalUI } from "@/components/ui/global-ui-context";
 
 // Story Header Component
 interface StoryHeaderProps {
@@ -404,6 +405,7 @@ const Toast: React.FC<ToastProps> = ({ message, visible }) => (
 // Main Component
 const StoryDetail: React.FC = () => {
   const router = useRouter();
+  const { showConfirm } = useGlobalUI();
   const params = useParams();
   const id = params?.id as string;
 
@@ -651,14 +653,16 @@ const StoryDetail: React.FC = () => {
     });
   };
 
-  const handleDelete = async () => {
-    if (
-      window.confirm(
-        "Are you sure you want to delete this story? This action cannot be undone.",
-      )
-    ) {
-      deleteStoryMutation.mutate();
-    }
+  const handleDelete = () => {
+    showConfirm({
+      title: "Delete Story",
+      message: "Are you sure you want to delete this story? This action cannot be undone.",
+      confirmText: "Delete",
+      danger: true,
+      onConfirm: () => {
+        deleteStoryMutation.mutate();
+      },
+    });
   };
 
   const handleCancelEdit = () => {

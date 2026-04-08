@@ -1,0 +1,146 @@
+/* ── Global Toast ─────────────────────────────────────── */
+.toast {
+    position: fixed;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    padding: 0.7rem 1.2rem;
+    border-radius: 99px;
+    font-size: 0.82rem;
+    font-family: var(--sans);
+    white-space: nowrap;
+    z-index: 9999;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+    opacity: 0;
+    pointer-events: none;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+}
+
+.toastShow {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* Toast types */
+.toast_success {
+    background: var(--green1);
+    color: #fff;
+    border: 1px solid var(--green2);
+}
+
+.toast_error {
+    background: #6b2020;
+    color: #fff;
+    border: 1px solid #8b3030;
+}
+
+.toast_info {
+    background: var(--green1);
+    color: #fff;
+    border: 1px solid var(--green2);
+}
+
+/* ── Confirm Modal ────────────────────────────────────── */
+.overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    animation: overlayIn 0.2s ease;
+}
+
+@keyframes overlayIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+.modal {
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: 12px;
+    padding: 1.5rem;
+    max-width: 420px;
+    width: 90%;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+    animation: modalIn 0.2s ease;
+}
+
+@keyframes modalIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.modalTitle {
+    font-family: var(--serif);
+    font-size: 1.15rem;
+    color: var(--text);
+    margin-bottom: 0.5rem;
+}
+
+.modalMessage {
+    font-size: 0.82rem;
+    color: var(--muted);
+    line-height: 1.55;
+    margin-bottom: 1.25rem;
+    white-space: pre-line;
+}
+
+.modalActions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.6rem;
+}
+
+.cancelBtn {
+    padding: 0.45rem 1rem;
+    border-radius: 8px;
+    border: 1px solid var(--border2);
+    background: transparent;
+    color: var(--text);
+    font-size: 0.78rem;
+    font-family: var(--sans);
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.cancelBtn:hover {
+    background: var(--border1);
+}
+
+.confirmBtn {
+    padding: 0.45rem 1rem;
+    border-radius: 8px;
+    border: none;
+    background: var(--green1);
+    color: #fff;
+    font-size: 0.78rem;
+    font-family: var(--sans);
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.confirmBtn:hover {
+    background: var(--green2);
+}
+
+.danger {
+    background: #8b2020;
+}
+
+.danger:hover {
+    background: #a52a2a;
+}
+
+/* responsive */
+@media (max-width: 520px) {
+    .toast {
+        white-space: normal;
+        text-align: center;
+        max-width: 90%;
+    }
+}

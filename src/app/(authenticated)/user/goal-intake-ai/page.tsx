@@ -26,6 +26,7 @@ import {
 } from "../../../types/goal-discovery";
 import { useStoryStore } from "@/store/useStoryStore";
 import { normalizeGoals } from "@/lib/story-utils";
+import { useGlobalUI } from "@/components/ui/global-ui-context";
 
 // Typing animation component
 const TypingIndicator: React.FC = () => (
@@ -931,6 +932,7 @@ const TopicItem: React.FC<TopicItemProps> = ({
 
 const GoalDiscovery: React.FC = () => {
   const router = useRouter();
+  const { showToast } = useGlobalUI();
   const { data: session, status: authStatus } = useSession();
   // Track the intake flow stage: null = orientation, 'discovery' = area selection, 'chat' = main chat
   const [intakeStage, setIntakeStage] = useState<
@@ -1443,7 +1445,7 @@ const GoalDiscovery: React.FC = () => {
         if (response.status === 401) {
           const errData = await response.json();
           const msg = errData?.error || "Your session has expired.";
-          alert(`${msg}\n\nYou will be signed out so you can sign back in.`);
+          showToast(`${msg} You will be signed out so you can sign back in.`, "error");
           router.push("/api/auth/signout?callbackUrl=/auth/signin");
           return;
         }

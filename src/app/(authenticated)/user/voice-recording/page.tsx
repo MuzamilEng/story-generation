@@ -18,6 +18,17 @@ import {
   ArrowIcon,
 } from "../../../components/icons/VoiceIcons";
 import { RecordingState, TipItem } from "../../../types/voice";
+import { useGlobalUI } from "@/components/ui/global-ui-context";
+
+// Saved voice info from API
+interface VoiceSampleItem {
+  id: string;
+  label: string;
+  sample_url: string;
+  duration_s: number | null;
+  is_default: boolean;
+  created_at: string;
+}
 
 // Tip Row Component
 interface TipRowProps {
@@ -217,10 +228,140 @@ const Playback: React.FC<PlaybackProps> = ({
   );
 };
 
+// Saved Voices List Component
+interface SavedVoicesListProps {
+  voices: VoiceSampleItem[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+  onDelete: (id: string) => void;
+  onUse: (voice: VoiceSampleItem) => void;
+  isDeleting: string | null;
+  isSubmitting: boolean;
+}
+
+const SavedVoicesList: React.FC<SavedVoicesListProps> = ({
+  voices,
+  selectedId,
+  onSelect,
+  onDelete,
+  onUse,
+  isDeleting,
+  isSubmitting,
+}) => {
+  const [playingId, setPlayingId] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
+
+  const togglePlay = (voice: VoiceSampleItem) => {
+    if (playingId === voice.id) {
+      audioRef.current?.pause();
+      setPlayingId(null);
+    } else {
+      if (audioRef.current) audioRef.current.pause();
+      const audio = new Audio(voice.sample_url);
+      audioRef.current = audio;
+      audio.play();
+      audio.onended = () => setPlayingId(null);
+      setPlayingId(voice.id);
+    }
+  };
+
+  const formatDuration = (s: number | null) => {
+    if (!s) return "—";
+    const mins = Math.floor(s / 60);
+    const secs = s % 60;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
+  };
+
+  if (voices.length === 0) return null;
+
+  return (
+    <div className={styles.savedVoiceCard}>
+      <div className={styles.savedVoiceHeader}>
+        <div className={styles.savedVoiceBadge}>
+          <MicIcon /> My Saved Voices ({voices.length}/5)
+        </div>
+      </div>
+      <div className={styles.savedVoiceBody}>
+        <p className={styles.savedVoiceDesc}>
+          Select a saved voice to generate your audio story, or record a new one
+          below.
+        </p>
+        <div className={styles.voiceList}>
+          {voices.map((voice) => (
+            <div
+              key={voice.id}
+              className={`${styles.voiceItem} ${selectedId === voice.id ? styles.voiceItemSelected : ""}`}
+              onClick={() => onSelect(voice.id)}
+            >
+              <div className={styles.voiceItemRadio}>
+                <div
+                  className={`${styles.radioCircle} ${selectedId === voice.id ? styles.radioActive : ""}`}
+                />
+              </div>
+              <div className={styles.voiceItemInfo}>
+                <div className={styles.voiceItemLabel}>
+                  {voice.label}
+                  {voice.is_default && (
+                    <span className={styles.defaultTag}>Default</span>
+                  )}
+                </div>
+                <div className={styles.voiceItemMeta}>
+                  {formatDuration(voice.duration_s)} ·{" "}
+                  {new Date(voice.created_at).toLocaleDateString()}
+                </div>
+              </div>
+              <div className={styles.voiceItemActions}>
+                <button
+                  className={styles.voiceItemPlayBtn}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    togglePlay(voice);
+                  }}
+                >
+                  {playingId === voice.id ? <PauseIcon /> : <PlayIcon />}
+                </button>
+                <button
+                  className={styles.voiceItemDeleteBtn}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete(voice.id);
+                  }}
+                  disabled={isDeleting === voice.id}
+                >
+                  {isDeleting === voice.id ? "…" : "✕"}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+        {selectedId && (
+          <button
+            className={styles.savedVoiceUse}
+            onClick={() => {
+              const v = voices.find((v) => v.id === selectedId);
+              if (v) onUse(v);
+            }}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? (
+              "Generating…"
+            ) : (
+              <>
+                <MicIcon /> Use Selected Voice
+              </>
+            )}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
+
 // Content Component
 const VoiceRecordingContent: React.FC = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { showToast, showConfirm } = useGlobalUI();
   const storyId = searchParams.get("storyId");
 
   useEffect(() => {
@@ -243,6 +384,11 @@ const VoiceRecordingContent: React.FC = () => {
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [savedVoices, setSavedVoices] = useState<VoiceSampleItem[]>([]);
+  const [isLoadingSaved, setIsLoadingSaved] = useState(true);
+  const [deletingVoiceId, setDeletingVoiceId] = useState<string | null>(null);
+  const [selectedVoiceId, setSelectedVoiceId] = useState<string | null>(null);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -257,6 +403,29 @@ const VoiceRecordingContent: React.FC = () => {
         streamRef.current.getTracks().forEach((track) => track.stop());
       }
     };
+  }, []);
+
+  // Fetch saved voices on mount
+  useEffect(() => {
+    const fetchSavedVoices = async () => {
+      try {
+        const res = await fetch("/api/user/audio/save-voice");
+        if (res.ok) {
+          const data = await res.json();
+          setSavedVoices(data.voices || []);
+          // Auto-select the default voice
+          const defaultVoice = (data.voices || []).find(
+            (v: VoiceSampleItem) => v.is_default,
+          );
+          if (defaultVoice) setSelectedVoiceId(defaultVoice.id);
+        }
+      } catch (e) {
+        console.error("Failed to fetch saved voices:", e);
+      } finally {
+        setIsLoadingSaved(false);
+      }
+    };
+    fetchSavedVoices();
   }, []);
 
   const tips: TipItem[] = [
@@ -328,7 +497,7 @@ const VoiceRecordingContent: React.FC = () => {
   const startRecording = async () => {
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        alert("Recording is not supported in this browser.");
+        showToast("Recording is not supported in this browser.", "error");
         return;
       }
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -405,7 +574,7 @@ const VoiceRecordingContent: React.FC = () => {
         err.name === "NotAllowedError"
           ? "Microphone access denied. Please enable microphone permissions in your browser settings."
           : "Cannot access microphone. Please ensure your device has a working microphone.";
-      alert(msg);
+      showToast(msg, "error");
     }
   };
 
@@ -442,6 +611,119 @@ const VoiceRecordingContent: React.FC = () => {
     }
   };
 
+  const handleSaveVoice = async () => {
+    if (!audioBlob) return;
+    setIsSaving(true);
+    try {
+      const extension =
+        mimeType.includes("mp4") || mimeType.includes("aac") ? "m4a" : "webm";
+      const formData = new FormData();
+      formData.append("audio", audioBlob, `sample.${extension}`);
+      formData.append("duration", String(recordedDuration));
+
+      const res = await fetch("/api/user/audio/save-voice", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSavedVoices((prev) => [data.voice, ...prev]);
+        if (!selectedVoiceId) setSelectedVoiceId(data.voice.id);
+      } else {
+        showToast("Failed to save voice: " + (data.error || "Unknown error"), "error");
+      }
+    } catch (e) {
+      console.error(e);
+      showToast("Failed to save voice sample.", "error");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDeleteVoice = (voiceId: string) => {
+    showConfirm({
+      title: "Remove Voice Sample",
+      message: "Remove this voice sample?",
+      confirmText: "Remove",
+      danger: true,
+      onConfirm: async () => {
+        setDeletingVoiceId(voiceId);
+        try {
+          const res = await fetch("/api/user/audio/save-voice", {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: voiceId }),
+          });
+          const data = await res.json();
+          if (data.success) {
+            setSavedVoices((prev) => prev.filter((v) => v.id !== voiceId));
+            if (selectedVoiceId === voiceId) setSelectedVoiceId(null);
+          }
+        } catch (e) {
+          console.error(e);
+          showToast("Failed to remove voice.", "error");
+        } finally {
+          setDeletingVoiceId(null);
+        }
+      },
+    });
+  };
+
+  const handleUseSavedVoice = async (voice: VoiceSampleItem) => {
+    setIsSubmitting(true);
+    try {
+      // Set this voice as default first so clone-voice picks it up
+      await fetch("/api/user/audio/save-voice", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: voice.id, setDefault: true }),
+      });
+
+      // Clone using saved voice (clone-voice falls back to existing R2 sample)
+      const cloneRes = await fetch("/api/user/audio/clone-voice", {
+        method: "POST",
+        body: new FormData(), // empty — triggers R2 fallback
+      });
+      const cloneData = await cloneRes.json();
+
+      if (!cloneData.success) {
+        const msg =
+          cloneData.code === "VOICE_LIMIT_REACHED"
+            ? "Voice limit reached on ElevenLabs. Please contact support."
+            : "Voice cloning failed: " + (cloneData.error || "Unknown error");
+        showToast(msg, "error");
+        return;
+      }
+
+      const resolvedStoryId = storyId || null;
+      if (!resolvedStoryId) {
+        showToast("No story found. Please create a story first.", "error");
+        return;
+      }
+
+      const assembleRes = await fetch("/api/user/audio/assemble", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ storyId: resolvedStoryId }),
+      });
+      const assembleData = await assembleRes.json();
+
+      if (assembleData.success) {
+        router.push(`/user/audio-download?storyId=${resolvedStoryId}`);
+      } else {
+        showToast(
+          "Audio generation failed: " + (assembleData.error || "Unknown error"),
+          "error",
+        );
+      }
+    } catch (e) {
+      console.error(e);
+      showToast("Failed to generate audio. Please try again.", "error");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleSubmit = async () => {
     if (!audioBlob) return;
     setIsSubmitting(true);
@@ -465,14 +747,14 @@ const VoiceRecordingContent: React.FC = () => {
           cloneData.code === "VOICE_LIMIT_REACHED"
             ? "Voice limit reached on ElevenLabs. Please contact support."
             : "Voice cloning failed: " + (cloneData.error || "Unknown error");
-        alert(msg);
+        showToast(msg, "error");
         return;
       }
 
       // Resolve which story to assemble (prefer URL param, fall back to latest)
       const resolvedStoryId = storyId || null;
       if (!resolvedStoryId) {
-        alert("No story found. Please create a story first.");
+        showToast("No story found. Please create a story first.", "error");
         return;
       }
 
@@ -488,13 +770,14 @@ const VoiceRecordingContent: React.FC = () => {
       if (assembleData.success) {
         router.push(`/user/audio-download?storyId=${resolvedStoryId}`);
       } else {
-        alert(
+        showToast(
           "Audio generation failed: " + (assembleData.error || "Unknown error"),
+          "error",
         );
       }
     } catch (e) {
       console.error(e);
-      alert("Failed to generate audio. Please try again.");
+      showToast("Failed to generate audio. Please try again.", "error");
     } finally {
       setIsSubmitting(false);
     }
@@ -545,6 +828,19 @@ const VoiceRecordingContent: React.FC = () => {
 
         {/* CENTER COLUMN - RECORDER */}
         <div className={styles.centerCol}>
+          {/* SAVED VOICES LIST */}
+          {!isLoadingSaved && savedVoices.length > 0 && (
+            <SavedVoicesList
+              voices={savedVoices}
+              selectedId={selectedVoiceId}
+              onSelect={setSelectedVoiceId}
+              onDelete={handleDeleteVoice}
+              onUse={handleUseSavedVoice}
+              isDeleting={deletingVoiceId}
+              isSubmitting={isSubmitting}
+            />
+          )}
+
           {/* RECORDER CARD */}
           <div className={styles.recorderCard}>
             {/* MIC + STATUS */}
@@ -681,20 +977,30 @@ const VoiceRecordingContent: React.FC = () => {
                 </span>
               </div>
 
-              <button
-                className={styles.submitBtn}
-                onClick={handleSubmit}
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? (
-                  <>Generating...</>
-                ) : (
-                  <>
-                    <MicIcon />
-                    Generate My Audio Story
-                  </>
-                )}
-              </button>
+              <div className={styles.submitBtnGroup}>
+                <button
+                  className={styles.saveVoiceBtn}
+                  onClick={handleSaveVoice}
+                  disabled={isSaving || isSubmitting}
+                >
+                  {isSaving ? "Saving…" : "Save Voice for Later"}
+                </button>
+
+                <button
+                  className={styles.submitBtn}
+                  onClick={handleSubmit}
+                  disabled={isSubmitting || isSaving}
+                >
+                  {isSubmitting ? (
+                    <>Generating...</>
+                  ) : (
+                    <>
+                      <MicIcon />
+                      Generate My Audio Story
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           )}
         </div>

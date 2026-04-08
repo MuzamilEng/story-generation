@@ -10,6 +10,7 @@ import {
   ArrowLeftIcon,
 } from "../../../components/icons/SubscriptionIcons";
 import { BillingRecord, CurrentPlan } from "../../../types/subscription";
+import { useGlobalUI } from "@/components/ui/global-ui-context";
 
 // Current Plan Banner Component
 interface CurrentPlanBannerProps {
@@ -131,6 +132,7 @@ const Toast: React.FC<ToastProps> = ({ message, visible }) => (
 
 // Main Component
 const Subscription: React.FC = () => {
+  const { showConfirm: showGlobalConfirm } = useGlobalUI();
   const [toast, setToast] = useState({ message: "", visible: false });
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
@@ -279,36 +281,37 @@ const Subscription: React.FC = () => {
           : "active",
   };
 
-  const handleCancel = async () => {
+  const handleCancel = () => {
     if (actionLoading) return;
-    if (
-      !confirm(
-        "Cancel your plan? Your subscription will be cancelled immediately.",
-      )
-    )
-      return;
+    showGlobalConfirm({
+      title: "Cancel Subscription",
+      message: "Cancel your plan? Your subscription will be cancelled immediately.",
+      confirmText: "Cancel Plan",
+      danger: true,
+      onConfirm: async () => {
+        try {
+          setActionLoading(true);
+          const res = await fetch("/api/user/subscription/cancel", {
+            method: "POST",
+          });
 
-    try {
-      setActionLoading(true);
-      const res = await fetch("/api/user/subscription/cancel", {
-        method: "POST",
-      });
-
-      if (res.ok) {
-        showToast("Subscription cancelled successfully.");
-        const newStatus = await fetch("/api/user/subscription/status").then(
-          (r) => r.json(),
-        );
-        setSubStatus(newStatus);
-      } else {
-        const err = await res.text();
-        showToast(`Failed to cancel: ${err}`);
-      }
-    } catch (err) {
-      showToast("Error occurred while cancelling.");
-    } finally {
-      setActionLoading(false);
-    }
+          if (res.ok) {
+            showToast("Subscription cancelled successfully.");
+            const newStatus = await fetch("/api/user/subscription/status").then(
+              (r) => r.json(),
+            );
+            setSubStatus(newStatus);
+          } else {
+            const err = await res.text();
+            showToast(`Failed to cancel: ${err}`);
+          }
+        } catch (err) {
+          showToast("Error occurred while cancelling.");
+        } finally {
+          setActionLoading(false);
+        }
+      },
+    });
   };
 
   const handleReceipt = (record: BillingRecord) => {

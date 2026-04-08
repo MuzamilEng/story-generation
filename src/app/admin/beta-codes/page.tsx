@@ -2,8 +2,10 @@
 import React, { useState, useEffect } from "react";
 import { format } from "date-fns";
 import styles from "../../styles/BetaCodesAdmin.module.css";
+import { useGlobalUI } from "@/components/ui/global-ui-context";
 
 export default function BetaCodesAdmin() {
+    const { showToast, showConfirm } = useGlobalUI();
     const [codes, setCodes] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [newCode, setNewCode] = useState("");
@@ -40,7 +42,7 @@ export default function BetaCodesAdmin() {
                 setMaxUses(1);
                 fetchCodes();
             } else {
-                alert("Failed to create code");
+                showToast("Failed to create code", "error");
             }
         } catch (error) {
             console.error(error);
@@ -49,14 +51,21 @@ export default function BetaCodesAdmin() {
         }
     };
 
-    const deactivateCode = async (id: string) => {
-        if (!confirm("Are you sure you want to deactivate this code?")) return;
-        try {
-            await fetch(`/api/admin/beta-codes/${id}`, { method: "DELETE" });
-            fetchCodes();
-        } catch (error) {
-            console.error(error);
-        }
+    const deactivateCode = (id: string) => {
+        showConfirm({
+            title: "Deactivate Code",
+            message: "Are you sure you want to deactivate this code?",
+            confirmText: "Deactivate",
+            danger: true,
+            onConfirm: async () => {
+                try {
+                    await fetch(`/api/admin/beta-codes/${id}`, { method: "DELETE" });
+                    fetchCodes();
+                } catch (error) {
+                    console.error(error);
+                }
+            },
+        });
     };
 
     return (

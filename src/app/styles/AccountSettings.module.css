@@ -392,6 +392,216 @@
     height: 11px;
 }
 
+.vbtn.solid {
+    background: var(--accent, #52b788);
+    border: 1.5px solid var(--accent, #52b788);
+    color: #fff;
+    font-weight: 600;
+}
+
+.vbtn.solid:hover {
+    opacity: 0.9;
+}
+
+.vbtn.solid:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* ── Inline Recorder ───────────────────────────────────────────── */
+.inlineRecorder {
+    padding: 1rem 1.4rem;
+    border-top: 1px solid var(--border);
+}
+
+.recorderRow {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+}
+
+.recorderMicBtn {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    background: rgba(255, 255, 255, 0.02);
+    color: var(--ink-muted);
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    flex-shrink: 0;
+}
+
+.recorderMicBtn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.recorderMicBtn svg {
+    width: 18px;
+    height: 18px;
+}
+
+.recorderMicRecording {
+    border-color: var(--red, #d64045);
+    color: var(--red, #d64045);
+    animation: micPulse 1.2s ease-in-out infinite;
+}
+
+@keyframes micPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(214, 64, 69, 0.3); }
+    50% { box-shadow: 0 0 0 8px rgba(214, 64, 69, 0); }
+}
+
+.recorderMicDone {
+    border-color: var(--accent, #52b788);
+    color: var(--accent, #52b788);
+    cursor: default;
+}
+
+.recorderInfo {
+    flex: 1;
+    min-width: 0;
+}
+
+.recorderStatus {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--ink);
+}
+
+.recorderHint {
+    font-size: 0.72rem;
+    color: var(--ink-faint);
+    margin-top: 0.15rem;
+}
+
+.recorderTimer {
+    margin-top: 0.4rem;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.recorderTimerFill {
+    height: 100%;
+    background: var(--accent, #52b788);
+    border-radius: 2px;
+    transition: width 0.3s linear;
+}
+
+.recorderActions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-top: 0.75rem;
+    padding-left: calc(48px + 0.85rem);
+}
+
+.recorderLabelInput {
+    padding: 0.4rem 0.7rem;
+    border-radius: 7px;
+    border: 1.5px solid var(--border);
+    background: transparent;
+    color: var(--ink);
+    font-size: 0.73rem;
+    font-family: 'Inter', sans-serif;
+    outline: none;
+    width: 140px;
+    transition: border-color 0.15s;
+}
+
+.recorderLabelInput:focus {
+    border-color: var(--accent, #52b788);
+}
+
+.recorderLabelInput::placeholder {
+    color: var(--ink-faint);
+}
+
+/* ── Saved Voices List ─────────────────────────────────────────── */
+.savedVoicesList {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.savedVoiceItem {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    padding: 0.6rem 0.75rem;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    transition: border-color 0.15s;
+}
+
+.savedVoiceItem:hover {
+    border-color: rgba(255, 255, 255, 0.15);
+}
+
+.savedVoiceDefault {
+    border-color: rgba(82, 183, 136, 0.25);
+    background: rgba(82, 183, 136, 0.03);
+}
+
+.savedVoiceItemIcon {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #1a3d2b, var(--accent));
+    display: grid;
+    place-items: center;
+    color: #fff;
+    flex-shrink: 0;
+}
+
+.savedVoiceItemIcon svg {
+    width: 14px;
+    height: 14px;
+}
+
+.savedVoiceItemInfo {
+    flex: 1;
+    min-width: 0;
+}
+
+.savedVoiceItemLabel {
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: var(--ink);
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.savedVoiceDefaultTag {
+    font-size: 0.6rem;
+    font-weight: 600;
+    color: var(--accent, #52b788);
+    background: rgba(82, 183, 136, 0.12);
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.savedVoiceItemMeta {
+    font-size: 0.68rem;
+    color: var(--ink-faint);
+    margin-top: 0.1rem;
+}
+
+.savedVoiceItemBtns {
+    display: flex;
+    gap: 0.35rem;
+    flex-shrink: 0;
+}
+
 /* TOGGLES */
 .toggleRow {
     padding: 0.85rem 1.4rem;
@@ -555,9 +765,9 @@
     bottom: 2rem;
     left: 50%;
     transform: translateX(-50%) translateY(80px);
-    background: var(--bg);
-    color: var(--ink);
-    border: 1px solid var(--border);
+    background: var(--green1);
+    color: #fff;
+    border: 1px solid var(--green2);
     box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
     padding: 0.7rem 1.2rem;
     border-radius: 99px;
@@ -569,6 +779,98 @@
 
 .toast.show {
     transform: translateX(-50%) translateY(0);
+}
+
+/* CONFIRM MODAL */
+.modalOverlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+    animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.modalBox {
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: 12px;
+    padding: 1.5rem;
+    max-width: 400px;
+    width: 90%;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+    animation: slideUp 0.2s ease;
+}
+
+@keyframes slideUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.modalTitle {
+    font-family: var(--serif);
+    font-size: 1.15rem;
+    color: var(--text);
+    margin-bottom: 0.5rem;
+}
+
+.modalMessage {
+    font-size: 0.82rem;
+    color: var(--muted);
+    line-height: 1.5;
+    margin-bottom: 1.25rem;
+}
+
+.modalActions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.6rem;
+}
+
+.modalCancelBtn {
+    padding: 0.45rem 1rem;
+    border-radius: 8px;
+    border: 1px solid var(--border2);
+    background: transparent;
+    color: var(--text);
+    font-size: 0.78rem;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.modalCancelBtn:hover {
+    background: var(--border1);
+}
+
+.modalConfirmBtn {
+    padding: 0.45rem 1rem;
+    border-radius: 8px;
+    border: none;
+    background: var(--green1);
+    color: #fff;
+    font-size: 0.78rem;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.modalConfirmBtn:hover {
+    background: var(--green2);
+}
+
+.modalDanger {
+    background: #8b2020;
+}
+
+.modalDanger:hover {
+    background: #a52a2a;
 }
 
 /* RESPONSIVE */

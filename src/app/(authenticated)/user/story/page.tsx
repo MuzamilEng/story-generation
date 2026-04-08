@@ -26,6 +26,7 @@ import {
 import { ChecklistItem, GenerationStep } from "../../../types/story";
 import { UserAnswers, normalizeGoals } from "@/lib/story-utils";
 import { useStoryStore } from "@/store/useStoryStore";
+import { useGlobalUI } from "@/components/ui/global-ui-context";
 
 // Step Item Component
 interface StepItemProps {
@@ -308,6 +309,7 @@ const StoryContent: React.FC = () => {
   const { data: session, status: authStatus } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { showToast } = useGlobalUI();
   const storyIdFromUrl = searchParams.get("id");
 
   const isLoggedIn = authStatus === "authenticated";
@@ -618,8 +620,10 @@ const StoryContent: React.FC = () => {
         if (data.title) setStoryTitle(data.title);
         setRefinementNotes("");
         setShowRefineInput(false);
+        showToast("✓ Story refined successfully!", "success");
+        window.scrollTo({ top: 0, behavior: "smooth" });
       } else {
-        alert("Failed to refine story. Please try again.");
+        showToast("Failed to refine story. Please try again.", "error");
       }
     } catch (e) {
       console.error("AI refinement failed", e);

@@ -3,6 +3,7 @@
 import React, { useEffect } from 'react';
 import Link from 'next/link';
 import Header from '../components/Header';
+import Sidebar from '../components/Sidebar';
 import styles from '../styles/PremiumExploration.module.css';
 
 export default function MysticalPage() {
@@ -19,6 +20,7 @@ export default function MysticalPage() {
   return (
     <div className={styles.mainContainer}>
       <Header />
+      <Sidebar isLandingPage />
 
       {/* HERO */}
       <section className={styles.hero}>

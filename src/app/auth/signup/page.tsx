@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn, useSession } from "next-auth/react";
 import styles from "../../styles/CreateAccount.module.css";
-
+import { useGlobalUI } from "@/components/ui/global-ui-context";
 // Icons as components
 const CheckIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -93,6 +93,7 @@ const StepItem: React.FC<StepItemProps> = ({ number, label, status }) => (
 const CreateAccountForm: React.FC = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { showToast } = useGlobalUI();
   const nextUrl = searchParams.get("callbackUrl") || searchParams.get("next") || "/user/dashboard";
   const { data: session, status: authStatus } = useSession();
 
@@ -271,7 +272,7 @@ const CreateAccountForm: React.FC = () => {
 
   const resendEmail = () => {
     // Implement resend logic
-    alert("Verification email resent!");
+    showToast("✓ Verification email resent!", "success");
   };
 
   const goToPricing = () => {

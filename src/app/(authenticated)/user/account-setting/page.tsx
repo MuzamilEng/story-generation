@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -25,6 +25,7 @@ import {
   NotificationSettings,
   PlanDetails,
 } from "../../../types/settings";
+import { useGlobalUI } from "@/components/ui/global-ui-context";
 
 // ── Extra icons for V2 features ───────────────────────────────────────────────
 const SoundwaveIcon = () => (
@@ -257,6 +258,368 @@ const VoiceModelCard: React.FC<VoiceModelProps> = ({
   );
 };
 
+// ── PauseIcon (not in SettingsIcons) ──────────────────────────────────────────
+const PauseIcon = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor">
+    <rect x="6" y="4" width="4" height="16" rx="1" />
+    <rect x="14" y="4" width="4" height="16" rx="1" />
+  </svg>
+);
+
+// ── Saved Voice type ─────────────────────────────────────────────────────────
+interface VoiceSampleItem {
+  id: string;
+  label: string;
+  sample_url: string;
+  duration_s: number | null;
+  is_default: boolean;
+  created_at: string;
+}
+
+// ── Inline Voice Recorder ────────────────────────────────────────────────────
+type RecState = "idle" | "recording" | "stopped";
+
+interface InlineRecorderProps {
+  onSaved: (voice: VoiceSampleItem) => void;
+  showToast: (msg: string) => void;
+  voiceCount: number;
+}
+
+const InlineRecorder: React.FC<InlineRecorderProps> = ({
+  onSaved,
+  showToast,
+  voiceCount,
+}) => {
+  const [recState, setRecState] = useState<RecState>("idle");
+  const [seconds, setSeconds] = useState(0);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [labelInput, setLabelInput] = useState("");
+  const [mimeType, setMimeType] = useState("");
+
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const playbackRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (streamRef.current)
+        streamRef.current.getTracks().forEach((t) => t.stop());
+      if (audioUrl) URL.revokeObjectURL(audioUrl);
+    };
+  }, []);
+
+  // Timer
+  useEffect(() => {
+    if (recState === "recording") {
+      timerRef.current = setInterval(() => {
+        setSeconds((prev) => {
+          if (prev + 1 >= 90) stopRecording();
+          return prev + 1;
+        });
+      }, 1000);
+    } else if (timerRef.current) {
+      clearInterval(timerRef.current);
+    }
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [recState]);
+
+  const fmtTime = (s: number) => {
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return `${m}:${sec.toString().padStart(2, "0")}`;
+  };
+
+  const startRecording = async () => {
+    try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        showToast("Recording not supported in this browser");
+        return;
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+
+      const types = [
+        "audio/webm;codecs=opus",
+        "audio/webm",
+        "audio/mp4",
+        "audio/aac",
+      ];
+      const supported =
+        types.find((t) => MediaRecorder.isTypeSupported(t)) || "";
+      setMimeType(supported);
+
+      const recorder = new MediaRecorder(
+        stream,
+        supported ? { mimeType: supported } : {},
+      );
+      mediaRecorderRef.current = recorder;
+      audioChunksRef.current = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data?.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      recorder.onstop = () => {
+        const blob = new Blob(audioChunksRef.current, {
+          type: supported || "audio/webm",
+        });
+        const url = URL.createObjectURL(blob);
+        setAudioBlob(blob);
+        setAudioUrl(url);
+      };
+
+      recorder.start(500);
+      setRecState("recording");
+      setSeconds(0);
+      setAudioBlob(null);
+      if (audioUrl) URL.revokeObjectURL(audioUrl);
+      setAudioUrl(null);
+    } catch (err: any) {
+      const msg =
+        err.name === "NotAllowedError"
+          ? "Microphone access denied. Check browser permissions."
+          : "Cannot access microphone.";
+      showToast(msg);
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current?.state === "recording") {
+      mediaRecorderRef.current.stop();
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+    }
+    setRecState("stopped");
+  };
+
+  const handleMicClick = () => {
+    if (recState === "idle") startRecording();
+    else if (recState === "recording") stopRecording();
+  };
+
+  const handleReset = () => {
+    setRecState("idle");
+    setSeconds(0);
+    setAudioBlob(null);
+    if (audioUrl) URL.revokeObjectURL(audioUrl);
+    setAudioUrl(null);
+    setLabelInput("");
+  };
+
+  const togglePlayback = () => {
+    if (!audioUrl) return;
+    if (isPlaying) {
+      playbackRef.current?.pause();
+      setIsPlaying(false);
+    } else {
+      const audio = new Audio(audioUrl);
+      playbackRef.current = audio;
+      audio.onended = () => setIsPlaying(false);
+      audio.play();
+      setIsPlaying(true);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!audioBlob) return;
+    if (voiceCount >= 5) {
+      showToast("Maximum 5 voices. Delete one first.");
+      return;
+    }
+    setIsSaving(true);
+    try {
+      const ext =
+        mimeType.includes("mp4") || mimeType.includes("aac") ? "m4a" : "webm";
+      const fd = new FormData();
+      fd.append("audio", audioBlob, `sample.${ext}`);
+      fd.append("duration", String(seconds));
+      if (labelInput.trim()) fd.append("label", labelInput.trim());
+
+      const res = await fetch("/api/user/audio/save-voice", {
+        method: "POST",
+        body: fd,
+      });
+      const data = await res.json();
+      if (data.success) {
+        onSaved(data.voice);
+        handleReset();
+        showToast("✓ Voice saved");
+      } else {
+        showToast("❌ " + (data.error || "Failed to save"));
+      }
+    } catch {
+      showToast("❌ Failed to save voice");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <div className={styles.inlineRecorder}>
+      <div className={styles.recorderRow}>
+        <button
+          className={`${styles.recorderMicBtn} ${recState === "recording" ? styles.recorderMicRecording : ""} ${recState === "stopped" ? styles.recorderMicDone : ""}`}
+          onClick={handleMicClick}
+          disabled={recState === "stopped"}
+        >
+          {recState === "recording" ? <StopIcon /> : <MicIcon />}
+        </button>
+
+        <div className={styles.recorderInfo}>
+          <div className={styles.recorderStatus}>
+            {recState === "idle" && "Tap mic to record your voice"}
+            {recState === "recording" && `Recording… ${fmtTime(seconds)}`}
+            {recState === "stopped" && `Recorded ${fmtTime(seconds)}`}
+          </div>
+          {recState === "idle" && (
+            <div className={styles.recorderHint}>
+              Read naturally for ~60 seconds. Quiet room works best.
+            </div>
+          )}
+          {recState === "recording" && (
+            <div className={styles.recorderTimer}>
+              <div
+                className={styles.recorderTimerFill}
+                style={{ width: `${Math.min((seconds / 60) * 100, 100)}%` }}
+              />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {recState === "stopped" && (
+        <div className={styles.recorderActions}>
+          <button
+            className={`${styles.vbtn} ${styles.outline}`}
+            onClick={togglePlayback}
+          >
+            {isPlaying ? <StopIcon /> : <PlayIcon />}
+            {isPlaying ? "Stop" : "Listen"}
+          </button>
+          <button
+            className={`${styles.vbtn} ${styles.outline}`}
+            onClick={handleReset}
+          >
+            <RefreshIcon />
+            Re-record
+          </button>
+          <input
+            className={styles.recorderLabelInput}
+            placeholder="Voice name (optional)"
+            value={labelInput}
+            onChange={(e) => setLabelInput(e.target.value)}
+          />
+          <button
+            className={`${styles.vbtn} ${styles.solid}`}
+            onClick={handleSave}
+            disabled={isSaving}
+          >
+            <PlusIcon />
+            {isSaving ? "Saving…" : "Save Voice"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ── Saved Voices List ────────────────────────────────────────────────────────
+interface SavedVoicesProps {
+  voices: VoiceSampleItem[];
+  onSetDefault: (id: string) => void;
+  onDelete: (id: string) => void;
+  deletingId: string | null;
+}
+
+const SavedVoices: React.FC<SavedVoicesProps> = ({
+  voices,
+  onSetDefault,
+  onDelete,
+  deletingId,
+}) => {
+  const [playingId, setPlayingId] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const togglePlay = (v: VoiceSampleItem) => {
+    if (playingId === v.id) {
+      audioRef.current?.pause();
+      setPlayingId(null);
+    } else {
+      if (audioRef.current) audioRef.current.pause();
+      const a = new Audio(v.sample_url);
+      audioRef.current = a;
+      a.onended = () => setPlayingId(null);
+      a.play();
+      setPlayingId(v.id);
+    }
+  };
+
+  const fmtDur = (s: number | null) => {
+    if (!s) return "—";
+    return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`;
+  };
+
+  if (voices.length === 0) return null;
+
+  return (
+    <div className={styles.savedVoicesList}>
+      {voices.map((v) => (
+        <div
+          key={v.id}
+          className={`${styles.savedVoiceItem} ${v.is_default ? styles.savedVoiceDefault : ""}`}
+        >
+          <div className={styles.savedVoiceItemIcon}>
+            <MicIcon />
+          </div>
+          <div className={styles.savedVoiceItemInfo}>
+            <div className={styles.savedVoiceItemLabel}>
+              {v.label}
+              {v.is_default && (
+                <span className={styles.savedVoiceDefaultTag}>Default</span>
+              )}
+            </div>
+            <div className={styles.savedVoiceItemMeta}>
+              {fmtDur(v.duration_s)} ·{" "}
+              {format(new Date(v.created_at), "MMM d, yyyy")}
+            </div>
+          </div>
+          <div className={styles.savedVoiceItemBtns}>
+            <button
+              className={`${styles.vbtn} ${styles.outline}`}
+              onClick={() => togglePlay(v)}
+            >
+              {playingId === v.id ? <StopIcon /> : <PlayIcon />}
+            </button>
+            {!v.is_default && (
+              <button
+                className={`${styles.vbtn} ${styles.outline}`}
+                onClick={() => onSetDefault(v.id)}
+              >
+                Set Default
+              </button>
+            )}
+            <button
+              className={`${styles.vbtn} ${styles.red}`}
+              onClick={() => onDelete(v.id)}
+              disabled={deletingId === v.id}
+            >
+              <DeleteIcon />
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
 const NONE_SOUNDSCAPE = {
   value: "none",
   label: "None",
@@ -414,22 +777,10 @@ const SoundscapeSelector: React.FC<SoundscapeSelectorProps> = ({
   );
 };
 
-// Toast Component
-interface ToastProps {
-  message: string;
-  visible: boolean;
-}
-
-const Toast: React.FC<ToastProps> = ({ message, visible }) => (
-  <div className={`${styles.toast} ${visible ? styles.show : ""}`}>
-    {message}
-  </div>
-);
-
 // Main Component
 const AccountSettings: React.FC = () => {
   const router = useRouter();
-  const [toast, setToast] = useState({ message: "", visible: false });
+  const { showToast, showConfirm } = useGlobalUI();
 
   useEffect(() => {
     document.title = "ManifestMyStory — Account Settings";
@@ -468,6 +819,76 @@ const AccountSettings: React.FC = () => {
     },
   });
   const dynamicAssets = soundscapeData?.assets || [];
+
+  // Fetch saved voices
+  const { data: savedVoicesData } = useQuery({
+    queryKey: ["saved-voices"],
+    queryFn: async () => {
+      const res = await fetch("/api/user/audio/save-voice");
+      if (!res.ok) throw new Error("Failed to fetch voices");
+      return res.json();
+    },
+  });
+  const [savedVoices, setSavedVoices] = useState<VoiceSampleItem[]>([]);
+  const [deletingVoiceId, setDeletingVoiceId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (savedVoicesData?.voices) setSavedVoices(savedVoicesData.voices);
+  }, [savedVoicesData]);
+
+  const handleVoiceSaved = (voice: VoiceSampleItem) => {
+    setSavedVoices((prev) => [voice, ...prev]);
+    queryClient.invalidateQueries({ queryKey: ["user-settings"] });
+  };
+
+  const handleSetDefaultVoice = async (id: string) => {
+    try {
+      const res = await fetch("/api/user/audio/save-voice", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, setDefault: true }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSavedVoices((prev) =>
+          prev.map((v) => ({ ...v, is_default: v.id === id })),
+        );
+        showToast("✓ Default voice updated");
+        queryClient.invalidateQueries({ queryKey: ["user-settings"] });
+      }
+    } catch {
+      showToast("❌ Failed to update default voice");
+    }
+  };
+
+  const handleDeleteSavedVoice = (id: string) => {
+    showConfirm({
+      title: "Delete Voice Sample",
+      message: "Delete this voice sample?",
+      confirmText: "Delete",
+      danger: true,
+      onConfirm: async () => {
+        setDeletingVoiceId(id);
+        try {
+          const res = await fetch("/api/user/audio/save-voice", {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id }),
+          });
+          const data = await res.json();
+          if (data.success) {
+            setSavedVoices((prev) => prev.filter((v) => v.id !== id));
+            showToast("✓ Voice deleted");
+            queryClient.invalidateQueries({ queryKey: ["user-settings"] });
+          }
+        } catch {
+          showToast("❌ Failed to delete voice");
+        } finally {
+          setDeletingVoiceId(null);
+        }
+      },
+    });
+  };
 
   // Update settings mutation
   const updateSettingsMutation = useMutation({
@@ -546,11 +967,6 @@ const AccountSettings: React.FC = () => {
     }
   }, [userData]);
 
-  const showToast = (message: string) => {
-    setToast({ message, visible: true });
-    setTimeout(() => setToast({ message: "", visible: false }), 3000);
-  };
-
   const handleEdit = (field: "name" | "email") => {
     setEditingField(field);
   };
@@ -596,14 +1012,17 @@ const AccountSettings: React.FC = () => {
   };
 
   const handleDeleteVoice = () => {
-    if (
-      confirm(
+    showConfirm({
+      title: "Delete Voice Model",
+      message:
         "Delete your voice model? Your existing audio stories will still play, but you won't be able to generate new ones until you re-record. This cannot be undone.",
-      )
-    ) {
-      // TODO: API call to delete voice model
-      showToast("Voice model deleted");
-    }
+      confirmText: "Delete",
+      danger: true,
+      onConfirm: () => {
+        // TODO: API call to delete voice model
+        showToast("Voice model deleted");
+      },
+    });
   };
 
   const handlePasswordChange = () => {
@@ -640,23 +1059,29 @@ const AccountSettings: React.FC = () => {
   };
 
   const handleDeleteStories = () => {
-    if (
-      confirm(
+    showConfirm({
+      title: "Delete All Stories",
+      message:
         "Permanently delete all stories and audio files? This cannot be undone.",
-      )
-    ) {
-      deleteStoriesMutation.mutate();
-    }
+      confirmText: "Delete All",
+      danger: true,
+      onConfirm: () => {
+        deleteStoriesMutation.mutate();
+      },
+    });
   };
 
   const handleDeleteAccount = () => {
-    if (
-      confirm(
+    showConfirm({
+      title: "Delete Account",
+      message:
         "Permanently delete your account? Everything — stories, audio, voice model — will be lost forever. This cannot be undone.",
-      )
-    ) {
-      deleteAccountMutation.mutate();
-    }
+      confirmText: "Delete Account",
+      danger: true,
+      onConfirm: () => {
+        deleteAccountMutation.mutate();
+      },
+    });
   };
 
   if (isLoading)
@@ -773,19 +1198,41 @@ const AccountSettings: React.FC = () => {
                   <div>
                     <div className={styles.voiceName}>No Voice Model Yet</div>
                     <div className={styles.voiceMeta}>
-                      Record your voice to start generating audio stories
+                      Record your voice below to save it for audio generation
                     </div>
                   </div>
                 </div>
-                <div className={styles.voiceBtns}>
-                  <button
-                    className={`${styles.vbtn} ${styles.solid}`}
-                    onClick={handleReRecord}
-                  >
-                    <PlusIcon />
-                    Setup Voice Model
-                  </button>
+              </div>
+            )}
+
+            {/* Inline Recorder */}
+            <InlineRecorder
+              onSaved={handleVoiceSaved}
+              showToast={showToast}
+              voiceCount={savedVoices.length}
+            />
+
+            {/* Saved Voices */}
+            {savedVoices.length > 0 && (
+              <div style={{ padding: "0 1.4rem 1rem" }}>
+                <div
+                  style={{
+                    fontSize: "0.78rem",
+                    color: "var(--ink-faint)",
+                    marginBottom: "0.6rem",
+                    fontWeight: 500,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.04em",
+                  }}
+                >
+                  Saved Voices ({savedVoices.length}/5)
                 </div>
+                <SavedVoices
+                  voices={savedVoices}
+                  onSetDefault={handleSetDefaultVoice}
+                  onDelete={handleDeleteSavedVoice}
+                  deletingId={deletingVoiceId}
+                />
               </div>
             )}
           </div>
@@ -1049,8 +1496,6 @@ const AccountSettings: React.FC = () => {
             />
           </div>
         </main>
-
-        <Toast message={toast.message} visible={toast.visible} />
       </div>
     </>
   );

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import styles from '../../../styles/AudioReady.module.css';
 import { useStoryStore } from '@/store/useStoryStore';
+import { useGlobalUI } from '@/components/ui/global-ui-context';
 
 // Icon Components (kept as they were)
 const CheckIcon = () => (
@@ -119,6 +120,7 @@ interface WaveformBar {
 const AudioReadyContent: React.FC = () => {
     const router = useRouter();
     const searchParams = useSearchParams();
+    const { showToast, showConfirm } = useGlobalUI();
     const storyId = searchParams.get('storyId');
 
     const [story, setStory] = useState<any>(null);
@@ -443,7 +445,7 @@ const AudioReadyContent: React.FC = () => {
 
         } catch (err) {
             console.error("Browser mixing failed:", err);
-            alert("High-fidelity mixing failed in this browser. Falling back to voice-only download.");
+            showToast("High-fidelity mixing failed in this browser. Falling back to voice-only download.", "error");
             handleDownload('voice'); // Fallback to simple download
         } finally {
             setIsMixing(false);
@@ -499,44 +501,47 @@ const AudioReadyContent: React.FC = () => {
         // If user wants mixed and has backgrounds ON, try browser mixing first
         // to bypass FFmpeg limits on serverless production (Vercel)
         if (type === 'mixed' && (soundscapeOn || binauralOn)) {
-            const confirmed = window.confirm(
-                "Experience the 'High Fidelity Master'.\n\nI will now mix your narration with your chosen background sounds directly in your browser. This creates a lossless (WAV) file for the best quality.\n\nContinue?"
-            );
-            if (confirmed) {
-                mixAndDownloadInBrowser();
-                return;
-            }
+            showConfirm({
+                title: "High Fidelity Master",
+                message: "I will now mix your narration with your chosen background sounds directly in your browser. This creates a lossless (WAV) file for the best quality.\n\nContinue?",
+                confirmText: "Continue",
+                onConfirm: () => {
+                    mixAndDownloadInBrowser();
+                },
+            });
+            return;
         }
 
-        const confirmed = window.confirm(
-            type === 'mixed'
-                ? "Downloading the standard MP3 version.\n\nNote: If background mixing wasn't completed during generation, this file may only contain voice. Click OK to continue."
-                : "Downloading the clean voice version (no background sounds).\n\nClick OK to download."
-        );
+        showConfirm({
+            title: "Download Audio",
+            message: type === 'mixed'
+                ? "Downloading the standard MP3 version.\n\nNote: If background mixing wasn't completed during generation, this file may only contain voice."
+                : "Downloading the clean voice version (no background sounds).",
+            confirmText: "Download",
+            onConfirm: () => {
+                // Record download event
+                recordEvent('download');
 
-        if (!confirmed) return;
+                // Determine which URL to use
+                let targetUrl = story.audio_url; // Default to primary (usually mixed)
+                
+                if (type === 'voice' && story.voice_only_url) {
+                    targetUrl = story.voice_only_url;
+                } else if (type === 'mixed' && !soundscapeOn && !binauralOn && story.voice_only_url) {
+                    targetUrl = story.voice_only_url;
+                }
 
-        // Record download event
-        recordEvent('download');
+                const downloadUrl = `${targetUrl}${targetUrl.includes('?') ? '&' : '?'}download=true`;
+                const link = document.createElement('a');
+                link.href = downloadUrl;
+                link.click();
 
-        // Determine which URL to use
-        let targetUrl = story.audio_url; // Default to primary (usually mixed)
-        
-        if (type === 'voice' && story.voice_only_url) {
-            targetUrl = story.voice_only_url;
-        } else if (type === 'mixed' && !soundscapeOn && !binauralOn && story.voice_only_url) {
-            targetUrl = story.voice_only_url;
-        }
-
-        const downloadUrl = `${targetUrl}${targetUrl.includes('?') ? '&' : '?'}download=true`;
-        const link = document.createElement('a');
-        link.href = downloadUrl;
-        link.click();
-
-        setShowDownloadPrompt(true);
-        setTimeout(() => {
-            document.getElementById('postDownload')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        }, 500);
+                setShowDownloadPrompt(true);
+                setTimeout(() => {
+                    document.getElementById('postDownload')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }, 500);
+            },
+        });
     };
 
     const progressPercentage = displayDuration > 0 ? (currentTime / displayDuration) * 100 : 0;

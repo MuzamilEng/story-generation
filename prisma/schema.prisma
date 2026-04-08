@@ -71,6 +71,7 @@ model User {
   binaural_enabled        Boolean        @default(false) @map("binaural_enabled")
   soundscape              String         @default("none") @map("soundscape")
   accounts                Account[]
+  voiceSamples            VoiceSample[]
 
   sessions                Session[]
   playEvents              PlayEvent[]
@@ -246,6 +247,22 @@ model SoundscapeAsset {
   updated_at  DateTime @updatedAt @map("updated_at")
 
   @@map("soundscape_assets")
+}
+
+model VoiceSample {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  label       String   @default("My Voice")
+  r2_key      String   @map("r2_key")
+  sample_url  String   @map("sample_url")
+  duration_s  Int?     @map("duration_s")
+  is_default  Boolean  @default(false) @map("is_default")
+  created_at  DateTime @default(now()) @map("created_at")
+  updated_at  DateTime @updatedAt @map("updated_at")
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("voice_samples")
 }
 
 

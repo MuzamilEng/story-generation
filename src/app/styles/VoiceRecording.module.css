@@ -820,3 +820,538 @@
     font-size: 0.85rem;
     color: rgba(255, 255, 255, 0.5);
 }
+
+/* ── Saved Voice Card ────────────────────────────────────────────── */
+.savedVoiceCard {
+    background: rgba(82, 183, 136, 0.06);
+    border: 1px solid rgba(82, 183, 136, 0.25);
+    border-radius: 16px;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1.25rem;
+    animation: slideUp 0.3s ease both;
+}
+
+.savedVoiceHeader {
+    margin-bottom: 0.75rem;
+}
+
+.savedVoiceBadge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: rgba(82, 183, 136, 0.15);
+    color: var(--accent, #52b788);
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 0.3rem 0.75rem;
+    border-radius: 99px;
+    letter-spacing: 0.02em;
+}
+
+.savedVoiceBadge svg {
+    width: 14px;
+    height: 14px;
+}
+
+.savedVoiceBody {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+}
+
+.savedVoiceDesc {
+    font-size: 0.85rem;
+    color: var(--ink-soft, rgba(255, 255, 255, 0.6));
+    line-height: 1.5;
+    margin: 0;
+}
+
+.savedVoiceActions {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    flex-wrap: wrap;
+}
+
+.savedVoicePlay {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--ink, #fff);
+    font-size: 0.8rem;
+    font-weight: 500;
+    padding: 0.5rem 1rem;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.savedVoicePlay:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.savedVoicePlay svg {
+    width: 14px;
+    height: 14px;
+}
+
+.savedVoiceUse {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    background: var(--accent, #52b788);
+    border: none;
+    color: #fff;
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 0.6rem 1.25rem;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: opacity 0.2s;
+    margin-top: 0.25rem;
+}
+
+.savedVoiceUse:hover {
+    opacity: 0.9;
+}
+
+.savedVoiceUse:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.savedVoiceUse svg {
+    width: 14px;
+    height: 14px;
+}
+
+.savedVoiceDelete {
+    background: none;
+    border: none;
+    color: rgba(255, 107, 107, 0.7);
+    font-size: 0.78rem;
+    cursor: pointer;
+    padding: 0.5rem 0.6rem;
+    transition: color 0.2s;
+}
+
+.savedVoiceDelete:hover {
+    color: #ff6b6b;
+}
+
+.savedVoiceDelete:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* ── Voice List ──────────────────────────────────────────────────── */
+.voiceList {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.voiceItem {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.7rem 0.85rem;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 12px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.voiceItem:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.12);
+}
+
+.voiceItemSelected {
+    background: rgba(82, 183, 136, 0.08);
+    border-color: rgba(82, 183, 136, 0.3);
+}
+
+.voiceItemRadio {
+    flex-shrink: 0;
+}
+
+.radioCircle {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.radioActive {
+    border-color: var(--accent, #52b788);
+    background: var(--accent, #52b788);
+    box-shadow: inset 0 0 0 3px rgba(8, 7, 15, 0.9);
+}
+
+.voiceItemInfo {
+    flex: 1;
+    min-width: 0;
+}
+
+.voiceItemLabel {
+    font-size: 0.88rem;
+    font-weight: 500;
+    color: var(--ink, #fff);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.defaultTag {
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: var(--accent, #52b788);
+    background: rgba(82, 183, 136, 0.12);
+    padding: 0.1rem 0.45rem;
+    border-radius: 4px;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+
+.voiceItemMeta {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.35);
+    margin-top: 0.15rem;
+}
+
+.voiceItemActions {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-shrink: 0;
+}
+
+.voiceItemPlayBtn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--ink, #fff);
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    transition: background 0.15s;
+}
+
+.voiceItemPlayBtn:hover {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.voiceItemPlayBtn svg {
+    width: 14px;
+    height: 14px;
+}
+
+.voiceItemDeleteBtn {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: none;
+    background: transparent;
+    color: rgba(255, 107, 107, 0.5);
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    font-size: 0.85rem;
+    transition: color 0.15s, background 0.15s;
+}
+
+.voiceItemDeleteBtn:hover {
+    color: #ff6b6b;
+    background: rgba(255, 107, 107, 0.1);
+}
+
+.voiceItemDeleteBtn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* ── Submit button group ─────────────────────────────────────────── */
+.submitBtnGroup {
+    display: flex;
+    gap: 0.75rem;
+    align-items: stretch;
+}
+
+.saveVoiceBtn {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: var(--ink, #fff);
+    font-size: 0.88rem;
+    font-weight: 500;
+    padding: 0.85rem 1.25rem;
+    border-radius: 14px;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+    white-space: nowrap;
+}
+
+.saveVoiceBtn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.saveVoiceBtn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.submitBtnGroup .submitBtn {
+    flex: 1;
+}
+/* RESPONSIVENESS */
+@media (max-width: 1024px) {
+    .page {
+        flex-direction: column;
+        align-items: center;
+        padding-top: 1.5rem;
+    }
+
+    .leftCol {
+        width: 100%;
+        max-width: 540px;
+        order: 2;
+    }
+
+    .centerCol {
+        width: 100%;
+        max-width: 540px;
+        order: 1;
+    }
+}
+
+@media (max-width: 640px) {
+    .topbar {
+        padding: 0.75rem 1rem;
+        flex-wrap: wrap;
+    }
+
+    .stepsRow {
+        display: none; /* Hide steps on very small screens to save space */
+    }
+
+    .page {
+        padding: 1rem;
+        gap: 1.5rem;
+    }
+
+    .recorderCard {
+        border-radius: 12px;
+    }
+
+    .recTop {
+        padding: 1.5rem 1rem;
+    }
+
+    .micRing {
+        width: 80px;
+        height: 80px;
+        margin-bottom: 1rem;
+    }
+
+    .micRing svg {
+        width: 32px;
+        height: 32px;
+    }
+
+    .recTitle {
+        font-size: 1.25rem;
+    }
+
+    .recHint {
+        font-size: 0.85rem;
+    }
+
+    .playbackCard {
+        flex-direction: column;
+        padding: 1.25rem;
+        text-align: center;
+        gap: 1rem;
+    }
+
+    .pbInfo {
+        width: 100%;
+    }
+
+    .pbRedo {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .submitBtnGroup {
+        flex-direction: column;
+    }
+
+    .saveVoiceBtn, .submitBtn {
+        width: 100%;
+        padding: 1rem;
+    }
+
+    .voiceItem {
+        padding: 0.85rem;
+    }
+
+    .voiceItemInfo {
+        gap: 0.15rem;
+    }
+
+    .voiceItemLabel {
+        font-size: 0.85rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .logo {
+        font-size: 1rem;
+    }
+
+    .ghostBtn {
+        padding: 0.3rem 0.6rem;
+        font-size: 0.7rem;
+    }
+
+    .waveformWrap {
+        height: 40px;
+    }
+
+    .timerDisplay {
+        font-size: 1.75rem;
+    }
+}
+
+.playbackCard {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    padding: 1rem 1.25rem;
+    transition: all 0.3s ease;
+    width: 100%;
+}
+
+.pbInfo {
+    flex: 1;
+    min-width: 0;
+}
+
+.pbTitle {
+    font-size: 0.88rem;
+    font-weight: 500;
+    color: var(--ink);
+    margin-bottom: 0.4rem;
+}
+
+.pbProgress {
+    height: 4px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 2px;
+    position: relative;
+    margin-bottom: 0.4rem;
+}
+
+.pbFill {
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 100%;
+    background: var(--accent);
+    border-radius: 2px;
+    transition: width 0.1s linear;
+}
+
+.pbTime {
+    font-size: 0.72rem;
+    color: var(--ink-faint);
+}
+
+.pbRedo {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--ink-muted);
+    font-size: 0.75rem;
+    padding: 0.4rem 0.8rem;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.pbRedo:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.playPause {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: none;
+    color: #fff;
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.playPause:hover {
+    transform: scale(1.05);
+}
+
+.playPause svg {
+    width: 20px;
+    height: 20px;
+}
+
+/* SPINNER RESPONSIVENESS */
+@media (max-width: 640px) {
+    .overlaySpinner {
+        width: 32px;
+        height: 32px;
+        border-width: 2px;
+    }
+}
+
+/* UPDATED FULL PAGE LOADER RESPONSIVENESS */
+@media (max-width: 640px) {
+    .fullPageOverlay {
+        padding: 2rem;
+        text-align: center;
+        gap: 1.25rem;
+    }
+
+    .overlaySpinner {
+        width: 42px;
+        height: 42px;
+        border-width: 2.5px;
+    }
+
+    .overlayText {
+        font-size: 1.1rem;
+        max-width: 250px;
+    }
+
+    .overlaySubtext {
+        font-size: 0.8rem;
+        line-height: 1.4;
+        max-width: 220px;
+    }
+}

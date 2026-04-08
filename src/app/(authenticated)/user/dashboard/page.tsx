@@ -8,6 +8,7 @@ import { format, formatDistanceToNow } from "date-fns";
 import styles from "../../../styles/Dashboard.module.css";
 import Header from "../../../components/Header";
 import { useStoryStore } from "@/store/useStoryStore";
+import { useGlobalUI } from "@/components/ui/global-ui-context";
 
 // Icon Components
 // ... (removing redundant icons if used only in old header)
@@ -377,6 +378,7 @@ const ActivityRow: React.FC<ActivityRowProps> = ({ activity }) => {
 
 const Dashboard: React.FC = () => {
   const router = useRouter();
+  const { showToast } = useGlobalUI();
   const { data: session, update } = useSession();
   const { clearStore } = useStoryStore();
 
@@ -512,7 +514,7 @@ const Dashboard: React.FC = () => {
 
   const handleDownload = (story: Story) => {
     if (!story.audio_url) {
-      alert("Audio is not ready yet.");
+      showToast("Audio is not ready yet.", "error");
       return;
     }
     // Record the download event

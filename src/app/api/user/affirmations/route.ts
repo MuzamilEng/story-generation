@@ -5,6 +5,21 @@ import { prisma } from '@/lib/prisma';
 import { model } from '@/lib/langchain';
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 
+/** Attempt to extract and parse a JSON object from an LLM response string. */
+function tryParseAffirmations(raw: string): { opening: string[]; closing: string[] } | null {
+    // Strip markdown code fences
+    let str = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
+    // Try direct parse first
+    try { return JSON.parse(str); } catch { /* continue */ }
+    // Extract the outermost JSON object
+    const match = str.match(/\{[\s\S]*\}/);
+    if (!match) return null;
+    try { return JSON.parse(match[0]); } catch { /* continue */ }
+    // Some models add trailing commas — try removing them
+    const cleaned = match[0].replace(/,\s*([\]}])/g, '$1');
+    try { return JSON.parse(cleaned); } catch { return null; }
+}
+
 /**
  * POST /api/user/affirmations
  * Body: { storyId, action: 'generate' | 'refine', affirmation?: string }
@@ -73,20 +88,30 @@ ${goalsSummary}`;
         );
 
         const raw = response.content.toString().trim();
-        // Strip markdown code fences (multiline) that some models wrap around JSON
-        let jsonStr = raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
-        // If the model returned non-JSON preamble, try to extract the JSON object
-        const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-            jsonStr = jsonMatch[0];
+        let parsed = tryParseAffirmations(raw);
+
+        // Retry once if first parse fails
+        if (!parsed) {
+            console.warn('[AFFIRMATIONS] First parse failed, retrying LLM call...');
+            const retryResponse = await model.invoke([
+                new SystemMessage(systemPrompt + '\n\nIMPORTANT: Return ONLY raw JSON. No markdown, no code fences, no explanation.'),
+                new HumanMessage(userPrompt),
+            ]);
+            const retryRaw = retryResponse.content.toString().trim();
+            parsed = tryParseAffirmations(retryRaw);
         }
-        let parsed;
-        try {
-            parsed = JSON.parse(jsonStr);
-        } catch {
-            console.error('[AFFIRMATIONS] Failed to parse LLM response as JSON:', raw.slice(0, 300));
+
+        if (!parsed) {
+            console.error('[AFFIRMATIONS] Failed to parse LLM response after retry:', raw.slice(0, 500));
             return NextResponse.json({ error: 'Failed to generate affirmations. Please try again.' }, { status: 502 });
         }
+
+        // Ensure correct structure with fallback
+        if (!Array.isArray(parsed.opening) || !Array.isArray(parsed.closing)) {
+            console.error('[AFFIRMATIONS] Parsed JSON missing opening/closing arrays');
+            return NextResponse.json({ error: 'Failed to generate affirmations. Please try again.' }, { status: 502 });
+        }
+
         return NextResponse.json({ affirmations: parsed });
     }
 

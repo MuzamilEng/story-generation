@@ -150,9 +150,14 @@
 
 /* Responsive Adjustments */
 @media (max-width: 768px) {
+    /* Hide topbar entirely on mobile for all pages (authenticated and landing) to avoid duplication with sidebar */
+    .topbar {
+        display: none !important;
+    }
+
     .topbarContent {
         padding: 0.85rem 1rem;
-        display: flex; /* Ensure it's visible on public/landing pages */
+        display: flex; /* Ensure it's available if needed for layout */
     }
 
     .topbarNav {

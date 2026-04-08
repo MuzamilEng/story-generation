@@ -7,7 +7,7 @@ const nextConfig: NextConfig = {
   },
   serverExternalPackages: ["ffmpeg-static"],
   outputFileTracingIncludes: {
-    "/api/user/audio/assemble": ["./node_modules/ffmpeg-static/**/*"],
+    "/api/**": ["./node_modules/ffmpeg-static/**/*"],
   },
 };
 

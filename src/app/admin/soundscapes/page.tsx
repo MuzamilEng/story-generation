@@ -10,8 +10,10 @@ import {
     RefreshIcon
 } from "../../components/icons/VoiceIcons";
 import { Music, Image as ImageIcon, Plus, Trash2, Upload, X } from "lucide-react";
+import { useGlobalUI } from "@/components/ui/global-ui-context";
 
 const SoundscapesPage: React.FC = () => {
+    const { showConfirm } = useGlobalUI();
     const qc = useQueryClient();
     const [title, setTitle] = useState("");
     const [audioFile, setAudioFile] = useState<File | null>(null);
@@ -78,24 +80,31 @@ const SoundscapesPage: React.FC = () => {
         }
     };
 
-    const handleDelete = async (id: string, r2Key: string) => {
-        if (!confirm("Are you sure you want to delete this soundscape?")) return;
-        try {
-            const res = await fetch("/api/admin/soundscapes", {
-                method: "DELETE",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ id, r2Key }),
-            });
-            const data = await res.json();
-            if (data.success) {
-                qc.invalidateQueries({ queryKey: ["soundscape-assets"] });
-                setMsg("✓ Deleted successfully");
-            } else {
-                setMsg(`✗ Error: ${data.error}`);
-            }
-        } catch (e: any) {
-            setMsg(`✗ Network Error: ${e.message}`);
-        }
+    const handleDelete = (id: string, r2Key: string) => {
+        showConfirm({
+            title: "Delete Soundscape",
+            message: "Are you sure you want to delete this soundscape?",
+            confirmText: "Delete",
+            danger: true,
+            onConfirm: async () => {
+                try {
+                    const res = await fetch("/api/admin/soundscapes", {
+                        method: "DELETE",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ id, r2Key }),
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        qc.invalidateQueries({ queryKey: ["soundscape-assets"] });
+                        setMsg("✓ Deleted successfully");
+                    } else {
+                        setMsg(`✗ Error: ${data.error}`);
+                    }
+                } catch (e: any) {
+                    setMsg(`✗ Network Error: ${e.message}`);
+                }
+            },
+        });
     };
 
     return (
