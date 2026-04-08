@@ -565,36 +565,22 @@ BLOCK D — THE CLOSE (RESIDENT LANDING)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 The close is written in 2nd person again — returning to the guided voice of the induction. The same voice that opened the experience now gently closes it, like a hand placed softly over the heart. This symmetry signals to the subconscious: the loop is complete. The new reality is sealed.
 
+IMPORTANT: Affirmations are delivered as SEPARATE audio segments before and after the story. Do NOT plant affirmations in the story text. The close should handle dissolution, subconscious programming, and sleep seeding ONLY.
+
 STEP 1 — DISSOLUTION:
 The scene slowly dissolves, not into nothingness, but into the deep subconscious. The feeling remains even as the details fade. Use transitional language that invites release: "You can let it all go now. Let every image soften. Let every vision dissolve into warm light. You don't need to hold on to any of it. Your subconscious mind has received every word. Every feeling. Every instruction. It is already working."
 
-STEP 2 — AFFIRMATIONS PLANTED IN THETA (CRITICAL — AFTER DISSOLUTION):
-⚠️ ALL affirmations MUST be planted AFTER the dissolution — NOT woven through the vision scenes.
-During vision scenes the listener is immersed in sensory experience. Interrupting with explicit affirmations breaks the state. After dissolution, the critical faculty is fully offline — affirmations land directly into the subconscious with zero resistance.
-
-Plant affirmations BY AREA in order. Within each area, escalate: Having → Doing → Being, ending on the deepest BEING statement before sleep seeding.
-
-Structure:
-- First: Per-area affirmations (from areaAffirmations captured during intake) — plant each area's affirmations grouped together
-- Then: The broadest BEING-level identity statements (from identityStatements) — these are the deepest layer
-- Write them as quiet facts being confirmed, not wishes. Weave them into flowing prose — not as a bulleted list.
-
-Example flow (adapt to user's actual data):
-"You are someone whose body radiates vitality and strength... You are someone who creates abundance effortlessly... You are a leader whose word creates reality... You are a person of extraordinary abundance, and this is simply who I am now..."
-
-The identity statements from the user MUST be used VERBATIM. Do not rewrite them.
-
-STEP 3 — SUBCONSCIOUS PROGRAMMING:
-After the affirmations are planted, include the programming close:
+STEP 2 — SUBCONSCIOUS PROGRAMMING:
+After dissolution, include the programming close:
 "Tonight your dreams will carry the frequency of your highest life. Your cells will repair and renew. Your subconscious will begin assembling the circumstances, the connections, the ideas, the opportunities that make every single one of these visions physical reality. You will notice something different tomorrow. A quiet shift. A new certainty. The feeling of someone who knows something the world doesn't know yet. Because you do."
 
-STEP 4 — SLEEP SEEDING:
+STEP 3 — SLEEP SEEDING:
 The narrator seeds the subconscious for sleep.
 - Invoke the specific feeling of safety, provision, and love
 - Explicitly affirm the subconscious continues its work through the night
 - Use present tense: "it is already working. Right now. As you drift. As you sleep. As you dream."
 
-STEP 5 — THREE SLOW REPETITIONS (MANDATORY — 8-12 words each, one breath apart):
+STEP 4 — THREE SLOW REPETITIONS (MANDATORY — 8-12 words each, one breath apart):
 Three final lines — the last sounds before sleep. Each one is a breath. Each one lands in the subconscious like a stone dropped into still water. They should vary slightly, not be identical:
 "Sleep now... and receive."
 "Sleep now... and receive."
@@ -651,17 +637,24 @@ TITLE: [Write a short evocative title — no brackets, no asterisks, plain text 
 
 ---
 [The full story begins here as pure, unbroken flowing prose.]
+${['activator', 'manifester', 'amplifier'].includes(userTier) ? `
+SECTION SEPARATION — MANDATORY:
+After you finish the induction (Block A) and BEFORE you begin the vision (Block B), you MUST insert this exact marker on its own line:
 
+[INTRO_END]
+
+This marker separates the intro/induction from the main story. Do NOT skip it. The audio system uses it to insert opening affirmations between the intro and the story.
+` : ''}
 RULES FOR THE STORY BODY:
 - NO section headers of any kind (no "INDUCTION", no "THE VISION", no "BLOCK A", nothing)
 - NO timestamps or time ranges anywhere (no "0-5 min", no "5-22 min", nothing)
-- NO labels, NO dividers except · · · between major scene transitions
+- NO labels, NO dividers except · · · between major scene transitions${['activator', 'manifester', 'amplifier'].includes(userTier) ? ' and the mandatory [INTRO_END] marker after the induction' : ''}
 - The story flows as one continuous piece — like the reference story provided
 - Begin immediately with the first word of the induction (for Activator+) or the first word of the vision (for Explorer)
 - Use · · · on its own line between major life area transitions in the vision
 - End the story with the three sleep repetitions, then nothing more
 
-The output must look exactly like a beautifully written piece of literary prose — pure text, no structure visible to the reader.
+The output must look exactly like a beautifully written piece of literary prose — pure text, no structure visible to the reader (except the required [INTRO_END] marker for the audio system).
 
 Begin now. Write the full story with no preamble, no explanation. Start directly with the story itself.\n`;
 
@@ -720,4 +713,22 @@ ${answers.coreFeeling}
     }
 
     return result;
+}
+
+// ── Delimiter used to separate induction (intro) from story body ──────────────
+export const INTRO_END_MARKER = '[INTRO_END]';
+
+/**
+ * Split a story text into intro (induction) and story body using the [INTRO_END] marker.
+ * Returns { intro, storyBody }. If no marker is found, intro is empty and storyBody is the full text.
+ */
+export function splitIntroFromStory(fullText: string): { intro: string; storyBody: string } {
+    const idx = fullText.indexOf(INTRO_END_MARKER);
+    if (idx === -1) {
+        return { intro: '', storyBody: fullText.trim() };
+    }
+    return {
+        intro: fullText.slice(0, idx).trim(),
+        storyBody: fullText.slice(idx + INTRO_END_MARKER.length).trim(),
+    };
 }

@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { checkPlanGating } from '@/lib/plan-gating';
 import { betaTypeToPlan } from '@/lib/beta-utils';
+import { splitIntroFromStory } from '@/lib/story-utils';
 import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 
 // Allow up to 300s for audio assembly (TTS generation)
@@ -149,6 +150,32 @@ async function generateFishAudioTTS(voiceId: string, text: string): Promise<Buff
     } catch { return null; }
 }
 
+// ── Silence Generator ─────────────────────────────────────────────────────────
+/**
+ * Generate an MP3 buffer of silence for the given duration.
+ * Uses a minimal valid MPEG Audio Layer 3 frame (MPEG1, 128 kbps, 44100 Hz,
+ * Joint Stereo).  Each frame is 417 bytes and represents ~26.12 ms of audio.
+ * We repeat that frame enough times to cover the requested duration.
+ */
+function generateSilenceMP3(durationSeconds: number): Buffer {
+    // Minimal valid MP3 frame: sync word 0xFFFB, 128kbps, 44100Hz, joint-stereo
+    // Frame length = 144 * bitrate / sampleRate + padding = 144*128000/44100 = 417 bytes
+    const FRAME_SIZE = 417;
+    const header = Buffer.alloc(FRAME_SIZE, 0);
+    // MPEG sync + header bytes
+    header[0] = 0xFF;
+    header[1] = 0xFB; // MPEG1, Layer 3, no CRC
+    header[2] = 0x90; // 128kbps, 44100Hz
+    header[3] = 0x00; // joint stereo, no padding
+    // Rest stays zero (silence)
+
+    const frameDuration = 1152 / 44100; // ~0.02612 s per frame
+    const frameCount = Math.ceil(durationSeconds / frameDuration);
+    const frames: Buffer[] = [];
+    for (let i = 0; i < frameCount; i++) frames.push(header);
+    return Buffer.concat(frames);
+}
+
 // ── Text Chunker  ─────────────────────────────────────────────────────────────
 function splitTextIntoChunks(text: string, maxChars: number = CHUNK_CHARS): string[] {
     if (!text?.trim()) return [];
@@ -238,71 +265,120 @@ export async function POST(req: NextRequest) {
 
         const rawText = (story as any).story_text_approved || (story as any).story_text_draft || '';
         const aff = (story as any).affirmations_json as any;
-        const textParts: string[] = [];
-        if (aff?.opening && Array.isArray(aff.opening)) textParts.push(aff.opening.join('\n\n'));
-        textParts.push(rawText);
-        if (aff?.closing && Array.isArray(aff.closing)) textParts.push(aff.closing.join('\n\n'));
-        
-        const fullText = textParts.join('\n\n');
-        const fullWordCount = fullText.split(/\s+/).filter(Boolean).length;
-        const chunks = splitTextIntoChunks(fullText);
+        const hasOpeningAff = aff?.opening && Array.isArray(aff.opening) && aff.opening.length > 0;
+        const hasClosingAff = aff?.closing && Array.isArray(aff.closing) && aff.closing.length > 0;
 
-        // Verify text integrity — total words in chunks must match original
-        const totalChunkChars = chunks.reduce((n, c) => n + c.length, 0);
-        const totalChunkWords = chunks.reduce((n, c) => n + c.split(/\s+/).filter(Boolean).length, 0);
-
-        console.log(`[assemble] Story text: ${rawText.length} chars, ${rawText.split(/\s+/).filter(Boolean).length} words`);
-        console.log(`[assemble] Full text with affirmations: ${fullText.length} chars, ${fullWordCount} words`);
-        console.log(`[assemble] Split into ${chunks.length} chunks: ${totalChunkChars} chars, ${totalChunkWords} words`);
-        if (totalChunkWords < fullWordCount * 0.95) {
-            console.error(`[assemble] ⚠ TEXT LOSS DETECTED: original ${fullWordCount} words → chunks ${totalChunkWords} words (${fullWordCount - totalChunkWords} words lost!)`);
+        // ── TTS helper — honours the provider priority chain ──────────────────
+        async function generateTTSForText(text: string, label: string): Promise<Buffer[]> {
+            const chunks = splitTextIntoChunks(text);
+            const buffers: Buffer[] = [];
+            for (let i = 0; i < chunks.length; i++) {
+                let buf: Buffer | null = null;
+                if (useElevenLabs) buf = await generateElevenLabsTTS(elevenLabsVoiceId, chunks[i]);
+                if (!buf && useFishAudio) buf = await generateFishAudioTTS(voiceModelId, chunks[i]);
+                if (!buf) buf = await generateFreeTTS(chunks[i]);
+                if (buf) {
+                    buffers.push(buf);
+                    console.log(`[assemble] ✓ ${label} chunk ${i + 1}/${chunks.length} — ${buf.length} bytes`);
+                } else {
+                    console.error(`[assemble] ✗ ${label} chunk ${i + 1}/${chunks.length} FAILED — aborting`);
+                    throw new Error(`Voice generation failed on ${label} chunk ${i + 1}/${chunks.length}. Please try again.`);
+                }
+            }
+            return buffers;
         }
 
-        // Log each chunk size for debugging
-        chunks.forEach((c, i) => console.log(`[assemble]   Chunk ${i + 1}: ${c.length} chars, ${c.split(/\s+/).filter(Boolean).length} words`));
-        
-        // Generate all TTS chunks as in-memory buffers
-        const chunkBuffers: Buffer[] = [];
-        for (let i = 0; i < chunks.length; i++) {
-            let buf: Buffer | null = null;
-            
-            // Priority 1: ElevenLabs (only if we have a real ElevenLabs voice ID)
-            if (useElevenLabs) {
-                buf = await generateElevenLabsTTS(elevenLabsVoiceId, chunks[i]);
-            }
-            
-            // Priority 2: Fish Audio fallback (use voice_model_id which may be Fish Audio ID)
-            if (!buf && useFishAudio) {
-                buf = await generateFishAudioTTS(voiceModelId, chunks[i]);
-            }
-            
-            // Priority 3: Free TTS fallback
-            if (!buf) {
-                buf = await generateFreeTTS(chunks[i]);
-            }
-            
-            if (buf) {
-                chunkBuffers.push(buf);
-                console.log(`[assemble] ✓ Chunk ${i + 1}/${chunks.length} — ${buf.length} bytes`);
+        // ── Generate TTS for each segment separately ──────────────────────────
+        // Sequence: Intro → pause → Opening Affirmation → pause → Story → pause → Closing Affirmation
+
+        const PAUSE_SECONDS = 2.5;
+        const pauseBuffer = generateSilenceMP3(PAUSE_SECONDS);
+
+        // Split the generated text into intro (induction) and story body
+        const { intro: introText, storyBody: storyBodyText } = splitIntroFromStory(rawText);
+        console.log(`[assemble] Intro text: ${introText.length} chars | Story body: ${storyBodyText.length} chars`);
+
+        // 1. Intro TTS (from generated text induction — used when no admin MP3)
+        let introBuffers: Buffer[] = [];
+        if (introText) {
+            // If admin induction MP3 exists, use that instead of TTS-ing the text intro
+            if (induction) {
+                console.log(`[assemble] Using admin induction MP3 for Intro (skipping TTS of intro text)`);
+                introBuffers = [induction];
             } else {
-                // Do NOT silently skip — the audio would be incomplete
-                console.error(`[assemble] ✗ Chunk ${i + 1}/${chunks.length} FAILED — aborting to prevent incomplete audio`);
-                return NextResponse.json(
-                    { error: `Voice generation failed on chunk ${i + 1} of ${chunks.length}. Please try again.` },
-                    { status: 500 },
-                );
+                console.log(`[assemble] Generating TTS for Intro (${introText.length} chars)`);
+                introBuffers = await generateTTSForText(introText, 'intro');
             }
+        } else if (induction) {
+            // No intro text (explorer tier) but admin MP3 exists — use it
+            introBuffers = [induction];
         }
 
-        if (chunkBuffers.length === 0) {
+        // 2. Opening Affirmations TTS
+        let openingAffBuffers: Buffer[] = [];
+        if (hasOpeningAff) {
+            const openingText = aff.opening.join('\n\n');
+            console.log(`[assemble] Generating TTS for opening affirmations (${openingText.length} chars)`);
+            openingAffBuffers = await generateTTSForText(openingText, 'opening_aff');
+        }
+
+        // 3. Main Story Body TTS (without intro — it was separated above)
+        console.log(`[assemble] Generating TTS for story body (${storyBodyText.length} chars, ${storyBodyText.split(/\s+/).filter(Boolean).length} words)`);
+        const storyBuffers = await generateTTSForText(storyBodyText, 'story');
+
+        // 4. Closing Affirmations TTS
+        let closingAffBuffers: Buffer[] = [];
+        if (hasClosingAff) {
+            const closingText = aff.closing.join('\n\n');
+            console.log(`[assemble] Generating TTS for closing affirmations (${closingText.length} chars)`);
+            closingAffBuffers = await generateTTSForText(closingText, 'closing_aff');
+        }
+
+        if (storyBuffers.length === 0) {
             return NextResponse.json({ error: 'Failed to generate any audio' }, { status: 500 });
         }
 
-        // ── Final Assembly (simple MP3 concatenation in memory) ───────────────
+        // ── Final Assembly: Intro → pause → Opening Aff → pause → Story → pause → Closing Aff
         const parts: Buffer[] = [];
-        if (induction) parts.push(induction);
-        parts.push(...chunkBuffers);
-        if (close) parts.push(close);
+        const segmentLog: string[] = [];
+
+        // Intro
+        if (introBuffers.length > 0) {
+            parts.push(...introBuffers);
+            segmentLog.push('Intro');
+            parts.push(pauseBuffer);
+            segmentLog.push(`pause(${PAUSE_SECONDS}s)`);
+        }
+
+        // Opening Affirmations
+        if (openingAffBuffers.length > 0) {
+            parts.push(...openingAffBuffers);
+            segmentLog.push('Opening Affirmations');
+            parts.push(pauseBuffer);
+            segmentLog.push(`pause(${PAUSE_SECONDS}s)`);
+        }
+
+        // Story Body
+        parts.push(...storyBuffers);
+        segmentLog.push('Story');
+
+        // Closing Affirmations
+        if (closingAffBuffers.length > 0) {
+            parts.push(pauseBuffer);
+            segmentLog.push(`pause(${PAUSE_SECONDS}s)`);
+            parts.push(...closingAffBuffers);
+            segmentLog.push('Closing Affirmations');
+        }
+
+        // Guide Close (admin MP3)
+        if (close) {
+            parts.push(pauseBuffer);
+            segmentLog.push(`pause(${PAUSE_SECONDS}s)`);
+            parts.push(close);
+            segmentLog.push('Guide Close');
+        }
+
+        console.log(`[assemble] Segment order: ${segmentLog.join(' → ')}`);
 
         const finalAudio = Buffer.concat(parts);
 

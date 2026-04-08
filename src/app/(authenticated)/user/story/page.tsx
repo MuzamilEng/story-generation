@@ -24,7 +24,11 @@ import {
   SparkleIcon,
 } from "../../../components/icons/StoryIcons";
 import { ChecklistItem, GenerationStep } from "../../../types/story";
-import { UserAnswers, normalizeGoals } from "@/lib/story-utils";
+import {
+  UserAnswers,
+  normalizeGoals,
+  splitIntroFromStory,
+} from "@/lib/story-utils";
 import { useStoryStore } from "@/store/useStoryStore";
 import { useGlobalUI } from "@/components/ui/global-ui-context";
 
@@ -331,6 +335,10 @@ const StoryContent: React.FC = () => {
   const [isInitializing, setIsInitializing] = useState(true);
   const [genError, setGenError] = useState<string | null>(null);
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
+  const [storyAffirmations, setStoryAffirmations] = useState<{
+    opening: string[];
+    closing: string[];
+  } | null>(null);
 
   const {
     capturedGoals,
@@ -503,6 +511,10 @@ const StoryContent: React.FC = () => {
 
             if (data.title) {
               setStoryTitle(data.title);
+            }
+
+            if (data.affirmations_json) {
+              setStoryAffirmations(data.affirmations_json);
             }
 
             if (data.story_text_draft) {
@@ -880,40 +892,121 @@ const StoryContent: React.FC = () => {
                   />
                 ) : (
                   <div className={styles.storyTextDisplay}>
-                    {storyText.split("\n").map((line, idx) => {
-                      const trimmed = line.trim();
-                      if (!trimmed) return <br key={idx} />;
+                    {(() => {
+                      const { intro, storyBody } =
+                        splitIntroFromStory(storyText);
+                      const hasOpening =
+                        storyAffirmations?.opening &&
+                        storyAffirmations.opening.length > 0;
+                      const hasClosing =
+                        storyAffirmations?.closing &&
+                        storyAffirmations.closing.length > 0;
 
-                      // Clean residual markdown symbols
-                      const cleanLine = trimmed.replace(/[\*#_]/g, "").trim();
+                      const renderProseLines = (
+                        text: string,
+                        keyPrefix: string,
+                      ) =>
+                        text.split("\n").map((line, idx) => {
+                          const trimmed = line.trim();
+                          if (!trimmed)
+                            return <br key={`${keyPrefix}-${idx}`} />;
+                          const cleanLine = trimmed
+                            .replace(/[\*#_]/g, "")
+                            .trim();
+                          const isHeader = /[A-Z\s]{5,}.*?\d+-\d+\s+min/i.test(
+                            cleanLine,
+                          );
+                          if (isHeader) {
+                            return (
+                              <h4
+                                key={`${keyPrefix}-${idx}`}
+                                className={styles.storySectionHeader}
+                              >
+                                {cleanLine}
+                              </h4>
+                            );
+                          }
+                          if (cleanLine === "· · ·") {
+                            return (
+                              <div
+                                key={`${keyPrefix}-${idx}`}
+                                className={styles.sceneDivider}
+                              >
+                                · · ·
+                              </div>
+                            );
+                          }
+                          return (
+                            <p
+                              key={`${keyPrefix}-${idx}`}
+                              className={styles.storyPara}
+                            >
+                              {cleanLine}
+                            </p>
+                          );
+                        });
 
-                      // Detect headers: uppercase words followed by time range (e.g., "0-5 min")
-                      const isHeader = /[A-Z\s]{5,}.*?\d+-\d+\s+min/i.test(
-                        cleanLine,
-                      );
-                      if (isHeader) {
-                        return (
-                          <h4 key={idx} className={styles.storySectionHeader}>
-                            {cleanLine}
-                          </h4>
-                        );
-                      }
-
-                      // Detect scene dividers
-                      if (cleanLine === "· · ·") {
-                        return (
-                          <div key={idx} className={styles.sceneDivider}>
-                            · · ·
-                          </div>
-                        );
-                      }
+                      const renderAffirmationList = (
+                        items: string[],
+                        keyPrefix: string,
+                      ) =>
+                        items.map((aff, idx) => (
+                          <p
+                            key={`${keyPrefix}-${idx}`}
+                            className={styles.storyPara}
+                            style={{ fontStyle: "italic" }}
+                          >
+                            {aff}
+                          </p>
+                        ));
 
                       return (
-                        <p key={idx} className={styles.storyPara}>
-                          {cleanLine}
-                        </p>
+                        <>
+                          {/* INTRO (Induction) */}
+                          {intro && (
+                            <>
+                              <div className={styles.storySectionLabel}>
+                                Intro
+                              </div>
+                              {renderProseLines(intro, "intro")}
+                              <div className={styles.sceneDivider}>· · ·</div>
+                            </>
+                          )}
+
+                          {/* OPENING AFFIRMATIONS */}
+                          {hasOpening && (
+                            <>
+                              <div className={styles.storySectionLabel}>
+                                Opening Affirmations
+                              </div>
+                              {renderAffirmationList(
+                                storyAffirmations!.opening,
+                                "oaff",
+                              )}
+                              <div className={styles.sceneDivider}>· · ·</div>
+                            </>
+                          )}
+
+                          {/* STORY BODY */}
+                          <div className={styles.storySectionLabel}>Story</div>
+                          {renderProseLines(storyBody, "story")}
+
+                          {/* CLOSING AFFIRMATIONS */}
+                          {hasClosing && (
+                            <>
+                              <div className={styles.sceneDivider}>· · ·</div>
+                              <div className={styles.storySectionLabel}>
+                                Closing Affirmations
+                              </div>
+                              {renderAffirmationList(
+                                storyAffirmations!.closing,
+                                "caff",
+                              )}
+                            </>
+                          )}
+                        </>
                       );
-                    })}
+                    })()}
                   </div>
                 )}
               </div>
@@ -922,7 +1015,30 @@ const StoryContent: React.FC = () => {
                 <span className={styles.wordCount} id="wordCountBottom">
                   {wordCount.toLocaleString()} words
                 </span>
-                <div className={styles.footerActions}>
+                <div className={styles.footerActions} style={{ gap: "0.6rem" }}>
+                  <button
+                    className={styles.editToggle}
+                    onClick={() => setIsAIModalOpen(true)}
+                  >
+                    <SparkleIcon />
+                    Edit with AI
+                  </button>
+                  <button
+                    className={`${styles.editToggle} ${isEditing ? styles.editing : ""}`}
+                    onClick={handleToggleEdit}
+                  >
+                    {isEditing ? (
+                      <>
+                        <DoneIcon />
+                        Done editing
+                      </>
+                    ) : (
+                      <>
+                        <EditIcon />
+                        Edit story
+                      </>
+                    )}
+                  </button>
                   <button
                     className={styles.outlineBtn}
                     onClick={handleRegenerate}
