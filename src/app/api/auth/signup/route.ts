@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { hash } from "bcryptjs"
 import { prisma } from "@/lib/prisma"
+import { betaTypeToPlan } from "@/lib/beta-utils"
 
 export async function POST(request: NextRequest) {
   try {
@@ -54,10 +55,12 @@ export async function POST(request: NextRequest) {
         const twoMonthsFromNow = new Date();
         twoMonthsFromNow.setMonth(twoMonthsFromNow.getMonth() + 2);
 
-        // Update the user's plan to amplifier immediately in the DB
+        // Derive plan from beta code type (e.g. "manifester_2_months" → manifester)
+        const betaPlan = betaTypeToPlan(validBetaCode.type);
+
         await tx.user.update({
           where: { id: newUser.id },
-          data: { plan: 'amplifier' }
+          data: { plan: betaPlan }
         });
 
         await tx.userBetaCode.create({

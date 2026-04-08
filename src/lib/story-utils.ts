@@ -433,6 +433,14 @@ Use the user's exact words from goals and proof actions. Do not paraphrase. Do n
 - "my surf city Bayfront home" → scene at that specific home
 Every proof action must appear as a vivid, physical, present-tense scene. Not background. Not summary. These ARE the story.
 
+⚠️ COMPLETENESS CHECK — EVERY SINGLE ITEM MUST APPEAR:
+Before you finish writing, mentally check: does every specific goal, milestone, business detail, trip, purchase, relationship detail, and proof action from the user appear as a scene in the story? If ANY item from the intake is missing, you MUST add it. Nothing shared during intake should be left out. This includes:
+- All business/financial milestones with exact numbers
+- All named trips, purchases, and experiences
+- All named people with specific relational depth
+- All proof actions as full sensory scenes
+If the user mentioned 8 goals, all 8 must appear. If they mentioned 3 trips, all 3 must appear as scenes.
+
 ━━━ NUMERIC SPECIFICITY RULE — EQUALLY CRITICAL ━━━
 If the user provided any numbers, figures, or metrics in their goals — revenue targets, net worth, multiples, portfolio values, income numbers — you MUST use those exact figures. Do not round them. Do not generalise them.
 - "fifty million dollars" → say "fifty million dollars" — not "substantial revenue" or "financial freedom"
@@ -482,6 +490,7 @@ Include 2-3 moments mid-story where the narrator quietly recognises who they ARE
 - "This is simply who I am now."
 - "I have always known, somewhere, that I was capable of this."
 - "I am someone who shows up fully for the life I built."
+NOTE: These are subtle narrative moments only. The explicit affirmations (identity statements and per-area affirmations) are planted ONLY in the close AFTER dissolution — never during the vision scenes.
 
 ━━━ NLP TECHNIQUE 4 — FUTURE PACING ━━━
 Include one moment where the narrator makes a decision — effortlessly — that could only be made by someone whose life has genuinely changed:
@@ -559,17 +568,33 @@ The close is written in 2nd person again — returning to the guided voice of th
 STEP 1 — DISSOLUTION:
 The scene slowly dissolves, not into nothingness, but into the deep subconscious. The feeling remains even as the details fade. Use transitional language that invites release: "You can let it all go now. Let every image soften. Let every vision dissolve into warm light. You don't need to hold on to any of it. Your subconscious mind has received every word. Every feeling. Every instruction. It is already working."
 
-STEP 2 — SUBCONSCIOUS PROGRAMMING (CRITICAL):
-Before the final sleep seeding, include 4-6 short, declarative identity statements — the most important things from the vision — as quiet facts. Not affirmations being wished for. Facts being confirmed. Write them as simple, clean declarations without lists or bullets — woven into the flowing close. Example approach (DO NOT copy verbatim — adapt to the user's actual goals and identity):
+STEP 2 — AFFIRMATIONS PLANTED IN THETA (CRITICAL — AFTER DISSOLUTION):
+⚠️ ALL affirmations MUST be planted AFTER the dissolution — NOT woven through the vision scenes.
+During vision scenes the listener is immersed in sensory experience. Interrupting with explicit affirmations breaks the state. After dissolution, the critical faculty is fully offline — affirmations land directly into the subconscious with zero resistance.
+
+Plant affirmations BY AREA in order. Within each area, escalate: Having → Doing → Being, ending on the deepest BEING statement before sleep seeding.
+
+Structure:
+- First: Per-area affirmations (from areaAffirmations captured during intake) — plant each area's affirmations grouped together
+- Then: The broadest BEING-level identity statements (from identityStatements) — these are the deepest layer
+- Write them as quiet facts being confirmed, not wishes. Weave them into flowing prose — not as a bulleted list.
+
+Example flow (adapt to user's actual data):
+"You are someone whose body radiates vitality and strength... You are someone who creates abundance effortlessly... You are a leader whose word creates reality... You are a person of extraordinary abundance, and this is simply who I am now..."
+
+The identity statements from the user MUST be used VERBATIM. Do not rewrite them.
+
+STEP 3 — SUBCONSCIOUS PROGRAMMING:
+After the affirmations are planted, include the programming close:
 "Tonight your dreams will carry the frequency of your highest life. Your cells will repair and renew. Your subconscious will begin assembling the circumstances, the connections, the ideas, the opportunities that make every single one of these visions physical reality. You will notice something different tomorrow. A quiet shift. A new certainty. The feeling of someone who knows something the world doesn't know yet. Because you do."
 
-STEP 3 — SLEEP SEEDING:
+STEP 4 — SLEEP SEEDING:
 The narrator seeds the subconscious for sleep.
 - Invoke the specific feeling of safety, provision, and love
 - Explicitly affirm the subconscious continues its work through the night
 - Use present tense: "it is already working. Right now. As you drift. As you sleep. As you dream."
 
-STEP 4 — THREE SLOW REPETITIONS (MANDATORY — 8-12 words each, one breath apart):
+STEP 5 — THREE SLOW REPETITIONS (MANDATORY — 8-12 words each, one breath apart):
 Three final lines — the last sounds before sleep. Each one is a breath. Each one lands in the subconscious like a stone dropped into still water. They should vary slightly, not be identical:
 "Sleep now... and receive."
 "Sleep now... and receive."
@@ -655,8 +680,11 @@ ${answers.goals}
 PROOF ACTIONS — the single most important field. Build every major scene around these. Use exact words — no paraphrasing:
 ${answers.actionsAfter}
 
-IDENTITY STATEMENTS — user's own claimed identity. Use VERBATIM in affirmation close. Do not rewrite:
+IDENTITY STATEMENTS — user's own claimed identity. Use VERBATIM in affirmation close after dissolution. Do not rewrite:
 ${Array.isArray(answers.identityStatements) ? answers.identityStatements.join(", ") : answers.identityStatements}
+
+PER-AREA AFFIRMATIONS — plant these by area AFTER dissolution, before identity statements:
+${Object.entries(answers).filter(([k]) => k.startsWith('areaAffirmations_')).map(([k, v]) => `${k.replace('areaAffirmations_', '').toUpperCase()}: ${Array.isArray(v) ? v.join('; ') : v}`).join('\n') || 'None captured — derive 2-3 BEING-level affirmations per area from the user goals above'}
 
 TIMEFRAME — open the story in this specific future moment:
 ${answers.timeframe}

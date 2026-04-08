@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { model } from '@/lib/langchain'
 import { HumanMessage, SystemMessage } from "@langchain/core/messages"
 import { buildStoryPrompt, normalizeGoals } from '@/lib/story-utils'
+import { betaTypeToPlan } from '@/lib/beta-utils'
 
 import { Tier } from '@/lib/story-utils'
 
@@ -119,15 +120,17 @@ export async function POST(
                     { expiresAt: null },
                     { expiresAt: { gt: new Date() } }
                 ]
-            }
+            },
+            include: { betaCode: { select: { type: true } } }
         });
 
         const rawPlan = String(story.user.plan || 'free').toLowerCase();
         let userTier = planToTier[rawPlan] || 'explorer';
 
-        // Beta testers always get Amplifier tier
+        // Beta testers get tier from their beta code type
         if (hasActiveBeta) {
-            userTier = 'amplifier';
+            const betaPlan = betaTypeToPlan((hasActiveBeta as any).betaCode?.type || 'amplifier_2_months');
+            userTier = planToTier[betaPlan] || 'amplifier';
         }
 
         // Log context for pipeline verification

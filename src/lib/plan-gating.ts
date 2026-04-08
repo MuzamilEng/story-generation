@@ -1,5 +1,6 @@
 import { Plan } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { betaTypeToPlan } from "@/lib/beta-utils";
 
 export interface PlanLimits {
     maxStories: number;
@@ -39,18 +40,21 @@ export async function checkPlanGating(userId: string, action: 'create_story' | '
     if (!user) return { allowed: false, message: "User not found" };
 
     // Check if user has an active beta code redemption
-    const hasActiveBeta = await prisma.userBetaCode.findFirst({
+    const activeBetaCode = await prisma.userBetaCode.findFirst({
         where: {
             userId: userId,
             OR: [
                 { expiresAt: null },
                 { expiresAt: { gt: new Date() } }
             ]
-        }
+        },
+        include: { betaCode: { select: { type: true } } }
     });
 
-    const limits = hasActiveBeta ? PLAN_LIMITS['amplifier'] : PLAN_LIMITS[user.plan];
-    const userPlanName = hasActiveBeta ? 'amplifier' : user.plan;
+    // Derive plan from beta code type (e.g. "manifester_2_months" → manifester)
+    const betaPlan = activeBetaCode ? betaTypeToPlan((activeBetaCode as any).betaCode.type) : null;
+    const limits = betaPlan ? PLAN_LIMITS[betaPlan] : PLAN_LIMITS[user.plan];
+    const userPlanName = betaPlan || user.plan;
 
     if (action === 'create_story') {
         if (user.total_stories_ever >= limits.maxStories) {

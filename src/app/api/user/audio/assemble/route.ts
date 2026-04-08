@@ -3,11 +3,26 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { checkPlanGating } from '@/lib/plan-gating';
+import { betaTypeToPlan } from '@/lib/beta-utils';
 import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { spawnSync } from 'node:child_process';
 import { writeFileSync, readFileSync, unlinkSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+
+// Resolve the ffmpeg binary path: prefer ffmpeg-static, fall back to system ffmpeg
+let ffmpegPath = 'ffmpeg';
+try {
+    const staticPath = require('ffmpeg-static') as string;
+    if (staticPath && existsSync(staticPath)) {
+        ffmpegPath = staticPath;
+        console.log('[assemble] Using ffmpeg-static at:', staticPath);
+    } else {
+        console.warn('[assemble] ffmpeg-static path not found on disk:', staticPath);
+    }
+} catch (e) {
+    console.warn('[assemble] ffmpeg-static not available, falling back to system ffmpeg:', e);
+}
 
 // ── R2 client ────────────────────────────────────────────────────────────────
 const s3 = new S3Client({
@@ -27,10 +42,11 @@ const SOUNDSCAPE_PLANS = new Set(['manifester', 'amplifier']);
 const BINAURAL_PLANS = new Set(['amplifier']);
 
 /**
- * Character limit per Fish Audio request.
- * We use 800 characters to aim for approximately 1-minute audio segments.
+ * ElevenLabs Pro plan supports up to 100,000 characters per request.
+ * We use generous 5,000-character chunks to keep individual requests reliable
+ * while avoiding the aggressive 800-char Fish Audio limit that compressed audio.
  */
-const CHUNK_CHARS = 800;
+const CHUNK_CHARS = 5000;
 
 // ── R2 helpers ────────────────────────────────────────────────────────────────
 async function fetchR2Buffer(key: string): Promise<Buffer | null> {
@@ -57,10 +73,13 @@ async function fetchAdminAudio(segmentKey: 'induction' | 'guide_close'): Promise
 
 // ── FFmpeg Wrapper ───────────────────────────────────────────────────────────
 function ffRun(args: string[]): void {
-    const result = spawnSync('ffmpeg', args, { 
+    const result = spawnSync(ffmpegPath, args, { 
         maxBuffer: 200 * 1024 * 1024,
         env: { ...process.env, PATH: `${process.env.PATH}:/opt/homebrew/bin:/usr/local/bin` }
     });
+    if (result.error) {
+        throw new Error(`FFmpeg failed to start (${ffmpegPath}): ${result.error.message}`);
+    }
     if (result.status !== 0) {
         throw new Error(`FFmpeg exited ${result.status}: ${result.stderr?.toString().slice(-300)}`);
     }
@@ -95,7 +114,41 @@ async function generateFreeTTS(text: string, outPath: string): Promise<void> {
     ffRun(['-f', 'lavfi', '-i', 'sine=frequency=440:duration=5', '-acodec', 'libmp3lame', outPath, '-y']);
 }
 
-// ── Fish Audio TTS ────────────────────────────────────────────────────────────
+// ── ElevenLabs TTS (Primary — Pro plan) ───────────────────────────────────────
+async function generateElevenLabsTTS(voiceId: string, text: string, outPath: string): Promise<boolean> {
+    const key = process.env.ELEVEN_LABS_API;
+    if (!key) return false;
+    try {
+        const res = await fetch(
+            `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`,
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'xi-api-key': key },
+                body: JSON.stringify({
+                    text,
+                    model_id: 'eleven_multilingual_v2',
+                    voice_settings: {
+                        stability: 0.80,
+                        similarity_boost: 0.75,
+                        style: 0,
+                        use_speaker_boost: true,
+                    },
+                }),
+            },
+        );
+        if (!res.ok) {
+            console.error(`[assemble] ElevenLabs TTS error ${res.status}:`, await res.text().catch(() => ''));
+            return false;
+        }
+        writeFileSync(outPath, Buffer.from(await res.arrayBuffer()));
+        return true;
+    } catch (e) {
+        console.error('[assemble] ElevenLabs TTS exception:', e);
+        return false;
+    }
+}
+
+// ── Fish Audio TTS (Fallback) ─────────────────────────────────────────────────
 async function generateFishAudioTTS(voiceId: string, text: string, outPath: string): Promise<boolean> {
     const key = process.env.FISH_AUDIO_API;
     if (!key) return false;
@@ -119,12 +172,34 @@ async function generateFishAudioTTS(voiceId: string, text: string, outPath: stri
 // ── Text Chunker  ─────────────────────────────────────────────────────────────
 function splitTextIntoChunks(text: string, maxChars: number = CHUNK_CHARS): string[] {
     if (!text?.trim()) return [];
+    // For ElevenLabs Pro, try to send the entire text as one chunk if under limit
+    if (text.length <= maxChars) return [text.trim()];
+    
     const paras = text.split(/\n\n+/);
     const chunks: string[] = [];
     let current = '';
     for (const p of paras) {
-        if (current.length + p.length + 2 <= maxChars) current += (current ? '\n\n' : '') + p;
-        else { if (current) chunks.push(current.trim()); current = p; }
+        if (current.length + p.length + 2 <= maxChars) {
+            current += (current ? '\n\n' : '') + p;
+        } else {
+            if (current) chunks.push(current.trim());
+            // If a single paragraph exceeds maxChars, split on sentence boundaries
+            if (p.length > maxChars) {
+                const sentences = p.match(/[^.!?]+[.!?]+\s*/g) || [p];
+                let sentChunk = '';
+                for (const s of sentences) {
+                    if (sentChunk.length + s.length <= maxChars) {
+                        sentChunk += s;
+                    } else {
+                        if (sentChunk) chunks.push(sentChunk.trim());
+                        sentChunk = s;
+                    }
+                }
+                current = sentChunk;
+            } else {
+                current = p;
+            }
+        }
     }
     if (current) chunks.push(current.trim());
     return chunks;
@@ -149,8 +224,8 @@ export async function POST(req: NextRequest) {
         ]);
         if (!user || !story || story.userId !== user.id) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-        const hasActiveBeta = await prisma.userBetaCode.findFirst({ where: { userId: user.id, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] } });
-        const effectivePlan = hasActiveBeta ? 'amplifier' : (user.plan || 'free').toLowerCase();
+        const hasActiveBeta = await prisma.userBetaCode.findFirst({ where: { userId: user.id, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] }, include: { betaCode: { select: { type: true } } } });
+        const effectivePlan = hasActiveBeta ? betaTypeToPlan((hasActiveBeta as any).betaCode?.type || 'amplifier_2_months') : (user.plan || 'free').toLowerCase();
         
         // ── Assets Fetch ──────────────────────────────────────────────────────
         const [induction, close, soundscape, binaural] = await Promise.all([
@@ -166,7 +241,10 @@ export async function POST(req: NextRequest) {
         ]);
 
         // ── Voice Parts ───────────────────────────────────────────────────────
-        const voiceId = user.voice_model_id || '7ef4660e505a41d9966d58546de54201';
+        // ElevenLabs voice IDs and Fish Audio voice IDs are different formats.
+        // The user's voice_model_id may be either depending on which clone-voice flow was used.
+        const voiceId = user.voice_model_id || '';
+        const elevenLabsVoiceId = user.elevenlabs_voice_id || '';
         const rawText = (story as any).story_text_approved || (story as any).story_text_draft || '';
         const aff = (story as any).affirmations_json as any;
         const textParts = [];
@@ -174,15 +252,37 @@ export async function POST(req: NextRequest) {
         textParts.push(rawText);
         if (aff?.closing) textParts.push(aff.closing.join('\n\n'));
         
-        const chunks = splitTextIntoChunks(textParts.join('\n\n'));
+        const fullText = textParts.join('\n\n');
+        const chunks = splitTextIntoChunks(fullText);
         const chunkPaths: string[] = [];
 
-        console.log(`[assemble] Generating ${chunks.length} chunks...`);
+        // Determine which voice ID to use for ElevenLabs
+        const elVoiceId = elevenLabsVoiceId || voiceId;
+        const useElevenLabs = !!process.env.ELEVEN_LABS_API && !!elVoiceId;
+
+        console.log(`[assemble] Story text: ${rawText.length} chars, ${rawText.split(/\s+/).length} words`);
+        console.log(`[assemble] Full text with affirmations: ${fullText.length} chars`);
+        console.log(`[assemble] Generating ${chunks.length} chunks (TTS: ${useElevenLabs ? 'ElevenLabs' : 'Fish Audio'})...`);
+        
         for (let i = 0; i < chunks.length; i++) {
             const fp = join(dir, `v_${i}_${ts}.mp3`);
-            if (!await generateFishAudioTTS(voiceId, chunks[i], fp)) {
+            let generated = false;
+            
+            // Priority 1: ElevenLabs (Pro plan — handles long text, natural pacing)
+            if (useElevenLabs) {
+                generated = await generateElevenLabsTTS(elVoiceId, chunks[i], fp);
+            }
+            
+            // Priority 2: Fish Audio fallback
+            if (!generated && voiceId) {
+                generated = await generateFishAudioTTS(voiceId, chunks[i], fp);
+            }
+            
+            // Priority 3: Free TTS fallback
+            if (!generated) {
                 await generateFreeTTS(chunks[i], fp);
             }
+            
             chunkPaths.push(fp);
             voiceFiles.push(fp);
         }
@@ -238,7 +338,7 @@ export async function POST(req: NextRequest) {
         // Duration
         let duration = 0;
         try {
-            const probe = spawnSync('ffmpeg', ['-i', primaryPath], { env: { ...process.env, PATH: '/opt/homebrew/bin:/usr/local/bin' } });
+            const probe = spawnSync(ffmpegPath, ['-i', primaryPath], { env: { ...process.env, PATH: `${process.env.PATH}:/opt/homebrew/bin:/usr/local/bin` } });
             const match = probe.stderr.toString().match(/Duration:\s*(\d+):(\d+):(\d+\.?\d*)/);
             if (match) duration = Math.round(parseInt(match[1]) * 3600 + parseInt(match[2]) * 60 + parseFloat(match[3]));
         } catch { duration = Math.round(primaryAudio.byteLength / (192_000 / 8)); }

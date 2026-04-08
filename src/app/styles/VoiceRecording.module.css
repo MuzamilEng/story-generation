@@ -779,3 +779,44 @@
         padding: 0.65rem 0.75rem;
     }
 }
+
+/* ── Full-page generating overlay ────────────────────────────────── */
+.fullPageOverlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    background: rgba(8, 7, 15, 0.85);
+    backdrop-filter: blur(8px);
+}
+
+.overlaySpinner {
+    width: 52px;
+    height: 52px;
+    border: 3px solid rgba(255, 255, 255, 0.1);
+    border-top-color: var(--accent, #52b788);
+    border-radius: 50%;
+    animation: overlaySpin 0.8s linear infinite;
+}
+
+@keyframes overlaySpin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.overlayText {
+    font-size: 1.15rem;
+    font-weight: 500;
+    color: #fff;
+    letter-spacing: 0.01em;
+}
+
+.overlaySubtext {
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.5);
+}

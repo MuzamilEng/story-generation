@@ -79,8 +79,9 @@ export async function POST(req: NextRequest) {
         if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
 
         const fishAudioApi = process.env.FISH_AUDIO_API;
-        if (!fishAudioApi) {
-            return NextResponse.json({ error: 'Fish Audio API key not configured' }, { status: 500 });
+        const elevenLabsConfigured = !!process.env.ELEVEN_LABS_API;
+        if (!fishAudioApi && !elevenLabsConfigured) {
+            return NextResponse.json({ error: 'No TTS API key configured (ElevenLabs or Fish Audio)' }, { status: 500 });
         }
 
         // ── Parse audio from request ───────────────────────────────────────────
@@ -125,33 +126,92 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        // ── Clone voice on Fish Audio ─────────────────────────────────────────
         const ext = mimeToExt(mimeType);
-        const fishForm = new FormData();
-        fishForm.append('title', `${(user.name ?? 'User').slice(0, 40)} Voice ${Date.now()}`);
-        fishForm.append('file', audioFile, `sample.${ext}`);
-        fishForm.append('visibility', 'private');
-        fishForm.append('type', 'tts');
+        let newVoiceId: string = '';
+        let elevenLabsVoiceId: string = '';
 
-        console.log(`[clone-voice] Submitting model-part request to Fish Audio…`);
-        const cloneRes = await fetch('https://api.fish.audio/v1/model-part', {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${fishAudioApi}` },
-            body: fishForm,
-        });
+        // ── Clone voice on ElevenLabs (Primary — Pro plan) ────────────────────
+        const elevenLabsApi = process.env.ELEVEN_LABS_API;
+        if (elevenLabsApi) {
+            console.log(`[clone-voice] Attempting ElevenLabs Instant Voice Clone…`);
+            const elForm = new FormData();
+            elForm.append('name', `${(user.name ?? 'User').slice(0, 40)} Voice ${Date.now()}`);
+            elForm.append('files', audioFile, `sample.${ext}`);
+            elForm.append('description', 'ManifestMyStory Voice Clone');
 
-        if (!cloneRes.ok) {
-            const errText = await cloneRes.text();
-            console.error('[clone-voice] Fish Audio clone error:', errText);
-            return NextResponse.json(
-                { error: `Failed to clone voice (Fish Audio ${cloneRes.status}): ${errText}` },
-                { status: 500 },
-            );
+            const elCloneRes = await fetch('https://api.elevenlabs.io/v1/voices/add', {
+                method: 'POST',
+                headers: { 'xi-api-key': elevenLabsApi },
+                body: elForm,
+            });
+
+            if (elCloneRes.ok) {
+                const elCloneJson = await elCloneRes.json();
+                elevenLabsVoiceId = elCloneJson.voice_id;
+                newVoiceId = elevenLabsVoiceId;
+                console.log(`[clone-voice] ✓ ElevenLabs voice cloned — voiceId: ${elevenLabsVoiceId}`);
+
+                // Delete previous ElevenLabs voice to preserve quota
+                const oldElVoiceId = (user as any).elevenlabs_voice_id;
+                if (oldElVoiceId && oldElVoiceId !== elevenLabsVoiceId) {
+                    try {
+                        await fetch(`https://api.elevenlabs.io/v1/voices/${oldElVoiceId}`, {
+                            method: 'DELETE',
+                            headers: { 'xi-api-key': elevenLabsApi },
+                        });
+                        console.log(`[clone-voice] Deleted old ElevenLabs voice: ${oldElVoiceId}`);
+                    } catch (_) {}
+                }
+            } else {
+                const errText = await elCloneRes.text();
+                console.warn('[clone-voice] ElevenLabs clone failed, falling back to Fish Audio:', errText);
+
+                // Check for voice limit error
+                try {
+                    const errJson = JSON.parse(errText);
+                    if (errJson.detail?.status === 'voice_limit_reached') {
+                        return NextResponse.json({
+                            error: 'Voice capacity reached on ElevenLabs. Please contact support.',
+                            code: 'VOICE_LIMIT_REACHED',
+                        }, { status: 403 });
+                    }
+                } catch (_) {}
+            }
         }
 
-        const cloneJson = await cloneRes.json();
-        const newVoiceId: string = cloneJson.id; // This is the model_part_id used for reference
-        console.log(`[clone-voice] ✓ Fish Audio voice complete — new modelPartId: ${newVoiceId}`);
+        // ── Clone voice on Fish Audio (Fallback) ──────────────────────────────
+        if (!newVoiceId) {
+            const fishAudioApi = process.env.FISH_AUDIO_API;
+            if (!fishAudioApi) {
+                return NextResponse.json({ error: 'No TTS API key configured (ElevenLabs or Fish Audio)' }, { status: 500 });
+            }
+
+            const fishForm = new FormData();
+            fishForm.append('title', `${(user.name ?? 'User').slice(0, 40)} Voice ${Date.now()}`);
+            fishForm.append('file', audioFile, `sample.${ext}`);
+            fishForm.append('visibility', 'private');
+            fishForm.append('type', 'tts');
+
+            console.log(`[clone-voice] Submitting model-part request to Fish Audio…`);
+            const cloneRes = await fetch('https://api.fish.audio/v1/model-part', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${fishAudioApi}` },
+                body: fishForm,
+            });
+
+            if (!cloneRes.ok) {
+                const errText = await cloneRes.text();
+                console.error('[clone-voice] Fish Audio clone error:', errText);
+                return NextResponse.json(
+                    { error: `Failed to clone voice (Fish Audio ${cloneRes.status}): ${errText}` },
+                    { status: 500 },
+                );
+            }
+
+            const cloneJson = await cloneRes.json();
+            newVoiceId = cloneJson.id;
+            console.log(`[clone-voice] ✓ Fish Audio voice complete — new modelPartId: ${newVoiceId}`);
+        }
 
         // ── Upload raw audio sample to R2 ─────────────────────────────────────
         // Used by the "Play Sample" feature in account settings.
@@ -176,11 +236,12 @@ export async function POST(req: NextRequest) {
             where: { id: user.id },
             data: {
                 voice_model_id: newVoiceId,
+                ...(elevenLabsVoiceId ? { elevenlabs_voice_id: elevenLabsVoiceId } : {}),
                 ...(voiceSampleUrl ? { voice_sample_url: voiceSampleUrl } : {}),
             },
         });
 
-        console.log(`[clone-voice] ✅ Done — user ${user.id} voice_model_id=${newVoiceId}`);
+        console.log(`[clone-voice] ✅ Done — user ${user.id} voice_model_id=${newVoiceId}${elevenLabsVoiceId ? ` elevenlabs_voice_id=${elevenLabsVoiceId}` : ''}`);
         return NextResponse.json({
             success: true,
             voiceId: newVoiceId,

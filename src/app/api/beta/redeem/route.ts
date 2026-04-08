@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { betaTypeToPlan } from "@/lib/beta-utils";
 
 export async function POST(req: NextRequest) {
     try {
@@ -53,10 +54,13 @@ export async function POST(req: NextRequest) {
         const twoMonthsFromNow = new Date();
         twoMonthsFromNow.setMonth(twoMonthsFromNow.getMonth() + 2);
 
+        // Derive plan from beta code type (e.g. "manifester_2_months" → manifester)
+        const betaPlan = betaTypeToPlan(betaCode.type);
+
         await prisma.$transaction([
             prisma.user.update({
                 where: { id: userId },
-                data: { plan: 'amplifier' }
+                data: { plan: betaPlan }
             }),
             prisma.userBetaCode.create({
                 data: {

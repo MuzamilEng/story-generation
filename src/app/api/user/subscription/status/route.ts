@@ -2,8 +2,16 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { betaTypeToPlan } from "@/lib/beta-utils";
 
 export const dynamic = 'force-dynamic';
+
+const planNamesMap: Record<string, string> = {
+    free: 'Explorer',
+    activator: 'Activator',
+    manifester: 'Manifester',
+    amplifier: 'Amplifier',
+};
 
 export async function GET(req: Request) {
     try {
@@ -18,7 +26,8 @@ export async function GET(req: Request) {
                 betaCodes: {
                     where: { expiresAt: { gt: new Date() } },
                     orderBy: { expiresAt: 'desc' },
-                    take: 1
+                    take: 1,
+                    include: { betaCode: { select: { type: true } } }
                 }
             }
         });
@@ -29,6 +38,8 @@ export async function GET(req: Request) {
 
         const isBetaUser = user.betaCodes.length > 0;
         const betaExpiresAt = isBetaUser ? user.betaCodes[0].expiresAt : null;
+        const betaPlan = isBetaUser ? betaTypeToPlan(user.betaCodes[0].betaCode.type) : null;
+        const betaPlanName = betaPlan ? (planNamesMap[betaPlan] || betaPlan) : null;
 
         return NextResponse.json({
             plan: user.plan,
@@ -36,7 +47,8 @@ export async function GET(req: Request) {
             stripeCurrentPeriodEnd: user.stripeCurrentPeriodEnd,
             stripeCancelAtPeriodEnd: (user as any).stripeCancelAtPeriodEnd,
             isBetaUser,
-            betaExpiresAt
+            betaExpiresAt,
+            betaPlanName
         });
     } catch (error) {
         console.error("[SUBSCRIPTION_STATUS_ERROR]", error);

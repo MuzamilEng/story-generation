@@ -40,7 +40,6 @@ const HeadphonesIcon = () => (
   </svg>
 );
 
-
 // Settings Section Header Component
 interface SectionHeaderProps {
   icon: React.ReactNode;
@@ -228,16 +227,19 @@ const VoiceModelCard: React.FC<VoiceModelProps> = ({
         <div>
           <div className={styles.voiceName}>{model.name}</div>
           <div className={styles.voiceMeta}>
-            Created {format(model.createdDate, "MMMM d, yyyy")} &nbsp;·&nbsp; Used
-            in {model.storyCount} stories &nbsp;·&nbsp; Powered by{" "}
+            Created {format(model.createdDate, "MMMM d, yyyy")} &nbsp;·&nbsp;
+            Used in {model.storyCount} stories &nbsp;·&nbsp; Powered by{" "}
             {model.provider}
           </div>
         </div>
       </div>
       <div className={styles.voiceBtns}>
-        <button className={`${styles.vbtn} ${styles.outline}`} onClick={handlePlay}>
+        <button
+          className={`${styles.vbtn} ${styles.outline}`}
+          onClick={handlePlay}
+        >
           {isPlaying ? <StopIcon /> : <PlayIcon />}
-          {isPlaying ? 'Stop' : 'Play Sample'}
+          {isPlaying ? "Stop" : "Play Sample"}
         </button>
         <button
           className={`${styles.vbtn} ${styles.outline}`}
@@ -255,9 +257,13 @@ const VoiceModelCard: React.FC<VoiceModelProps> = ({
   );
 };
 
-const NONE_SOUNDSCAPE = { value: 'none', label: 'None', emoji: '🔇', desc: 'Story audio only', imageUrl: undefined };
-
-
+const NONE_SOUNDSCAPE = {
+  value: "none",
+  label: "None",
+  emoji: "🔇",
+  desc: "Story audio only",
+  imageUrl: undefined,
+};
 
 interface SoundscapeSelectorProps {
   current: string;
@@ -266,64 +272,141 @@ interface SoundscapeSelectorProps {
   onChange: (val: string) => void;
 }
 
-const SoundscapeSelector: React.FC<SoundscapeSelectorProps> = ({ current, disabled, dynamicAssets, onChange }) => {
+const SoundscapeSelector: React.FC<SoundscapeSelectorProps> = ({
+  current,
+  disabled,
+  dynamicAssets,
+  onChange,
+}) => {
   // Only show 'none' and the dynamic assets from the admin
   const allChoices = [
     NONE_SOUNDSCAPE,
-    ...dynamicAssets.map(a => ({
+    ...dynamicAssets.map((a) => ({
       value: a.value,
       label: a.title,
-      emoji: '🎵',
-      desc: 'Ambient soundscape',
-      imageUrl: a.image_url
-    }))
+      emoji: "🎵",
+      desc: "Ambient soundscape",
+      imageUrl: a.image_url,
+    })),
   ];
 
-
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', padding: '4px 0' }}>
-      {allChoices.map(s => (
+    <div
+      style={{
+        display: "flex",
+        flexWrap: "wrap",
+        gap: "12px",
+        padding: "4px 0",
+      }}
+    >
+      {allChoices.map((s) => (
         <button
           key={s.value}
           onClick={() => !disabled && onChange(s.value)}
           disabled={disabled}
           style={{
-            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '4px',
-            padding: s.imageUrl ? '0' : '10px 14px', borderRadius: '12px', cursor: disabled ? 'not-allowed' : 'pointer',
-            border: current === s.value ? '2px solid #52b788' : '2px solid rgba(255,255,255,0.08)',
-            background: current === s.value ? 'rgba(82,183,136,0.1)' : 'rgba(255,255,255,0.03)',
-            color: current === s.value ? '#52b788' : '#8a8476',
-            transition: 'all 0.2s', fontSize: '0.78rem', minWidth: '100px', height: '100px',
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "4px",
+            padding: s.imageUrl ? "0" : "10px 14px",
+            borderRadius: "12px",
+            cursor: disabled ? "not-allowed" : "pointer",
+            border:
+              current === s.value
+                ? "2px solid #52b788"
+                : "2px solid rgba(255,255,255,0.08)",
+            background:
+              current === s.value
+                ? "rgba(82,183,136,0.1)"
+                : "rgba(255,255,255,0.03)",
+            color: current === s.value ? "#52b788" : "#8a8476",
+            transition: "all 0.2s",
+            fontSize: "0.78rem",
+            minWidth: "100px",
+            height: "100px",
             opacity: disabled ? 0.45 : 1,
-            position: 'relative',
-            overflow: 'hidden',
-            boxShadow: current === s.value ? '0 4px 15px rgba(82, 183, 136, 0.2)' : 'none'
+            position: "relative",
+            overflow: "hidden",
+            boxShadow:
+              current === s.value
+                ? "0 4px 15px rgba(82, 183, 136, 0.2)"
+                : "none",
           }}
           title={s.desc}
         >
           {s.imageUrl ? (
-              <>
-                 <img 
-                   src={s.imageUrl} 
-                   alt="" 
-                   style={{ 
-                       position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', 
-                       objectFit: 'cover', opacity: current === s.value ? 0.9 : 0.65, zIndex: 0, transition: 'opacity 0.2s' 
-                   }} 
-                 />
-                 <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(8, 7, 15, 0.9) 0%, rgba(8, 7, 15, 0) 70%)', zIndex: 1 }}></div>
-                 <span style={{ fontWeight: current === s.value ? 600 : 500, zIndex: 2, position: 'absolute', bottom: '12px', color: current === s.value ? '#fff' : 'rgba(255,255,255,0.8)', textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
-                    {s.label}
-                 </span>
-                 {current === s.value && (
-                     <div style={{ position: 'absolute', top: '8px', right: '8px', width: '8px', height: '8px', borderRadius: '50%', background: '#52b788', zIndex: 2, boxShadow: '0 0 8px #52b788' }}></div>
-                 )}
-              </>
+            <>
+              <img
+                src={s.imageUrl}
+                alt=""
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "cover",
+                  opacity: current === s.value ? 0.9 : 0.65,
+                  zIndex: 0,
+                  transition: "opacity 0.2s",
+                }}
+              />
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  background:
+                    "linear-gradient(to top, rgba(8, 7, 15, 0.9) 0%, rgba(8, 7, 15, 0) 70%)",
+                  zIndex: 1,
+                }}
+              ></div>
+              <span
+                style={{
+                  fontWeight: current === s.value ? 600 : 500,
+                  zIndex: 2,
+                  position: "absolute",
+                  bottom: "12px",
+                  color: current === s.value ? "#fff" : "rgba(255,255,255,0.8)",
+                  textShadow: "0 2px 4px rgba(0,0,0,0.8)",
+                }}
+              >
+                {s.label}
+              </span>
+              {current === s.value && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "8px",
+                    right: "8px",
+                    width: "8px",
+                    height: "8px",
+                    borderRadius: "50%",
+                    background: "#52b788",
+                    zIndex: 2,
+                    boxShadow: "0 0 8px #52b788",
+                  }}
+                ></div>
+              )}
+            </>
           ) : (
-              <>
-                <span style={{ fontSize: '1.6rem', zIndex: 1, marginBottom: '4px' }}>{s.emoji}</span>
-                <span style={{ fontWeight: current === s.value ? 600 : 400, zIndex: 1, color: current === s.value ? '#52b788' : '#8a8476' }}>{s.label}</span>
-              </>
+            <>
+              <span
+                style={{ fontSize: "1.6rem", zIndex: 1, marginBottom: "4px" }}
+              >
+                {s.emoji}
+              </span>
+              <span
+                style={{
+                  fontWeight: current === s.value ? 600 : 400,
+                  zIndex: 1,
+                  color: current === s.value ? "#52b788" : "#8a8476",
+                }}
+              >
+                {s.label}
+              </span>
+            </>
           )}
         </button>
       ))}
@@ -411,14 +494,19 @@ const AccountSettings: React.FC = () => {
   const deleteStoriesMutation = useMutation({
     mutationFn: async () => {
       const res = await fetch("/api/user/stories", { method: "DELETE" });
-      if (!res.ok) throw new Error("Failed to delete stories");
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(errText || "Failed to delete stories");
+      }
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["user-settings"] });
+      queryClient.invalidateQueries({ queryKey: ["stories"] });
       showToast("✓ All stories deleted");
     },
-    onError: () => {
+    onError: (err: any) => {
+      console.error("[DELETE_STORIES]", err);
       showToast("❌ Failed to delete stories");
     },
   });
@@ -538,7 +626,7 @@ const AccountSettings: React.FC = () => {
       if (!res.ok) {
         showToast(`❌ ${data.error || "Failed to redeem code"}`);
       } else {
-        showToast("✓ Beta code redeemed! Plan updated to Amplifier.");
+        showToast(`✓ Beta code redeemed! Your plan is now active.`);
         setBetaCodeInput("");
         queryClient.invalidateQueries({ queryKey: ["user-settings"] });
         // Refresh the session to update the plan in the UI
@@ -585,6 +673,14 @@ const AccountSettings: React.FC = () => {
     );
 
   const isActuallyBeta = userData.isBetaUser && !userData.stripeSubscriptionId;
+  const betaDisplayName =
+    userData.betaPlanName ||
+    (userData.plan
+      ? userData.plan.charAt(0).toUpperCase() + userData.plan.slice(1)
+      : "Beta");
+  const planDisplayName = isActuallyBeta
+    ? betaDisplayName
+    : userData.plan.charAt(0).toUpperCase() + userData.plan.slice(1);
 
   return (
     <>
@@ -746,21 +842,41 @@ const AccountSettings: React.FC = () => {
               title="Background Soundscape"
               subtitle="Ambient audio mixed softly beneath your story at −18 dB"
             />
-            {userData.plan === 'free' || userData.plan === 'activator' ? (
-              <div style={{ padding: '16px 24px', color: '#5a5650', fontSize: '0.88rem' }}>
-                🔒 Soundscapes are available on Manifester and Amplifier plans.{' '}
-                <Link href="/pricing" style={{ color: '#c9a84c', textDecoration: 'underline' }}>Upgrade →</Link>
+            {userData.plan === "free" || userData.plan === "activator" ? (
+              <div
+                style={{
+                  padding: "16px 24px",
+                  color: "#5a5650",
+                  fontSize: "0.88rem",
+                }}
+              >
+                🔒 Soundscapes are available on Manifester and Amplifier plans.{" "}
+                <Link
+                  href="/pricing"
+                  style={{ color: "#c9a84c", textDecoration: "underline" }}
+                >
+                  Upgrade →
+                </Link>
               </div>
             ) : (
-              <div style={{ padding: '16px 24px' }}>
-                <p style={{ fontSize: '0.83rem', color: '#6a6460', marginBottom: '14px' }}>
-                  Your chosen soundscape is mixed into every new audio file you generate.
-                  Two versions are stored: story-only and with soundscape.
+              <div style={{ padding: "16px 24px" }}>
+                <p
+                  style={{
+                    fontSize: "0.83rem",
+                    color: "#6a6460",
+                    marginBottom: "14px",
+                  }}
+                >
+                  Your chosen soundscape is mixed into every new audio file you
+                  generate. Two versions are stored: story-only and with
+                  soundscape.
                 </p>
                 <SoundscapeSelector
-                  current={userData.soundscape ?? 'none'}
+                  current={userData.soundscape ?? "none"}
                   dynamicAssets={dynamicAssets}
-                  onChange={(val) => updateSettingsMutation.mutate({ soundscape: val })}
+                  onChange={(val) =>
+                    updateSettingsMutation.mutate({ soundscape: val })
+                  }
                 />
               </div>
             )}
@@ -774,10 +890,21 @@ const AccountSettings: React.FC = () => {
               subtitle="Theta frequency (4–8 Hz) layered softly under the full audio at −18 dB"
               iconColor="gold"
             />
-            {userData.plan !== 'amplifier' ? (
-              <div style={{ padding: '16px 24px', color: '#5a5650', fontSize: '0.88rem' }}>
-                🔒 Binaural beats are an Amplifier exclusive.{' '}
-                <Link href="/pricing" style={{ color: '#c9a84c', textDecoration: 'underline' }}>Upgrade →</Link>
+            {userData.plan !== "amplifier" ? (
+              <div
+                style={{
+                  padding: "16px 24px",
+                  color: "#5a5650",
+                  fontSize: "0.88rem",
+                }}
+              >
+                🔒 Binaural beats are an Amplifier exclusive.{" "}
+                <Link
+                  href="/pricing"
+                  style={{ color: "#c9a84c", textDecoration: "underline" }}
+                >
+                  Upgrade →
+                </Link>
               </div>
             ) : (
               <>
@@ -785,25 +912,33 @@ const AccountSettings: React.FC = () => {
                   label="Enable Binaural Beats"
                   subtitle="Theta waves promote deep focus and receptivity during listening"
                   checked={userData.binaural_enabled ?? false}
-                  onChange={(val) => updateSettingsMutation.mutate({ binaural_enabled: val })}
+                  onChange={(val) =>
+                    updateSettingsMutation.mutate({ binaural_enabled: val })
+                  }
                 />
                 {userData.binaural_enabled && (
-                  <div style={{
-                    margin: '0 24px 16px',
-                    padding: '12px 16px',
-                    background: 'rgba(201,168,76,0.06)',
-                    border: '1px solid rgba(201,168,76,0.18)',
-                    borderRadius: '10px',
-                    fontSize: '0.84rem',
-                    color: '#8a8476',
-                    display: 'flex',
-                    gap: '10px',
-                    alignItems: 'flex-start',
-                  }}>
-                    <span style={{ fontSize: '1.1rem' }}>🎧</span>
-                    <span>Best experienced with <strong style={{ color: '#c9a84c' }}>headphones</strong>.
-                      Binaural beats require separate audio channels to create the effect.
-                      Speaker playback will not produce the theta frequency result.</span>
+                  <div
+                    style={{
+                      margin: "0 24px 16px",
+                      padding: "12px 16px",
+                      background: "rgba(201,168,76,0.06)",
+                      border: "1px solid rgba(201,168,76,0.18)",
+                      borderRadius: "10px",
+                      fontSize: "0.84rem",
+                      color: "#8a8476",
+                      display: "flex",
+                      gap: "10px",
+                      alignItems: "flex-start",
+                    }}
+                  >
+                    <span style={{ fontSize: "1.1rem" }}>🎧</span>
+                    <span>
+                      Best experienced with{" "}
+                      <strong style={{ color: "#c9a84c" }}>headphones</strong>.
+                      Binaural beats require separate audio channels to create
+                      the effect. Speaker playback will not produce the theta
+                      frequency result.
+                    </span>
                   </div>
                 )}
               </>
@@ -814,10 +949,12 @@ const AccountSettings: React.FC = () => {
           <div className={styles.settingsSection}>
             <SectionHeader
               icon={<StarIcon />}
-              title={`Current Plan — ${isActuallyBeta ? "BETA" : userData.plan.toUpperCase()}`}
-              subtitle={isActuallyBeta 
-                ? `Beta Program (2 month trial)${userData.betaExpiresAt ? ` · Expires ${format(new Date(userData.betaExpiresAt), "MMMM d, yyyy")}` : ""}`
-                : `${userData.plan === "free" ? "Free Plan" : (userData.plan === 'activator' ? '$9.99 one-time' : (userData.plan === 'manifester' ? '$19.99/month' : '$39.99/month'))} · Active since ${format(new Date(userData.createdAt), "MMMM d, yyyy")}`}
+              title={`Current Plan — ${planDisplayName.toUpperCase()}`}
+              subtitle={
+                isActuallyBeta
+                  ? `${betaDisplayName} (Beta — 2 month trial)${userData.betaExpiresAt ? ` · Expires ${format(new Date(userData.betaExpiresAt), "MMMM d, yyyy")}` : ""}`
+                  : `${userData.plan === "free" ? "Free Plan" : userData.plan === "activator" ? "$9.99 one-time" : userData.plan === "manifester" ? "$19.99/month" : "$39.99/month"} · Active since ${format(new Date(userData.createdAt), "MMMM d, yyyy")}`
+              }
               iconColor="gold"
             />
 
@@ -848,20 +985,22 @@ const AccountSettings: React.FC = () => {
             <div className={styles.formRow}>
               <div className={styles.rowLabel}>Beta Code</div>
               <div className={styles.rowValue}>
-                <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
+                <div style={{ display: "flex", gap: "8px", width: "100%" }}>
                   <input
                     className={styles.formInput}
                     type="text"
                     placeholder="Enter code (e.g. VIP-BETA)"
                     value={betaCodeInput}
-                    onChange={(e) => setBetaCodeInput(e.target.value.toUpperCase())}
-                    style={{ textTransform: 'uppercase' }}
+                    onChange={(e) =>
+                      setBetaCodeInput(e.target.value.toUpperCase())
+                    }
+                    style={{ textTransform: "uppercase" }}
                   />
-                  <button 
-                    className={styles.saveBtn} 
+                  <button
+                    className={styles.saveBtn}
                     onClick={handleRedeemBeta}
                     disabled={!betaCodeInput.trim() || isRedeemingBeta}
-                    style={{ minWidth: '100px' }}
+                    style={{ minWidth: "100px" }}
                   >
                     {isRedeemingBeta ? "Redeeming..." : "Redeem"}
                   </button>
@@ -869,7 +1008,13 @@ const AccountSettings: React.FC = () => {
               </div>
             </div>
             {isActuallyBeta && (
-              <div style={{ padding: '0 24px 16px', fontSize: '0.84rem', color: 'var(--accent-mid)' }}>
+              <div
+                style={{
+                  padding: "0 24px 16px",
+                  fontSize: "0.84rem",
+                  color: "var(--accent-mid)",
+                }}
+              >
                 ✓ You currently have an active beta plan.
               </div>
             )}

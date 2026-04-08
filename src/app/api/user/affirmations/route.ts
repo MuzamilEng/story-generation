@@ -44,7 +44,10 @@ export async function POST(req: NextRequest) {
     if (action === 'generate') {
         const systemPrompt = `You are an NLP practitioner and mindset coach for ManifestMyStory.com.
 Generate exactly 13 deeply personalised affirmations for a user based on their goals.
-Return a JSON object with this EXACT structure and no other text:
+
+CRITICAL: You MUST respond with ONLY a valid JSON object. No commentary, no explanation, no preamble — just the JSON.
+
+Return this EXACT JSON structure:
 {
   "opening": [<exactly 7 affirmations — present tense, identity-level, spoken BEFORE the story>],
   "closing": [<exactly 6 affirmations — gratitude/integration style, spoken AFTER the story>]
@@ -56,7 +59,8 @@ RULES:
 - 1–2 sentences, max 25 words each
 - Opening: identity-anchoring, activating  ("I am someone who…", "Every day I…")
 - Closing: gratitude, certainty  ("I am grateful for…", "I feel the reality of…")
-- Never use "manifest", "attract", or law-of-attraction language`;
+- Never use "manifest", "attract", or law-of-attraction language
+- Do NOT include any text outside the JSON object`;
 
         const userPrompt = `USER GOALS & VISION:
 ${goalsSummary}`;
@@ -66,12 +70,23 @@ ${goalsSummary}`;
                 new SystemMessage(systemPrompt),
                 new HumanMessage(userPrompt)
             ],
-            // Use standard model for invoke; if it supports JSON mode via .bind or similar
-            // we use that, but for now we assume gpt-4o handles json_object in the invoke options or prompt.
-            { response_format: { type: "json_object" } } as any
         );
 
-        const parsed = JSON.parse(response.content.toString());
+        const raw = response.content.toString().trim();
+        // Strip markdown code fences (multiline) that some models wrap around JSON
+        let jsonStr = raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+        // If the model returned non-JSON preamble, try to extract the JSON object
+        const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+            jsonStr = jsonMatch[0];
+        }
+        let parsed;
+        try {
+            parsed = JSON.parse(jsonStr);
+        } catch {
+            console.error('[AFFIRMATIONS] Failed to parse LLM response as JSON:', raw.slice(0, 300));
+            return NextResponse.json({ error: 'Failed to generate affirmations. Please try again.' }, { status: 502 });
+        }
         return NextResponse.json({ affirmations: parsed });
     }
 

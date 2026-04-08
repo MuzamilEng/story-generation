@@ -63,11 +63,12 @@ interface CategoryTagsProps {
 
 const CategoryTags: React.FC<CategoryTagsProps> = ({ categories }) => (
   <div className={styles.catTags}>
-    {Array.isArray(categories) && categories.map((cat, idx) => (
-      <span key={idx} className={styles.catTag}>
-        {cat}
-      </span>
-    ))}
+    {Array.isArray(categories) &&
+      categories.map((cat, idx) => (
+        <span key={idx} className={styles.catTag}>
+          {cat}
+        </span>
+      ))}
   </div>
 );
 
@@ -190,6 +191,119 @@ const checklistItems: ChecklistItem[] = [
   { id: "length", text: "5–8 minutes to read aloud" },
 ];
 
+// "What's in your story" summary component
+const StorySummaryPanel: React.FC<{ answers: UserAnswers | null }> = ({
+  answers,
+}) => {
+  if (!answers) return null;
+
+  const summaryItems: { label: string; value: string }[] = [];
+
+  if (answers.location || answers.home) {
+    summaryItems.push({
+      label: "Setting",
+      value:
+        [answers.location, answers.home].filter(Boolean).join(" — ") +
+        (answers.timeframe ? ` (${answers.timeframe})` : ""),
+    });
+  } else if (answers.timeframe) {
+    summaryItems.push({ label: "Timeframe", value: answers.timeframe });
+  }
+
+  if (answers.namedPersons?.length > 0) {
+    summaryItems.push({
+      label: "Key people",
+      value: answers.namedPersons.join(", "),
+    });
+  }
+
+  if (answers.selectedAreas?.length > 0) {
+    summaryItems.push({
+      label: "Life areas",
+      value: answers.selectedAreas
+        .map((a) => a.charAt(0).toUpperCase() + a.slice(1))
+        .join(", "),
+    });
+  }
+
+  if (answers.goals) {
+    const goalText =
+      answers.goals.length > 200
+        ? answers.goals.slice(0, 200) + "…"
+        : answers.goals;
+    summaryItems.push({ label: "Your goals", value: goalText });
+  }
+
+  if (answers.actionsAfter) {
+    const actionsText =
+      answers.actionsAfter.length > 200
+        ? answers.actionsAfter.slice(0, 200) + "…"
+        : answers.actionsAfter;
+    summaryItems.push({ label: "Proof actions", value: actionsText });
+  }
+
+  if (answers.identityStatements?.length > 0) {
+    summaryItems.push({
+      label: "Your affirmations",
+      value: answers.identityStatements.join(" · "),
+    });
+  }
+
+  if (answers.tone) {
+    summaryItems.push({ label: "Story tone", value: answers.tone });
+  }
+
+  if (answers.coreFeeling) {
+    summaryItems.push({ label: "Core feeling", value: answers.coreFeeling });
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+      <div
+        style={{
+          fontSize: "0.78rem",
+          color: "rgba(255,255,255,0.4)",
+          letterSpacing: "1.5px",
+          textTransform: "uppercase",
+          fontWeight: 500,
+        }}
+      >
+        What's in your story
+      </div>
+      {summaryItems.map((item, i) => (
+        <div
+          key={i}
+          style={{ display: "flex", flexDirection: "column", gap: "4px" }}
+        >
+          <div
+            style={{
+              fontSize: "0.75rem",
+              color: "rgba(255,255,255,0.45)",
+              fontWeight: 500,
+            }}
+          >
+            {item.label}
+          </div>
+          <div
+            style={{
+              fontSize: "0.85rem",
+              color: "rgba(255,255,255,0.8)",
+              lineHeight: 1.5,
+            }}
+          >
+            {item.value}
+          </div>
+        </div>
+      ))}
+      {summaryItems.length === 0 && (
+        <div style={{ fontSize: "0.85rem", color: "rgba(255,255,255,0.4)" }}>
+          Your story details will appear here after generation.
+        </div>
+      )}
+    </div>
+  );
+};
+
 const StoryContent: React.FC = () => {
   const { data: session, status: authStatus } = useSession();
   const router = useRouter();
@@ -211,6 +325,7 @@ const StoryContent: React.FC = () => {
   const [storyId, setStoryId] = useState<string | null>(storyIdFromUrl);
   const [refinementNotes, setRefinementNotes] = useState("");
   const [isRefiningStory, setIsRefiningStory] = useState(false);
+  const [showRefineInput, setShowRefineInput] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
   const [genError, setGenError] = useState<string | null>(null);
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
@@ -287,7 +402,9 @@ const StoryContent: React.FC = () => {
       }
     } catch (e: any) {
       console.error("Generation failed", e);
-      setGenError(e.message || "Something went wrong while generating your story.");
+      setGenError(
+        e.message || "Something went wrong while generating your story.",
+      );
     } finally {
       setIsGenerating(false);
     }
@@ -500,6 +617,7 @@ const StoryContent: React.FC = () => {
         setStoryText(data.storyText);
         if (data.title) setStoryTitle(data.title);
         setRefinementNotes("");
+        setShowRefineInput(false);
       } else {
         alert("Failed to refine story. Please try again.");
       }
@@ -538,7 +656,6 @@ const StoryContent: React.FC = () => {
 
   return (
     <div className={styles.container}>
-
       {/* Mobile Overlay — sits outside pageBody so it covers everything */}
       {(showVisionMobile || showChecklistMobile) && (
         <div
@@ -570,7 +687,7 @@ const StoryContent: React.FC = () => {
           }}
         >
           <CheckIcon />
-          Checklist
+          Your Story Details
         </button>
       </div>
 
@@ -591,32 +708,55 @@ const StoryContent: React.FC = () => {
             <div>
               <div className={styles.panelSectionTitle}>Your Vision</div>
 
-              <VisionItem label="New Identity" value={userAnswers.identityStatements?.length ? userAnswers.identityStatements.join(', ') : ''} />
-              <VisionItem label="Most Important Goal" value={userAnswers.goals} />
-              <VisionItem label="Proof Action" value={userAnswers.actionsAfter} />
-              
-              {userAnswers.namedPersons && userAnswers.namedPersons.length > 0 && (
-                <VisionItem label="People with you" value={userAnswers.namedPersons.join(", ")} />
-              )}
-              
+              <VisionItem
+                label="New Identity"
+                value={
+                  userAnswers.identityStatements?.length
+                    ? userAnswers.identityStatements.join(", ")
+                    : ""
+                }
+              />
+              <VisionItem
+                label="Most Important Goal"
+                value={userAnswers.goals}
+              />
+              <VisionItem
+                label="Proof Action"
+                value={userAnswers.actionsAfter}
+              />
+
+              {userAnswers.namedPersons &&
+                userAnswers.namedPersons.length > 0 && (
+                  <VisionItem
+                    label="People with you"
+                    value={userAnswers.namedPersons.join(", ")}
+                  />
+                )}
+
               {userAnswers.location && (
                 <VisionItem label="Environment" value={userAnswers.location} />
               )}
-              
+
               {userAnswers.coreFeeling && (
-                <VisionItem label="Core Feeling" value={userAnswers.coreFeeling} />
+                <VisionItem
+                  label="Core Feeling"
+                  value={userAnswers.coreFeeling}
+                />
               )}
 
-              {userAnswers.selectedAreas && userAnswers.selectedAreas.length > 0 && (
-                <div className={styles.visionItem}>
-                  <div className={styles.visionLabel}>Areas of Focus</div>
-                  <CategoryTags categories={userAnswers.selectedAreas} />
-                </div>
-              )}
-              
+              {userAnswers.selectedAreas &&
+                userAnswers.selectedAreas.length > 0 && (
+                  <div className={styles.visionItem}>
+                    <div className={styles.visionLabel}>Areas of Focus</div>
+                    <CategoryTags categories={userAnswers.selectedAreas} />
+                  </div>
+                )}
+
               <div className={styles.visionItem}>
                 <div className={styles.visionLabel}>Timeframe</div>
-                <div className={styles.visionValue}>{userAnswers.timeframe}</div>
+                <div className={styles.visionValue}>
+                  {userAnswers.timeframe}
+                </div>
               </div>
             </div>
           )}
@@ -635,7 +775,13 @@ const StoryContent: React.FC = () => {
               <div className={styles.errorMsg}>{genError}</div>
               <button
                 className={styles.primaryBtn}
-                onClick={() => (storyId ? generate(storyId) : userAnswers ? saveAndGenerate(userAnswers) : null)}
+                onClick={() =>
+                  storyId
+                    ? generate(storyId)
+                    : userAnswers
+                      ? saveAndGenerate(userAnswers)
+                      : null
+                }
               >
                 <RefreshIcon />
                 Try again
@@ -682,9 +828,10 @@ const StoryContent: React.FC = () => {
                     Your Personal Manifestation Story
                   </div>
                   <div className={styles.storyTitle} id="storyTitleEl">
-                    {storyTitle || (userAnswers?.identity
-                      ? `A Day in the Life of ${userAnswers.identity.split(" ")[0]}'s Highest Self`
-                      : "Your Manifestation Story")}
+                    {storyTitle ||
+                      (userAnswers?.identity
+                        ? `A Day in the Life of ${userAnswers.identity.split(" ")[0]}'s Highest Self`
+                        : "Your Manifestation Story")}
                   </div>
                   <div className={styles.storyMeta} id="storyMeta">
                     Generated just now · {wordCount.toLocaleString()} words
@@ -729,25 +876,39 @@ const StoryContent: React.FC = () => {
                   />
                 ) : (
                   <div className={styles.storyTextDisplay}>
-                    {storyText.split('\n').map((line, idx) => {
+                    {storyText.split("\n").map((line, idx) => {
                       const trimmed = line.trim();
                       if (!trimmed) return <br key={idx} />;
 
                       // Clean residual markdown symbols
-                      const cleanLine = trimmed.replace(/[\*#_]/g, '').trim();
+                      const cleanLine = trimmed.replace(/[\*#_]/g, "").trim();
 
                       // Detect headers: uppercase words followed by time range (e.g., "0-5 min")
-                      const isHeader = /[A-Z\s]{5,}.*?\d+-\d+\s+min/i.test(cleanLine);
+                      const isHeader = /[A-Z\s]{5,}.*?\d+-\d+\s+min/i.test(
+                        cleanLine,
+                      );
                       if (isHeader) {
-                        return <h4 key={idx} className={styles.storySectionHeader}>{cleanLine}</h4>;
+                        return (
+                          <h4 key={idx} className={styles.storySectionHeader}>
+                            {cleanLine}
+                          </h4>
+                        );
                       }
 
                       // Detect scene dividers
-                      if (cleanLine === '· · ·') {
-                        return <div key={idx} className={styles.sceneDivider}>· · ·</div>;
+                      if (cleanLine === "· · ·") {
+                        return (
+                          <div key={idx} className={styles.sceneDivider}>
+                            · · ·
+                          </div>
+                        );
                       }
 
-                      return <p key={idx} className={styles.storyPara}>{cleanLine}</p>;
+                      return (
+                        <p key={idx} className={styles.storyPara}>
+                          {cleanLine}
+                        </p>
+                      );
                     })}
                   </div>
                 )}
@@ -784,20 +945,96 @@ const StoryContent: React.FC = () => {
             />
           )}
 
+          {/* WARM REFINEMENT PROMPT — shown after story generates */}
+          {!isGenerating && storyText && !isApproved && (
+            <div className={styles.refinementSection}>
+              <div className={styles.refinementHeader}>
+                <div className={styles.refinementIcon}>✦</div>
+                <p>
+                  This story was written from everything you shared with us.
+                  Before you record it in your own voice, read it as if you're
+                  already living this life. Does every scene feel true? Does it
+                  capture the feelings, the people, the moments — the life you
+                  actually want?
+                  <br />
+                  If anything feels off, unclear, or missing — tell us here and
+                  we'll refine it until every word feels like yours.
+                </p>
+              </div>
+
+              {showRefineInput ? (
+                <div className={styles.refinementInputArea}>
+                  <textarea
+                    value={refinementNotes}
+                    onChange={(e) => setRefinementNotes(e.target.value)}
+                    placeholder="Tell us what feels off, or what you'd like to add or change…"
+                    className={styles.refinementTextarea}
+                    disabled={isRefiningStory}
+                  />
+                  <div className={styles.refinementActions}>
+                    <button
+                      className={styles.refineBtn}
+                      onClick={handleAIRefine}
+                      disabled={isRefiningStory || !refinementNotes.trim()}
+                    >
+                      {isRefiningStory ? (
+                        <div className={styles.spinnerSmall} />
+                      ) : (
+                        <SparkleIcon />
+                      )}
+                      {isRefiningStory ? "Refining…" : "Update my story"}
+                    </button>
+                    <button
+                      className={styles.perfectBtn}
+                      onClick={() => {
+                        setShowRefineInput(false);
+                        setRefinementNotes("");
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className={styles.refinementActions}>
+                  <button
+                    className={styles.refineBtn}
+                    onClick={() => setShowRefineInput(true)}
+                  >
+                    <EditIcon />
+                    Refine my story
+                  </button>
+                  <button className={styles.perfectBtn} onClick={handleApprove}>
+                    This is perfect — let's record it
+                    <ArrowIcon />
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* AI EDIT MODAL */}
           {isAIModalOpen && (
-            <div className={styles.modalOverlay} onClick={() => setIsAIModalOpen(false)}>
-              <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
-                <button 
-                  className={styles.modalClose} 
+            <div
+              className={styles.modalOverlay}
+              onClick={() => setIsAIModalOpen(false)}
+            >
+              <div
+                className={styles.modalContent}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <button
+                  className={styles.modalClose}
                   onClick={() => setIsAIModalOpen(false)}
                 >
                   ×
                 </button>
-                
+
                 <div className={styles.modalTitle}>Refine with AI</div>
                 <p className={styles.modalSubtitle}>
-                  Tell Maya how you'd like to refine your story. You can ask for a different tone, more sensory detail, or specific changes to any part of your vision.
+                  Tell Maya how you'd like to refine your story. You can ask for
+                  a different tone, more sensory detail, or specific changes to
+                  any part of your vision.
                 </p>
 
                 <div className={styles.modalActionArea}>
@@ -808,8 +1045,8 @@ const StoryContent: React.FC = () => {
                     className={styles.refinementTextarea}
                     disabled={isRefiningStory}
                   />
-                  
-                  <button 
+
+                  <button
                     className={styles.modalBtn}
                     onClick={handleAIRefine}
                     disabled={isRefiningStory || !refinementNotes.trim()}
@@ -831,7 +1068,7 @@ const StoryContent: React.FC = () => {
           className={`${styles.rightPanel} ${showChecklistMobile ? styles.showMobile : ""}`}
         >
           <div className={styles.mobilePanelHeader}>
-            <div className={styles.panelSectionTitle}>Story Checklist</div>
+            <div className={styles.panelSectionTitle}>What's In Your Story</div>
             <button
               className={styles.closeMobileBtn}
               onClick={() => setShowChecklistMobile(false)}
@@ -842,16 +1079,7 @@ const StoryContent: React.FC = () => {
           <TipCard />
 
           <div>
-            <div className={styles.checklist} id="checklist">
-              {checklistItems.map((item) => (
-                <ChecklistItemComponent
-                  key={item.id}
-                  item={item}
-                  checked={!!checkedItems[item.id]}
-                  onToggle={handleToggleCheck}
-                />
-              ))}
-            </div>
+            <StorySummaryPanel answers={userAnswers} />
           </div>
 
           <NextStepCard onNext={handleRecordVoice} disabled={!isApproved} />

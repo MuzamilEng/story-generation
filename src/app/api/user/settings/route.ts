@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { betaTypeToPlan } from '@/lib/beta-utils'
 
 export async function GET(req: NextRequest) {
     try {
@@ -34,7 +35,8 @@ export async function GET(req: NextRequest) {
                 betaCodes: {
                     where: { expiresAt: { gt: new Date() } },
                     orderBy: { expiresAt: 'desc' },
-                    take: 1
+                    take: 1,
+                    select: { expiresAt: true, betaCode: { select: { type: true } } }
                 }
             }
         })
@@ -43,10 +45,17 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: 'User not found' }, { status: 404 })
         }
 
+        const betaCodes = (user as any).betaCodes || [];
+        const isBetaUser = betaCodes.length > 0;
+        const betaCodeType = isBetaUser ? betaCodes[0]?.betaCode?.type : null;
+        const betaPlan = betaCodeType ? betaTypeToPlan(betaCodeType) : null;
+        const betaPlanName = betaPlan ? ({ free: 'Explorer', activator: 'Activator', manifester: 'Manifester', amplifier: 'Amplifier' }[betaPlan] || betaPlan) : null;
+
         const responseData = {
             ...user,
-            isBetaUser: (user as any).betaCodes?.length > 0,
-            betaExpiresAt: (user as any).betaCodes?.length > 0 ? (user as any).betaCodes[0].expiresAt : null
+            isBetaUser,
+            betaExpiresAt: isBetaUser ? betaCodes[0].expiresAt : null,
+            betaPlanName
         };
 
         return NextResponse.json(responseData)

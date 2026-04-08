@@ -95,17 +95,28 @@ export async function GET(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
     try {
         const session = await getServerSession(authOptions)
-        if (!session || !session.user) {
+        if (!session || !session.user?.id) {
+            console.error('[STORY_DELETE_ALL] Unauthorized — no session or user id')
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
-        await prisma.story.deleteMany({
+        const result = await prisma.story.deleteMany({
             where: {
                 userId: session.user.id,
             },
         })
 
-        return NextResponse.json({ message: 'All stories deleted' })
+        console.log('[STORY_DELETE_ALL] Deleted', result.count, 'stories for user', session.user.id)
+
+        // Reset story counters
+        await prisma.user.update({
+            where: { id: session.user.id },
+            data: {
+                stories_this_month: 0,
+            }
+        })
+
+        return NextResponse.json({ message: 'All stories deleted', count: result.count })
     } catch (error) {
         console.error('[STORY_DELETE_ALL]', error)
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })

@@ -4,6 +4,7 @@ import CredentialsProvider from "next-auth/providers/credentials"
 import GoogleProvider from "next-auth/providers/google"
 import { compare } from "bcryptjs"
 import { prisma } from "./prisma"
+import { betaTypeToPlan } from "./beta-utils"
 
 export const authOptions: NextAuthOptions = {
   // ✅ MUST include secret
@@ -65,6 +66,7 @@ export const authOptions: NextAuthOptions = {
           email: user.email,
           name: user.name,
           role: user.role || 'USER',
+          plan: user.plan || 'free',
           image: user.image,
         }
       }
@@ -77,7 +79,7 @@ export const authOptions: NextAuthOptions = {
   },
 
   callbacks: {
-    async jwt({ token, user, account }) {
+    async jwt({ token, user, account, trigger, session: updateData }) {
       // ✅ Initial sign in
       if (user) {
         token.id = user.id
@@ -89,6 +91,11 @@ export const authOptions: NextAuthOptions = {
         // request that calls getServerSession(), hammering the database and
         // risking silent stale/missing token.id on any transient DB error.
         token.lastDbRefresh = Math.floor(Date.now() / 1000)
+      }
+
+      // ✅ Client called update() — force an immediate DB refresh
+      if (trigger === "update") {
+        token.lastDbRefresh = 0 // Force next block to refresh from DB
       }
 
       // ✅ Refresh token from database at most once per minute on subsequent requests.
@@ -106,16 +113,19 @@ export const authOptions: NextAuthOptions = {
               include: {
                 betaCodes: {
                   where: { expiresAt: { gt: new Date() } },
-                  take: 1
+                  take: 1,
+                  include: { betaCode: { select: { type: true } } }
                 }
               }
             } as any)
 
             if (dbUser) {
-              const hasActiveBeta = (dbUser as any).betaCodes && (dbUser as any).betaCodes.length > 0;
+              const activeBetaCodes = (dbUser as any).betaCodes || [];
+              const hasActiveBeta = activeBetaCodes.length > 0;
+              const betaPlan = hasActiveBeta ? betaTypeToPlan(activeBetaCodes[0].betaCode?.type || activeBetaCodes[0].type || 'amplifier_2_months') : null;
               token.role = dbUser.role || 'USER'
               token.id = dbUser.id
-              token.plan = dbUser.plan || 'free'
+              token.plan = betaPlan || dbUser.plan || 'free'
               token.isBetaUser = hasActiveBeta;
               token.stripeCurrentPeriodEnd = dbUser.stripeCurrentPeriodEnd ? dbUser.stripeCurrentPeriodEnd.toISOString() : undefined
               token.stripeSubscriptionId = dbUser.stripeSubscriptionId || undefined

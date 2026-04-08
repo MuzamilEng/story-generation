@@ -8,10 +8,30 @@ import Header from "../components/Header";
 import Sidebar from "../components/Sidebar";
 
 const LeafBullet: React.FC<{ active?: boolean }> = ({ active }) => (
-  <svg className={styles.leafBullet} viewBox="0 0 10 12" fill="none" width="10" height="12">
-    <line x1="5" y1="11" x2="5" y2="4" stroke={active ? "#8DBF7A" : "#2A3D2F"} strokeWidth="1" strokeLinecap="round"/>
-    <path d="M5 7 Q2.5 5.5 1.5 3 Q4 3 4.8 6 Z" fill={active ? "#8DBF7A" : "#2A3D2F"} />
-    <path d="M5 7 Q7.5 5.5 8.5 3 Q6 3 5.2 6 Z" fill={active ? "#A8D494" : "#2A3D2F"} />
+  <svg
+    className={styles.leafBullet}
+    viewBox="0 0 10 12"
+    fill="none"
+    width="10"
+    height="12"
+  >
+    <line
+      x1="5"
+      y1="11"
+      x2="5"
+      y2="4"
+      stroke={active ? "#8DBF7A" : "#2A3D2F"}
+      strokeWidth="1"
+      strokeLinecap="round"
+    />
+    <path
+      d="M5 7 Q2.5 5.5 1.5 3 Q4 3 4.8 6 Z"
+      fill={active ? "#8DBF7A" : "#2A3D2F"}
+    />
+    <path
+      d="M5 7 Q7.5 5.5 8.5 3 Q6 3 5.2 6 Z"
+      fill={active ? "#A8D494" : "#2A3D2F"}
+    />
   </svg>
 );
 
@@ -24,6 +44,19 @@ const PricingContent: React.FC = () => {
   );
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
   const [toast, setToast] = useState({ message: "", visible: false });
+  const [currentUserPlan, setCurrentUserPlan] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Fetch current plan for badge display
+    if (session?.user) {
+      fetch("/api/user/subscription/status")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data) => {
+          if (data) setCurrentUserPlan(data.plan || "free");
+        })
+        .catch(() => {});
+    }
+  }, [session]);
 
   const showToast = (message: string) => {
     setToast({ message, visible: true });
@@ -155,11 +188,30 @@ const PricingContent: React.FC = () => {
         <section className={styles.cardsSection}>
           <div className={styles.cardsGrid}>
             {/* EXPLORER */}
-            <div className={styles.pcard}>
+            <div
+              className={`${styles.pcard} ${currentUserPlan === "free" ? styles.currentPlan : ""}`}
+            >
+              {currentUserPlan === "free" && (
+                <div className={`${styles.cbadge} ${styles.badgeCurrent}`}>
+                  Current plan
+                </div>
+              )}
               <div className={styles.picon}>
                 <svg viewBox="0 0 18 18" fill="none" width="18" height="18">
-                  <circle cx="9" cy="9" r="6" stroke="var(--dim)" strokeWidth="1" />
-                  <path d="M6.5 9l2 2L11.5 7" stroke="var(--dim)" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
+                  <circle
+                    cx="9"
+                    cy="9"
+                    r="6"
+                    stroke="var(--dim)"
+                    strokeWidth="1"
+                  />
+                  <path
+                    d="M6.5 9l2 2L11.5 7"
+                    stroke="var(--dim)"
+                    strokeWidth="1"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
                 </svg>
               </div>
               <div className={styles.pname}>Explorer</div>
@@ -183,7 +235,9 @@ const PricingContent: React.FC = () => {
               <ul className={styles.flist}>
                 <li className={styles.fitem}>
                   <LeafBullet active />
-                  <span className={`${styles.ft} ${styles.hi}`}>10 personalized night stories</span>
+                  <span className={`${styles.ft} ${styles.hi}`}>
+                    10 personalized night stories
+                  </span>
                 </li>
                 <li className={styles.fitem}>
                   <LeafBullet active />
@@ -209,11 +263,29 @@ const PricingContent: React.FC = () => {
             </div>
 
             {/* ACTIVATOR */}
-            <div className={styles.pcard}>
+            <div
+              className={`${styles.pcard} ${currentUserPlan === "activator" ? styles.currentPlan : ""}`}
+            >
+              {currentUserPlan === "activator" && (
+                <div className={`${styles.cbadge} ${styles.badgeCurrent}`}>
+                  Current plan
+                </div>
+              )}
               <div className={styles.picon}>
                 <svg viewBox="0 0 18 18" fill="none" width="18" height="18">
-                  <path d="M9 2v2M9 14v2M2 9h2M14 9h2M4.22 4.22l1.42 1.42M12.36 12.36l1.42 1.42M12.36 5.64l-1.42 1.42M5.64 12.36l-1.42 1.42" stroke="var(--accent)" strokeWidth="1" strokeLinecap="round" />
-                  <circle cx="9" cy="9" r="3" stroke="var(--accent)" strokeWidth="1" />
+                  <path
+                    d="M9 2v2M9 14v2M2 9h2M14 9h2M4.22 4.22l1.42 1.42M12.36 12.36l1.42 1.42M12.36 5.64l-1.42 1.42M5.64 12.36l-1.42 1.42"
+                    stroke="var(--accent)"
+                    strokeWidth="1"
+                    strokeLinecap="round"
+                  />
+                  <circle
+                    cx="9"
+                    cy="9"
+                    r="3"
+                    stroke="var(--accent)"
+                    strokeWidth="1"
+                  />
                 </svg>
               </div>
               <div className={styles.pname}>Activator</div>
@@ -222,13 +294,19 @@ const PricingContent: React.FC = () => {
                 starts here.
               </div>
               <div className={styles.priceBlock}>
-                <div className={styles.pwas}>Was ${prices.monthly.act[1]}/mo</div>
+                <div className={styles.pwas}>
+                  Was ${prices.monthly.act[1]}/mo
+                </div>
                 <div className={styles.prow}>
                   <span className={styles.pamt}>${p.act[0]}</span>
                   <span className={styles.pper}>/mo</span>
                   <span className={styles.ftag}>Founding rate</span>
                 </div>
-                <div className={styles.pnote}>{isAnnual ? `($${prices.yearly.act[0]}/mo billed annually)` : "\u00a0"}</div>
+                <div className={styles.pnote}>
+                  {isAnnual
+                    ? `($${prices.yearly.act[0]}/mo billed annually)`
+                    : "\u00a0"}
+                </div>
               </div>
               <button
                 onClick={() => handlePlanSelect("activator")}
@@ -241,7 +319,9 @@ const PricingContent: React.FC = () => {
               <ul className={styles.flist}>
                 <li className={styles.fitem}>
                   <LeafBullet active />
-                  <span className={`${styles.ft} ${styles.hi}`}>Night story, up to 3 areas</span>
+                  <span className={`${styles.ft} ${styles.hi}`}>
+                    Night story, up to 3 areas
+                  </span>
                 </li>
                 <li className={styles.fitem}>
                   <LeafBullet active />
@@ -249,21 +329,40 @@ const PricingContent: React.FC = () => {
                 </li>
                 <li className={styles.fitem}>
                   <LeafBullet active />
-                  <span className={`${styles.ft} ${styles.hi}`}>Full hypnotic induction</span>
+                  <span className={`${styles.ft} ${styles.hi}`}>
+                    Full hypnotic induction
+                  </span>
                 </li>
                 <li className={styles.fitem}>
                   <LeafBullet active />
-                  <span className={`${styles.ft} ${styles.hi}`}>Downloadable MP3</span>
+                  <span className={`${styles.ft} ${styles.hi}`}>
+                    Downloadable MP3
+                  </span>
                 </li>
               </ul>
             </div>
 
             {/* MANIFESTER */}
-            <div className={`${styles.pcard} ${styles.feat}`}>
-              <div className={`${styles.cbadge} ${styles.badgeGreen}`}>Most popular</div>
+            <div
+              className={`${styles.pcard} ${styles.feat} ${currentUserPlan === "manifester" ? styles.currentPlan : ""}`}
+            >
+              {currentUserPlan === "manifester" ? (
+                <div className={`${styles.cbadge} ${styles.badgeCurrent}`}>
+                  Current plan
+                </div>
+              ) : (
+                <div className={`${styles.cbadge} ${styles.badgeGreen}`}>
+                  Most popular
+                </div>
+              )}
               <div className={styles.picon}>
                 <svg viewBox="0 0 18 18" fill="none" width="18" height="18">
-                  <path d="M9 1l2 5.5h5.5L12 10l1.5 5.5L9 13l-4.5 2.5L6 10 1.5 6.5H7L9 1z" stroke="var(--gold)" strokeWidth="1" strokeLinejoin="round" />
+                  <path
+                    d="M9 1l2 5.5h5.5L12 10l1.5 5.5L9 13l-4.5 2.5L6 10 1.5 6.5H7L9 1z"
+                    stroke="var(--gold)"
+                    strokeWidth="1"
+                    strokeLinejoin="round"
+                  />
                 </svg>
               </div>
               <div className={styles.pname}>Manifester</div>
@@ -272,48 +371,80 @@ const PricingContent: React.FC = () => {
                 in theta.
               </div>
               <div className={styles.priceBlock}>
-                <div className={styles.pwas}>Was ${prices.monthly.man[1]}/mo</div>
+                <div className={styles.pwas}>
+                  Was ${prices.monthly.man[1]}/mo
+                </div>
                 <div className={styles.prow}>
                   <span className={styles.pamt}>${p.man[0]}</span>
                   <span className={styles.pper}>/mo</span>
                   <span className={styles.ftag}>Founding rate</span>
                 </div>
-                <div className={styles.pnote}>{isAnnual ? `($${prices.yearly.man[0]}/mo billed annually)` : "\u00a0"}</div>
+                <div className={styles.pnote}>
+                  {isAnnual
+                    ? `($${prices.yearly.man[0]}/mo billed annually)`
+                    : "\u00a0"}
+                </div>
               </div>
               <button
                 onClick={() => handlePlanSelect("manifester")}
                 className={styles.pcta}
                 disabled={loadingPlan === "manifester"}
               >
-                {loadingPlan === "manifester" ? "Connecting..." : "Begin manifesting"}
+                {loadingPlan === "manifester"
+                  ? "Connecting..."
+                  : "Begin manifesting"}
               </button>
               <div className={styles.fdiv}></div>
               <ul className={styles.flist}>
                 <li className={styles.fitem}>
                   <LeafBullet active />
-                  <span className={`${styles.ft} ${styles.hi}`}>Everything in Activator</span>
+                  <span className={`${styles.ft} ${styles.hi}`}>
+                    Everything in Activator
+                  </span>
                 </li>
                 <li className={styles.fitem}>
                   <LeafBullet active />
-                  <span className={`${styles.ft} ${styles.hi}`}>All 6 life areas</span>
+                  <span className={`${styles.ft} ${styles.hi}`}>
+                    All 6 life areas
+                  </span>
                 </li>
                 <li className={styles.fitem}>
                   <LeafBullet active />
-                  <span className={`${styles.ft} ${styles.hi}`}>NLP kinesthetic anchor</span>
+                  <span className={`${styles.ft} ${styles.hi}`}>
+                    NLP kinesthetic anchor
+                  </span>
                 </li>
                 <li className={styles.fitem}>
                   <LeafBullet active />
-                  <span className={`${styles.ft} ${styles.hi}`}>Affirmations planted in theta</span>
+                  <span className={`${styles.ft} ${styles.hi}`}>
+                    Affirmations planted in theta
+                  </span>
                 </li>
               </ul>
             </div>
 
             {/* AMPLIFIER */}
-            <div className={`${styles.pcard}`}>
-              <div className={`${styles.cbadge} ${styles.badgePurple}`}>Most powerful</div>
+            <div
+              className={`${styles.pcard} ${currentUserPlan === "amplifier" ? styles.currentPlan : ""}`}
+            >
+              {currentUserPlan === "amplifier" ? (
+                <div className={`${styles.cbadge} ${styles.badgeCurrent}`}>
+                  Current plan
+                </div>
+              ) : (
+                <div className={`${styles.cbadge} ${styles.badgePurple}`}>
+                  Most powerful
+                </div>
+              )}
               <div className={styles.picon}>
                 <svg viewBox="0 0 18 18" fill="none" width="18" height="18">
-                  <path d="M3 9h2l2-5 3 10 2-5h3" stroke="var(--accent)" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
+                  <path
+                    d="M3 9h2l2-5 3 10 2-5h3"
+                    stroke="var(--accent)"
+                    strokeWidth="1"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
                 </svg>
               </div>
               <div className={styles.pname}>Amplifier</div>
@@ -322,13 +453,19 @@ const PricingContent: React.FC = () => {
                 available.
               </div>
               <div className={styles.priceBlock}>
-                <div className={styles.pwas}>Was ${prices.monthly.amp[1]}/mo</div>
+                <div className={styles.pwas}>
+                  Was ${prices.monthly.amp[1]}/mo
+                </div>
                 <div className={styles.prow}>
                   <span className={styles.pamt}>${p.amp[0]}</span>
                   <span className={styles.pper}>/mo</span>
                   <span className={styles.ftag}>Founding rate</span>
                 </div>
-                <div className={styles.pnote}>{isAnnual ? `($${prices.yearly.amp[0]}/mo billed annually)` : "\u00a0"}</div>
+                <div className={styles.pnote}>
+                  {isAnnual
+                    ? `($${prices.yearly.amp[0]}/mo billed annually)`
+                    : "\u00a0"}
+                </div>
               </div>
               <button
                 onClick={() => handlePlanSelect("amplifier")}
@@ -341,15 +478,21 @@ const PricingContent: React.FC = () => {
               <ul className={styles.flist}>
                 <li className={styles.fitem}>
                   <LeafBullet active />
-                  <span className={`${styles.ft} ${styles.hi}`}>Everything in Manifester</span>
+                  <span className={`${styles.ft} ${styles.hi}`}>
+                    Everything in Manifester
+                  </span>
                 </li>
                 <li className={styles.fitem}>
                   <LeafBullet active />
-                  <span className={`${styles.ft} ${styles.hi}`}>Morning activation story</span>
+                  <span className={`${styles.ft} ${styles.hi}`}>
+                    Morning activation story
+                  </span>
                 </li>
                 <li className={styles.fitem}>
                   <LeafBullet active />
-                  <span className={`${styles.ft} ${styles.hi}`}>Theta binaural beats (432 Hz)</span>
+                  <span className={`${styles.ft} ${styles.hi}`}>
+                    Theta binaural beats (432 Hz)
+                  </span>
                 </li>
                 <li className={styles.fitem}>
                   <LeafBullet active />
@@ -362,7 +505,9 @@ const PricingContent: React.FC = () => {
 
         <section className={styles.incSection}>
           <div className={styles.incDiv}>
-            <span className={styles.incLabel}>what every paid plan includes</span>
+            <span className={styles.incLabel}>
+              what every paid plan includes
+            </span>
           </div>
           <div className={styles.incGrid}>
             <div className={styles.incItem}>
@@ -374,15 +519,21 @@ const PricingContent: React.FC = () => {
             </div>
             <div className={styles.incItem}>
               <div className={styles.incTitle}>Downloadable MP3</div>
-              <div className={styles.incText}>Listen anywhere — phone, speaker, earbuds, offline</div>
+              <div className={styles.incText}>
+                Listen anywhere — phone, speaker, earbuds, offline
+              </div>
             </div>
             <div className={styles.incItem}>
               <div className={styles.incTitle}>21-day imprint guarantee</div>
-              <div className={styles.incText}>Listen nightly for 21 days or we rewrite your story free</div>
+              <div className={styles.incText}>
+                Listen nightly for 21 days or we rewrite your story free
+              </div>
             </div>
             <div className={styles.incItem}>
               <div className={styles.incTitle}>Cancel anytime</div>
-              <div className={styles.incText}>No contracts. No hidden fees. No pressure.</div>
+              <div className={styles.incText}>
+                No contracts. No hidden fees. No pressure.
+              </div>
             </div>
           </div>
         </section>

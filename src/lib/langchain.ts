@@ -1,8 +1,21 @@
 import { AzureChatOpenAI, ChatOpenAI } from "@langchain/openai";
+import { ChatAnthropic } from "@langchain/anthropic";
 
+// Support both env var naming conventions
+const anthropicKey = process.env.ANTHROPIC_API_KEY || process.env.Anthropic_API;
+const isAnthropic = !!anthropicKey;
 const isAzure = !!process.env.AZURE_OPENAI_API_KEY && !!process.env.AZURE_OPENAI_ENDPOINT;
 
-export const model = isAzure
+console.log(`[LangChain] Model selection: Anthropic=${isAnthropic}, Azure=${isAzure}`);
+
+export const model = isAnthropic
+    ? new ChatAnthropic({
+        anthropicApiKey: anthropicKey,
+        modelName: "claude-sonnet-4-20250514",
+        temperature: 0.88,
+        maxTokens: 16384,
+    })
+    : isAzure
     ? new AzureChatOpenAI({
         azureOpenAIApiKey: process.env.AZURE_OPENAI_API_KEY,
         azureOpenAIEndpoint: process.env.AZURE_OPENAI_ENDPOINT,

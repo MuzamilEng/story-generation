@@ -25,10 +25,12 @@
 .pricingHero::after {
     content: '';
     position: absolute;
-    top: 50%; left: 50%;
+    top: 50%;
+    left: 50%;
     transform: translate(-50%, -50%);
-    width: 800px; height: 800px;
-    background: radial-gradient(ellipse, rgba(61,107,74,0.10) 0%, transparent 68%);
+    width: 800px;
+    height: 800px;
+    background: radial-gradient(ellipse, rgba(61, 107, 74, 0.10) 0%, transparent 68%);
     pointer-events: none;
 }
 
@@ -62,7 +64,8 @@
 }
 
 .heroTitle .italic {
-    font-style: normal; /* No italics */
+    font-style: normal;
+    /* No italics */
     color: var(--accent);
 }
 
@@ -200,12 +203,13 @@
 
 .cardsGrid {
     display: grid;
-    grid-template-columns: repeat(4, 1fr); /* Enters 4 columns (Explorer, Activator, Manifester, Amplifier) */
+    grid-template-columns: repeat(4, 1fr);
+    /* Enters 4 columns (Explorer, Activator, Manifester, Amplifier) */
     gap: 32px;
 }
 
 .pcard {
-    background: radial-gradient(circle at top center, rgba(61,107,74,0.06) 0%, transparent 65%);
+    background: radial-gradient(circle at top center, rgba(61, 107, 74, 0.06) 0%, transparent 65%);
     border: 0.5px solid var(--border1);
     border-radius: 3px;
     padding: 56px 40px;
@@ -223,13 +227,15 @@
 /* Featured card (Manifester) */
 .pcard.feat {
     border-color: var(--gold-dim);
-    background: radial-gradient(circle at top center, rgba(201,168,76,0.07) 0%, transparent 70%);
+    background: radial-gradient(circle at top center, rgba(201, 168, 76, 0.07) 0%, transparent 70%);
 }
 
 .pcard.feat::before {
     content: '';
     position: absolute;
-    top: 0; left: 0; right: 0;
+    top: 0;
+    left: 0;
+    right: 0;
     height: 1px;
     background: linear-gradient(90deg, transparent, var(--gold), transparent);
 }
@@ -256,6 +262,17 @@
 .badgePurple {
     background: var(--gold-dim);
     color: var(--gold);
+}
+
+.badgeCurrent {
+    background: rgba(82, 183, 136, 0.15);
+    color: #52b788;
+    border: 1px solid rgba(82, 183, 136, 0.3);
+}
+
+.currentPlan {
+    border-color: rgba(82, 183, 136, 0.4) !important;
+    box-shadow: 0 0 20px rgba(82, 183, 136, 0.08);
 }
 
 .picon {
@@ -528,14 +545,34 @@
 }
 
 @media (max-width: 1100px) {
-    .cardsGrid { grid-template-columns: repeat(2, 1fr); }
-    .incGrid { grid-template-columns: repeat(2, 1fr); }
+    .cardsGrid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .incGrid {
+        grid-template-columns: repeat(2, 1fr);
+    }
 }
 
 @media (max-width: 700px) {
-    .cardsGrid { grid-template-columns: 1fr; }
-    .incGrid { grid-template-columns: 1fr; }
-    .pricingHero { padding: 120px 24px 40px; }
-    .foundingInner { flex-direction: column; text-align: center; }
-    .fLeft { text-align: center; }
+    .cardsGrid {
+        grid-template-columns: 1fr;
+    }
+
+    .incGrid {
+        grid-template-columns: 1fr;
+    }
+
+    .pricingHero {
+        padding: 120px 24px 40px;
+    }
+
+    .foundingInner {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .fLeft {
+        text-align: center;
+    }
 }

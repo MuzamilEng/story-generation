@@ -1,5 +1,11 @@
 "use client";
-import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useMemo,
+} from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import styles from "../../../styles/GoalDiscovery.module.css";
@@ -16,6 +22,7 @@ import {
   CaptureData,
   SYSTEM_PROMPT,
   TOPICS,
+  AREA_TOPIC_IDS,
 } from "../../../types/goal-discovery";
 import { useStoryStore } from "@/store/useStoryStore";
 import { normalizeGoals } from "@/lib/story-utils";
@@ -43,24 +50,76 @@ const CapturedItem: React.FC<CapturedItemProps> = ({ label, value }) => {
   return (
     <div className={styles.capturedItem}>
       <strong>{label}</strong>
-      {displayValue.length > 80 ? `${displayValue.slice(0, 80)}…` : displayValue}
+      {displayValue.length > 80
+        ? `${displayValue.slice(0, 80)}…`
+        : displayValue}
     </div>
   );
 };
 
 interface CompletionCardProps {
   onGenerate: (length: "short" | "long") => void;
+  capturedGoals: CapturedData;
+  onUpdateGoal: (key: string, value: string | string[]) => void;
 }
 
 const LIFE_AREAS = [
-  { id: "wealth", label: "Wealth & Abundance", icon: "◈", desc: "Financial freedom, prosperity, and security", color: "#D4B665" },
-  { id: "health", label: "Health & Vitality", icon: "◉", desc: "Energy, strength, and physical wellbeing", color: "#8DBF7A" },
-  { id: "love", label: "Love & Relationships", icon: "◇", desc: "Deep connection, romance, and partnership", color: "#C97B8A" },
-  { id: "family", label: "Family & Parenting", icon: "◈", desc: "Nurturing bonds and generational legacy", color: "#A685C9" },
-  { id: "purpose", label: "Purpose & Career", icon: "◎", desc: "Meaningful work, impact, and fulfilment", color: "#6AABCC" },
-  { id: "spirituality", label: "Spirituality & Inner Life", icon: "✦", desc: "Peace, alignment, and inner knowing", color: "#C9A46A" },
-  { id: "growth", label: "Personal Growth", icon: "◐", desc: "Mindset, skills, and becoming who you're meant to be", color: "#8DBF7A" },
-  { id: "other", label: "Something else…", icon: "◌", desc: "Describe your own area of transformation", color: "#6E8A7B" },
+  {
+    id: "wealth",
+    label: "Wealth & Abundance",
+    icon: "◈",
+    desc: "Financial freedom, prosperity, and security",
+    color: "#D4B665",
+  },
+  {
+    id: "health",
+    label: "Health & Vitality",
+    icon: "◉",
+    desc: "Energy, strength, and physical wellbeing",
+    color: "#8DBF7A",
+  },
+  {
+    id: "love",
+    label: "Love & Relationships",
+    icon: "◇",
+    desc: "Deep connection, romance, and partnership",
+    color: "#C97B8A",
+  },
+  {
+    id: "family",
+    label: "Family & Parenting",
+    icon: "◈",
+    desc: "Nurturing bonds and generational legacy",
+    color: "#A685C9",
+  },
+  {
+    id: "purpose",
+    label: "Purpose & Career",
+    icon: "◎",
+    desc: "Meaningful work, impact, and fulfilment",
+    color: "#6AABCC",
+  },
+  {
+    id: "spirituality",
+    label: "Spirituality & Inner Life",
+    icon: "✦",
+    desc: "Peace, alignment, and inner knowing",
+    color: "#C9A46A",
+  },
+  {
+    id: "growth",
+    label: "Personal Growth",
+    icon: "◐",
+    desc: "Mindset, skills, and becoming who you're meant to be",
+    color: "#8DBF7A",
+  },
+  {
+    id: "other",
+    label: "Something else…",
+    icon: "◌",
+    desc: "Describe your own area of transformation",
+    color: "#6E8A7B",
+  },
 ];
 
 interface GoalDiscoveryScreenProps {
@@ -69,7 +128,11 @@ interface GoalDiscoveryScreenProps {
   onConfirm: (selectedAreas: string[]) => void;
 }
 
-const GoalDiscoveryScreen: React.FC<GoalDiscoveryScreenProps> = ({ orientation, isPaid, onConfirm }) => {
+const GoalDiscoveryScreen: React.FC<GoalDiscoveryScreenProps> = ({
+  orientation,
+  isPaid,
+  onConfirm,
+}) => {
   const [selected, setSelected] = useState<string[]>([]);
   const [customArea, setCustomArea] = useState("");
   const [hovered, setHovered] = useState<string | null>(null);
@@ -77,8 +140,8 @@ const GoalDiscoveryScreen: React.FC<GoalDiscoveryScreenProps> = ({ orientation, 
   const maxAllowed = isPaid ? LIFE_AREAS.length : 1;
 
   const toggle = (id: string) => {
-    setSelected(prev => {
-      if (prev.includes(id)) return prev.filter(x => x !== id);
+    setSelected((prev) => {
+      if (prev.includes(id)) return prev.filter((x) => x !== id);
       if (!isPaid && prev.length >= 1) return [id]; // Explorer: replace
       return [...prev, id];
     });
@@ -104,12 +167,17 @@ const GoalDiscoveryScreen: React.FC<GoalDiscoveryScreenProps> = ({ orientation, 
         <h1>Where does your transformation begin?</h1>
         <p>
           Select the areas of life you're ready to call in right now.
-          {!isPaid && <span className={styles.explorerBadge}> Explorer: 1 area — <a href="/pricing">upgrade to unlock all</a></span>}
+          {!isPaid && (
+            <span className={styles.explorerBadge}>
+              {" "}
+              Explorer: 1 area — <a href="/pricing">upgrade to unlock all</a>
+            </span>
+          )}
         </p>
       </div>
 
       <div className={styles.discoveryGrid}>
-        {LIFE_AREAS.map(area => {
+        {LIFE_AREAS.map((area) => {
           const isSelected = selected.includes(area.id);
           const isDisabled = !isPaid && selected.length >= 1 && !isSelected;
           return (
@@ -119,26 +187,47 @@ const GoalDiscoveryScreen: React.FC<GoalDiscoveryScreenProps> = ({ orientation, 
               onClick={() => !isDisabled && toggle(area.id)}
               onMouseEnter={() => setHovered(area.id)}
               onMouseLeave={() => setHovered(null)}
-              style={isSelected ? { "--area-color": area.color } as React.CSSProperties : {}}
+              style={
+                isSelected
+                  ? ({ "--area-color": area.color } as React.CSSProperties)
+                  : {}
+              }
             >
               <div className={styles.areaCardInner}>
                 <div
                   className={styles.areaIcon}
-                  style={{ color: isSelected || hovered === area.id ? area.color : undefined }}
+                  style={{
+                    color:
+                      isSelected || hovered === area.id
+                        ? area.color
+                        : undefined,
+                  }}
                 >
                   {area.icon}
                 </div>
                 <div className={styles.areaLabel}>{area.label}</div>
                 <div className={styles.areaDesc}>{area.desc}</div>
-                <div className={`${styles.areaCheck} ${isSelected ? styles.areaCheckSelected : ""}`}>
+                <div
+                  className={`${styles.areaCheck} ${isSelected ? styles.areaCheckSelected : ""}`}
+                >
                   {isSelected && (
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3}>
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={3}
+                    >
                       <polyline points="20 6 9 17 4 12" />
                     </svg>
                   )}
                 </div>
               </div>
-              {isSelected && <div className={styles.areaCardGlow} style={{ background: area.color }} />}
+              {isSelected && (
+                <div
+                  className={styles.areaCardGlow}
+                  style={{ background: area.color }}
+                />
+              )}
             </button>
           );
         })}
@@ -151,7 +240,7 @@ const GoalDiscoveryScreen: React.FC<GoalDiscoveryScreenProps> = ({ orientation, 
             className={styles.discoveryCustomInput}
             placeholder="Describe your area of transformation…"
             value={customArea}
-            onChange={e => setCustomArea(e.target.value)}
+            onChange={(e) => setCustomArea(e.target.value)}
             autoFocus
           />
         </div>
@@ -160,10 +249,20 @@ const GoalDiscoveryScreen: React.FC<GoalDiscoveryScreenProps> = ({ orientation, 
       <div className={styles.discoveryFooter}>
         {selected.length > 0 && (
           <div className={styles.discoverySelected}>
-            {selected.filter(s => s !== "other").map(id => {
-              const a = LIFE_AREAS.find(x => x.id === id);
-              return a ? <span key={id} className={styles.discoveryTag} style={{ borderColor: a.color, color: a.color }}>{a.label}</span> : null;
-            })}
+            {selected
+              .filter((s) => s !== "other")
+              .map((id) => {
+                const a = LIFE_AREAS.find((x) => x.id === id);
+                return a ? (
+                  <span
+                    key={id}
+                    className={styles.discoveryTag}
+                    style={{ borderColor: a.color, color: a.color }}
+                  >
+                    {a.label}
+                  </span>
+                ) : null;
+              })}
             {selected.includes("other") && customArea.trim() && (
               <span className={styles.discoveryTag}>{customArea.trim()}</span>
             )}
@@ -172,10 +271,22 @@ const GoalDiscoveryScreen: React.FC<GoalDiscoveryScreenProps> = ({ orientation, 
         <button
           className={styles.discoveryConfirmBtn}
           onClick={handleConfirm}
-          disabled={selected.length === 0 || (selected.includes("other") && !customArea.trim() && selected.length === 1)}
+          disabled={
+            selected.length === 0 ||
+            (selected.includes("other") &&
+              !customArea.trim() &&
+              selected.length === 1)
+          }
         >
           Begin My Vision Journey
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
             <path d="M5 12h14M12 5l7 7-7 7" />
           </svg>
         </button>
@@ -184,20 +295,37 @@ const GoalDiscoveryScreen: React.FC<GoalDiscoveryScreenProps> = ({ orientation, 
   );
 };
 
-const OrientationScreen: React.FC<{ onStart: (orientation: string) => void }> = ({ onStart }) => {
+const OrientationScreen: React.FC<{
+  onStart: (orientation: string) => void;
+}> = ({ onStart }) => {
   const [step, setStep] = useState<"start" | "orientation">("start");
+
+  const orientationOptions = [
+    { label: "Spiritual", desc: "I believe in God, Source, divine alignment" },
+    {
+      label: "Scientific",
+      desc: "I trust neuroscience and subconscious programming",
+    },
+    { label: "Both", desc: "I blend science and spirituality freely" },
+    { label: "Grounded", desc: "No frameworks, just real feeling and emotion" },
+  ];
 
   if (step === "start") {
     return (
       <div className={styles.orientationScreen}>
         <div className={styles.orientationIcon}>✦</div>
-        <h1>Your journey begins here</h1>
+        <h1>What do you want more of in your life?</h1>
         <p>
-          I am Maya, your guide. Together, we will architect the vivid narrative of your future self. 
-          Shall we begin the ceremony of your manifestation?
+          I'm Maya. Whether you have a clear vision or just a feeling that
+          something could be better — I'll help you put it into words, then turn
+          them into a story recorded in your own voice that works on your
+          subconscious mind while you sleep.
         </p>
-        <button className={styles.orientationBtn} onClick={() => setStep("orientation")}>
-          Begin the Ceremony
+        <button
+          className={styles.orientationBtn}
+          onClick={() => setStep("orientation")}
+        >
+          Start the conversation
         </button>
       </div>
     );
@@ -208,12 +336,18 @@ const OrientationScreen: React.FC<{ onStart: (orientation: string) => void }> = 
       <div className={styles.orientationIcon}>✦</div>
       <h1>How do you grow?</h1>
       <p>
-        To assist me in crafting a story that resonates with your worldview, how would you describe your orientation toward personal growth?
+        To assist me in crafting a story that resonates with your worldview, how
+        would you describe your orientation toward personal growth?
       </p>
       <div className={styles.orientationOptions}>
-        {["Spiritual", "Scientific", "Both", "Grounded"].map((o) => (
-          <button key={o} className={styles.orientationOption} onClick={() => onStart(o)}>
-            {o}
+        {orientationOptions.map((o) => (
+          <button
+            key={o.label}
+            className={styles.orientationOption}
+            onClick={() => onStart(o.label)}
+          >
+            <strong>{o.label}</strong>
+            <span className={styles.orientationDesc}>{o.desc}</span>
           </button>
         ))}
       </div>
@@ -221,23 +355,225 @@ const OrientationScreen: React.FC<{ onStart: (orientation: string) => void }> = 
   );
 };
 
-const CompletionCard: React.FC<CompletionCardProps> = ({ onGenerate }) => {
+const CompletionCard: React.FC<CompletionCardProps> = ({
+  onGenerate,
+  capturedGoals,
+  onUpdateGoal,
+}) => {
+  const [generating, setGenerating] = useState(false);
+  const [editingKey, setEditingKey] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
+
+  const handleClick = () => {
+    setGenerating(true);
+    onGenerate("long");
+  };
+
+  const handleEdit = (key: string) => {
+    const val = capturedGoals[key];
+    setEditValue(Array.isArray(val) ? val.join(", ") : String(val || ""));
+    setEditingKey(key);
+  };
+
+  const handleSaveEdit = () => {
+    if (editingKey) {
+      onUpdateGoal(editingKey, editValue);
+      setEditingKey(null);
+      setEditValue("");
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingKey(null);
+    setEditValue("");
+  };
+
+  // Labels for display
+  const labelMap: Record<string, string> = {
+    orientation: "Orientation",
+    selectedAreas: "Life Areas",
+    wealth: "Wealth Goals",
+    health: "Health Goals",
+    love: "Love Goals",
+    family: "Family Goals",
+    purpose: "Purpose Goals",
+    spirituality: "Spirituality Goals",
+    actionsAfter: "Proof Actions",
+    tone: "Story Tone",
+    namedPersons: "Key People",
+    coreFeeling: "Core Feeling",
+    identityStatements: "Identity Statements",
+    timeframe: "Timeframe",
+    location: "Setting / Location",
+    home: "Home",
+  };
+
+  const reviewEntries = Object.entries(capturedGoals || {}).filter(
+    ([, v]) =>
+      v && (Array.isArray(v) ? v.length > 0 : String(v).trim().length > 0),
+  );
+
   return (
     <div className={`${styles.msgRow} ${styles.bot}`}>
       <div className={`${styles.avatar} ${styles.bot}`}>M</div>
       <div className={styles.completeCard}>
-        <h3>✦ Your vision is captured</h3>
-        <p>
-          I have everything I need to write your personal manifestation story.
-          Based on your vision and tier, I've designed an immersive sensory narrative uniquely for you.
+        <h3>✦ Review your vision before we write</h3>
+        <p style={{ marginBottom: "16px" }}>
+          Here's everything you shared. Check that nothing is missing — you can
+          edit any field below. Once you're happy, hit Generate.
         </p>
+
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "12px",
+            marginBottom: "20px",
+          }}
+        >
+          {reviewEntries.map(([key, value]) => {
+            const displayVal = Array.isArray(value)
+              ? value.join(", ")
+              : String(value);
+            const label =
+              labelMap[key] || key.charAt(0).toUpperCase() + key.slice(1);
+            const isEditing = editingKey === key;
+
+            return (
+              <div
+                key={key}
+                style={{
+                  padding: "10px 14px",
+                  background: "rgba(255,255,255,0.03)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  borderRadius: "10px",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: "4px",
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: "0.72rem",
+                      color: "rgba(255,255,255,0.45)",
+                      fontWeight: 500,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px",
+                    }}
+                  >
+                    {label}
+                  </span>
+                  {!isEditing && (
+                    <button
+                      onClick={() => handleEdit(key)}
+                      style={{
+                        background: "none",
+                        border: "1px solid rgba(255,255,255,0.15)",
+                        color: "rgba(255,255,255,0.5)",
+                        fontSize: "0.7rem",
+                        padding: "2px 10px",
+                        borderRadius: "6px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Edit
+                    </button>
+                  )}
+                </div>
+                {isEditing ? (
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "8px",
+                    }}
+                  >
+                    <textarea
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      style={{
+                        width: "100%",
+                        minHeight: "60px",
+                        background: "rgba(0,0,0,0.3)",
+                        border: "1px solid rgba(255,255,255,0.15)",
+                        borderRadius: "8px",
+                        color: "#fff",
+                        padding: "8px 10px",
+                        fontSize: "0.85rem",
+                        resize: "vertical",
+                        fontFamily: "inherit",
+                      }}
+                    />
+                    <div style={{ display: "flex", gap: "8px" }}>
+                      <button
+                        onClick={handleSaveEdit}
+                        style={{
+                          background: "var(--accent, #52b788)",
+                          color: "#fff",
+                          border: "none",
+                          padding: "4px 16px",
+                          borderRadius: "6px",
+                          fontSize: "0.78rem",
+                          cursor: "pointer",
+                        }}
+                      >
+                        Save
+                      </button>
+                      <button
+                        onClick={handleCancelEdit}
+                        style={{
+                          background: "none",
+                          color: "rgba(255,255,255,0.5)",
+                          border: "1px solid rgba(255,255,255,0.15)",
+                          padding: "4px 16px",
+                          borderRadius: "6px",
+                          fontSize: "0.78rem",
+                          cursor: "pointer",
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div
+                    style={{
+                      fontSize: "0.85rem",
+                      color: "rgba(255,255,255,0.8)",
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    {displayVal.length > 150
+                      ? displayVal.slice(0, 150) + "…"
+                      : displayVal}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
 
         <button
           className={styles.completeBtn}
-          onClick={() => onGenerate("long")}
+          onClick={handleClick}
+          disabled={generating}
         >
-          Generate My Story
-          <ArrowIcon />
+          {generating ? (
+            <>
+              <span className={styles.btnSpinner} />
+              Generating…
+            </>
+          ) : (
+            <>
+              Generate My Story
+              <ArrowIcon />
+            </>
+          )}
         </button>
 
         <div className={styles.betaNote}>
@@ -267,6 +603,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
   const isUser = message.role === "user";
   const [selectedChips, setSelectedChips] = useState<string[]>([]);
   const [customIdentity, setCustomIdentity] = useState("");
+  const [addedCustomEntries, setAddedCustomEntries] = useState<string[]>([]);
 
   // Robustly extract chips from bot messages
   const extractBotChips = useCallback(() => {
@@ -275,18 +612,25 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
     const lines = message.content.split("\n");
     const detected: string[] = [];
 
-    // Prioritise lines starting with bullet symbols or numbers
+    // Prioritise lines starting with bullet symbols, checkboxes, or numbers
     for (const line of lines) {
       const trimmed = line.trim();
       if (
         trimmed.startsWith("•") ||
         trimmed.startsWith("-") ||
         trimmed.startsWith("*") ||
-        /^\d+\./.test(trimmed)
+        trimmed.startsWith("□") ||
+        trimmed.startsWith("☐") ||
+        trimmed.startsWith("◻") ||
+        trimmed.startsWith("▪") ||
+        trimmed.startsWith("▸") ||
+        trimmed.startsWith("›") ||
+        /^\d+[\.\)]\s/.test(trimmed)
       ) {
-        // Extract the text part
-        const text = trimmed.replace(/^[•\-*\d\.]+\s*/, "").trim();
-        // Heuristic: chips should be relatively short (usually < 100-120 chars)
+        // Extract the text part — strip leading bullet/checkbox symbols and whitespace
+        const text = trimmed.replace(/^[•\-*□☐◻▪▸›\d\.\)]+\s*/, "").trim();
+        // Also strip trailing formatting like " —" descriptions for clean chip labels
+        // but keep the full text for longer identity statements
         if (text && text.length > 0 && text.length < 150) {
           detected.push(text);
         }
@@ -296,7 +640,15 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
     // Heuristic fallbacks
     if (detected.length === 0) {
       if (message.content.toLowerCase().includes("which areas of your life")) {
-        return ["Wealth & Abundance", "Health & Vitality", "Love & Relationships", "Purpose & Career", "Personal Growth", "Home & Environment", "Spirituality"];
+        return [
+          "Wealth & Abundance",
+          "Health & Vitality",
+          "Love & Relationships",
+          "Purpose & Career",
+          "Personal Growth",
+          "Home & Environment",
+          "Spirituality",
+        ];
       }
       if (message.content.toLowerCase().includes("already have")) {
         return ["Yes, I have my goals ready", "Let's explore together"];
@@ -333,17 +685,26 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
     }
   };
 
+  const handleAddCustomEntry = () => {
+    if (customIdentity.trim()) {
+      setAddedCustomEntries((prev) => [...prev, customIdentity.trim()]);
+      setCustomIdentity("");
+    }
+  };
+
+  const handleRemoveCustomEntry = (idx: number) => {
+    setAddedCustomEntries((prev) => prev.filter((_, i) => i !== idx));
+  };
+
   const handleConfirmMulti = () => {
-    const combined = [...selectedChips];
+    const combined = [...selectedChips, ...addedCustomEntries];
     if (customIdentity.trim()) {
       combined.push(customIdentity.trim());
     }
     if (combined.length > 0) {
       onChipClick?.(combined.join(", "));
       setCustomIdentity("");
-    } else if (customIdentity.trim()) {
-      onChipClick?.(customIdentity.trim());
-      setCustomIdentity("");
+      setAddedCustomEntries([]);
     }
   };
 
@@ -354,6 +715,30 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
       /(?:PROGRESS|PROG|CAPTURE|CAPTURED|CAP):\s*(?:```json)?\s*\{[\s\S]*?\}\s*(?:```)?/gi,
       "",
     );
+
+    // If chips were detected, strip the bullet lines from the displayed text
+    // so options appear ONLY as interactive chips, not as text + chips
+    if (chips.length > 0) {
+      cleanText = cleanText
+        .split("\n")
+        .filter((line) => {
+          const trimmed = line.trim();
+          return !(
+            trimmed.startsWith("•") ||
+            trimmed.startsWith("□") ||
+            trimmed.startsWith("☐") ||
+            trimmed.startsWith("◻") ||
+            trimmed.startsWith("▪") ||
+            trimmed.startsWith("▸") ||
+            trimmed.startsWith("›") ||
+            (trimmed.startsWith("-") &&
+              trimmed.length < 150 &&
+              !trimmed.startsWith("---")) ||
+            (/^\d+[\.\)]\s/.test(trimmed) && trimmed.length < 150)
+          );
+        })
+        .join("\n");
+    }
 
     const withBold = cleanText.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
     const withItalic = withBold.replace(/\*(.*?)\*/g, "<em>$1</em>");
@@ -388,39 +773,83 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
             })}
             {isIdentityPhase && (
               <div className={styles.customIdentity}>
-                <input
-                  type="text"
-                  placeholder="Write your own identity statement…"
-                  value={customIdentity}
-                  onChange={(e) => setCustomIdentity(e.target.value)}
-                  className={styles.customIdentityInput}
-                />
+                <div style={{ display: "flex", gap: "8px", width: "100%" }}>
+                  <input
+                    type="text"
+                    placeholder="Write your own identity statement…"
+                    value={customIdentity}
+                    onChange={(e) => setCustomIdentity(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleAddCustomEntry();
+                      }
+                    }}
+                    className={styles.customIdentityInput}
+                  />
+                  <button
+                    className={styles.chip}
+                    onClick={handleAddCustomEntry}
+                    disabled={!customIdentity.trim()}
+                    style={{
+                      minWidth: "60px",
+                      opacity: customIdentity.trim() ? 1 : 0.4,
+                    }}
+                  >
+                    Add +
+                  </button>
+                </div>
+                {addedCustomEntries.length > 0 && (
+                  <div
+                    style={{
+                      display: "flex",
+                      flexWrap: "wrap",
+                      gap: "6px",
+                      marginTop: "8px",
+                    }}
+                  >
+                    {addedCustomEntries.map((entry, i) => (
+                      <button
+                        key={i}
+                        className={`${styles.chip} ${styles.active}`}
+                        onClick={() => handleRemoveCustomEntry(i)}
+                        title="Click to remove"
+                      >
+                        {entry} ✕
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
-            {(isIdentityPhase || isLifeAreasPhase) && (selectedChips.length > 0 || customIdentity.trim()) && (
-              <button
-                className={styles.chip}
-                onClick={handleConfirmMulti}
-                style={{
-                  background: "var(--accent)",
-                  color: "#fff",
-                  borderColor: "var(--accent)",
-                  marginTop: "12px",
-                  width: "100%",
-                  textAlign: "center",
-                  justifyContent: "center",
-                }}
-              >
-                {isLifeAreasPhase ? "Explore These Areas →" : "Done — these are mine"}
-              </button>
-            )}
+            {(isIdentityPhase || isLifeAreasPhase) &&
+              (selectedChips.length > 0 ||
+                addedCustomEntries.length > 0 ||
+                customIdentity.trim()) && (
+                <button
+                  className={styles.chip}
+                  onClick={handleConfirmMulti}
+                  style={{
+                    background: "var(--accent)",
+                    color: "#fff",
+                    borderColor: "var(--accent)",
+                    marginTop: "12px",
+                    width: "100%",
+                    textAlign: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  {isLifeAreasPhase
+                    ? "Explore These Areas →"
+                    : "Done — these are mine"}
+                </button>
+              )}
           </div>
         )}
       </div>
     </div>
   );
 };
-
 
 // Skip-confirmation modal
 interface SkipConfirmModalProps {
@@ -504,7 +933,9 @@ const GoalDiscovery: React.FC = () => {
   const router = useRouter();
   const { data: session, status: authStatus } = useSession();
   // Track the intake flow stage: null = orientation, 'discovery' = area selection, 'chat' = main chat
-  const [intakeStage, setIntakeStage] = useState<"orientation" | "discovery" | "chat">("orientation");
+  const [intakeStage, setIntakeStage] = useState<
+    "orientation" | "discovery" | "chat"
+  >("orientation");
   const [pendingOrientation, setPendingOrientation] = useState("");
 
   useEffect(() => {
@@ -535,8 +966,13 @@ const GoalDiscovery: React.FC = () => {
   };
   const saved = restoreSession();
 
-  const { capturedGoals, setCapturedGoals, setNormalizedGoals, clearStore, isHydrated } =
-    useStoryStore();
+  const {
+    capturedGoals,
+    setCapturedGoals,
+    setNormalizedGoals,
+    clearStore,
+    isHydrated,
+  } = useStoryStore();
   const [messages, setMessages] = useState<Message[]>(saved?.messages ?? []);
   const messagesRef = useRef<Message[]>(saved?.messages ?? []);
 
@@ -577,13 +1013,12 @@ const GoalDiscovery: React.FC = () => {
       Orientation: "orientation",
       Setup: "orientation",
       "Life Areas": "selectedAreas",
-      Vision: "goals",
-      Wealth: "goals",
-      Health: "goals",
-      Love: "goals",
-      Family: "goals",
-      Purpose: "goals",
-      Spirituality: "goals",
+      Wealth: "wealth",
+      Health: "health",
+      Love: "love",
+      Family: "family",
+      Purpose: "purpose",
+      Spirituality: "spirituality",
       "Proof Actions": "actionsAfter",
       "Story Anchors": "namedPersons",
       "Story Tone": "tone",
@@ -649,12 +1084,7 @@ const GoalDiscovery: React.FC = () => {
     } catch {
       // Storage quota exceeded or unavailable — silently skip
     }
-  }, [
-    messages,
-    progress,
-    respondedTopics,
-    isComplete,
-  ]);
+  }, [messages, progress, respondedTopics, isComplete]);
 
   // ── Helper to wipe the persisted session (called after successful story save) ──
   const clearChatSession = () => {
@@ -678,7 +1108,10 @@ const GoalDiscovery: React.FC = () => {
 
   // Step 1: User picks orientation → go to goal discovery screen
   const handleOrientationSelected = (orientation: string) => {
-    setCapturedGoals(prev => ({ ...prev, orientation: orientation.toLowerCase() }));
+    setCapturedGoals((prev) => ({
+      ...prev,
+      orientation: orientation.toLowerCase(),
+    }));
     setRecentGoalKey("orientation");
     setPendingOrientation(orientation);
     setIntakeStage("discovery");
@@ -687,31 +1120,36 @@ const GoalDiscovery: React.FC = () => {
   // Step 2: User picks life areas → start chat with combined context
   const handleGoalDiscoveryConfirm = (selectedAreas: string[]) => {
     // Capture selected areas immediately
-    setCapturedGoals(prev => ({ ...prev, selectedAreas }));
+    setCapturedGoals((prev) => ({ ...prev, selectedAreas }));
     setRecentGoalKey("selectedAreas");
     setIntakeStage("chat");
     // Advance sidebar to selectedAreas
     setActiveTopicId("selectedAreas");
     activeTopicIdRef.current = "selectedAreas";
-    setProgress(prev => ({
+    setProgress((prev) => ({
       ...prev,
       pct: 15,
       phase: "Life Areas",
       topic: "selectedAreas",
       covered: ["orientation", "selectedAreas"],
     }));
-    setRespondedTopics(prev => [...new Set([...prev, "orientation", "selectedAreas"])]);
+    setRespondedTopics((prev) => [
+      ...new Set([...prev, "orientation", "selectedAreas"]),
+    ]);
     // Send combined message to AI
     const areasLabel = selectedAreas.join(", ");
     sendToAI(
       `My orientation toward personal growth is: ${pendingOrientation}. ` +
-      `The life areas I want to transform are: ${areasLabel}.`
+        `The life areas I want to transform are: ${areasLabel}.`,
     );
   };
 
   // Legacy: Start conversation with orientation (no discovery screen — not used now)
   const handleStartConversation = (orientation: string) => {
-    setCapturedGoals(prev => ({ ...prev, orientation: orientation.toLowerCase() }));
+    setCapturedGoals((prev) => ({
+      ...prev,
+      orientation: orientation.toLowerCase(),
+    }));
     setRecentGoalKey("orientation");
     sendToAI(`My orientation toward personal growth is: ${orientation}`);
   };
@@ -880,24 +1318,26 @@ const GoalDiscovery: React.FC = () => {
 
   const handleSend = useCallback(() => {
     if (!inputValue.trim() || isWaiting) return;
-    
+
     // Preemptive local capture for specific topics to ensure the UI feels responsive
     // even if the AI fails to send a CAPTURE tag.
     const text = inputValue.trim();
     const topic = activeTopicIdRef.current;
-    
-    if (topic === 'orientation') {
-      setCapturedGoals(prev => ({ ...prev, orientation: text.toLowerCase() }));
-    } else if (topic === 'timeframe') {
-      setCapturedGoals(prev => ({ ...prev, timeframe: text }));
-    } else if (topic === 'tone') {
-      setCapturedGoals(prev => ({ ...prev, tone: text }));
-    } else if (topic === 'goals' && progress.phase && !["Vision", "Life Areas", "Setup"].includes(progress.phase)) {
-       // If in a deep-dive phase (Wealth, Health, etc.), capture as a goal for that area
-       const goalKey = `goals (${progress.phase.toLowerCase()})`;
-       setCapturedGoals(prev => ({ ...prev, [goalKey]: text }));
-    } else if (topic === 'actionsAfter') {
-      setCapturedGoals(prev => ({ ...prev, actionsAfter: text }));
+
+    if (topic === "orientation") {
+      setCapturedGoals((prev) => ({
+        ...prev,
+        orientation: text.toLowerCase(),
+      }));
+    } else if (topic === "timeframe") {
+      setCapturedGoals((prev) => ({ ...prev, timeframe: text }));
+    } else if (topic === "tone") {
+      setCapturedGoals((prev) => ({ ...prev, tone: text }));
+    } else if (AREA_TOPIC_IDS.includes(topic)) {
+      // Capture goals for the specific life area being explored
+      setCapturedGoals((prev) => ({ ...prev, [topic]: text }));
+    } else if (topic === "actionsAfter") {
+      setCapturedGoals((prev) => ({ ...prev, actionsAfter: text }));
     }
 
     sendToAI(text);
@@ -921,26 +1361,41 @@ const GoalDiscovery: React.FC = () => {
       const lowerText = text.toLowerCase();
       const currentTopic = activeTopicIdRef.current;
 
-      if (progress.phase === "Life Areas" || currentTopic === 'selectedAreas') {
-        const areas = text.split(", ").map(a => a.trim());
-        setCapturedGoals(prev => ({ ...prev, selectedAreas: areas }));
+      if (progress.phase === "Life Areas" || currentTopic === "selectedAreas") {
+        const areas = text.split(", ").map((a) => a.trim());
+        setCapturedGoals((prev) => ({ ...prev, selectedAreas: areas }));
         setRecentGoalKey("selectedAreas");
-      } else if (progress.phase === "Identity Builder" || currentTopic === 'identityStatements') {
-        const statements = text.split(", ").map(s => s.trim());
-        setCapturedGoals(prev => ({ ...prev, identityStatements: statements }));
+      } else if (
+        progress.phase === "Identity Builder" ||
+        currentTopic === "identityStatements"
+      ) {
+        const statements = text.split(", ").map((s) => s.trim());
+        setCapturedGoals((prev) => ({
+          ...prev,
+          identityStatements: statements,
+        }));
         setRecentGoalKey("identityStatements");
       } else if (progress.phase === "Story Tone" || currentTopic === "tone") {
-        setCapturedGoals(prev => ({ ...prev, tone: text }));
+        setCapturedGoals((prev) => ({ ...prev, tone: text }));
         setRecentGoalKey("tone");
-      } else if (progress.phase === "Timeframe" || currentTopic === "timeframe") {
-        setCapturedGoals(prev => ({ ...prev, timeframe: text }));
+      } else if (
+        progress.phase === "Timeframe" ||
+        currentTopic === "timeframe"
+      ) {
+        setCapturedGoals((prev) => ({ ...prev, timeframe: text }));
         setRecentGoalKey("timeframe");
-      } else if (currentTopic === 'orientation') {
-        setCapturedGoals(prev => ({ ...prev, orientation: text.toLowerCase() }));
+      } else if (currentTopic === "orientation") {
+        setCapturedGoals((prev) => ({
+          ...prev,
+          orientation: text.toLowerCase(),
+        }));
         setRecentGoalKey("orientation");
-      } else if (currentTopic === 'coreFeeling') {
-        setCapturedGoals(prev => ({ ...prev, coreFeeling: text }));
+      } else if (currentTopic === "coreFeeling") {
+        setCapturedGoals((prev) => ({ ...prev, coreFeeling: text }));
         setRecentGoalKey("coreFeeling");
+      } else if (AREA_TOPIC_IDS.includes(currentTopic)) {
+        setCapturedGoals((prev) => ({ ...prev, [currentTopic]: text }));
+        setRecentGoalKey(currentTopic);
       }
 
       sendToAI(text);
@@ -1028,14 +1483,16 @@ const GoalDiscovery: React.FC = () => {
   const executeTopicNav = useCallback(
     (id: string, label: string) => {
       const topicIndex = TOPICS.findIndex((t) => t.id === id);
-      
+
       setProgress((prev) => {
         const newlyCovered = TOPICS.slice(0, topicIndex).map((t) => t.id); // Topics before are skipped
-        const uniqueCovered = Array.from(new Set([...prev.covered, ...newlyCovered, id])); // current being active marks it as visited
-        
+        const uniqueCovered = Array.from(
+          new Set([...prev.covered, ...newlyCovered, id]),
+        ); // current being active marks it as visited
+
         const newPct = Math.max(
           prev.pct,
-          Math.min(100, Math.round(((topicIndex + 1) / TOPICS.length) * 100))
+          Math.min(100, Math.round(((topicIndex + 1) / TOPICS.length) * 100)),
         );
 
         return {
@@ -1050,8 +1507,6 @@ const GoalDiscovery: React.FC = () => {
       // Update active topic ID directly for immediate UI feedback
       setActiveTopicId(id);
       activeTopicIdRef.current = id;
-
-
 
       // Prompt AI to transition, acknowledging history and extracting any available goals
       const prompt = `Let's skip ahead to "${label}". Please reflect on what we've discussed so far, capture any goals or details you've identified in our history using CAPTURE tags, and then ask me about ${label}.`;
@@ -1077,22 +1532,23 @@ const GoalDiscovery: React.FC = () => {
         <aside className={styles.sidebar}>
           <div className={styles.sidebarTitle}>Topics</div>
 
-          {TOPICS.map((topic, idx) => {
+          {TOPICS.filter((topic) => {
+            // Only show area topics that were selected by the user
+            if (AREA_TOPIC_IDS.includes(topic.id)) {
+              const areas = (capturedGoals?.selectedAreas as string[]) || [];
+              return areas.map((a) => a.toLowerCase()).includes(topic.id);
+            }
+            return true;
+          }).map((topic, idx) => {
             const isActive = activeTopicId === topic.id;
             const isCovered = progress.covered.includes(topic.id);
             const isResponded = respondedTopics.includes(topic.id);
-
-            // Calculate display label for sub-phases
-            let displayLabel = topic.label;
-            if (topic.id === "goals" && progress.phase && !["Vision", "Life Areas", "Setup"].includes(progress.phase)) {
-              displayLabel = `${topic.label}: ${progress.phase}`;
-            }
 
             return (
               <TopicItem
                 key={topic.id}
                 id={topic.id}
-                label={displayLabel}
+                label={topic.label}
                 isActive={isActive}
                 isCovered={isCovered}
                 isResponded={isResponded}
@@ -1105,14 +1561,15 @@ const GoalDiscovery: React.FC = () => {
             <div className={styles.capturedList}>
               {!isHydrated ? (
                 <div className={styles.loadingCaptured}>Loading...</div>
-              ) : !capturedGoals || Object.entries(capturedGoals).length === 0 ? (
+              ) : !capturedGoals ||
+                Object.entries(capturedGoals).length === 0 ? (
                 <span className={styles.nothingYet}>
                   Your vision will appear here…
                 </span>
               ) : (
                 Object.entries(capturedGoals).map(([label, value]) => (
-                  <div 
-                    key={label} 
+                  <div
+                    key={label}
                     className={`${styles.capturedItemWrapper} ${recentGoalKey === label ? styles.recentGoal : ""}`}
                   >
                     <CapturedItem label={label} value={value} />
@@ -1161,7 +1618,15 @@ const GoalDiscovery: React.FC = () => {
 
             {showTyping && <TypingIndicator />}
 
-            {isComplete && <CompletionCard onGenerate={handleGenerateStory} />}
+            {isComplete && capturedGoals?.timeframe && (
+              <CompletionCard
+                onGenerate={handleGenerateStory}
+                capturedGoals={capturedGoals}
+                onUpdateGoal={(key, value) => {
+                  setCapturedGoals((prev) => ({ ...prev, [key]: value }));
+                }}
+              />
+            )}
 
             <div ref={messagesEndRef} />
           </div>
