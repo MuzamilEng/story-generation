@@ -5,29 +5,9 @@ import { prisma } from '@/lib/prisma';
 import { checkPlanGating } from '@/lib/plan-gating';
 import { betaTypeToPlan } from '@/lib/beta-utils';
 import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
-import { spawnSync } from 'node:child_process';
-import { writeFileSync, readFileSync, unlinkSync, existsSync, chmodSync } from 'node:fs';
-import { join } from 'node:path';
-import { tmpdir } from 'node:os';
 
-// Allow up to 300s for audio assembly (TTS generation + ffmpeg processing)
+// Allow up to 300s for audio assembly (TTS generation)
 export const maxDuration = 300;
-
-// Resolve the ffmpeg binary path: prefer ffmpeg-static, fall back to system ffmpeg
-let ffmpegPath = 'ffmpeg';
-try {
-    const staticPath = require('ffmpeg-static') as string;
-    if (staticPath && existsSync(staticPath)) {
-        // Ensure the binary has execute permission (Vercel strips this during bundling)
-        try { chmodSync(staticPath, 0o755); } catch {}
-        ffmpegPath = staticPath;
-        console.log('[assemble] Using ffmpeg-static at:', staticPath);
-    } else {
-        console.warn('[assemble] ffmpeg-static path not found on disk:', staticPath);
-    }
-} catch (e) {
-    console.warn('[assemble] ffmpeg-static not available, falling back to system ffmpeg:', e);
-}
 
 // ── R2 client ────────────────────────────────────────────────────────────────
 const s3 = new S3Client({
@@ -43,8 +23,6 @@ const BUCKET = process.env.R2_BUCKET_NAME || 'manifestmystory-audio';
 // ── Plan capability sets ──────────────────────────────────────────────────────
 const VOICE_CLONE_PLANS = new Set(['free', 'activator', 'manifester', 'amplifier']);
 const ADMIN_AUDIO_PLANS = new Set(['activator', 'manifester', 'amplifier']);
-const SOUNDSCAPE_PLANS = new Set(['manifester', 'amplifier']);
-const BINAURAL_PLANS = new Set(['amplifier']);
 
 /**
  * ElevenLabs can technically accept very long text per request, but the
@@ -77,23 +55,9 @@ async function fetchAdminAudio(segmentKey: 'induction' | 'guide_close'): Promise
     }
 }
 
-// ── FFmpeg Wrapper ───────────────────────────────────────────────────────────
-function ffRun(args: string[]): void {
-    const result = spawnSync(ffmpegPath, args, { 
-        maxBuffer: 200 * 1024 * 1024,
-        env: { ...process.env, PATH: `${process.env.PATH}:/usr/local/bin:/usr/bin:/opt/homebrew/bin` }
-    });
-    if (result.error) {
-        throw new Error(`FFmpeg failed to start (${ffmpegPath}): ${result.error.message}`);
-    }
-    if (result.status !== 0) {
-        throw new Error(`FFmpeg exited ${result.status}: ${result.stderr?.toString().slice(-300)}`);
-    }
-}
-
-// ── Free TTS Fallback (when Fish Audio has no balance) ───────────────────────
-async function generateFreeTTS(text: string, outPath: string): Promise<void> {
-    console.log('[assemble] Using free TTS fallback (no Fish Audio credits)');
+// ── Free TTS Fallback ────────────────────────────────────────────────────────
+async function generateFreeTTS(text: string): Promise<Buffer | null> {
+    console.log('[assemble] Using free TTS fallback');
     const providers = [
         async () => {
             const url = `https://api.streamelements.com/kappa/v2/speech?voice=Brian&text=${encodeURIComponent(text)}`;
@@ -114,50 +78,61 @@ async function generateFreeTTS(text: string, outPath: string): Promise<void> {
     for (const fetchAudio of providers) {
         try {
             const buf = await fetchAudio();
-            if (buf) { writeFileSync(outPath, buf); return; }
+            if (buf) return buf;
         } catch {}
     }
-    ffRun(['-f', 'lavfi', '-i', 'sine=frequency=440:duration=5', '-acodec', 'libmp3lame', outPath, '-y']);
+    return null;
 }
 
 // ── ElevenLabs TTS (Primary — Pro plan) ───────────────────────────────────────
-async function generateElevenLabsTTS(voiceId: string, text: string, outPath: string): Promise<boolean> {
+async function generateElevenLabsTTS(voiceId: string, text: string): Promise<Buffer | null> {
     const key = process.env.ELEVEN_LABS_API;
-    if (!key) return false;
-    try {
-        const res = await fetch(
-            `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`,
-            {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'xi-api-key': key },
-                body: JSON.stringify({
-                    text,
-                    model_id: 'eleven_multilingual_v2',
-                    voice_settings: {
-                        stability: 0.80,
-                        similarity_boost: 0.75,
-                        style: 0,
-                        use_speaker_boost: true,
-                    },
-                }),
-            },
-        );
-        if (!res.ok) {
-            console.error(`[assemble] ElevenLabs TTS error ${res.status}:`, await res.text().catch(() => ''));
-            return false;
+    if (!key) return null;
+    const MAX_RETRIES = 3;
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        try {
+            const res = await fetch(
+                `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`,
+                {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'xi-api-key': key },
+                    body: JSON.stringify({
+                        text,
+                        model_id: 'eleven_multilingual_v2',
+                        voice_settings: {
+                            stability: 0.80,
+                            similarity_boost: 0.75,
+                            style: 0,
+                            use_speaker_boost: true,
+                        },
+                    }),
+                },
+            );
+            if (res.ok) {
+                return Buffer.from(await res.arrayBuffer());
+            }
+            const errText = await res.text().catch(() => '');
+            console.error(`[assemble] ElevenLabs TTS error ${res.status} (attempt ${attempt}/${MAX_RETRIES}):`, errText);
+            // Rate-limited — wait before retry
+            if (res.status === 429 && attempt < MAX_RETRIES) {
+                await new Promise(r => setTimeout(r, 2000 * attempt));
+                continue;
+            }
+        } catch (e) {
+            console.error(`[assemble] ElevenLabs TTS exception (attempt ${attempt}/${MAX_RETRIES}):`, e);
         }
-        writeFileSync(outPath, Buffer.from(await res.arrayBuffer()));
-        return true;
-    } catch (e) {
-        console.error('[assemble] ElevenLabs TTS exception:', e);
-        return false;
+        // Brief pause between retries for non-429 errors too
+        if (attempt < MAX_RETRIES) {
+            await new Promise(r => setTimeout(r, 1000));
+        }
     }
+    return null;
 }
 
 // ── Fish Audio TTS (Fallback) ─────────────────────────────────────────────────
-async function generateFishAudioTTS(voiceId: string, text: string, outPath: string): Promise<boolean> {
+async function generateFishAudioTTS(voiceId: string, text: string): Promise<Buffer | null> {
     const key = process.env.FISH_AUDIO_API;
-    if (!key) return false;
+    if (!key) return null;
     try {
         const res = await fetch('https://api.fish.audio/v1/tts', {
             method: 'POST',
@@ -169,10 +144,9 @@ async function generateFishAudioTTS(voiceId: string, text: string, outPath: stri
                 normalize: true 
             }),
         });
-        if (!res.ok) return false;
-        writeFileSync(outPath, Buffer.from(await res.arrayBuffer()));
-        return true;
-    } catch { return false; }
+        if (!res.ok) return null;
+        return Buffer.from(await res.arrayBuffer());
+    } catch { return null; }
 }
 
 // ── Text Chunker  ─────────────────────────────────────────────────────────────
@@ -227,8 +201,6 @@ function splitTextIntoChunks(text: string, maxChars: number = CHUNK_CHARS): stri
 // ── API HANDLER ──────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
     const ts = Date.now();
-    const dir = tmpdir();
-    const voiceFiles: string[] = [];
     try {
         const session = await getServerSession(authOptions);
         if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -246,132 +218,105 @@ export async function POST(req: NextRequest) {
         const hasActiveBeta = await prisma.userBetaCode.findFirst({ where: { userId: user.id, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] }, include: { betaCode: { select: { type: true } } } });
         const effectivePlan = hasActiveBeta ? betaTypeToPlan((hasActiveBeta as any).betaCode?.type || 'amplifier_2_months') : (user.plan || 'free').toLowerCase();
         
-        // ── Assets Fetch ──────────────────────────────────────────────────────
-        const [induction, close, soundscape, binaural] = await Promise.all([
+        // ── Assets Fetch (induction / close — pre/appended as MP3) ────────────
+        const [induction, close] = await Promise.all([
             ADMIN_AUDIO_PLANS.has(effectivePlan) ? fetchAdminAudio('induction') : Promise.resolve(null),
             ADMIN_AUDIO_PLANS.has(effectivePlan) ? fetchAdminAudio('guide_close') : Promise.resolve(null),
-            SOUNDSCAPE_PLANS.has(effectivePlan) && user.soundscape !== 'none'
-                ? (async () => {
-                    const asset = await (prisma as any).soundscapeAsset.findFirst({ where: { title: { equals: user.soundscape, mode: 'insensitive' } } });
-                    return asset ? fetchR2Buffer(asset.r2_key) : fetchR2Buffer(`system/soundscapes/${user.soundscape.toLowerCase()}.mp3`);
-                })()
-                : Promise.resolve(null),
-            BINAURAL_PLANS.has(effectivePlan) && user.binaural_enabled ? fetchR2Buffer('system/binaural/theta.mp3') : Promise.resolve(null),
         ]);
 
         // ── Voice Parts ───────────────────────────────────────────────────────
-        // ElevenLabs voice IDs and Fish Audio voice IDs are different formats.
-        // The user's voice_model_id may be either depending on which clone-voice flow was used.
-        const voiceId = user.voice_model_id || '';
+        const voiceModelId = user.voice_model_id || '';
         const elevenLabsVoiceId = user.elevenlabs_voice_id || '';
+
+        // Only use ElevenLabs if we have a confirmed ElevenLabs voice ID.
+        // voice_model_id could be a Fish Audio ID — do NOT send it to ElevenLabs.
+        const useElevenLabs = !!process.env.ELEVEN_LABS_API && !!elevenLabsVoiceId;
+        const useFishAudio = !!process.env.FISH_AUDIO_API && !!voiceModelId;
+
+        console.log(`[assemble] Voice IDs — elevenlabs: "${elevenLabsVoiceId}", voice_model_id: "${voiceModelId}"`);
+        console.log(`[assemble] TTS provider: ${useElevenLabs ? 'ElevenLabs (cloned voice)' : useFishAudio ? 'Fish Audio' : 'Free TTS'}`);
+
         const rawText = (story as any).story_text_approved || (story as any).story_text_draft || '';
         const aff = (story as any).affirmations_json as any;
-        const textParts = [];
-        if (aff?.opening) textParts.push(aff.opening.join('\n\n'));
+        const textParts: string[] = [];
+        if (aff?.opening && Array.isArray(aff.opening)) textParts.push(aff.opening.join('\n\n'));
         textParts.push(rawText);
-        if (aff?.closing) textParts.push(aff.closing.join('\n\n'));
+        if (aff?.closing && Array.isArray(aff.closing)) textParts.push(aff.closing.join('\n\n'));
         
         const fullText = textParts.join('\n\n');
+        const fullWordCount = fullText.split(/\s+/).filter(Boolean).length;
         const chunks = splitTextIntoChunks(fullText);
-        const chunkPaths: string[] = [];
 
-        // Determine which voice ID to use for ElevenLabs
-        const elVoiceId = elevenLabsVoiceId || voiceId;
-        const useElevenLabs = !!process.env.ELEVEN_LABS_API && !!elVoiceId;
+        // Verify text integrity — total words in chunks must match original
+        const totalChunkChars = chunks.reduce((n, c) => n + c.length, 0);
+        const totalChunkWords = chunks.reduce((n, c) => n + c.split(/\s+/).filter(Boolean).length, 0);
 
-        console.log(`[assemble] Story text: ${rawText.length} chars, ${rawText.split(/\s+/).length} words`);
-        console.log(`[assemble] Full text with affirmations: ${fullText.length} chars`);
-        console.log(`[assemble] Generating ${chunks.length} chunks (TTS: ${useElevenLabs ? 'ElevenLabs' : 'Fish Audio'})...`);
+        console.log(`[assemble] Story text: ${rawText.length} chars, ${rawText.split(/\s+/).filter(Boolean).length} words`);
+        console.log(`[assemble] Full text with affirmations: ${fullText.length} chars, ${fullWordCount} words`);
+        console.log(`[assemble] Split into ${chunks.length} chunks: ${totalChunkChars} chars, ${totalChunkWords} words`);
+        if (totalChunkWords < fullWordCount * 0.95) {
+            console.error(`[assemble] ⚠ TEXT LOSS DETECTED: original ${fullWordCount} words → chunks ${totalChunkWords} words (${fullWordCount - totalChunkWords} words lost!)`);
+        }
+
+        // Log each chunk size for debugging
+        chunks.forEach((c, i) => console.log(`[assemble]   Chunk ${i + 1}: ${c.length} chars, ${c.split(/\s+/).filter(Boolean).length} words`));
         
+        // Generate all TTS chunks as in-memory buffers
+        const chunkBuffers: Buffer[] = [];
         for (let i = 0; i < chunks.length; i++) {
-            const fp = join(dir, `v_${i}_${ts}.mp3`);
-            let generated = false;
+            let buf: Buffer | null = null;
             
-            // Priority 1: ElevenLabs (Pro plan — handles long text, natural pacing)
+            // Priority 1: ElevenLabs (only if we have a real ElevenLabs voice ID)
             if (useElevenLabs) {
-                generated = await generateElevenLabsTTS(elVoiceId, chunks[i], fp);
+                buf = await generateElevenLabsTTS(elevenLabsVoiceId, chunks[i]);
             }
             
-            // Priority 2: Fish Audio fallback
-            if (!generated && voiceId) {
-                generated = await generateFishAudioTTS(voiceId, chunks[i], fp);
+            // Priority 2: Fish Audio fallback (use voice_model_id which may be Fish Audio ID)
+            if (!buf && useFishAudio) {
+                buf = await generateFishAudioTTS(voiceModelId, chunks[i]);
             }
             
             // Priority 3: Free TTS fallback
-            if (!generated) {
-                await generateFreeTTS(chunks[i], fp);
+            if (!buf) {
+                buf = await generateFreeTTS(chunks[i]);
             }
             
-            chunkPaths.push(fp);
-            voiceFiles.push(fp);
+            if (buf) {
+                chunkBuffers.push(buf);
+                console.log(`[assemble] ✓ Chunk ${i + 1}/${chunks.length} — ${buf.length} bytes`);
+            } else {
+                // Do NOT silently skip — the audio would be incomplete
+                console.error(`[assemble] ✗ Chunk ${i + 1}/${chunks.length} FAILED — aborting to prevent incomplete audio`);
+                return NextResponse.json(
+                    { error: `Voice generation failed on chunk ${i + 1} of ${chunks.length}. Please try again.` },
+                    { status: 500 },
+                );
+            }
         }
 
-        // ── Final Assembly ───────────────────────────────────────────────────
-        const assemblyPaths: string[] = [];
-        if (induction) {
-            const fp = join(dir, `ind_${ts}.mp3`);
-            writeFileSync(fp, induction);
-            assemblyPaths.push(fp);
-            voiceFiles.push(fp);
-        }
-        assemblyPaths.push(...chunkPaths);
-        if (close) {
-            const fp = join(dir, `close_${ts}.mp3`);
-            writeFileSync(fp, close);
-            assemblyPaths.push(fp);
-            voiceFiles.push(fp);
+        if (chunkBuffers.length === 0) {
+            return NextResponse.json({ error: 'Failed to generate any audio' }, { status: 500 });
         }
 
-        const listContent = assemblyPaths.map(fp => `file '${fp.replace(/'/g, "'\\''")}'`).join('\n');
-        const listPath = join(dir, `list_${ts}.txt`);
-        writeFileSync(listPath, listContent);
+        // ── Final Assembly (simple MP3 concatenation in memory) ───────────────
+        const parts: Buffer[] = [];
+        if (induction) parts.push(induction);
+        parts.push(...chunkBuffers);
+        if (close) parts.push(close);
 
-        const rawVoice = join(dir, `raw_${ts}.mp3`);
-        const voiceOnly = join(dir, `norm_${ts}.mp3`);
-        const mixed = join(dir, `mixed_${ts}.mp3`);
-        
-        ffRun(['-f', 'concat', '-safe', '0', '-i', listPath, '-acodec', 'libmp3lame', '-b:a', '192k', rawVoice, '-y']);
-        try {
-            ffRun(['-i', rawVoice, '-af', 'loudnorm=I=-16:TP=-1.5:LRA=11', '-acodec', 'libmp3lame', '-b:a', '192k', voiceOnly, '-y']);
-        } catch { writeFileSync(voiceOnly, readFileSync(rawVoice)); }
+        const finalAudio = Buffer.concat(parts);
 
-        if (soundscape || binaural) {
-            const scPath = join(dir, `sc_${ts}.mp3`);
-            const binPath = join(dir, `bin_${ts}.mp3`);
-            if (soundscape) writeFileSync(scPath, soundscape);
-            if (binaural) writeFileSync(binPath, binaural);
-
-            const mixInputs = ['-i', voiceOnly];
-            const filters = ['[0:a]volume=1.0[v]'];
-            const labels = ['[v]'];
-            if (soundscape) { mixInputs.push('-stream_loop', '-1', '-i', scPath); filters.push(`[${mixInputs.filter(x => x === '-i').length - 1}:a]volume=0.09[sc]`); labels.push('[sc]'); }
-            if (binaural) { mixInputs.push('-stream_loop', '-1', '-i', binPath); filters.push(`[${mixInputs.filter(x => x === '-i').length - 1}:a]volume=0.06[bin]`); labels.push('[bin]'); }
-            const filter = `${filters.join(';')};${labels.join('')}amix=inputs=${labels.length}:duration=first[out]`;
-            ffRun([...mixInputs, '-filter_complex', filter, '-map', '[out]', '-acodec', 'libmp3lame', '-b:a', '192k', mixed, '-y']);
-            voiceFiles.push(scPath, binPath);
-        }
-
-        const primaryPath = existsSync(mixed) ? mixed : voiceOnly;
-        const primaryAudio = readFileSync(primaryPath);
-
-        // Duration
-        let duration = 0;
-        try {
-            const probe = spawnSync(ffmpegPath, ['-i', primaryPath], { env: { ...process.env, PATH: `${process.env.PATH}:/opt/homebrew/bin:/usr/local/bin` } });
-            const match = probe.stderr.toString().match(/Duration:\s*(\d+):(\d+):(\d+\.?\d*)/);
-            if (match) duration = Math.round(parseInt(match[1]) * 3600 + parseInt(match[2]) * 60 + parseFloat(match[3]));
-        } catch { duration = Math.round(primaryAudio.byteLength / (192_000 / 8)); }
+        // Estimate duration from MP3 byte size (128 kbps = 16000 bytes/sec)
+        const duration = Math.round(finalAudio.byteLength / 16000);
 
         // Upload
         const finalKey = `user_${user.id}/story_${story.id}_final_${ts}.mp3`;
-        await s3.send(new PutObjectCommand({ Bucket: BUCKET, Key: finalKey, Body: primaryAudio, ContentType: 'audio/mpeg' }));
+        await s3.send(new PutObjectCommand({ Bucket: BUCKET, Key: finalKey, Body: finalAudio, ContentType: 'audio/mpeg' }));
 
         const finalUrl = `/api/user/audio/stream?key=${encodeURIComponent(finalKey)}`;
         await prisma.story.update({ where: { id: story.id }, data: { status: 'audio_ready', audio_url: finalUrl, audio_r2_key: finalKey, audio_duration_secs: duration } });
 
-        // Cleanup
-        [listPath, rawVoice, voiceOnly, mixed, ...voiceFiles].forEach(f => { try { if (existsSync(f)) unlinkSync(f); } catch {} });
-
+        console.log(`[assemble] ✅ Done — ${finalAudio.byteLength} bytes, ~${duration}s`);
         return NextResponse.json({ success: true, storyId, audioUrl: finalUrl, durationSecs: duration });
 
     } catch (e: any) {
