@@ -172,7 +172,7 @@ async function generateFreeTTS(text: string): Promise<Buffer | null> {
 async function generateElevenLabsTTS(voiceId: string, text: string): Promise<Buffer | null> {
     const key = process.env.ELEVEN_LABS_API;
     if (!key) return null;
-    const MAX_RETRIES = 3;
+    const MAX_RETRIES = 5;
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
         try {
             const res = await fetch(
@@ -184,8 +184,8 @@ async function generateElevenLabsTTS(voiceId: string, text: string): Promise<Buf
                         text,
                         model_id: 'eleven_multilingual_v2',
                         voice_settings: {
-                            stability: 0.75,
-                            similarity_boost: 0.90,
+                            stability: 0.85,
+                            similarity_boost: 0.95,
                             style: 0,
                             use_speaker_boost: true,
                         },
@@ -199,7 +199,7 @@ async function generateElevenLabsTTS(voiceId: string, text: string): Promise<Buf
             console.error(`[assemble] ElevenLabs TTS error ${res.status} (attempt ${attempt}/${MAX_RETRIES}):`, errText);
             // Rate-limited — wait before retry
             if (res.status === 429 && attempt < MAX_RETRIES) {
-                await new Promise(r => setTimeout(r, 2000 * attempt));
+                await new Promise(r => setTimeout(r, 3000 * attempt));
                 continue;
             }
         } catch (e) {
@@ -207,7 +207,7 @@ async function generateElevenLabsTTS(voiceId: string, text: string): Promise<Buf
         }
         // Brief pause between retries for non-429 errors too
         if (attempt < MAX_RETRIES) {
-            await new Promise(r => setTimeout(r, 1000));
+            await new Promise(r => setTimeout(r, 1500));
         }
     }
     return null;
@@ -370,11 +370,14 @@ export async function POST(req: NextRequest) {
         console.log(`[assemble] TTS provider: ${useElevenLabs ? 'ElevenLabs (cloned voice)' : useFishAudio ? 'Fish Audio' : 'Free TTS'}`);
 
         const rawText = (story as any).story_text_approved || (story as any).story_text_draft || '';
-        const aff = (story as any).affirmations_json as any;
-        const hasOpeningAff = aff?.opening && Array.isArray(aff.opening) && aff.opening.length > 0;
-        const hasClosingAff = aff?.closing && Array.isArray(aff.closing) && aff.closing.length > 0;
 
-        // ── TTS helper — honours the provider priority chain ──────────────────
+        // ── Determine if user has a cloned voice ──────────────────────────────
+        // When the user has their own cloned voice, we ONLY use that voice.
+        // No fallback to a different voice provider — that would mix voices
+        // and produce inconsistent-sounding narration.
+        const hasClonedVoice = useElevenLabs || useFishAudio;
+
+        // ── TTS helper — uses user's own cloned voice exclusively ─────────────
         async function generateTTSForText(text: string, label: string): Promise<Buffer[]> {
             const chunks = splitTextIntoChunks(text);
             const totalInputChars = normaliseForTTS(text).length;
@@ -387,9 +390,21 @@ export async function POST(req: NextRequest) {
             const buffers: Buffer[] = [];
             for (let i = 0; i < chunks.length; i++) {
                 let buf: Buffer | null = null;
-                if (useElevenLabs) buf = await generateElevenLabsTTS(elevenLabsVoiceId, chunks[i]);
-                if (!buf && useFishAudio) buf = await generateFishAudioTTS(voiceModelId, chunks[i]);
-                if (!buf) buf = await generateFreeTTS(chunks[i]);
+
+                if (hasClonedVoice) {
+                    // ── User has a cloned voice — use ONLY that voice ──────────
+                    // Never fall back to a different provider; that would mix
+                    // the user's voice with a generic TTS voice.
+                    if (useElevenLabs) {
+                        buf = await generateElevenLabsTTS(elevenLabsVoiceId, chunks[i]);
+                    } else if (useFishAudio) {
+                        buf = await generateFishAudioTTS(voiceModelId, chunks[i]);
+                    }
+                } else {
+                    // ── No cloned voice — fall through providers ───────────────
+                    buf = await generateFreeTTS(chunks[i]);
+                }
+
                 if (buf) {
                     buffers.push(buf);
                     console.log(`[assemble] ✓ ${label} chunk ${i + 1}/${chunks.length} — ${chunks[i].length} chars → ${buf.length} bytes`);
@@ -431,31 +446,15 @@ export async function POST(req: NextRequest) {
             introBuffers = [induction];
         }
 
-        // 2. Opening Affirmations TTS
-        let openingAffBuffers: Buffer[] = [];
-        if (hasOpeningAff) {
-            const openingText = aff.opening.join('\n\n');
-            console.log(`[assemble] Generating TTS for opening affirmations (${openingText.length} chars)`);
-            openingAffBuffers = await generateTTSForText(openingText, 'opening_aff');
-        }
-
-        // 3. Main Story Body TTS (without intro — it was separated above)
+        // 2. Main Story Body TTS (without intro — it was separated above)
         console.log(`[assemble] Generating TTS for story body (${storyBodyText.length} chars, ${storyBodyText.split(/\s+/).filter(Boolean).length} words)`);
         const storyBuffers = await generateTTSForText(storyBodyText, 'story');
-
-        // 4. Closing Affirmations TTS
-        let closingAffBuffers: Buffer[] = [];
-        if (hasClosingAff) {
-            const closingText = aff.closing.join('\n\n');
-            console.log(`[assemble] Generating TTS for closing affirmations (${closingText.length} chars)`);
-            closingAffBuffers = await generateTTSForText(closingText, 'closing_aff');
-        }
 
         if (storyBuffers.length === 0) {
             return NextResponse.json({ error: 'Failed to generate any audio' }, { status: 500 });
         }
 
-        // ── Final Assembly: Intro → pause → Opening Aff → pause → Story → pause → Closing Aff
+        // ── Final Assembly: Intro → pause → Story
         const parts: Buffer[] = [];
         const segmentLog: string[] = [];
 
@@ -468,28 +467,10 @@ export async function POST(req: NextRequest) {
             console.log(`[assemble] Final Parts check: Intro is ${introBuffers.length} buffers, ~${introBuffers.reduce((n, b) => n + b.byteLength, 0)} bytes`);
         }
 
-        // Opening Affirmations
-        if (openingAffBuffers.length > 0) {
-            parts.push(...openingAffBuffers);
-            segmentLog.push('Opening Affirmations');
-            parts.push(pauseBuffer);
-            segmentLog.push('pause');
-            console.log(`[assemble] Final Parts check: Opening Aff is ${openingAffBuffers.length} buffers, ~${openingAffBuffers.reduce((n, b) => n + b.byteLength, 0)} bytes`);
-        }
-
         // Story Body
         parts.push(...storyBuffers);
         segmentLog.push('Story');
         console.log(`[assemble] Final Parts check: Story is ${storyBuffers.length} buffers, ~${storyBuffers.reduce((n, b) => n + b.byteLength, 0)} bytes`);
-
-        // Closing Affirmations
-        if (closingAffBuffers.length > 0) {
-            parts.push(pauseBuffer);
-            segmentLog.push('pause');
-            parts.push(...closingAffBuffers);
-            segmentLog.push('Closing Affirmations');
-            console.log(`[assemble] Final Parts check: Closing Aff is ${closingAffBuffers.length} buffers, ~${closingAffBuffers.reduce((n, b) => n + b.byteLength, 0)} bytes`);
-        }
 
         // Guide Close (admin MP3)
         if (close) {

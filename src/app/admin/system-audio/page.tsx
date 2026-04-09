@@ -206,16 +206,16 @@ const SystemAudioPage: React.FC = () => {
                     <div className={styles.uploadArea}>
                         <div style={{ position: 'relative' }}>
                             <label className={styles.label}>
-                                MP3 Source
+                                Audio Source
                             </label>
                             <label className={styles.fileLabel}>
                                 <input
                                     type="file"
-                                    accept=".mp3"
+                                    accept="audio/*"
                                     onChange={(e) => setFile(e.target.files?.[0] ?? null)}
                                     className={styles.fileInput}
                                 />
-                                <span>{file ? `✓ ${file.name}` : "Select high-quality MP3 file..."}</span>
+                                <span>{file ? `✓ ${file.name}` : "Select any audio file (MP3, WAV, M4A, etc.)"}</span>
                             </label>
                         </div>
                         <button

@@ -16,6 +16,7 @@ import {
   ClockIcon,
   ShieldIcon,
   ArrowIcon,
+  EditIcon,
 } from "../../../components/icons/VoiceIcons";
 import { RecordingState, TipItem } from "../../../types/voice";
 import { useGlobalUI } from "@/components/ui/global-ui-context";
@@ -234,6 +235,7 @@ interface SavedVoicesListProps {
   selectedId: string | null;
   onSelect: (id: string) => void;
   onDelete: (id: string) => void;
+  onRename: (id: string, newLabel: string) => void;
   onUse: (voice: VoiceSampleItem) => void;
   isDeleting: string | null;
   isSubmitting: boolean;
@@ -244,12 +246,33 @@ const SavedVoicesList: React.FC<SavedVoicesListProps> = ({
   selectedId,
   onSelect,
   onDelete,
+  onRename,
   onUse,
   isDeleting,
   isSubmitting,
 }) => {
   const [playingId, setPlayingId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editLabel, setEditLabel] = useState("");
   const audioRef = useRef<HTMLAudioElement>(null);
+
+  const startEditing = (v: VoiceSampleItem) => {
+    setEditingId(v.id);
+    setEditLabel(v.label);
+  };
+
+  const confirmRename = () => {
+    if (editingId && editLabel.trim()) {
+      onRename(editingId, editLabel.trim());
+    }
+    setEditingId(null);
+    setEditLabel("");
+  };
+
+  const cancelEditing = () => {
+    setEditingId(null);
+    setEditLabel("");
+  };
 
   const togglePlay = (voice: VoiceSampleItem) => {
     if (playingId === voice.id) {
@@ -291,7 +314,7 @@ const SavedVoicesList: React.FC<SavedVoicesListProps> = ({
             <div
               key={voice.id}
               className={`${styles.voiceItem} ${selectedId === voice.id ? styles.voiceItemSelected : ""}`}
-              onClick={() => onSelect(voice.id)}
+              onClick={() => !editingId && onSelect(voice.id)}
             >
               <div className={styles.voiceItemRadio}>
                 <div
@@ -299,18 +322,85 @@ const SavedVoicesList: React.FC<SavedVoicesListProps> = ({
                 />
               </div>
               <div className={styles.voiceItemInfo}>
-                <div className={styles.voiceItemLabel}>
-                  {voice.label}
-                  {voice.is_default && (
-                    <span className={styles.defaultTag}>Default</span>
-                  )}
-                </div>
-                <div className={styles.voiceItemMeta}>
-                  {formatDuration(voice.duration_s)} ·{" "}
-                  {new Date(voice.created_at).toLocaleDateString()}
-                </div>
+                {editingId === voice.id ? (
+                  <div
+                    style={{ display: "flex", alignItems: "center", gap: "6px" }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <input
+                      className={styles.pbRedo} // reusing a styled border-radius input-like button base
+                      value={editLabel}
+                      onChange={(e) => setEditLabel(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") confirmRename();
+                        if (e.key === "Escape") cancelEditing();
+                      }}
+                      autoFocus
+                      style={{
+                        fontSize: "0.85rem",
+                        padding: "4px 8px",
+                        maxWidth: "160px",
+                        background: "rgba(0,0,0,0.2)",
+                        color: "#fff",
+                        border: "1px solid var(--accent)",
+                      }}
+                    />
+                    <button
+                      className={styles.voiceItemPlayBtn}
+                      onClick={confirmRename}
+                      style={{
+                        width: "auto",
+                        height: "auto",
+                        padding: "4px 10px",
+                        fontSize: "0.75rem",
+                        borderRadius: "6px",
+                        background: "var(--accent)",
+                      }}
+                    >
+                      Save
+                    </button>
+                    <button
+                      className={styles.voiceItemPlayBtn}
+                      onClick={cancelEditing}
+                      style={{
+                        width: "auto",
+                        height: "auto",
+                        padding: "4px 10px",
+                        fontSize: "0.75rem",
+                        borderRadius: "6px",
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div className={styles.voiceItemLabel}>
+                      {voice.label}
+                      {voice.is_default && (
+                        <span className={styles.defaultTag}>Default</span>
+                      )}
+                    </div>
+                    <div className={styles.voiceItemMeta}>
+                      {formatDuration(voice.duration_s)} ·{" "}
+                      {new Date(voice.created_at).toLocaleDateString()}
+                    </div>
+                  </>
+                )}
               </div>
               <div className={styles.voiceItemActions}>
+                {editingId !== voice.id && (
+                  <button
+                    className={styles.voiceItemPlayBtn}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      startEditing(voice);
+                    }}
+                    title="Rename"
+                  >
+                    <EditIcon />
+                  </button>
+                )}
                 <button
                   className={styles.voiceItemPlayBtn}
                   onClick={(e) => {
@@ -427,6 +517,27 @@ const VoiceRecordingContent: React.FC = () => {
     };
     fetchSavedVoices();
   }, []);
+
+  const handleRenameVoice = async (id: string, newLabel: string) => {
+    try {
+      const res = await fetch("/api/user/audio/save-voice", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, label: newLabel }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSavedVoices((prev) =>
+          prev.map((v) => (v.id === id ? { ...v, label: newLabel } : v)),
+        );
+        showToast("✓ Voice renamed");
+      } else {
+        showToast("❌ " + (data.error || "Failed to rename voice"));
+      }
+    } catch {
+      showToast("❌ Failed to rename voice");
+    }
+  };
 
   const tips: TipItem[] = [
     {
@@ -835,6 +946,7 @@ const VoiceRecordingContent: React.FC = () => {
               selectedId={selectedVoiceId}
               onSelect={setSelectedVoiceId}
               onDelete={handleDeleteVoice}
+              onRename={handleRenameVoice}
               onUse={handleUseSavedVoice}
               isDeleting={deletingVoiceId}
               isSubmitting={isSubmitting}

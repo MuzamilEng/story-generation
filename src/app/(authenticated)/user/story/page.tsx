@@ -335,10 +335,7 @@ const StoryContent: React.FC = () => {
   const [isInitializing, setIsInitializing] = useState(true);
   const [genError, setGenError] = useState<string | null>(null);
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
-  const [storyAffirmations, setStoryAffirmations] = useState<{
-    opening: string[];
-    closing: string[];
-  } | null>(null);
+
 
   const {
     capturedGoals,
@@ -511,10 +508,6 @@ const StoryContent: React.FC = () => {
 
             if (data.title) {
               setStoryTitle(data.title);
-            }
-
-            if (data.affirmations_json) {
-              setStoryAffirmations(data.affirmations_json);
             }
 
             if (data.story_text_draft) {
@@ -895,12 +888,6 @@ const StoryContent: React.FC = () => {
                     {(() => {
                       const { intro, storyBody } =
                         splitIntroFromStory(storyText);
-                      const hasOpening =
-                        storyAffirmations?.opening &&
-                        storyAffirmations.opening.length > 0;
-                      const hasClosing =
-                        storyAffirmations?.closing &&
-                        storyAffirmations.closing.length > 0;
 
                       const renderProseLines = (
                         text: string,
@@ -946,23 +933,9 @@ const StoryContent: React.FC = () => {
                           );
                         });
 
-                      const renderAffirmationList = (
-                        items: string[],
-                        keyPrefix: string,
-                      ) =>
-                        items.map((aff, idx) => (
-                          <p
-                            key={`${keyPrefix}-${idx}`}
-                            className={styles.storyPara}
-                            style={{ fontStyle: "italic" }}
-                          >
-                            {aff}
-                          </p>
-                        ));
-
                       return (
                         <>
-                          {/* INTRO (Induction) */}
+                          {/* INTRO (Induction + Opening Affirmations) */}
                           {intro && (
                             <>
                               <div className={styles.storySectionLabel}>
@@ -973,37 +946,9 @@ const StoryContent: React.FC = () => {
                             </>
                           )}
 
-                          {/* OPENING AFFIRMATIONS */}
-                          {hasOpening && (
-                            <>
-                              <div className={styles.storySectionLabel}>
-                                Opening Affirmations
-                              </div>
-                              {renderAffirmationList(
-                                storyAffirmations!.opening,
-                                "oaff",
-                              )}
-                              <div className={styles.sceneDivider}>· · ·</div>
-                            </>
-                          )}
-
-                          {/* STORY BODY */}
+                          {/* STORY BODY (Vision + Closing Affirmations + Close) */}
                           <div className={styles.storySectionLabel}>Story</div>
                           {renderProseLines(storyBody, "story")}
-
-                          {/* CLOSING AFFIRMATIONS */}
-                          {hasClosing && (
-                            <>
-                              <div className={styles.sceneDivider}>· · ·</div>
-                              <div className={styles.storySectionLabel}>
-                                Closing Affirmations
-                              </div>
-                              {renderAffirmationList(
-                                storyAffirmations!.closing,
-                                "caff",
-                              )}
-                            </>
-                          )}
                         </>
                       );
                     })()}

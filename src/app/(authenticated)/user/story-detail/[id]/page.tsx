@@ -266,7 +266,7 @@ const RegenPanel: React.FC<RegenPanelProps> = ({
                 <div className={styles.spinnerSmall} />
               ) : null}
             </div>
-            Redirecting to affirmations selection...
+            Redirecting to voice recording...
           </div>
         </div>
       )}
@@ -504,47 +504,6 @@ const StoryDetail: React.FC = () => {
     onError: () => {
       showToast("❌ Failed to rewrite story");
       setActiveRegenStep(null);
-    },
-  });
-
-  const generateAffirmationsMutation = useMutation({
-    mutationFn: async () => {
-      setActiveRegenStep(2);
-      const res = await fetch(`/api/user/affirmations`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ storyId: id, action: "generate" }),
-      });
-      if (!res.ok) throw new Error("Failed to generate affirmations");
-      return res.json();
-    },
-    onSuccess: (data) => {
-      saveAffirmationsMutation.mutate(data.affirmations);
-    },
-    onError: () => {
-      showToast("❌ Failed to generate affirmations");
-      assembleAudioMutation.mutate(); // Fallback: try audio anyway
-    },
-  });
-
-  const saveAffirmationsMutation = useMutation({
-    mutationFn: async (affirmations: {
-      opening: string[];
-      closing: string[];
-    }) => {
-      const res = await fetch(`/api/user/affirmations`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ storyId: id, ...affirmations }),
-      });
-      if (!res.ok) throw new Error("Failed to save affirmations");
-      return res.json();
-    },
-    onSuccess: () => {
-      cloneVoiceMutation.mutate();
-    },
-    onError: () => {
-      cloneVoiceMutation.mutate(); // Fallback
     },
   });
 

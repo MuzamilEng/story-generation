@@ -532,10 +532,18 @@ const InlineRecorder: React.FC<InlineRecorderProps> = ({
 };
 
 // ── Saved Voices List ────────────────────────────────────────────────────────
+// ── Edit (pencil) icon ────────────────────────────────────────────────────
+const EditPencilIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+  </svg>
+);
+
 interface SavedVoicesProps {
   voices: VoiceSampleItem[];
   onSetDefault: (id: string) => void;
   onDelete: (id: string) => void;
+  onRename: (id: string, newLabel: string) => void;
   deletingId: string | null;
 }
 
@@ -543,10 +551,31 @@ const SavedVoices: React.FC<SavedVoicesProps> = ({
   voices,
   onSetDefault,
   onDelete,
+  onRename,
   deletingId,
 }) => {
   const [playingId, setPlayingId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editLabel, setEditLabel] = useState("");
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const startEditing = (v: VoiceSampleItem) => {
+    setEditingId(v.id);
+    setEditLabel(v.label);
+  };
+
+  const confirmRename = () => {
+    if (editingId && editLabel.trim()) {
+      onRename(editingId, editLabel.trim());
+    }
+    setEditingId(null);
+    setEditLabel("");
+  };
+
+  const cancelEditing = () => {
+    setEditingId(null);
+    setEditLabel("");
+  };
 
   const togglePlay = (v: VoiceSampleItem) => {
     if (playingId === v.id) {
@@ -580,16 +609,36 @@ const SavedVoices: React.FC<SavedVoicesProps> = ({
             <MicIcon />
           </div>
           <div className={styles.savedVoiceItemInfo}>
-            <div className={styles.savedVoiceItemLabel}>
-              {v.label}
-              {v.is_default && (
-                <span className={styles.savedVoiceDefaultTag}>Default</span>
-              )}
-            </div>
-            <div className={styles.savedVoiceItemMeta}>
-              {fmtDur(v.duration_s)} ·{" "}
-              {format(new Date(v.created_at), "MMM d, yyyy")}
-            </div>
+            {editingId === v.id ? (
+              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <input
+                  className={styles.formInput}
+                  value={editLabel}
+                  onChange={(e) => setEditLabel(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") confirmRename();
+                    if (e.key === "Escape") cancelEditing();
+                  }}
+                  autoFocus
+                  style={{ fontSize: "0.85rem", padding: "4px 8px", maxWidth: "180px" }}
+                />
+                <button className={styles.saveBtn} onClick={confirmRename} style={{ padding: "4px 10px", fontSize: "0.78rem" }}>Save</button>
+                <button className={styles.cancelBtn} onClick={cancelEditing} style={{ padding: "4px 10px", fontSize: "0.78rem" }}>Cancel</button>
+              </div>
+            ) : (
+              <>
+                <div className={styles.savedVoiceItemLabel}>
+                  {v.label}
+                  {v.is_default && (
+                    <span className={styles.savedVoiceDefaultTag}>Default</span>
+                  )}
+                </div>
+                <div className={styles.savedVoiceItemMeta}>
+                  {fmtDur(v.duration_s)} ·{" "}
+                  {format(new Date(v.created_at), "MMM d, yyyy")}
+                </div>
+              </>
+            )}
           </div>
           <div className={styles.savedVoiceItemBtns}>
             <button
@@ -598,6 +647,15 @@ const SavedVoices: React.FC<SavedVoicesProps> = ({
             >
               {playingId === v.id ? <StopIcon /> : <PlayIcon />}
             </button>
+            {editingId !== v.id && (
+              <button
+                className={`${styles.vbtn} ${styles.outline}`}
+                onClick={() => startEditing(v)}
+                title="Rename"
+              >
+                <EditPencilIcon />
+              </button>
+            )}
             {!v.is_default && (
               <button
                 className={`${styles.vbtn} ${styles.outline}`}
@@ -858,6 +916,27 @@ const AccountSettings: React.FC = () => {
       }
     } catch {
       showToast("❌ Failed to update default voice");
+    }
+  };
+
+  const handleRenameSavedVoice = async (id: string, newLabel: string) => {
+    try {
+      const res = await fetch("/api/user/audio/save-voice", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, label: newLabel }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSavedVoices((prev) =>
+          prev.map((v) => (v.id === id ? { ...v, label: newLabel } : v)),
+        );
+        showToast("✓ Voice renamed");
+      } else {
+        showToast("❌ " + (data.error || "Failed to rename voice"));
+      }
+    } catch {
+      showToast("❌ Failed to rename voice");
     }
   };
 
@@ -1231,6 +1310,7 @@ const AccountSettings: React.FC = () => {
                   voices={savedVoices}
                   onSetDefault={handleSetDefaultVoice}
                   onDelete={handleDeleteSavedVoice}
+                  onRename={handleRenameSavedVoice}
                   deletingId={deletingVoiceId}
                 />
               </div>
