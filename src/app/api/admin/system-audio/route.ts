@@ -3,13 +3,6 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
-import { exec } from 'child_process';
-import { promisify } from 'util';
-import fs from 'fs/promises';
-import path from 'path';
-import os from 'os';
-
-const execAsync = promisify(exec);
 
 const s3 = new S3Client({
     region: 'us-east-1',
@@ -55,46 +48,17 @@ export async function POST(req: NextRequest) {
     const isMP3 = (incomingBuf[0] === 0x49 && incomingBuf[1] === 0x44 && incomingBuf[2] === 0x33) ||
                   (incomingBuf[0] === 0xFF && (incomingBuf[1] & 0xE0) === 0xE0);
 
-    let finalBuf: Buffer;
-    let durationSecs: number;
-
-    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'system-audio-'));
-    try {
-        const inputPath = path.join(tempDir, `input_${Date.now()}`);
-        await fs.writeFile(inputPath, incomingBuf);
-
-        const outputPath = path.join(tempDir, `output_${Date.now()}.mp3`);
-
-        // We use ffmpeg to normalize the audio to a standard MP3 format
-        // -i: input
-        // -c:a libmp3lame: use MP3 encoder
-        // -b:a 128k: constant bitrate for predictable duration/streaming
-        // -ar 44100: standard sample rate
-        // -write_xing 0: disable VBR headers for browser compatibility
-        // -y: overwrite output
-        await execAsync(`ffmpeg -i "${inputPath}" -c:a libmp3lame -b:a 128k -ar 44100 -write_xing 0 -y "${outputPath}"`);
-
-        finalBuf = await fs.readFile(outputPath);
-        // Estimate duration from 128kbps CBR file (16000 bytes/sec)
-        durationSecs = Math.round(finalBuf.byteLength / 16000);
-
-        console.log(`[system-audio] Converted ${file.type || 'unknown'} to standard MP3. Size: ${finalBuf.byteLength} bytes, Duration: ${durationSecs}s`);
-    } catch (e: any) {
-        console.error('[system-audio] FFmpeg conversion failed:', e.message);
-        // Fallback only if it was already MP3
-        if (isMP3) {
-            console.log('[system-audio] Conversion failed but source is MP3, using raw buffer.');
-            finalBuf = incomingBuf;
-            durationSecs = Math.round(finalBuf.byteLength / 16000);
-        } else {
-            return NextResponse.json(
-                { error: 'Failed to process audio format. Please ensure it is a valid audio file.' },
-                { status: 400 },
-            );
-        }
-    } finally {
-        await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+    if (!isMP3) {
+        return NextResponse.json(
+            { error: 'Please upload an MP3 file. Other audio formats are not supported on this server.' },
+            { status: 400 },
+        );
     }
+
+    const finalBuf = incomingBuf;
+    // Estimate duration from 128kbps CBR file (16000 bytes/sec)
+    const durationSecs = Math.round(finalBuf.byteLength / 16000);
+    console.log(`[system-audio] Accepted MP3 upload. Size: ${finalBuf.byteLength} bytes, Duration: ~${durationSecs}s`);
 
     const r2Key = `system/${key}_${Date.now()}.mp3`;
 
