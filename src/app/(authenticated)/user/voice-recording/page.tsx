@@ -781,6 +781,15 @@ const VoiceRecordingContent: React.FC = () => {
   };
 
   const handleUseSavedVoice = async (voice: VoiceSampleItem) => {
+    // Warn if the saved voice has a very short duration
+    if (voice.duration_s !== null && voice.duration_s < 15) {
+      showToast(
+        `This voice sample is only ${voice.duration_s}s long. For best results, use a sample that is at least 30–60 seconds. The generated voice may not sound like you.`,
+        'error'
+      );
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       // Set this voice as default first so clone-voice picks it up
@@ -801,7 +810,9 @@ const VoiceRecordingContent: React.FC = () => {
         const msg =
           cloneData.code === "VOICE_LIMIT_REACHED"
             ? "Voice limit reached on ElevenLabs. Please contact support."
-            : "Voice cloning failed: " + (cloneData.error || "Unknown error");
+            : cloneData.code === "SAMPLE_TOO_SHORT"
+              ? cloneData.error
+              : "Voice cloning failed: " + (cloneData.error || "Unknown error");
         showToast(msg, "error");
         return;
       }
@@ -837,6 +848,18 @@ const VoiceRecordingContent: React.FC = () => {
 
   const handleSubmit = async () => {
     if (!audioBlob) return;
+
+    // ── Minimum duration check ───────────────────────────────────────────
+    // ElevenLabs Instant Voice Cloning requires at least 30–60 seconds of
+    // clear speech. Anything shorter produces a generic-sounding voice.
+    if (recordedDuration < 15) {
+      showToast(
+        `Your recording is only ${recordedDuration}s. Please record at least 30–60 seconds of clear speech so ElevenLabs can accurately clone your voice.`,
+        'error'
+      );
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       // ── Step 1: Clone voice ONLY — no TTS generated here ──────────────
@@ -857,7 +880,9 @@ const VoiceRecordingContent: React.FC = () => {
         const msg =
           cloneData.code === "VOICE_LIMIT_REACHED"
             ? "Voice limit reached on ElevenLabs. Please contact support."
-            : "Voice cloning failed: " + (cloneData.error || "Unknown error");
+            : cloneData.code === "SAMPLE_TOO_SHORT"
+              ? cloneData.error
+              : "Voice cloning failed: " + (cloneData.error || "Unknown error");
         showToast(msg, "error");
         return;
       }
@@ -869,7 +894,7 @@ const VoiceRecordingContent: React.FC = () => {
         return;
       }
 
-      // ── Step 2: Full assembly — ONE ElevenLabs call for everything ─────
+      // ── Step 2: Full assembly — ONE ElevenLabs call for everything ──────
       // Pipeline: Induction → Opening Affirmations → Story → Closing Affirmations → Guide Close
       const assembleRes = await fetch("/api/user/audio/assemble", {
         method: "POST",

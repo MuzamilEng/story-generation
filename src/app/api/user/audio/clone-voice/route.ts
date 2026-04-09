@@ -18,6 +18,9 @@ const BUCKET = process.env.R2_BUCKET_NAME || 'manifestmystory-audio';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+// ElevenLabs voice/add multipart upload takes 8–30s depending on sample size.
+// Without an explicit limit Vercel defaults to 10s (Hobby) / 15s (Pro) → timeout.
+export const maxDuration = 120;
 
 /**
  * Professional narration voice settings applied to every cloned voice.
@@ -127,6 +130,29 @@ export async function POST(req: NextRequest) {
         let newVoiceId: string = '';
         let elevenLabsVoiceId: string = '';
         let providerUsed: 'elevenlabs' | 'fishaudio' = 'fishaudio';
+
+        // ── Audio sample quality check ─────────────────────────────────────────
+        // ElevenLabs IVC requires at least 30 seconds of clear, noise-free speech.
+        // A 30s webm at typical browser quality is roughly 80KB+.
+        // Below ~40KB the clone will be very low fidelity and may sound like a
+        // generic voice rather than the user's recorded voice.
+        const audioSizeBytes = audioFile.size;
+        console.log(`[clone-voice] Audio sample size: ${audioSizeBytes} bytes`);
+        if (audioSizeBytes < 40_000) {
+            console.error(
+                `[clone-voice] ❌ Rejecting sample — too short (${audioSizeBytes} bytes). ` +
+                `ElevenLabs IVC needs at least 30s of clear speech.`
+            );
+            return NextResponse.json(
+                {
+                    error:
+                        `Your voice sample is too short (${Math.round(audioSizeBytes / 1024)}KB). ` +
+                        `Please record at least 30–60 seconds of clear speech for accurate voice cloning.`,
+                    code: 'SAMPLE_TOO_SHORT',
+                },
+                { status: 400 },
+            );
+        }
 
         // ── Clone voice on ElevenLabs (Primary) ───────────────────────────────
         const elevenLabsApi = process.env.ELEVEN_LABS_API;
