@@ -37,6 +37,27 @@ Do NOT ask a combined question about all areas. Each area gets its own turn.`;
             }
         }
 
+        // Detect if conversation is in or entering Proof Actions phase
+        // and inject a strict enforcement reminder
+        const allContent = messages.map((m: any) => m.content || '').join('\n');
+        const isInProofActions = /phase["']?\s*:\s*["']Proof Actions/i.test(allContent);
+        const proofActionQuestionCount = (allContent.match(/actionsAfter/gi) || []).length;
+        // Count how many assistant messages contain CAPTURE for actionsAfter (= completed Q&A exchanges)
+        const proofActionCaptures = messages.filter(
+            (m: any) => m.role === 'assistant' && /CAPTURE[:\s]*\{[^}]*"label"\s*:\s*"actionsAfter"/i.test(m.content || '')
+        ).length;
+
+        if (isInProofActions && proofActionCaptures < 2) {
+            systemPrompt += `\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PROOF ACTIONS ENFORCEMENT — ACTIVE NOW
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+You are currently in Phase 3 (Proof Actions). You have completed ${proofActionCaptures} proof-action question(s) so far.
+You MUST ask at least 2 separate proof-action questions total before moving to Phase 4.
+${proofActionCaptures === 0 ? 'Ask Question 1 now — the opening proof action question about what the user will do FIRST when their goals are real.' : ''}
+${proofActionCaptures === 1 ? 'Ask Question 2 now — expand across the remaining life areas that were NOT covered by the first proof action. List the uncovered areas by name and ask about them specifically.' : ''}
+Do NOT skip to Phase 4 (Story Anchors/Tone). Do NOT move past Proof Actions until you have asked at least 2 questions and received 2 responses.`;
+        }
+
         const langchainMessages = [
             new SystemMessage(systemPrompt),
             ...messages.map((m: any) =>

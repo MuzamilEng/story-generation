@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from "react";
 import Head from "next/head";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 import { format } from "date-fns";
 import styles from "../../../styles/Subscription.module.css";
 import {
@@ -142,6 +143,7 @@ const Subscription: React.FC = () => {
 
   const [isPolling, setIsPolling] = useState(false);
   const [initialLoadDone, setInitialLoadDone] = useState(false);
+  const { update: updateSession } = useSession();
 
   useEffect(() => {
     // Handle URL parameters for success/canceled
@@ -212,6 +214,7 @@ const Subscription: React.FC = () => {
             setSubStatus(data);
             setIsPolling(false);
             showToast("✓ Subscription active! Enjoy your new features.");
+            updateSession(); // Refresh next-auth session so plan is updated across all pages
             clearInterval(interval);
           }
         }
@@ -285,7 +288,8 @@ const Subscription: React.FC = () => {
     if (actionLoading) return;
     showGlobalConfirm({
       title: "Cancel Subscription",
-      message: "Cancel your plan? Your subscription will be cancelled immediately.",
+      message:
+        "Cancel your plan? Your subscription will be cancelled immediately.",
       confirmText: "Cancel Plan",
       danger: true,
       onConfirm: async () => {
