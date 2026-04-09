@@ -140,13 +140,13 @@ interface NextStepCardProps {
 
 const NextStepCard: React.FC<NextStepCardProps> = ({ onNext, disabled }) => (
   <div className={styles.nextStepCard}>
-    <div className={styles.nextStepTitle}>Next: Your Affirmations</div>
+    <div className={styles.nextStepTitle}>Next: Record Your Voice</div>
     <div className={styles.nextStepBody}>
-      Once you approve your story, choose your personal affirmations — then
-      record a 60-second voice sample to create your audio.
+      Once you approve your story, record a 60-second voice sample to create
+      your personalised audio experience.
     </div>
     <button className={styles.nextStepBtn} onClick={onNext} disabled={disabled}>
-      Build My Affirmations
+      Record My Voice
       <ArrowIcon />
     </button>
   </div>
@@ -165,14 +165,14 @@ const ApproveBanner: React.FC<ApproveBannerProps> = ({
   <div className={`${styles.approveBanner} ${styles.visible}`}>
     <div className={styles.approveText}>
       <strong>Story approved ✦</strong>
-      <span>Ready to build your affirmations and create your audio</span>
+      <span>Ready to record your voice and create your audio</span>
     </div>
     <div className={styles.approveActions}>
       <button className={styles.approveSecondary} onClick={onEditMore}>
         Edit more
       </button>
       <button className={styles.approvePrimary} onClick={onRecordVoice}>
-        Build My Affirmations
+        Record My Voice
         <MicIcon />
       </button>
     </div>
@@ -590,11 +590,11 @@ const StoryContent: React.FC = () => {
       setIsEditing(false);
     }
 
-    // V2: Go to affirmation builder before voice recording
+    // Go directly to voice recording — affirmations are planted inside the story
     if (!isLoggedIn) {
       router.push("/auth/signup?next=/user/story");
     } else {
-      router.push(`/user/affirmations?storyId=${storyId}`);
+      router.push(`/user/voice-recording?storyId=${storyId}`);
     }
   };
 
@@ -603,8 +603,8 @@ const StoryContent: React.FC = () => {
   };
 
   const handleRecordVoice = () => {
-    // V2: route through affirmation builder
-    router.push(`/user/affirmations?storyId=${storyId}`);
+    // Go directly to voice recording — affirmations are planted inside the story
+    router.push(`/user/voice-recording?storyId=${storyId}`);
   };
 
   const handleToggleCheck = (id: string) => {

@@ -163,6 +163,9 @@ export async function POST(
             storyText = parts.slice(1).join('---').trim();
         }
 
+        // Strip any "STORY" heading artifact that the model may output
+        storyText = storyText.replace(/^STORY\s*\n+/i, '').replace(/\n+STORY\s*\n+/gi, '\n\n· · ·\n\n');
+
         // Update story and create a version
         const updatedStory = await prisma.story.update({
             where: { id: storyId },

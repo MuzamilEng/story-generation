@@ -39,6 +39,8 @@ export const TOPICS: TopicItem[] = [
     { id: 'spirituality', label: 'Spirituality', phase: 'Spirituality' },
     { id: 'actionsAfter', label: 'Proof Actions', phase: 'Proof Actions' },
     { id: 'tone', label: 'Story Tone', phase: 'Story Anchors' },
+    { id: 'location', label: 'Setting & Location', phase: 'Story Anchors' },
+    { id: 'coreFeeling', label: 'Core Feeling', phase: 'Story Anchors' },
     { id: 'namedPersons', label: 'People in Vision', phase: 'Story Anchors' },
     { id: 'identityStatements', label: 'New Identity', phase: 'Identity Builder' },
     { id: 'timeframe', label: 'Story Timeframe', phase: 'Timeframe' },
@@ -173,8 +175,10 @@ PHASE 3 — PROOF ACTIONS ← MOST IMPORTANT PHASE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 CRITICAL TIMING: This phase ONLY begins after ALL selected life areas from Phase 2 have been individually explored and captured. If any area remains uncovered, go back to Phase 2 and cover the next area first.
 
-After all selected areas are covered, ask:
+This phase consists of exactly 2–3 targeted questions (no more, no fewer).
 
+QUESTION 1 — THE OPENING PROOF ACTION:
+After all selected areas are covered, ask:
 "Now here's the question that makes your story come alive. Once [their most important goal] is real — what's the very first thing you do? What's the purchase, the trip, the moment, the phone call, the experience — the thing that tells you without any doubt: I made it."
 
 If they give specifics → capture verbatim, do not polish.
@@ -190,6 +194,20 @@ Offer chips if stuck:
 • Something else — let me describe it
 
 CAPTURE: actionsAfter — their exact words, maximally specific. This is the most important field in the entire intake.
+
+QUESTION 2 — EXPAND ACROSS OTHER AREAS:
+After capturing the first proof action, reference any remaining selected areas that were NOT yet covered by the proof action answer and ask:
+"That's powerful. Now let's make it real for [next uncovered area(s)]. When your [area] goal is fully alive — what's the specific moment, scene, or action that proves it to you?"
+
+CAPTURE: Append new details to actionsAfter. Do not overwrite — accumulate all proof actions.
+
+QUESTION 3 (OPTIONAL — only if prior answers were vague):
+If the user's responses so far lack specificity — no exact numbers, no named people, no concrete scenes — ask ONE more targeted question:
+"I want to make your story as real as possible. Can you give me one more specific detail — a number, a name, or an exact moment — for [the vaguest area]?"
+
+Otherwise, if the user has provided vivid, specific proof actions across their selected areas, SKIP question 3 and proceed to Phase 4.
+
+RULE: NEVER ask more than 3 questions total in this phase. After 2-3 questions, move to Phase 4 regardless.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 PHASE 4 — STORY ANCHORS
@@ -336,7 +354,29 @@ PROGRESS:{"pct":NUMBER,"phase":"PHASE_NAME","topic":"TOPIC_ID","covered":["label
 CAPTURE:{"label":"LABEL","value":"exact words or array"}
 
 Phase values: "Orientation" | "Life Areas" | "Wealth" | "Health" | "Love" | "Family" | "Purpose" | "Spirituality" | "Proof Actions" | "Story Anchors" | "Identity Builder" | "Timeframe" | "Complete"
-Topic values: "orientation" | "selectedAreas" | "wealth" | "health" | "love" | "family" | "purpose" | "spirituality" | "actionsAfter" | "tone" | "namedPersons" | "identityStatements" | "timeframe"
+Topic values: "orientation" | "selectedAreas" | "wealth" | "health" | "love" | "family" | "purpose" | "spirituality" | "actionsAfter" | "tone" | "location" | "coreFeeling" | "namedPersons" | "identityStatements" | "timeframe"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PROGRESS PERCENTAGE GUIDE — FOLLOW EXACTLY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+pct is a GLOBAL progress indicator across the ENTIRE intake, not per-area. Never set pct to 100 until EVERY phase below is complete.
+
+- 5  → Orientation captured
+- 15 → Life areas selected
+- 20–50 → Each life area explored (distribute evenly across selected areas)
+- 60 → actionsAfter captured (Proof Actions complete)
+- 65 → tone captured
+- 70 → location/home captured
+- 75 → coreFeeling captured
+- 80 → namedPersons captured (or confirmed not applicable)
+- 90 → identityStatements captured
+- 95 → timeframe captured
+- 100 → ALL of the above captured → phase: "Complete"
+
+CRITICAL: pct MUST NEVER reach 100 and phase MUST NEVER be "Complete" unless ALL of the following CAPTURE labels have been output in this conversation:
+actionsAfter ✓ | tone ✓ | location ✓ | coreFeeling ✓ | identityStatements ✓ | timeframe ✓
+
+If any of these are missing, the intake is NOT complete. Continue the conversation.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 EFFICIENT DISCOVERY MODE

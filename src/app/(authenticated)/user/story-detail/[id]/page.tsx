@@ -246,15 +246,25 @@ const RegenPanel: React.FC<RegenPanelProps> = ({
       )}
       {isLoading && (
         <div className={styles.genSteps}>
-          <div className={`${styles.genStep} ${activeStep === 1 ? styles.active : activeStep && activeStep > 1 ? styles.done : ""}`}>
+          <div
+            className={`${styles.genStep} ${activeStep === 1 ? styles.active : activeStep && activeStep > 1 ? styles.done : ""}`}
+          >
             <div className={styles.genStepIcon}>
-              {activeStep === 1 ? <div className={styles.spinnerSmall} /> : activeStep && activeStep > 1 ? <RefreshIcon /> : null}
+              {activeStep === 1 ? (
+                <div className={styles.spinnerSmall} />
+              ) : activeStep && activeStep > 1 ? (
+                <RefreshIcon />
+              ) : null}
             </div>
             Rewriting your future manifestation story...
           </div>
-          <div className={`${styles.genStep} ${activeStep === 2 ? styles.active : ""}`}>
+          <div
+            className={`${styles.genStep} ${activeStep === 2 ? styles.active : ""}`}
+          >
             <div className={styles.genStepIcon}>
-              {activeStep === 2 ? <div className={styles.spinnerSmall} /> : null}
+              {activeStep === 2 ? (
+                <div className={styles.spinnerSmall} />
+              ) : null}
             </div>
             Redirecting to affirmations selection...
           </div>
@@ -311,7 +321,9 @@ const StoryBody: React.FC<StoryBodyProps> = ({
   };
 
   return (
-    <div className={`${styles.storyBodyCard} ${isEditing ? styles.editing : ""}`}>
+    <div
+      className={`${styles.storyBodyCard} ${isEditing ? styles.editing : ""}`}
+    >
       <div className={styles.storyBodyHead}>
         <div className={styles.storyBodyLabel}>Story Text</div>
         <div className={styles.wordCount}>
@@ -389,7 +401,6 @@ const VersionHistory: React.FC<VersionHistoryProps> = ({
   </div>
 );
 
-
 // Toast Component
 interface ToastProps {
   message: string;
@@ -415,7 +426,6 @@ const StoryDetail: React.FC = () => {
   const [showRegen, setShowRegen] = useState(false);
   const [activeRegenStep, setActiveRegenStep] = useState<number | null>(null);
   const [toast, setToast] = useState({ message: "", visible: false });
-
 
   const queryClient = useQueryClient();
 
@@ -485,10 +495,10 @@ const StoryDetail: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["story", id] });
       setActiveRegenStep(2);
-      showToast("✨ Story rewritten! Redirecting to affirmations...");
-      // Give the user a moment to see the step, then redirect to affirmations
+      showToast("✨ Story rewritten! Redirecting to voice recording...");
+      // Give the user a moment to see the step, then redirect to voice recording
       setTimeout(() => {
-        router.push(`/user/affirmations?storyId=${id}`);
+        router.push(`/user/voice-recording?storyId=${id}`);
       }, 1200);
     },
     onError: () => {
@@ -518,7 +528,10 @@ const StoryDetail: React.FC = () => {
   });
 
   const saveAffirmationsMutation = useMutation({
-    mutationFn: async (affirmations: { opening: string[]; closing: string[] }) => {
+    mutationFn: async (affirmations: {
+      opening: string[];
+      closing: string[];
+    }) => {
       const res = await fetch(`/api/user/affirmations`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -656,7 +669,8 @@ const StoryDetail: React.FC = () => {
   const handleDelete = () => {
     showConfirm({
       title: "Delete Story",
-      message: "Are you sure you want to delete this story? This action cannot be undone.",
+      message:
+        "Are you sure you want to delete this story? This action cannot be undone.",
       confirmText: "Delete",
       danger: true,
       onConfirm: () => {
@@ -710,7 +724,6 @@ const StoryDetail: React.FC = () => {
 
     router.push(`/user/audio-download?storyId=${story.id}&autoplay=true`);
   };
-
 
   const handleDownload = () => {
     if (!story?.audioUrl || story.audioUrl === "#") {

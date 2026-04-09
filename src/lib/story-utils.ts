@@ -82,6 +82,14 @@ export function normalizeGoals(raw: any): UserAnswers {
         'community': 'community',
         'dreams': 'dreams',
         'emotions': 'coreFeeling',
+        // Per-area goal keys captured during intake — keep them under their own key
+        // so buildDynamicVision can read them individually
+        'wealth': 'wealth' as any,
+        'love': 'love' as any,
+        'family': 'family' as any,
+        'purpose': 'purpose',
+        'spirituality': 'spirituality' as any,
+        'growth': 'growth' as any,
 
         // Legacy / Alternative Mapping
         'Identity': 'identity',
@@ -136,7 +144,7 @@ export function normalizeGoals(raw: any): UserAnswers {
     };
 
     const mainKeys = ['identity', 'purpose', 'location', 'coreFeeling', 'goals', 'actionsAfter', 'identityStatements'];
-    const textFieldsToAppend = ['goals', 'actionsAfter', 'purpose', 'futureVision'];
+    const textFieldsToAppend = ['goals', 'actionsAfter', 'purpose', 'futureVision', 'wealth', 'health', 'love', 'family', 'spirituality', 'growth'];
     const auxiliaryCategories: string[] = [];
 
     Object.keys(raw).forEach(key => {
@@ -370,7 +378,36 @@ INDUCTION LANGUAGE RULES:
 - Write in short, breath-sized sentences during the countdown. Short sentences = slower pace = deeper state.
 
 STRUCTURAL GUIDELINE (Dynamically adapt — DO NOT copy verbatim):
-Breath → body weight → jaw/shoulders release → one long breath out → deepening language calibrated to orientation → countdown staircase 10→1 → golden/threshold arrival → "That part of you is listening. And it is ready."\n\n`;
+Breath → body weight → jaw/shoulders release → one long breath out → deepening language calibrated to orientation → countdown staircase 10→1 → golden/threshold arrival → "That part of you is listening. And it is ready."
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+POSITION 1 — OPENING AFFIRMATION PLANTING (3 statements)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Immediately after the induction threshold moment ('That part of you is listening now. And it is ready.'), plant 3 opening identity affirmations BEFORE the [INTRO_END] marker and before the first · · · separator and vision opening.
+
+These must be:
+- Present-tense and identity-level — NOT future-tense goals
+- BEING-level — who this person IS, not what they will do or have
+- Drawn from identityStatements[] and areaAffirmations{}
+- Broad enough to set the identity frame for the entire vision
+- Delivered as quiet first-person recognitions, one breath apart
+- Written in first person ("I am...")
+- Followed by the [INTRO_END] marker, then · · · separator, then vision opening
+
+Source statements to draw from:
+Identity statements: ${Array.isArray(answers.identityStatements) ? answers.identityStatements.join(' | ') : answers.identityStatements}
+Per-area affirmations: ${Object.entries(answers).filter(([k]) => k.startsWith('areaAffirmations_')).map(([k, v]) => `${k.replace('areaAffirmations_', '').toUpperCase()}: ${Array.isArray(v) ? v.join('; ') : v}`).join(' | ') || 'Derive from goals'}
+
+Example (adapt to user's actual statements — do NOT use this example verbatim):
+'I am someone whose daily practices create extraordinary energy and healing.
+I am a creator of extraordinary abundance, and prosperity flows through everything I touch.
+I am a man of deep purpose, and my success transforms lives far beyond my own.'
+
+[INTRO_END]
+
+· · ·
+
+[Vision opens here]\n\n`;
     }
 
     // BLOCK B — THE VISION: all tiers
@@ -422,7 +459,30 @@ Use centered dot leaders between major life area scenes:
 · · ·
 These signal a transition between acts — the listener's nervous system learns the rhythm and associates each separator with going deeper.
 
+SCENE ORDER — FOLLOW THE INTAKE FLOW:
+Structure the vision scenes in the same order the user explored their life areas during intake. Each selected area gets its own dedicated scene or scene-cluster. Use · · · act breaks between areas. The story must flow:
+1. First selected area goals → vivid achieved-life scene
+2. Second selected area goals → vivid achieved-life scene
+3. Continue for each selected area in order
+4. Proof actions woven into or following the relevant area scenes
+This mirrors the intake experience and creates a coherent emotional journey.
+
 ${buildDynamicVision(answers)}
+
+━━━ LIFE AREA COVERAGE — NON-NEGOTIABLE ━━━
+Every area in selectedAreas[] MUST have at least one dedicated, vivid, sensory-rich scene. No area may be skipped or reduced to a passing mention regardless of how much data was captured.
+
+For health specifically: if health is selected, the story must include a physical scene — the body in motion, a moment that could only exist in a body that is strong, agile, and pain-free. Use the user's exact language from their health answer.
+
+Required check before writing the close:
+- Wealth: dedicated scene present ✓ (if selected)
+- Health: dedicated scene present ✓ (if selected)
+- Love: dedicated scene present ✓ (if selected)
+- Family: dedicated scene present ✓ (if selected)
+- Purpose: dedicated scene present ✓ (if selected)
+- Spirituality: dedicated scene present ✓ (if selected)
+- Growth: dedicated scene present ✓ (if selected)
+Only proceed to anchor and close after ALL selected areas have dedicated scenes.
 
 ━━━ THE VERBATIM RULE — MOST CRITICAL INSTRUCTION ━━━
 Use the user's exact words from goals and proof actions. Do not paraphrase. Do not generalise. Do not substitute.
@@ -433,12 +493,27 @@ Use the user's exact words from goals and proof actions. Do not paraphrase. Do n
 - "my surf city Bayfront home" → scene at that specific home
 Every proof action must appear as a vivid, physical, present-tense scene. Not background. Not summary. These ARE the story.
 
-⚠️ COMPLETENESS CHECK — EVERY SINGLE ITEM MUST APPEAR:
-Before you finish writing, mentally check: does every specific goal, milestone, business detail, trip, purchase, relationship detail, and proof action from the user appear as a scene in the story? If ANY item from the intake is missing, you MUST add it. Nothing shared during intake should be left out. This includes:
+━━━ COMPLETENESS CHECK — REQUIRED BEFORE WRITING CLOSE ━━━
+Before writing the anchor or close, verify every item in actionsAfter[] and goals{} has appeared as a vivid scene.
+
+Run this check explicitly:
+- List every item in actionsAfter[]
+- Confirm each appears as a physical, present-tense scene
+- List every goal in goals{}
+- Confirm each is shown as already achieved reality
+- If any item is missing, add a scene before proceeding
+
+A detail mentioned in passing does NOT count as a scene.
+A scene requires:
+- Sensory detail (at least 2 senses)
+- Present-tense lived experience
+- Emotional resonance
+- At least 3-4 sentences of dedicated attention
+
+Also verify:
 - All business/financial milestones with exact numbers
 - All named trips, purchases, and experiences
 - All named people with specific relational depth
-- All proof actions as full sensory scenes
 If the user mentioned 8 goals, all 8 must appear. If they mentioned 3 trips, all 3 must appear as scenes.
 
 ━━━ NUMERIC SPECIFICITY RULE — EQUALLY CRITICAL ━━━
@@ -565,22 +640,43 @@ BLOCK D — THE CLOSE (RESIDENT LANDING)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 The close is written in 2nd person again — returning to the guided voice of the induction. The same voice that opened the experience now gently closes it, like a hand placed softly over the heart. This symmetry signals to the subconscious: the loop is complete. The new reality is sealed.
 
-IMPORTANT: Affirmations are delivered as SEPARATE audio segments before and after the story. Do NOT plant affirmations in the story text. The close should handle dissolution, subconscious programming, and sleep seeding ONLY.
+The close follows this EXACT sequence: Dissolution → Affirmation Planting → Subconscious Programming → Sleep Seeding → Three Repetitions. Do not skip or reorder any step.
 
 STEP 1 — DISSOLUTION:
 The scene slowly dissolves, not into nothingness, but into the deep subconscious. The feeling remains even as the details fade. Use transitional language that invites release: "You can let it all go now. Let every image soften. Let every vision dissolve into warm light. You don't need to hold on to any of it. Your subconscious mind has received every word. Every feeling. Every instruction. It is already working."
 
-STEP 2 — SUBCONSCIOUS PROGRAMMING:
-After dissolution, include the programming close:
+STEP 2 — POSITION 2: CLOSING AFFIRMATION PLANTING (3-5 statements — REQUIRED):
+After dissolution, plant 3-5 closing affirmations before sleep seeding. This is the deepest receptive moment — the critical faculty is fully offline. Plant the most powerful BEING-level statements here.
+Use remaining statements from identityStatements[] and areaAffirmations{} that were NOT already used in Position 1 (opening affirmations). Do not repeat the same statements used at the opening.
+Do not rewrite or paraphrase — these are the user's own claimed identity.
+
+Structure:
+- Organize: Having → Doing → Being (most powerful lands last)
+- Weave ONE Milton Model bridge between each affirmation:
+  'And as these truths settle deeper into every cell...'
+  'Each time I hear these words, they become more completely mine...'
+- Never present as a list — arrive as flowing prose, one breath apart
+- Final affirmation must always be a BEING-level statement
+- Final BEING statement is the last word before sleep seeding begins
+- Then flow directly into: 'Sleep now... and receive.' x3
+
+Example rhythm:
+'My finances are completely free... [bridge]... I invest with certainty and create abundance effortlessly... [bridge]... I am a man of extraordinary abundance, and this is simply who I am now.'
+
+The user's identity statements: ${Array.isArray(answers.identityStatements) ? answers.identityStatements.join(' | ') : answers.identityStatements}
+The user's per-area affirmations: ${Object.entries(answers).filter(([k]) => k.startsWith('areaAffirmations_')).map(([k, v]) => `${k.replace('areaAffirmations_', '').toUpperCase()}: ${Array.isArray(v) ? v.join('; ') : v}`).join(' | ') || 'None — derive from goals'}
+
+STEP 3 — SUBCONSCIOUS PROGRAMMING:
+After affirmation planting, include the programming close:
 "Tonight your dreams will carry the frequency of your highest life. Your cells will repair and renew. Your subconscious will begin assembling the circumstances, the connections, the ideas, the opportunities that make every single one of these visions physical reality. You will notice something different tomorrow. A quiet shift. A new certainty. The feeling of someone who knows something the world doesn't know yet. Because you do."
 
-STEP 3 — SLEEP SEEDING:
+STEP 4 — SLEEP SEEDING:
 The narrator seeds the subconscious for sleep.
 - Invoke the specific feeling of safety, provision, and love
 - Explicitly affirm the subconscious continues its work through the night
 - Use present tense: "it is already working. Right now. As you drift. As you sleep. As you dream."
 
-STEP 4 — THREE SLOW REPETITIONS (MANDATORY — 8-12 words each, one breath apart):
+STEP 5 — THREE SLOW REPETITIONS (MANDATORY — 8-12 words each, one breath apart):
 Three final lines — the last sounds before sleep. Each one is a breath. Each one lands in the subconscious like a stone dropped into still water. They should vary slightly, not be identical:
 "Sleep now... and receive."
 "Sleep now... and receive."
@@ -601,19 +697,19 @@ Total target: ${Math.round(700 * multiplier)}-${Math.round(800 * multiplier)} wo
 Total target: ${Math.round(1100 * multiplier)}-${Math.round(1350 * multiplier)} words
   Hypnotic induction: 250-300 words
   Vision (up to 3 areas, proof actions): ${Math.round(700 * multiplier)}-${Math.round(850 * multiplier)} words
-  Dissolution + close: 150-250 words` : ''}${userTier === 'manifester' ? `MANIFESTER
+  Dissolution + Affirmation Planting + Close: 200-300 words` : ''}${userTier === 'manifester' ? `MANIFESTER
 Total target: ${Math.round(1800 * multiplier)}-${Math.round(2200 * multiplier)} words
   Hypnotic induction: 300-350 words
   Vision (all selected areas, proof actions): ${Math.round(1100 * multiplier)}-${Math.round(1300 * multiplier)} words
   Future pacing moment: 60-80 words
   Anchor installation at emotional peak: 100-120 words
-  Dissolution + Seeded Close: 200-350 words` : ''}${userTier === 'amplifier' ? `AMPLIFIER
+  Dissolution + Affirmation Planting + Seeded Close: 250-400 words` : ''}${userTier === 'amplifier' ? `AMPLIFIER
 Total target: ${Math.round(3000 * multiplier)}-${Math.round(3500 * multiplier)} words
   Hypnotic induction: 350-400 words
   Vision (all areas, 2+ scenes per area): ${Math.round(2000 * multiplier)}-${Math.round(2500 * multiplier)} words
   Future pacing moments: 100-120 words
   Anchor installation: 120-150 words
-  Dissolution + Lush Seeded Close: 300-450 words` : ''}
+  Dissolution + Affirmation Planting + Lush Seeded Close: 350-500 words` : ''}
 
 ━━━ STRICT LENGTH & DEPTH ENFORCEMENT ━━━
 You are writing for a ${userTier.toUpperCase()} user. A short story is a failure and will be rejected. You MUST meet the large word count targets above.
@@ -639,20 +735,25 @@ TITLE: [Write a short evocative title — no brackets, no asterisks, plain text 
 [The full story begins here as pure, unbroken flowing prose.]
 ${['activator', 'manifester', 'amplifier'].includes(userTier) ? `
 SECTION SEPARATION — MANDATORY:
-After you finish the induction (Block A) and BEFORE you begin the vision (Block B), you MUST insert this exact marker on its own line:
+After you finish the induction (Block A) and the opening affirmation planting (Position 1), and BEFORE you begin the vision (Block B), you MUST insert this exact marker on its own line:
 
 [INTRO_END]
 
-This marker separates the intro/induction from the main story. Do NOT skip it. The audio system uses it to insert opening affirmations between the intro and the story.
+This marker separates the induction + opening affirmations from the main vision. Do NOT skip it.
 ` : ''}
 RULES FOR THE STORY BODY:
-- NO section headers of any kind (no "INDUCTION", no "THE VISION", no "BLOCK A", nothing)
+- NO section headers of any kind (no "INDUCTION", no "THE VISION", no "BLOCK A", no "STORY", nothing)
+- The word 'STORY' must NEVER appear as a heading or label in output
 - NO timestamps or time ranges anywhere (no "0-5 min", no "5-22 min", nothing)
 - NO labels, NO dividers except · · · between major scene transitions${['activator', 'manifester', 'amplifier'].includes(userTier) ? ' and the mandatory [INTRO_END] marker after the induction' : ''}
 - The story flows as one continuous piece — like the reference story provided
 - Begin immediately with the first word of the induction (for Activator+) or the first word of the vision (for Explorer)
 - Use · · · on its own line between major life area transitions in the vision
+- Induction flows into opening affirmations (Position 1), then [INTRO_END], then · · · separator, then vision
+- No structural text, labels, or headings between induction and vision — only the affirmation prose and markers
 - End the story with the three sleep repetitions, then nothing more
+- Strip all markdown formatting from title (remove **)
+- Pure flowing prose throughout — never pull the listener out of the experience with a structural marker
 
 The output must look exactly like a beautifully written piece of literary prose — pure text, no structure visible to the reader (except the required [INTRO_END] marker for the audio system).
 
@@ -664,11 +765,50 @@ Begin now. Write the full story with no preamble, no explanation. Start directly
 export function buildDynamicVision(answers: UserAnswers): string {
     let result = '';
 
+    // ── Gather area-by-area goals from both the generic 'goals' field and per-area keys ──
+    const selectedAreas: string[] = Array.isArray(answers.selectedAreas) ? answers.selectedAreas : [];
+    const areaLabels: Record<string, string> = {
+        wealth: 'Wealth & Financial Abundance',
+        health: 'Health & Physical Vitality',
+        love: 'Love & Romantic Relationship',
+        family: 'Family & Parenting',
+        purpose: 'Purpose & Career',
+        spirituality: 'Spirituality & Inner Life',
+        growth: 'Personal Growth',
+    };
+
+    // Build per-area goals section
+    const perAreaGoals: string[] = [];
+    for (const area of selectedAreas) {
+        const key = area.toLowerCase();
+        const val = (answers as any)[key];
+        if (val && String(val).trim()) {
+            perAreaGoals.push(`${(areaLabels[key] || key.toUpperCase())}:\n${String(val).trim()}`);
+        }
+    }
+    // Also catch any area keys not in selectedAreas (legacy/direct capture)
+    for (const key of Object.keys(areaLabels)) {
+        if (!selectedAreas.map(a => a.toLowerCase()).includes(key)) {
+            const val = (answers as any)[key];
+            if (val && String(val).trim()) {
+                perAreaGoals.push(`${areaLabels[key]}:\n${String(val).trim()}`);
+            }
+        }
+    }
+
+    const genericGoals = answers.goals ? String(answers.goals).trim() : '';
+    const allGoalsText = perAreaGoals.length > 0
+        ? (genericGoals ? `${genericGoals}\n\n` : '') + `AREA-BY-AREA GOALS (each MUST appear as its own vivid scene — do NOT skip any):\n\n${perAreaGoals.join('\n\n')}`
+        : genericGoals;
+
     result += `╔══ TIER 1: GOALS, PROOF ACTIONS & IDENTITY — NON-NEGOTIABLE STORY CORE ══╗
-Every item in this tier MUST appear in the story. Goals and proof actions as vivid present-tense scenes. Identity statements verbatim in the affirmation close.
+Every item in this tier MUST appear in the story as a full, vivid, present-tense scene. Nothing from the intake may be omitted.
+
+SELECTED LIFE AREAS — the user chose to transform these areas (story must cover ALL of them):
+${selectedAreas.length > 0 ? selectedAreas.map(a => `• ${areaLabels[a.toLowerCase()] || a}`).join('\n') : 'Not specified'}
 
 GOALS — show each as already completely real. Not pursued. Simply lived:
-${answers.goals}
+${allGoalsText}
 
 PROOF ACTIONS — the single most important field. Build every major scene around these. Use exact words — no paraphrasing:
 ${answers.actionsAfter}
@@ -684,6 +824,13 @@ ${answers.timeframe}
 
 CORE FEELING — present as undertone in EVERY scene throughout the entire story:
 ${answers.coreFeeling}
+
+⚠️ COMPLETENESS CHECKLIST — verify BEFORE finishing:
+${selectedAreas.map(a => `[ ] ${areaLabels[a.toLowerCase()] || a} goals appear as a scene`).join('\n')}
+[ ] Every proof action appears as a vivid scene
+[ ] All named persons appear naturally
+[ ] Identity statements used verbatim in close
+[ ] Core feeling present throughout
 ╚══ END TIER 1 ══╝\n\n`;
 
     // ── TIER 2: IDENTITY CONTEXT & VOICE ──────────────────────────────────────────────
@@ -701,14 +848,14 @@ ${answers.coreFeeling}
     if (answers.home) result += `Their home: ${answers.home}\n`;
     if (answers.work) result += `Work / creative life / purpose: ${answers.work}\n`;
     if (answers.relationships) result += `Key relationships and people: ${answers.relationships}\n`;
-    if (answers.health) result += `Health & body (use their exact language): ${answers.health}\n`;
+    if ((answers as any).health && typeof (answers as any).health === 'string' && (answers as any).health !== (answers as any).healthGoals) result += `Health & body (use their exact language): ${answers.health}\n`;
     if (answers.spirit) result += `Spirituality & inner life: ${answers.spirit}\n`;
     if (answers.community) result += `Community & contribution: ${answers.community}\n`;
     if (answers.dreams) result += `Dreams and deeper intentions: ${answers.dreams}\n`;
     if (answers.futureVision) result += `Overall Future Vision: ${answers.futureVision}\n`;
     result += `╚══ END TIER 3 ══╝\n`;
 
-    if (!answers.goals && !answers.actionsAfter) {
+    if (!allGoalsText && !answers.actionsAfter) {
         return 'Minimal details were provided beyond goals and proof actions. Build every scene entirely around the Tier 1 inputs — use the user\'s exact words as the story\'s foundation. For the inner landscape, let the core feeling be the emotional spine. Keep all other dimensions abstract and beautifully unspecific.';
     }
 

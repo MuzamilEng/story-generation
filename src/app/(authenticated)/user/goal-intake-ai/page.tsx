@@ -1022,8 +1022,10 @@ const GoalDiscovery: React.FC = () => {
       Purpose: "purpose",
       Spirituality: "spirituality",
       "Proof Actions": "actionsAfter",
-      "Story Anchors": "namedPersons",
+      "Story Anchors": "tone",
       "Story Tone": "tone",
+      Setting: "location",
+      "Core Feeling": "coreFeeling",
       "Identity Builder": "identityStatements",
       Timeframe: "timeframe",
       Complete: "timeframe",
@@ -1185,8 +1187,17 @@ const GoalDiscovery: React.FC = () => {
             setActiveTopicId(data.topic);
             activeTopicIdRef.current = data.topic;
           }
-          if (data.phase === "Complete" || data.pct >= 100) {
-            setIsComplete(true);
+          if (data.phase === "Complete" && data.pct >= 100) {
+            // Only mark complete when minimum required captures are actually present
+            const currentGoals = useStoryStore.getState().capturedGoals;
+            const hasMinimum =
+              currentGoals?.actionsAfter &&
+              String(currentGoals.actionsAfter).trim().length > 0 &&
+              currentGoals?.timeframe &&
+              String(currentGoals.timeframe).trim().length > 0;
+            if (hasMinimum) {
+              setIsComplete(true);
+            }
           }
         } catch (e) {
           console.error("Error parsing progress JSON:", e);
@@ -1211,10 +1222,25 @@ const GoalDiscovery: React.FC = () => {
 
       if (Object.keys(newGoals).length > 0) {
         console.log("[GOAL_CAPTURE] Extracting new goals:", newGoals);
-        setCapturedGoals((prev) => ({
-          ...prev,
-          ...newGoals,
-        }));
+        setCapturedGoals((prev) => {
+          const merged = { ...prev };
+          for (const [key, value] of Object.entries(newGoals)) {
+            // Append actionsAfter across multiple turns instead of overwriting
+            if (key === "actionsAfter" && merged.actionsAfter) {
+              const existing = String(merged.actionsAfter).trim();
+              const incoming = Array.isArray(value)
+                ? value.join(", ")
+                : String(value).trim();
+              merged.actionsAfter =
+                existing && !existing.includes(incoming)
+                  ? `${existing}\n\n${incoming}`
+                  : existing || incoming;
+            } else {
+              merged[key] = value;
+            }
+          }
+          return merged;
+        });
         // Trigger highlight for the last one in the set
         const keys = Object.keys(newGoals);
         setRecentGoalKey(keys[keys.length - 1]);
@@ -1335,11 +1361,23 @@ const GoalDiscovery: React.FC = () => {
       setCapturedGoals((prev) => ({ ...prev, timeframe: text }));
     } else if (topic === "tone") {
       setCapturedGoals((prev) => ({ ...prev, tone: text }));
+    } else if (topic === "location") {
+      setCapturedGoals((prev) => ({ ...prev, location: text }));
+    } else if (topic === "coreFeeling") {
+      setCapturedGoals((prev) => ({ ...prev, coreFeeling: text }));
     } else if (AREA_TOPIC_IDS.includes(topic)) {
       // Capture goals for the specific life area being explored
       setCapturedGoals((prev) => ({ ...prev, [topic]: text }));
     } else if (topic === "actionsAfter") {
-      setCapturedGoals((prev) => ({ ...prev, actionsAfter: text }));
+      setCapturedGoals((prev) => {
+        const existing = prev.actionsAfter
+          ? String(prev.actionsAfter).trim()
+          : "";
+        return {
+          ...prev,
+          actionsAfter: existing ? `${existing}\n\n${text}` : text,
+        };
+      });
     }
 
     sendToAI(text);
@@ -1395,9 +1433,26 @@ const GoalDiscovery: React.FC = () => {
       } else if (currentTopic === "coreFeeling") {
         setCapturedGoals((prev) => ({ ...prev, coreFeeling: text }));
         setRecentGoalKey("coreFeeling");
+      } else if (currentTopic === "location") {
+        setCapturedGoals((prev) => ({ ...prev, location: text }));
+        setRecentGoalKey("location");
       } else if (AREA_TOPIC_IDS.includes(currentTopic)) {
         setCapturedGoals((prev) => ({ ...prev, [currentTopic]: text }));
         setRecentGoalKey(currentTopic);
+      } else if (
+        progress.phase === "Proof Actions" ||
+        currentTopic === "actionsAfter"
+      ) {
+        setCapturedGoals((prev) => {
+          const existing = prev.actionsAfter
+            ? String(prev.actionsAfter).trim()
+            : "";
+          return {
+            ...prev,
+            actionsAfter: existing ? `${existing}\n\n${text}` : text,
+          };
+        });
+        setRecentGoalKey("actionsAfter");
       }
 
       sendToAI(text);
@@ -1445,7 +1500,10 @@ const GoalDiscovery: React.FC = () => {
         if (response.status === 401) {
           const errData = await response.json();
           const msg = errData?.error || "Your session has expired.";
-          showToast(`${msg} You will be signed out so you can sign back in.`, "error");
+          showToast(
+            `${msg} You will be signed out so you can sign back in.`,
+            "error",
+          );
           router.push("/api/auth/signout?callbackUrl=/auth/signin");
           return;
         }
@@ -1620,15 +1678,17 @@ const GoalDiscovery: React.FC = () => {
 
             {showTyping && <TypingIndicator />}
 
-            {isComplete && capturedGoals && Object.keys(capturedGoals).length > 0 && (
-              <CompletionCard
-                onGenerate={handleGenerateStory}
-                capturedGoals={capturedGoals}
-                onUpdateGoal={(key, value) => {
-                  setCapturedGoals((prev) => ({ ...prev, [key]: value }));
-                }}
-              />
-            )}
+            {isComplete &&
+              capturedGoals &&
+              Object.keys(capturedGoals).length > 0 && (
+                <CompletionCard
+                  onGenerate={handleGenerateStory}
+                  capturedGoals={capturedGoals}
+                  onUpdateGoal={(key, value) => {
+                    setCapturedGoals((prev) => ({ ...prev, [key]: value }));
+                  }}
+                />
+              )}
 
             <div ref={messagesEndRef} />
           </div>
