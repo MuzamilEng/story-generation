@@ -16,6 +16,9 @@ const s3 = new S3Client({
 });
 const BUCKET = process.env.R2_BUCKET_NAME || 'manifestmystory-audio';
 
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
 /**
  * Professional narration voice settings applied to every cloned voice.
  *

@@ -6,9 +6,21 @@ import { checkPlanGating } from '@/lib/plan-gating';
 import { betaTypeToPlan } from '@/lib/beta-utils';
 import { splitIntroFromStory } from '@/lib/story-utils';
 import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+import fs from 'fs/promises';
+import path from 'path';
+import os from 'os';
+
+// Import ffmpeg static binary for Vercel compatibility
+import ffmpegStatic from '@ffmpeg-installer/ffmpeg';
+
+const execAsync = promisify(exec);
 
 // Allow up to 300s for audio assembly (TTS generation)
 export const maxDuration = 300;
+export const runtime = 'nodejs'; // Ensure Node.js runtime
+export const dynamic = 'force-dynamic';
 
 // ── R2 client ────────────────────────────────────────────────────────────────
 const s3 = new S3Client({
@@ -29,6 +41,9 @@ const BUCKET = process.env.R2_BUCKET_NAME || 'manifestmystory-audio';
  */
 const CHUNK_CHARS = 800;
 
+// Get ffmpeg path for commands
+const FFMPEG_PATH = ffmpegStatic.path;
+
 // ── R2 helpers ────────────────────────────────────────────────────────────────
 async function fetchR2Buffer(key: string): Promise<Buffer | null> {
     try {
@@ -42,11 +57,29 @@ async function fetchR2Buffer(key: string): Promise<Buffer | null> {
 }
 
 /**
- * Pass-through: TTS providers already output consistent MP3 (44100 Hz, 128 kbps).
- * Admin audio is normalised at upload time. No ffmpeg needed on serverless.
+ * Completely re-encode an MP3 buffer to ensure consistent format
+ * This is critical when mixing admin MP3s with TTS output
  */
-async function normalizeMP3(inputBuffer: Buffer, _bitrate: string = '128k'): Promise<Buffer> {
-    return inputBuffer;
+async function normalizeMP3(inputBuffer: Buffer, bitrate: string = '128k'): Promise<Buffer> {
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'normalize-'));
+    const inputPath = path.join(tempDir, 'input.mp3');
+    const outputPath = path.join(tempDir, 'output.mp3');
+    
+    try {
+        await fs.writeFile(inputPath, inputBuffer);
+        
+        // Re-encode with consistent parameters using full ffmpeg path
+        await execAsync(
+            `"${FFMPEG_PATH}" -i "${inputPath}" ` +
+            `-c:a libmp3lame -b:a ${bitrate} -ar 44100 -ac 2 ` +
+            `-write_xing 0 -id3v2_version 0 -y "${outputPath}"`
+        );
+        
+        const normalized = await fs.readFile(outputPath);
+        return normalized;
+    } finally {
+        await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+    }
 }
 
 /**
@@ -230,6 +263,24 @@ function splitTextIntoChunks(rawText: string, maxChars: number = CHUNK_CHARS): s
     return chunks;
 }
 
+// ── Generate silent pause using FFmpeg ─────────────────────────────────────
+async function generateSilentPause(durationSecs: number = 1): Promise<Buffer> {
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'silence-'));
+    const outputPath = path.join(tempDir, 'silence.mp3');
+    
+    try {
+        // Generate silence using ffmpeg with full path
+        await execAsync(
+            `"${FFMPEG_PATH}" -f lavfi -i anullsrc=r=44100:cl=stereo -t ${durationSecs} ` +
+            `-c:a libmp3lame -b:a 128k -ar 44100 -write_xing 0 -y "${outputPath}"`
+        );
+        const silence = await fs.readFile(outputPath);
+        return silence;
+    } finally {
+        await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+    }
+}
+
 // ── API HANDLER ───────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
     const ts = Date.now();
@@ -346,29 +397,8 @@ export async function POST(req: NextRequest) {
             return buffers;
         }
 
-        // ── Generate pause using silent MP3 frames (pure JS, no ffmpeg) ──────
-        function generateSilentPause(durationSecs: number = 1): Buffer {
-            // MPEG1 Layer 3, 128 kbps CBR, 44100 Hz, Joint Stereo
-            // Frame size = floor(144 * 128000 / 44100) = 417 bytes
-            // Each frame = 1152 samples ≈ 26.12 ms
-            const FRAME_SIZE = 417;
-            const FRAMES_PER_SEC = Math.ceil(44100 / 1152); // 39
-            const totalFrames = Math.ceil(durationSecs * FRAMES_PER_SEC);
-
-            const frame = Buffer.alloc(FRAME_SIZE, 0);
-            // MP3 frame header: MPEG1, Layer 3, no CRC, 128kbps, 44100Hz, Joint Stereo
-            frame[0] = 0xFF;
-            frame[1] = 0xFB;
-            frame[2] = 0x90;
-            frame[3] = 0x00;
-            // Bytes 4-35: side information — all zeros → part2_3_length = 0 → silence
-
-            const frames: Buffer[] = [];
-            for (let i = 0; i < totalFrames; i++) {
-                frames.push(Buffer.from(frame));
-            }
-            return Buffer.concat(frames);
-        }
+        // Generate pause once
+        const pauseBuffer = await generateSilentPause(1.0);
 
         // ── Text segmentation ─────────────────────────────────────────────────
         const rawText =
@@ -377,9 +407,6 @@ export async function POST(req: NextRequest) {
         console.log(
             `[assemble] Intro: ${introText.length} chars | Story body: ${storyBodyText.length} chars`,
         );
-
-        // Generate pause once
-        const pauseBuffer = generateSilentPause(1.0);
 
         // ── 1. Intro segment ──────────────────────────────────────────────────
         let introBuffers: Buffer[] = [];
@@ -417,7 +444,6 @@ export async function POST(req: NextRequest) {
         }
 
         // ── Final assembly with single FFmpeg concat ───────────────────────────
-        // This ensures all audio segments are properly merged with consistent encoding
         const parts: Buffer[] = [];
         const segmentLog: string[] = [];
 
@@ -440,11 +466,42 @@ export async function POST(req: NextRequest) {
 
         console.log(`[assemble] 🎬 Assembly order: ${segmentLog.join(' → ')}`);
 
-        // ── Concatenate MP3 buffers ───────────────────────────────────────────
-        // MP3 is a frame-based format; simple concatenation produces valid output
-        // that all browsers and players can decode correctly.
-        const finalAudio = Buffer.concat(parts);
-        console.log(`[assemble] ✅ Assembly complete — ${finalAudio.byteLength} bytes`);
+        // ── FFmpeg concat and final encode ────────────────────────────────────
+        let finalAudio: Buffer;
+        const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'assemble-'));
+        
+        try {
+            // Write all parts as individual files
+            const inputFiles: string[] = [];
+            for (let i = 0; i < parts.length; i++) {
+                const f = path.join(tempDir, `part_${i}.mp3`);
+                await fs.writeFile(f, parts[i]);
+                inputFiles.push(f);
+            }
+
+            // Create concat list
+            const listFile = path.join(tempDir, 'list.txt');
+            await fs.writeFile(listFile, inputFiles.map(f => `file '${f}'`).join('\n'));
+
+            const outputFile = path.join(tempDir, 'final.mp3');
+            
+            // Final encode with consistent parameters using full ffmpeg path
+            await execAsync(
+                `"${FFMPEG_PATH}" -f concat -safe 0 -i "${listFile}" ` +
+                `-c:a libmp3lame -b:a 128k -ar 44100 -ac 2 ` +
+                `-write_xing 0 -id3v2_version 0 -y "${outputFile}"`
+            );
+
+            finalAudio = await fs.readFile(outputFile);
+            console.log(`[assemble] ✅ FFmpeg assembly complete — ${finalAudio.byteLength} bytes`);
+            
+        } catch (e: any) {
+            console.error('[assemble] FFmpeg failure:', e.message);
+            // Fallback: just concatenate buffers
+            finalAudio = Buffer.concat(parts);
+        } finally {
+            await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+        }
 
         // Estimate duration
         const duration = Math.round(finalAudio.byteLength / 16000);
