@@ -366,6 +366,21 @@ const CompletionCard: React.FC<CompletionCardProps> = ({
   const [editValue, setEditValue] = useState("");
 
   const handleClick = () => {
+    if (!isReadyToGenerate) {
+       // Show feedback instead of silent disable
+       const norm = normalizeGoals(capturedGoals);
+       const missing = [];
+       if (!norm.actionsAfter) missing.push("Proof Actions");
+       if (!norm.coreFeeling) missing.push("Core Feeling");
+       if (!norm.timeframe) missing.push("Timeframe");
+       if (!norm.identityStatements || norm.identityStatements.length === 0) missing.push("Identity Statements");
+       
+       if (missing.length > 0) {
+         // If key things are missing, let the user know
+         alert(`Before we generate, please make sure these are filled in: ${missing.join(", ")}. You can edit them above or tell Maya more.`);
+         return;
+       }
+    }
     setGenerating(true);
     onGenerate("long");
   };
@@ -399,6 +414,7 @@ const CompletionCard: React.FC<CompletionCardProps> = ({
     family: "Family Goals",
     purpose: "Purpose Goals",
     spirituality: "Spirituality Goals",
+    growth: "Growth Goals",
     actionsAfter: "Proof Actions",
     tone: "Story Tone",
     namedPersons: "Key People",
@@ -409,8 +425,42 @@ const CompletionCard: React.FC<CompletionCardProps> = ({
     home: "Home",
   };
 
+  const getLabel = (key: string) => {
+    if (labelMap[key]) return labelMap[key];
+    if (key.startsWith("areaAffirmations_")) {
+      const area = key.replace("areaAffirmations_", "");
+      return `${area.charAt(0).toUpperCase() + area.slice(1)} Affirmations`;
+    }
+    return key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, " $1");
+  };
+
+  const isReadyToGenerate = useMemo(() => {
+    // We use the same normalization logic that the API uses to ensure consistency
+    const norm = normalizeGoals(capturedGoals);
+    
+    // Core requirements for a valid story
+    const hasCore = 
+      (norm.actionsAfter && String(norm.actionsAfter).trim().length > 10) &&
+      (norm.timeframe && String(norm.timeframe).trim().length > 0) &&
+      (norm.coreFeeling && String(norm.coreFeeling).trim().length > 0);
+
+    // Identity and specific goals are highly recommended but we could technically fallback
+    const hasIdentity = norm.identityStatements && norm.identityStatements.length > 0;
+    
+    // Check that we have at least one life area with some content
+    const areaKeys = ['wealth', 'health', 'love', 'family', 'purpose', 'spirituality', 'growth', 'goals'];
+    const hasAnyGoal = areaKeys.some(key => {
+      const val = (norm as any)[key];
+      return val && String(val).trim().length > 0;
+    });
+
+    return !!(hasCore && hasIdentity && hasAnyGoal);
+  }, [capturedGoals]);
+
+
   const reviewEntries = Object.entries(capturedGoals || {}).filter(
-    ([, v]) =>
+    ([key, v]) =>
+      !['selectedAreas', 'orientation'].includes(key) && 
       v && (Array.isArray(v) ? v.length > 0 : String(v).trim().length > 0),
   );
 
@@ -436,9 +486,9 @@ const CompletionCard: React.FC<CompletionCardProps> = ({
             const displayVal = Array.isArray(value)
               ? value.join(", ")
               : String(value);
-            const label =
-              labelMap[key] || key.charAt(0).toUpperCase() + key.slice(1);
+            const label = getLabel(key);
             const isEditing = editingKey === key;
+
 
             return (
               <div
@@ -563,6 +613,10 @@ const CompletionCard: React.FC<CompletionCardProps> = ({
           className={styles.completeBtn}
           onClick={handleClick}
           disabled={generating}
+          style={{
+            opacity: generating ? 0.5 : 1,
+            cursor: generating ? "not-allowed" : "pointer",
+          }}
         >
           {generating ? (
             <>
@@ -571,11 +625,13 @@ const CompletionCard: React.FC<CompletionCardProps> = ({
             </>
           ) : (
             <>
-              Generate My Story
+              {isReadyToGenerate ? "Confirm & Generate My Story" : "Complete Vision to Generate"}
               <ArrowIcon />
             </>
           )}
         </button>
+
+
 
         <div className={styles.betaNote}>
           Note: ManifestMyStory is currently in early access.
@@ -1213,7 +1269,35 @@ const GoalDiscovery: React.FC = () => {
         try {
           const data = JSON.parse(match[1]) as CaptureData;
           if (data.label && data.value) {
-            newGoals[data.label] = data.value;
+            let label = data.label;
+            // Normalize common labels to camelCase for the UI
+            const lowerLabel = label.toLowerCase();
+            if (lowerLabel === "corefeeling") label = "coreFeeling";
+            else if (lowerLabel === "actionsafter") label = "actionsAfter";
+            else if (lowerLabel === "identitystatements") label = "identityStatements";
+            else if (lowerLabel === "selectedareas") label = "selectedAreas";
+            else if (lowerLabel === "namedpersons") label = "namedPersons";
+            else if (lowerLabel === "orientation") label = "orientation";
+            else if (lowerLabel === "timeframe") label = "timeframe";
+            else if (lowerLabel === "location") label = "location";
+            else if (lowerLabel === "tone") label = "tone";
+            
+            // Map area labels back to IDs if AI sends labels
+            if (label === "selectedAreas" && Array.isArray(data.value)) {
+              data.value = data.value.map(val => {
+                const s = val.toLowerCase();
+                if (s.includes("wealth")) return "wealth";
+                if (s.includes("health")) return "health";
+                if (s.includes("love")) return "love";
+                if (s.includes("family")) return "family";
+                if (s.includes("purpose") || s.includes("career")) return "purpose";
+                if (s.includes("spirit")) return "spirituality";
+                if (s.includes("growth")) return "growth";
+                return val;
+              });
+            }
+
+            newGoals[label] = data.value;
           }
         } catch (e) {
           console.error("Error parsing capture JSON:", e);
@@ -1231,10 +1315,12 @@ const GoalDiscovery: React.FC = () => {
               const incoming = Array.isArray(value)
                 ? value.join(", ")
                 : String(value).trim();
-              merged.actionsAfter =
-                existing && !existing.includes(incoming)
-                  ? `${existing}\n\n${incoming}`
-                  : existing || incoming;
+              
+              if (existing && !existing.includes(incoming)) {
+                merged.actionsAfter = `${existing}\n\n${incoming}`;
+              } else {
+                merged.actionsAfter = existing || incoming;
+              }
             } else {
               merged[key] = value;
             }
@@ -1249,11 +1335,11 @@ const GoalDiscovery: React.FC = () => {
       // Clean up the text for UI: remove tags and any surrounding artifacts
       return cleanText
         .replace(
-          /(?:PROGRESS|PROG):\s*(?:```json)?\s*\{[\s\S]*?\}\s*(?:```)?/gi,
+          /(?:PROGRESS|PROG):?\s*(?:```json)?\s*\{[\s\S]*?\}\s*(?:```)?/gi,
           "",
         )
         .replace(
-          /(?:CAPTURE|CAPTURED|CAP):\s*(?:```json)?\s*\{[\s\S]*?\}\s*(?:```)?/gi,
+          /(?:CAPTURE|CAPTURED|CAP):?\s*(?:```json)?\s*\{[\s\S]*?\}\s*(?:```)?/gi,
           "",
         )
         .trim();
@@ -1329,10 +1415,23 @@ const GoalDiscovery: React.FC = () => {
       } catch (error) {
         console.error("Error calling AI:", error);
         triggerCompleteAfterResponseRef.current = false;
+
+        // Auto-retry logic (FIX 10)
+        const retryCount = (window as any)._mmsRetryCount || 0;
+        if (retryCount < 3) {
+          (window as any)._mmsRetryCount = retryCount + 1;
+          console.log(`Retrying chat API (${retryCount + 1}/3)...`);
+          // Brief delay before retry
+          setTimeout(() => sendToAI(userMessage), 1000);
+          return;
+        }
+
+        // After 3 retries, show message
+        (window as any)._mmsRetryCount = 0;
         const errorMsg: Message = {
           role: "assistant",
           content:
-            "I'm having a moment of connection trouble. Please check your network and try again.",
+            "I'm having a bit of trouble connecting to the story core. Please check your network or refresh the page to continue.",
         };
         setMessages((prev) => [...prev, errorMsg]);
       } finally {
@@ -1343,6 +1442,7 @@ const GoalDiscovery: React.FC = () => {
     },
     [isWaiting, parseResponse],
   );
+
 
   const handleSend = useCallback(() => {
     if (!inputValue.trim() || isWaiting) return;
@@ -1595,8 +1695,17 @@ const GoalDiscovery: React.FC = () => {
           {TOPICS.filter((topic) => {
             // Only show area topics that were selected by the user
             if (AREA_TOPIC_IDS.includes(topic.id)) {
-              const areas = (capturedGoals?.selectedAreas as string[]) || [];
-              return areas.map((a) => a.toLowerCase()).includes(topic.id);
+              const rawAreas = (capturedGoals?.selectedAreas || capturedGoals?.SELECTEDAREAS) as string[] || [];
+              const areas = Array.isArray(rawAreas) ? rawAreas : [rawAreas];
+              return areas.some(a => {
+                const s = String(a).toLowerCase();
+                if (s === topic.id) return true;
+                if (s.includes(topic.id)) return true;
+                // Handle labels vs ids mismatch
+                if (topic.id === "spirituality" && s.includes("spirit")) return true;
+                if (topic.id === "purpose" && s.includes("career")) return true;
+                return false;
+              });
             }
             return true;
           }).map((topic, idx) => {

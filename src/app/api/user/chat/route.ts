@@ -11,8 +11,9 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Invalid messages' }, { status: 400 });
         }
 
-        // Build the system prompt with area-by-area enforcement
-        let systemPrompt = SYSTEM_PROMPT;
+        // Build the system prompt with area-by-area enforcement and current date
+        const currentMonthYear = new Date().toLocaleString('default', { month: 'long', year: 'numeric' });
+        let systemPrompt = `CURRENT_DATE: ${currentMonthYear}\n\n${SYSTEM_PROMPT}`;
 
         // If this is the first message and it contains selected areas, inject a strict reminder
         if (messages.length === 1 && messages[0].role === 'user') {

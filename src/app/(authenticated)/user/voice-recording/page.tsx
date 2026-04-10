@@ -197,7 +197,7 @@ const Playback: React.FC<PlaybackProps> = ({
 
   return (
     <div className={`${styles.playbackCard} ${styles.visible}`}>
-      {audioUrl && <audio ref={audioRef} src={audioUrl} preload="auto" />}
+      {audioUrl && <audio ref={audioRef} src={audioUrl} preload="auto" crossOrigin="anonymous" playsInline />}
       <button className={styles.playPause} onClick={togglePlayback}>
         {isPlaying ? <PauseIcon /> : <PlayIcon />}
       </button>
@@ -239,6 +239,7 @@ interface SavedVoicesListProps {
   onUse: (voice: VoiceSampleItem) => void;
   isDeleting: string | null;
   isSubmitting: boolean;
+  showToast: (msg: string, type?: 'success' | 'error') => void;
 }
 
 const SavedVoicesList: React.FC<SavedVoicesListProps> = ({
@@ -250,6 +251,7 @@ const SavedVoicesList: React.FC<SavedVoicesListProps> = ({
   onUse,
   isDeleting,
   isSubmitting,
+  showToast,
 }) => {
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -275,16 +277,24 @@ const SavedVoicesList: React.FC<SavedVoicesListProps> = ({
   };
 
   const togglePlay = (voice: VoiceSampleItem) => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
     if (playingId === voice.id) {
-      audioRef.current?.pause();
+      audio.pause();
       setPlayingId(null);
     } else {
-      if (audioRef.current) audioRef.current.pause();
-      const audio = new Audio(voice.sample_url);
-      audioRef.current = audio;
-      audio.play();
+      audio.pause();
+      audio.src = voice.sample_url;
+      audio.load();
+      audio.play().then(() => {
+        setPlayingId(voice.id);
+      }).catch(e => {
+        console.error("Playback failed", e);
+        showToast("Playback failed in this browser.", "error");
+        setPlayingId(null);
+      });
       audio.onended = () => setPlayingId(null);
-      setPlayingId(voice.id);
     }
   };
 
@@ -299,6 +309,8 @@ const SavedVoicesList: React.FC<SavedVoicesListProps> = ({
 
   return (
     <div className={styles.savedVoiceCard}>
+      {/* Hidden audio for playback */}
+      <audio ref={audioRef} crossOrigin="anonymous" playsInline />
       <div className={styles.savedVoiceHeader}>
         <div className={styles.savedVoiceBadge}>
           <MicIcon /> My Saved Voices ({voices.length}/5)
@@ -568,9 +580,9 @@ const VoiceRecordingContent: React.FC = () => {
 
   // Update quality based on duration
   useEffect(() => {
-    if (seconds < 10) {
-      setQuality({ text: "—", color: "var(--ink-faint)" });
-    } else if (seconds < 30) {
+    if (seconds < 15) {
+      setQuality({ text: "Too Short", color: "var(--red)" });
+    } else if (seconds < 25) {
       setQuality({ text: "Building…", color: "var(--gold)" });
     } else if (seconds < 50) {
       setQuality({ text: "Good", color: "var(--accent)" });
@@ -724,6 +736,15 @@ const VoiceRecordingContent: React.FC = () => {
 
   const handleSaveVoice = async () => {
     if (!audioBlob) return;
+
+    if (recordedDuration < 25) {
+      showToast(
+        `Your recording is too short (${recordedDuration}s). Please record at least 25 seconds of clear speech.`,
+        "error"
+      );
+      return;
+    }
+
     setIsSaving(true);
     try {
       const extension =
@@ -782,7 +803,7 @@ const VoiceRecordingContent: React.FC = () => {
 
   const handleUseSavedVoice = async (voice: VoiceSampleItem) => {
     // Warn if the saved voice has a very short duration
-    if (voice.duration_s !== null && voice.duration_s < 15) {
+    if (voice.duration_s !== null && voice.duration_s < 25) {
       showToast(
         `This voice sample is only ${voice.duration_s}s long. For best results, use a sample that is at least 30–60 seconds. The generated voice may not sound like you.`,
         'error'
@@ -852,9 +873,9 @@ const VoiceRecordingContent: React.FC = () => {
     // ── Minimum duration check ───────────────────────────────────────────
     // ElevenLabs Instant Voice Cloning requires at least 30–60 seconds of
     // clear speech. Anything shorter produces a generic-sounding voice.
-    if (recordedDuration < 15) {
+    if (recordedDuration < 25) {
       showToast(
-        `Your recording is only ${recordedDuration}s. Please record at least 30–60 seconds of clear speech so ElevenLabs can accurately clone your voice.`,
+        `Your recording is only ${recordedDuration}s. Please record at least 25 seconds of clear speech so we can accurately clone your voice.`,
         'error'
       );
       return;
@@ -975,6 +996,7 @@ const VoiceRecordingContent: React.FC = () => {
               onUse={handleUseSavedVoice}
               isDeleting={deletingVoiceId}
               isSubmitting={isSubmitting}
+              showToast={showToast}
             />
           )}
 
@@ -1118,7 +1140,7 @@ const VoiceRecordingContent: React.FC = () => {
                 <button
                   className={styles.saveVoiceBtn}
                   onClick={handleSaveVoice}
-                  disabled={isSaving || isSubmitting}
+                  disabled={isSaving || isSubmitting || !audioBlob}
                 >
                   {isSaving ? "Saving…" : "Save Voice for Later"}
                 </button>

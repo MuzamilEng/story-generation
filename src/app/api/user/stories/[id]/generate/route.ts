@@ -137,7 +137,7 @@ export async function POST(
         console.log(`[STORY_GENERATE] answers for story ${storyId}:`, JSON.stringify(answers, null, 2));
         console.log(`[STORY_GENERATE] user tier: ${userTier} (Beta: ${!!hasActiveBeta})`);
 
-        const prompt = buildStoryPrompt(answers, userTier, instruction, story.story_length_option)
+        const prompt = buildStoryPrompt(answers, userTier, instruction, story.story_length_option, new Date().toISOString())
         const systemMessage = getSystemMessage(userTier, story.story_length_option);
 
         console.log(`[STORY_GENERATE] Using LangChain GPT-4o-2024-08-06 for story ${storyId}`);
@@ -163,8 +163,13 @@ export async function POST(
             storyText = parts.slice(1).join('---').trim();
         }
 
-        // Strip any "STORY" heading artifact that the model may output
-        storyText = storyText.replace(/^STORY\s*\n+/i, '').replace(/\n+STORY\s*\n+/gi, '\n\n· · ·\n\n');
+        // Strip any technical or artifact headings that the model may output
+        storyText = storyText
+            .replace(/^(?:STORY|INTRO|CONCLUSION|MANIFESTATION STORY|OUR PERSONAL MANIFESTATION STORY|SECTION \d+)\s*\n+/gi, '')
+            .replace(/\n+(?:STORY|INTRO|CONCLUSION|MANIFESTATION STORY|OUR PERSONAL MANIFESTATION STORY|SECTION \d+)\s*\n+/gi, '\n\n· · ·\n\n')
+            .replace(/\*\*(.*?)\*\*/g, '$1') // Strip bold
+            .replace(/\*(.*?)\*/g, '$1')   // Strip italic
+            .trim();
 
         // Update story and create a version
         const updatedStory = await prisma.story.update({

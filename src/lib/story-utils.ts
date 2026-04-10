@@ -299,7 +299,9 @@ function pickRandom<T>(arr: T[]): T {
     return arr[Math.floor(Math.random() * arr.length)];
 }
 
-export function buildStoryPrompt(answers: UserAnswers, userTier: Tier = 'explorer', instruction?: string, targetLength?: string | null): string {
+export function buildStoryPrompt(answers: UserAnswers, userTier: Tier = 'explorer', instruction?: string, targetLength?: string | null, currentDate: string = new Date().toISOString()): string {
+    const currentMonthYear = new Date(currentDate).toLocaleString('default', { month: 'long', year: 'numeric' });
+
     const narrativeStructure = pickRandom(NARRATIVE_STRUCTURES);
     const emotionalArc = pickRandom(EMOTIONAL_ARCS);
     const tonalMode = pickRandom(TONAL_MODES);
@@ -329,7 +331,9 @@ The user has requested these specific changes to their previous version. You MUS
 USER PLAN: ${userTier.toUpperCase()}
 Target Experience: Full Deep-Immigration Night Story
 Story Status: Achieved Life Final Version
+SESSION CONTEXT: These goals were set in ${currentMonthYear}.
 The core feeling must be present as an emotional undertone in EVERY scene — not just the close. The listener should feel it growing from the opening to the final word.\n\n` ;
+
 
     // BLOCK A — HYPNOTIC INDUCTION (Activator+)
     if (['activator', 'manifester', 'amplifier'].includes(userTier)) {
@@ -445,7 +449,15 @@ Open by grounding the story in a specific future moment:
 Or a natural variation that communicates the same: this is a specific future, not a vague someday.
 The listener must know immediately: I am inside a real moment, not a fantasy.
 
+━━━ EVENT SEQUENCING & TENSE RULE (CRITICAL) ━━━
+The story takes place ${answers.timeframe} from ${currentMonthYear}.
+1. COMPUTE THE STORY DATE: If it is currently ${currentMonthYear} and the timeframe is ${answers.timeframe}, identify the month and year of the story.
+2. PAST VS FUTURE: Any user goal or event with a target date BEFORE or AT the story date must be described in the PAST TENSE (e.g., "I remember when we took that trip to Naples last spring...") or as ALREADY ACHIEVED.
+3. SEQUENCING: Place events correctly relative to the story date. If a user mentioned a trip for Jan 2026 and the story is in 2027, that trip happened in the past. If the user mentioned a goal for exactly the story timeframe, it is now their present reality.
+4. SPECIFICITY: When the narrator reflects on setting goals, specify they were set in "${currentMonthYear}" (e.g., "Looking back to those goals I claimed in ${currentMonthYear}...") instead of vague terms like "last year."
+
 The user's goals are ALREADY achieved. This is not the day they achieve them — this is a day deep inside the life that achievement made possible. The struggle is over. Only its absence is shown through ease and freedom.
+
 
 ━━━ STORY QUALITY: CINEMATIC SENSORY DEPTH ━━━
 Do not just list sights and sounds. Layer them to create a "Nested Sensory Loop":
@@ -480,9 +492,16 @@ Required check before writing the close:
 - Love: dedicated scene present ✓ (if selected)
 - Family: dedicated scene present ✓ (if selected)
 - Purpose: dedicated scene present ✓ (if selected)
-- Spirituality: dedicated scene present ✓ (if selected)
+- Spirituality: dedicated scene present ✓ (if selected or mentioned in goals). This scene must explicitly touch on alignment, intuition, and energy.
 - Growth: dedicated scene present ✓ (if selected)
 Only proceed to anchor and close after ALL selected areas have dedicated scenes.
+
+━━━ SPECIFIC TRIPS & LOCATIONS ━━━
+If the user mentions a specific trip (e.g., "Israel trip", "Naples trip", "Safari"), you MUST render it as a vivid, dedicated 3–4 sentence scene.
+- Include the planning or the "arrival" moment.
+- Reference a specific landmark or moment (e.g., "Jerusalem moment", "the gate at the airport").
+- DO NOT just mention the trip in passing. It must be a lived, sensory experience.
+
 
 ━━━ THE VERBATIM RULE — MOST CRITICAL INSTRUCTION ━━━
 Use the user's exact words from goals and proof actions. Do not paraphrase. Do not generalise. Do not substitute.
@@ -522,6 +541,15 @@ If the user provided any numbers, figures, or metrics in their goals — revenue
 - "one hundred times return" → say "a hundred times over" — not "significant investment gains"
 - "one billion net worth" → say "one billion" — not "extraordinary wealth"
 The specific number IS the subconscious anchor. Vague language destroys the reprogramming. Be exact. Be specific. The listener must hear the number they wrote down and feel it settle into their body as already real.
+
+━━━ CREATIVE LIBERTY RULE ━━━
+Do NOT invent personal details that the user did not provide.
+- Never invent an age for the user.
+- Never invent a relationship status (e.g., don't assume they are married or have a partner unless they said so).
+- Never invent specific family details (e.g., don't add children or pets unless mentioned).
+- Never invent sounds or background details from a house that imply a specific family or social structure not provided by the user.
+Keep it unspecific and abstract unless the user provided the detail. Use only the named persons and details provided.
+
 
 ━━━ EMBODIED REALITY RULE ━━━
 When the vision describes any major achievement — financial, physical, relational — do not just show the scene. For 2-3 key moments, pause the narrative and direct the listener to FEEL it in the body. Not the idea of it. The actual cellular, physical feeling. Use language like:
@@ -656,8 +684,10 @@ Structure:
   'And as these truths settle deeper into every cell...'
   'Each time I hear these words, they become more completely mine...'
 - Never present as a list — arrive as flowing prose, one breath apart
-- Final affirmation must always be a BEING-level statement
+- IDENTITY SHIFT: Even though the guided voice is in 2nd person, the affirmations THEMSELVES must be in the FIRST PERSON present tense ("I am..."). This creates a powerful identity loop where the guide reminds the listener of who THEY (the listener) are calling themselves.
+- Final affirmation must always be a BEING-level statement ("I am...")
 - Final BEING statement is the last word before sleep seeding begins
+
 - Then flow directly into: 'Sleep now... and receive.' x3
 
 Example rhythm:
@@ -750,10 +780,12 @@ RULES FOR THE STORY BODY:
 - Begin immediately with the first word of the induction (for Activator+) or the first word of the vision (for Explorer)
 - Use · · · on its own line between major life area transitions in the vision
 - Induction flows into opening affirmations (Position 1), then [INTRO_END], then · · · separator, then vision
-- No structural text, labels, or headings between induction and vision — only the affirmation prose and markers
+- NO structural text, labels, or headings between induction and vision — only the affirmation prose and markers
 - End the story with the three sleep repetitions, then nothing more
+- ARTIFACT STRIPPING: Do NOT include any headings like "OUR PERSONAL MANIFESTATION STORY", "INTRO", "STORY", or "Section 1". Strip all labels, markdown bolding (**), asterisks (*), or hashtags (#). The output must be PURE text only.
 - Strip all markdown formatting from title (remove **)
 - Pure flowing prose throughout — never pull the listener out of the experience with a structural marker
+
 
 The output must look exactly like a beautifully written piece of literary prose — pure text, no structure visible to the reader (except the required [INTRO_END] marker for the audio system).
 
@@ -763,6 +795,7 @@ Begin now. Write the full story with no preamble, no explanation. Start directly
 }
 
 export function buildDynamicVision(answers: UserAnswers): string {
+
     let result = '';
 
     // ── Gather area-by-area goals from both the generic 'goals' field and per-area keys ──

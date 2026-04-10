@@ -658,7 +658,6 @@ const AudioReadyContent: React.FC = () => {
                             {story?.audio_url && (
                                 <audio
                                     ref={audioRef}
-                                    src={story.audio_url}
                                     controls
                                     preload="auto"
                                     onPlay={handlePlay}
@@ -671,15 +670,23 @@ const AudioReadyContent: React.FC = () => {
                                         if (soundscapeRef.current) soundscapeRef.current.pause();
                                         if (binauralRef.current) binauralRef.current.pause();
                                     }}
+                                    onError={(e) => {
+                                        console.error("Main audio error:", e);
+                                        showToast("Failed to load audio. Please refresh or try another browser.", "error");
+                                    }}
+                                    crossOrigin="anonymous"
+                                    playsInline
                                     style={{
                                         width: '100%',
                                         height: '50px',
                                         borderRadius: '8px',
-                                        filter: 'invert(1) hue-rotate(180deg) brightness(1.2)', 
-                                        opacity: 0.9,
-                                        cursor: 'pointer'
+                                        opacity: 1.0,
+                                        cursor: 'pointer',
                                     }}
-                                />
+                                >
+                                    <source src={story.audio_url} type="audio/mpeg" />
+                                    Your browser does not support the audio element.
+                                </audio>
                             )}
                         </div>
                     </div>
