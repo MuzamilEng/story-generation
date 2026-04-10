@@ -367,19 +367,22 @@ const CompletionCard: React.FC<CompletionCardProps> = ({
 
   const handleClick = () => {
     if (!isReadyToGenerate) {
-       // Show feedback instead of silent disable
-       const norm = normalizeGoals(capturedGoals);
-       const missing = [];
-       if (!norm.actionsAfter) missing.push("Proof Actions");
-       if (!norm.coreFeeling) missing.push("Core Feeling");
-       if (!norm.timeframe) missing.push("Timeframe");
-       if (!norm.identityStatements || norm.identityStatements.length === 0) missing.push("Identity Statements");
-       
-       if (missing.length > 0) {
-         // If key things are missing, let the user know
-         alert(`Before we generate, please make sure these are filled in: ${missing.join(", ")}. You can edit them above or tell Maya more.`);
-         return;
-       }
+      // Show feedback instead of silent disable
+      const norm = normalizeGoals(capturedGoals);
+      const missing = [];
+      if (!norm.actionsAfter) missing.push("Proof Actions");
+      if (!norm.coreFeeling) missing.push("Core Feeling");
+      if (!norm.timeframe) missing.push("Timeframe");
+      if (!norm.identityStatements || norm.identityStatements.length === 0)
+        missing.push("Identity Statements");
+
+      if (missing.length > 0) {
+        // If key things are missing, let the user know
+        alert(
+          `Before we generate, please make sure these are filled in: ${missing.join(", ")}. You can edit them above or tell Maya more.`,
+        );
+        return;
+      }
     }
     setGenerating(true);
     onGenerate("long");
@@ -414,6 +417,7 @@ const CompletionCard: React.FC<CompletionCardProps> = ({
     family: "Family Goals",
     purpose: "Purpose Goals",
     spirituality: "Spirituality Goals",
+    spirit: "Spirituality",
     growth: "Growth Goals",
     actionsAfter: "Proof Actions",
     tone: "Story Tone",
@@ -431,25 +435,40 @@ const CompletionCard: React.FC<CompletionCardProps> = ({
       const area = key.replace("areaAffirmations_", "");
       return `${area.charAt(0).toUpperCase() + area.slice(1)} Affirmations`;
     }
-    return key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, " $1");
+    return (
+      key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, " $1")
+    );
   };
 
   const isReadyToGenerate = useMemo(() => {
     // We use the same normalization logic that the API uses to ensure consistency
     const norm = normalizeGoals(capturedGoals);
-    
+
     // Core requirements for a valid story
-    const hasCore = 
-      (norm.actionsAfter && String(norm.actionsAfter).trim().length > 10) &&
-      (norm.timeframe && String(norm.timeframe).trim().length > 0) &&
-      (norm.coreFeeling && String(norm.coreFeeling).trim().length > 0);
+    const hasCore =
+      norm.actionsAfter &&
+      String(norm.actionsAfter).trim().length > 10 &&
+      norm.timeframe &&
+      String(norm.timeframe).trim().length > 0 &&
+      norm.coreFeeling &&
+      String(norm.coreFeeling).trim().length > 0;
 
     // Identity and specific goals are highly recommended but we could technically fallback
-    const hasIdentity = norm.identityStatements && norm.identityStatements.length > 0;
-    
+    const hasIdentity =
+      norm.identityStatements && norm.identityStatements.length > 0;
+
     // Check that we have at least one life area with some content
-    const areaKeys = ['wealth', 'health', 'love', 'family', 'purpose', 'spirituality', 'growth', 'goals'];
-    const hasAnyGoal = areaKeys.some(key => {
+    const areaKeys = [
+      "wealth",
+      "health",
+      "love",
+      "family",
+      "purpose",
+      "spirituality",
+      "growth",
+      "goals",
+    ];
+    const hasAnyGoal = areaKeys.some((key) => {
       const val = (norm as any)[key];
       return val && String(val).trim().length > 0;
     });
@@ -457,11 +476,11 @@ const CompletionCard: React.FC<CompletionCardProps> = ({
     return !!(hasCore && hasIdentity && hasAnyGoal);
   }, [capturedGoals]);
 
-
   const reviewEntries = Object.entries(capturedGoals || {}).filter(
     ([key, v]) =>
-      !['selectedAreas', 'orientation'].includes(key) && 
-      v && (Array.isArray(v) ? v.length > 0 : String(v).trim().length > 0),
+      !["selectedAreas", "orientation"].includes(key) &&
+      v &&
+      (Array.isArray(v) ? v.length > 0 : String(v).trim().length > 0),
   );
 
   return (
@@ -488,7 +507,6 @@ const CompletionCard: React.FC<CompletionCardProps> = ({
               : String(value);
             const label = getLabel(key);
             const isEditing = editingKey === key;
-
 
             return (
               <div
@@ -625,13 +643,13 @@ const CompletionCard: React.FC<CompletionCardProps> = ({
             </>
           ) : (
             <>
-              {isReadyToGenerate ? "Confirm & Generate My Story" : "Complete Vision to Generate"}
+              {isReadyToGenerate
+                ? "Confirm & Generate My Story"
+                : "Complete Vision to Generate"}
               <ArrowIcon />
             </>
           )}
         </button>
-
-
 
         <div className={styles.betaNote}>
           Note: ManifestMyStory is currently in early access.
@@ -1274,23 +1292,25 @@ const GoalDiscovery: React.FC = () => {
             const lowerLabel = label.toLowerCase();
             if (lowerLabel === "corefeeling") label = "coreFeeling";
             else if (lowerLabel === "actionsafter") label = "actionsAfter";
-            else if (lowerLabel === "identitystatements") label = "identityStatements";
+            else if (lowerLabel === "identitystatements")
+              label = "identityStatements";
             else if (lowerLabel === "selectedareas") label = "selectedAreas";
             else if (lowerLabel === "namedpersons") label = "namedPersons";
             else if (lowerLabel === "orientation") label = "orientation";
             else if (lowerLabel === "timeframe") label = "timeframe";
             else if (lowerLabel === "location") label = "location";
             else if (lowerLabel === "tone") label = "tone";
-            
+
             // Map area labels back to IDs if AI sends labels
             if (label === "selectedAreas" && Array.isArray(data.value)) {
-              data.value = data.value.map(val => {
+              data.value = data.value.map((val) => {
                 const s = val.toLowerCase();
                 if (s.includes("wealth")) return "wealth";
                 if (s.includes("health")) return "health";
                 if (s.includes("love")) return "love";
                 if (s.includes("family")) return "family";
-                if (s.includes("purpose") || s.includes("career")) return "purpose";
+                if (s.includes("purpose") || s.includes("career"))
+                  return "purpose";
                 if (s.includes("spirit")) return "spirituality";
                 if (s.includes("growth")) return "growth";
                 return val;
@@ -1315,7 +1335,7 @@ const GoalDiscovery: React.FC = () => {
               const incoming = Array.isArray(value)
                 ? value.join(", ")
                 : String(value).trim();
-              
+
               if (existing && !existing.includes(incoming)) {
                 merged.actionsAfter = `${existing}\n\n${incoming}`;
               } else {
@@ -1426,12 +1446,11 @@ const GoalDiscovery: React.FC = () => {
           return;
         }
 
-        // After 3 retries, show message
+        // After 3 retries, show a gentle reconnecting message
         (window as any)._mmsRetryCount = 0;
         const errorMsg: Message = {
           role: "assistant",
-          content:
-            "I'm having a bit of trouble connecting to the story core. Please check your network or refresh the page to continue.",
+          content: "Just a moment \u2014 reconnecting\u2026",
         };
         setMessages((prev) => [...prev, errorMsg]);
       } finally {
@@ -1442,7 +1461,6 @@ const GoalDiscovery: React.FC = () => {
     },
     [isWaiting, parseResponse],
   );
-
 
   const handleSend = useCallback(() => {
     if (!inputValue.trim() || isWaiting) return;
@@ -1695,14 +1713,17 @@ const GoalDiscovery: React.FC = () => {
           {TOPICS.filter((topic) => {
             // Only show area topics that were selected by the user
             if (AREA_TOPIC_IDS.includes(topic.id)) {
-              const rawAreas = (capturedGoals?.selectedAreas || capturedGoals?.SELECTEDAREAS) as string[] || [];
+              const rawAreas =
+                ((capturedGoals?.selectedAreas ||
+                  capturedGoals?.SELECTEDAREAS) as string[]) || [];
               const areas = Array.isArray(rawAreas) ? rawAreas : [rawAreas];
-              return areas.some(a => {
+              return areas.some((a) => {
                 const s = String(a).toLowerCase();
                 if (s === topic.id) return true;
                 if (s.includes(topic.id)) return true;
                 // Handle labels vs ids mismatch
-                if (topic.id === "spirituality" && s.includes("spirit")) return true;
+                if (topic.id === "spirituality" && s.includes("spirit"))
+                  return true;
                 if (topic.id === "purpose" && s.includes("career")) return true;
                 return false;
               });
@@ -1749,21 +1770,70 @@ const GoalDiscovery: React.FC = () => {
             </div>
           </div>
 
-          {/* Sidebar finish button - always shown, disabled if no goals */}
+          {/* Sidebar finish button - only active when all required fields captured */}
           {!isComplete && (
             <button
               className={styles.finishEarlyBtn}
               onClick={() => {
                 setIsComplete(true);
               }}
-              disabled={
-                !capturedGoals || Object.keys(capturedGoals).length === 0
-              }
-              title={
-                Object.keys(capturedGoals).length === 0
-                  ? "Capture at least one goal to proceed"
-                  : "Click here whenever you feel ready to see your story"
-              }
+              disabled={(() => {
+                const norm = normalizeGoals(capturedGoals);
+                const hasAllAreas =
+                  Array.isArray(norm.selectedAreas) &&
+                  norm.selectedAreas.length > 0;
+                const hasProofActions = !!(
+                  norm.actionsAfter &&
+                  String(norm.actionsAfter).trim().length > 10
+                );
+                const hasTone = !!(
+                  norm.tone && String(norm.tone).trim().length > 0
+                );
+                const hasSetting = !!(
+                  norm.location && String(norm.location).trim().length > 0
+                );
+                const hasCoreFeeling = !!(
+                  norm.coreFeeling && String(norm.coreFeeling).trim().length > 0
+                );
+                const hasIdentity = !!(
+                  norm.identityStatements && norm.identityStatements.length > 0
+                );
+                const hasTimeframe = !!(
+                  norm.timeframe && String(norm.timeframe).trim().length > 0
+                );
+                return !(
+                  hasAllAreas &&
+                  hasProofActions &&
+                  hasTone &&
+                  hasSetting &&
+                  hasCoreFeeling &&
+                  hasIdentity &&
+                  hasTimeframe
+                );
+              })()}
+              title={(() => {
+                const norm = normalizeGoals(capturedGoals);
+                const missing = [];
+                if (!norm.selectedAreas || norm.selectedAreas.length === 0)
+                  missing.push("Life Areas");
+                if (
+                  !norm.actionsAfter ||
+                  String(norm.actionsAfter).trim().length <= 10
+                )
+                  missing.push("Proof Actions");
+                if (!norm.tone) missing.push("Tone");
+                if (!norm.location) missing.push("Setting");
+                if (!norm.coreFeeling) missing.push("Core Feeling");
+                if (
+                  !norm.identityStatements ||
+                  norm.identityStatements.length === 0
+                )
+                  missing.push("Identity Statements");
+                if (!norm.timeframe) missing.push("Timeframe");
+                return missing.length > 0
+                  ? `Still needed: ${missing.join(", ")}`
+                  : "Click here whenever you feel ready to see your story";
+              })()}
             >
               <span>Ready to see your story?</span>
               <strong>Finish & Generate →</strong>

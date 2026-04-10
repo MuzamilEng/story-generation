@@ -336,7 +336,6 @@ const StoryContent: React.FC = () => {
   const [genError, setGenError] = useState<string | null>(null);
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
 
-
   const {
     capturedGoals,
     normalizedGoals,
@@ -938,16 +937,12 @@ const StoryContent: React.FC = () => {
                           {/* INTRO (Induction + Opening Affirmations) */}
                           {intro && (
                             <>
-                              <div className={styles.storySectionLabel}>
-                                Intro
-                              </div>
                               {renderProseLines(intro, "intro")}
                               <div className={styles.sceneDivider}>· · ·</div>
                             </>
                           )}
 
                           {/* STORY BODY (Vision + Closing Affirmations + Close) */}
-                          <div className={styles.storySectionLabel}>Story</div>
                           {renderProseLines(storyBody, "story")}
                         </>
                       );

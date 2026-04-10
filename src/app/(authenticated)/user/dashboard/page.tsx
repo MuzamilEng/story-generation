@@ -169,7 +169,6 @@ interface Story {
   story_text_draft?: string;
 }
 
-
 interface Activity {
   id: number;
   type: "play" | "create" | "download";
@@ -216,18 +215,24 @@ const StoryCard: React.FC<StoryCardProps> = ({
   const isDraft = story.status !== "audio_ready" || !story.audio_url;
 
   const getExcerpt = () => {
-    if (story.excerpt && story.excerpt.includes('...')) { 
+    if (story.excerpt && story.excerpt.includes("...")) {
       // This was a fallback excerpt, let's try better one below
     } else if (story.excerpt) {
       return story.excerpt;
     }
-    
+
     const text = story.story_text_approved || story.story_text_draft;
-    if (!text) return isDraft ? "Finish generating your manifestation story to listen and download." : "No excerpt available.";
-    
+    if (!text)
+      return isDraft
+        ? "Finish generating your manifestation story to listen and download."
+        : "No excerpt available.";
+
     // Split by lines, take first three non-empty ones
-    const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-    return lines.slice(0, 3).join('\n');
+    const lines = text
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0);
+    return lines.slice(0, 3).join("\n");
   };
 
   const getDraftReason = () => {
@@ -237,12 +242,8 @@ const StoryCard: React.FC<StoryCardProps> = ({
     return "Draft";
   };
 
-
   return (
-    <div
-      className={styles.storyCard}
-      onClick={() => onPlay(story)}
-    >
+    <div className={styles.storyCard} onClick={() => onPlay(story)}>
       <div className={styles.storyCardTop}>
         {isDraft && <div className={styles.draftBadge}>{getDraftReason()}</div>}
         <div className={styles.storyCardEyebrow}>
@@ -266,11 +267,19 @@ const StoryCard: React.FC<StoryCardProps> = ({
         </div>
       </div>
       <div className={styles.storyCardBody}>
-        <div className={styles.storyExcerpt} style={{ whiteSpace: 'pre-line', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+        <div
+          className={styles.storyExcerpt}
+          style={{
+            whiteSpace: "pre-line",
+            display: "-webkit-box",
+            WebkitLineClamp: 3,
+            WebkitBoxOrient: "vertical",
+            overflow: "hidden",
+          }}
+        >
           {getExcerpt()}
         </div>
         <div className={styles.storyActions}>
-
           <button
             className={`${styles.storyBtn} ${styles.primary} ${isDraft ? styles.fullWidth : ""}`}
             onClick={(e) => {
@@ -368,7 +377,7 @@ const ActivityRow: React.FC<ActivityRowProps> = ({ activity }) => {
       <div className={styles.activityText}>{getText()}</div>
       <div className={styles.activityTime}>
         {activity.timestamp instanceof Date &&
-          !isNaN(activity.timestamp.getTime())
+        !isNaN(activity.timestamp.getTime())
           ? formatDistanceToNow(activity.timestamp, { addSuffix: true })
           : "Recently"}
       </div>
@@ -422,14 +431,17 @@ const Dashboard: React.FC = () => {
           story_text_draft: s.story_text_draft,
           story_text_approved: s.story_text_approved,
           createdAt: new Date(s.createdAt),
-          duration: s.duration || "6 min 42 sec",
+          duration: s.audio_duration_secs
+            ? `${Math.floor(s.audio_duration_secs / 60)} min ${s.audio_duration_secs % 60} sec`
+            : s.word_count
+              ? `~${Math.ceil(s.word_count / 150)} min read`
+              : "—",
           plays: s.play_count || 0,
           downloads: s.download_count || 0,
           audio_url: s.audio_url,
           voice_only_url: s.voice_only_url,
           status: s.status,
         }));
-
       },
       enabled: !!session,
     },
@@ -478,8 +490,6 @@ const Dashboard: React.FC = () => {
       timestamp: new Date(a.timestamp),
     })) || [];
 
-
-
   const recordEvent = async (
     storyId: string,
     eventType: "play" | "download",
@@ -511,7 +521,6 @@ const Dashboard: React.FC = () => {
     router.push(`/user/audio-download?storyId=${story.id}&autoplay=true`);
   };
 
-
   const handleDownload = (story: Story) => {
     if (!story.audio_url) {
       showToast("Audio is not ready yet.", "error");
@@ -540,7 +549,6 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className={styles.container}>
-
       <main className={styles.page}>
         {/* GREETING */}
         <div className={styles.greeting}>
@@ -548,17 +556,20 @@ const Dashboard: React.FC = () => {
           <h1 className={styles.greetingTitle}>
             Welcome back, <em>{firstName}.</em>
             {stats?.isBetaUser && (
-              <span className={styles.betaBadge} style={{
-                fontSize: '14px',
-                backgroundColor: 'var(--accent)',
-                color: 'var(--surface-dark, #fff)',
-                padding: '4px 12px',
-                borderRadius: '99px',
-                marginLeft: '12px',
-                fontWeight: '600',
-                verticalAlign: 'middle',
-                display: 'inline-block'
-              }}>
+              <span
+                className={styles.betaBadge}
+                style={{
+                  fontSize: "14px",
+                  backgroundColor: "var(--accent)",
+                  color: "var(--surface-dark, #fff)",
+                  padding: "4px 12px",
+                  borderRadius: "99px",
+                  marginLeft: "12px",
+                  fontWeight: "600",
+                  verticalAlign: "middle",
+                  display: "inline-block",
+                }}
+              >
                 Beta Access
               </span>
             )}
@@ -621,7 +632,6 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
 
-
         {/* STORY LIBRARY */}
         <div className={styles.sectionHeader}>
           <div>
@@ -662,9 +672,9 @@ const Dashboard: React.FC = () => {
             className={styles.storySlot}
             onClick={() => {
               clearStore();
-              router.push('/user/goal-intake-ai');
+              router.push("/user/goal-intake-ai");
             }}
-            style={{ cursor: 'pointer' }}
+            style={{ cursor: "pointer" }}
           >
             <div className={styles.storySlotIcon}>
               <PlusIcon />

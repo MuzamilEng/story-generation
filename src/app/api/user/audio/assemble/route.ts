@@ -401,7 +401,22 @@ export async function POST(req: NextRequest) {
             `[assemble] Final Text — Intro: ${introText.length} chars | Story body: ${storyBodyText.length} chars`,
         );
 
-        // ── 1. Story body TTS (user cloned voice) ─────────────────────────────
+        // ── 1. Intro TTS (user cloned voice — only when no admin induction) ───
+        let introBuffers: Buffer[] = [];
+        if (introText && introText.trim().length > 0) {
+            if (!induction) {
+                // No admin induction uploaded — generate TTS for the full intro text
+                console.log(`[assemble] Generating intro TTS — Content: "${introText.substring(0, 50)}..."`);
+                introBuffers = await generateTTSForText(introText, 'intro');
+                console.log(`[assemble] ✅ Intro TTS complete — ${introBuffers.length} chunks`);
+            } else {
+                console.log(`[assemble] ⚠️ Admin induction exists — skipping intro TTS (admin clip used instead)`);
+            }
+        } else {
+            console.log(`[assemble] ℹ️ No intro text found in story (explorer tier or no [INTRO_END] marker)`);
+        }
+
+        // ── 2. Story body TTS (user cloned voice) ─────────────────────────────
         console.log(`[assemble] Generating story body — Content: "${storyBodyText.substring(0, 50)}..."`);
 
         const storyBuffers = await generateTTSForText(storyBodyText, 'story');
@@ -416,13 +431,17 @@ export async function POST(req: NextRequest) {
         const parts: Buffer[] = [];
         const segmentLog: string[] = [];
 
-        // 1. Admin intro clip — prepend if admin has uploaded one in SystemAudio
+        // 1. Admin intro clip OR TTS-generated intro
         if (induction) {
             parts.push(induction);
             segmentLog.push(`Admin Intro (${Math.round(induction.length / 1024)}KB)`);
             console.log(`[assemble] ✅ Admin intro clip included — ${induction.length} bytes`);
+        } else if (introBuffers.length > 0) {
+            parts.push(...introBuffers);
+            segmentLog.push(`TTS Intro (${introBuffers.length} chunks)`);
+            console.log(`[assemble] ✅ TTS intro included — ${introBuffers.length} chunks`);
         } else {
-            console.log(`[assemble] ⚠️ No admin intro uploaded — starting directly with story narration`);
+            console.log(`[assemble] ⚠️ No intro audio — starting directly with story narration`);
         }
 
         // 2. User cloned voice story narration
@@ -471,8 +490,9 @@ export async function POST(req: NextRequest) {
             durationSecs: duration,
             composition: {
                 hasAdminIntro: !!induction,
+                hasTTSIntro: introBuffers.length > 0,
                 hasUserVoice: userHasClonedVoice,
-                introSource: induction ? 'admin' : (introText ? 'tts' : 'none'),
+                introSource: induction ? 'admin' : (introBuffers.length > 0 ? 'tts' : 'none'),
                 storySource: userHasClonedVoice ? 'cloned' : 'tts'
             }
         });

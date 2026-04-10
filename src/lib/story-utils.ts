@@ -684,14 +684,16 @@ Structure:
   'And as these truths settle deeper into every cell...'
   'Each time I hear these words, they become more completely mine...'
 - Never present as a list — arrive as flowing prose, one breath apart
-- IDENTITY SHIFT: Even though the guided voice is in 2nd person, the affirmations THEMSELVES must be in the FIRST PERSON present tense ("I am..."). This creates a powerful identity loop where the guide reminds the listener of who THEY (the listener) are calling themselves.
+- IDENTITY SHIFT: Even though the guided voice is in 2nd person for the dissolution, the ENTIRE CLOSING AFFIRMATION PLANTING section (Position 2) — including affirmations AND bridge prose between them — must be written in FIRST PERSON present tense ("I am...", "I feel..."). Never switch to second person ("you") during the affirmation planting. The guide's "you" voice stops at the end of dissolution and resumes only at the subconscious programming step.
+- WRONG: 'you feel yourself becoming someone whose energy radiates...'
+- CORRECT: 'I am someone whose energy radiates so powerfully that people are drawn to me.'
 - Final affirmation must always be a BEING-level statement ("I am...")
 - Final BEING statement is the last word before sleep seeding begins
 
 - Then flow directly into: 'Sleep now... and receive.' x3
 
-Example rhythm:
-'My finances are completely free... [bridge]... I invest with certainty and create abundance effortlessly... [bridge]... I am a man of extraordinary abundance, and this is simply who I am now.'
+Example rhythm (adapt — do NOT copy verbatim):
+'I am someone whose energy radiates so powerfully that people are drawn to me. And as this truth settles deeper into every cell... I am someone who creates life-changing impact across the planet. Each time I hear these words, they become more completely mine... I am someone whose mind, body, and spirit are in perfect alignment.'
 
 The user's identity statements: ${Array.isArray(answers.identityStatements) ? answers.identityStatements.join(' | ') : answers.identityStatements}
 The user's per-area affirmations: ${Object.entries(answers).filter(([k]) => k.startsWith('areaAffirmations_')).map(([k, v]) => `${k.replace('areaAffirmations_', '').toUpperCase()}: ${Array.isArray(v) ? v.join('; ') : v}`).join(' | ') || 'None — derive from goals'}
