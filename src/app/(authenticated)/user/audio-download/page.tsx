@@ -145,6 +145,9 @@ const AudioReadyContent: React.FC = () => {
 
   const [soundscapeOn, setSoundscapeOn] = useState(false);
   const [binauralOn, setBinauralOn] = useState(false);
+  const [isServerMixing, setIsServerMixing] = useState(false);
+  const [availableSoundscapes, setAvailableSoundscapes] = useState<any[]>([]);
+  const [selectedSoundscapeId, setSelectedSoundscapeId] = useState<string | null>(null);
 
   const { clearStore } = useStoryStore();
 
@@ -204,6 +207,96 @@ const AudioReadyContent: React.FC = () => {
     };
     fetchStory();
   }, [storyId]);
+
+  // Fetch available soundscapes for server-side mixing
+  useEffect(() => {
+    const fetchSoundscapes = async () => {
+      try {
+        const res = await fetch("/api/user/soundscapes");
+        if (res.ok) {
+          const data = await res.json();
+          setAvailableSoundscapes(data.assets || []);
+        }
+      } catch (err) {
+        console.error("Failed to fetch soundscapes", err);
+      }
+    };
+    fetchSoundscapes();
+  }, []);
+
+  /** Server-side mix: sends voice + selected soundscape to the Express mixing server */
+  const handleServerMix = async (soundscapeId: string) => {
+    if (!story?.id || !soundscapeId) return;
+    setIsServerMixing(true);
+    try {
+      const res = await fetch("/api/user/audio/mix", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          storyId: story.id,
+          soundscapeId,
+          backgroundVolume: 0.15,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(data.error || "Mixing failed", "error");
+        return;
+      }
+      // Update local story state with new audio URL
+      setStory((prev: any) => ({
+        ...prev,
+        audio_url: data.audio_url,
+        combined_audio_key: data.combined_audio_key,
+      }));
+      setSoundscapeOn(true);
+      setSelectedSoundscapeId(soundscapeId);
+      showToast("Background sound mixed successfully!", "success");
+      // Reload the audio element with the new mixed URL
+      if (audioRef.current) {
+        audioRef.current.load();
+      }
+    } catch (err) {
+      console.error("Server mix failed:", err);
+      showToast("Failed to mix audio on server", "error");
+    } finally {
+      setIsServerMixing(false);
+    }
+  };
+
+  /** Revert to voice-only on server */
+  const handleServerUnmix = async () => {
+    if (!story?.id) return;
+    setIsServerMixing(true);
+    try {
+      const res = await fetch("/api/user/audio/unmix", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ storyId: story.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(data.error || "Unmix failed", "error");
+        return;
+      }
+      setStory((prev: any) => ({
+        ...prev,
+        audio_url: data.audio_url,
+        combined_audio_key: null,
+      }));
+      setSoundscapeOn(false);
+      setSelectedSoundscapeId(null);
+      showToast("Reverted to voice-only audio", "success");
+      if (audioRef.current) {
+        audioRef.current.load();
+      }
+    } catch (err) {
+      console.error("Server unmix failed:", err);
+      showToast("Failed to remove background sound", "error");
+    } finally {
+      setIsServerMixing(false);
+    }
+  };
 
   useEffect(() => {
     // Generate random-ish waveform heights
@@ -840,8 +933,50 @@ const AudioReadyContent: React.FC = () => {
             style={{ paddingTop: "0.5rem" }}
           >
             <div className={styles.layerControls}>
-              {/* Soundscape toggle */}
-              {story?.soundscape_audio_key && (
+              {/* Server-side soundscape mixing */}
+              {availableSoundscapes.length > 0 && (
+                <div style={{ width: "100%" }}>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "8px" }}>
+                    {availableSoundscapes.map((sc: any) => (
+                      <button
+                        key={sc.id}
+                        className={`${styles.layerBtn} ${selectedSoundscapeId === sc.id ? styles.active : ""}`}
+                        onClick={() => {
+                          if (isServerMixing) return;
+                          if (selectedSoundscapeId === sc.id && story?.combined_audio_key) {
+                            // Already mixed with this soundscape — unmix
+                            handleServerUnmix();
+                          } else {
+                            handleServerMix(sc.id);
+                          }
+                        }}
+                        disabled={isServerMixing}
+                        style={{ opacity: isServerMixing ? 0.6 : 1 }}
+                      >
+                        🌊 {sc.title}
+                      </button>
+                    ))}
+                    {story?.combined_audio_key && (
+                      <button
+                        className={styles.layerBtn}
+                        onClick={() => !isServerMixing && handleServerUnmix()}
+                        disabled={isServerMixing}
+                        style={{ opacity: isServerMixing ? 0.6 : 1 }}
+                      >
+                        ✕ Remove Background
+                      </button>
+                    )}
+                  </div>
+                  {isServerMixing && (
+                    <div style={{ fontSize: "0.78rem", color: "rgba(255,255,255,0.5)", textAlign: "center" }}>
+                      Mixing audio on server...
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Fallback: original soundscape toggle when no server mixing available */}
+              {availableSoundscapes.length === 0 && story?.soundscape_audio_key && (
                 <button
                   className={`${styles.layerBtn} ${soundscapeOn ? styles.active : ""}`}
                   onClick={() => {

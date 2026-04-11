@@ -87,7 +87,7 @@ const SystemAudioPage: React.FC = () => {
             };
 
             mediaRecorder.onstop = () => {
-                const blob = new Blob(audioChunksRef.current, { type: 'audio/mpeg' });
+                const blob = new Blob(audioChunksRef.current, { type: mediaRecorder.mimeType || 'audio/webm' });
                 const url = URL.createObjectURL(blob);
                 setAudioBlob(blob);
                 setRecordedUrl(url);
@@ -132,7 +132,8 @@ const SystemAudioPage: React.FC = () => {
             const fd = new FormData();
             fd.append("key", selectedKey);
             fd.append("label", label);
-            fd.append("audio", fileToUse, `system_${selectedKey}.mp3`);
+            const ext = (fileToUse instanceof File && fileToUse.name) ? fileToUse.name.split('.').pop() : 'webm';
+            fd.append("audio", fileToUse, `system_${selectedKey}.${ext}`);
 
             const res = await fetch("/api/admin/system-audio", { method: "POST", body: fd });
             const data = await res.json();

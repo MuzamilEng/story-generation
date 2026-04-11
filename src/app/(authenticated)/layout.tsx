@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import UserHeader from "../components/UserHeader";
 import Sidebar from "../components/Sidebar";
+import PlanExpiredBanner from "../components/PlanExpiredBanner";
 
 export default function UserLayout({
   children,
@@ -30,6 +31,8 @@ export default function UserLayout({
     >
       {/* Desktop top header — always visible now */}
       <UserHeader />
+      {/* Plan expiration banner */}
+      <PlanExpiredBanner />
       {/* Mobile-only sidebar hamburger + slide-in drawer */}
       <Sidebar />
 

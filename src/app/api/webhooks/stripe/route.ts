@@ -166,9 +166,11 @@ export async function POST(req: Request) {
                 stripePriceId: null,
                 stripeCurrentPeriodEnd: null,
                 stripeCancelAtPeriodEnd: false,
+                soundscape: "none",
+                binaural_enabled: false,
             },
         });
-        console.log(`[STRIPE_WEBHOOK] User reverted to free plan`);
+        console.log(`[STRIPE_WEBHOOK] User reverted to free plan. Soundscape & binaural disabled.`);
     }
 
     if (event.type === "customer.subscription.updated") {
@@ -204,6 +206,47 @@ export async function POST(req: Request) {
             }
         }
         console.log(`[STRIPE_WEBHOOK] User subscription dates synchronized`);
+    }
+
+    // ── Handle payment failure — downgrade user to Explorer ─────────────
+    if (event.type === "invoice.payment_failed") {
+        const invoice = event.data.object as Stripe.Invoice;
+        const customerId = invoice.customer as string;
+        console.log(`[STRIPE_WEBHOOK] Payment failed for customer: ${customerId}`);
+
+        const user = await prisma.user.findFirst({
+            where: { stripeCustomerId: customerId },
+        });
+
+        if (user && user.plan !== "free") {
+            // Check if this is the final attempt (Stripe has exhausted retries)
+            const attemptCount = (invoice as any).attempt_count ?? 0;
+
+            if (attemptCount >= 3) {
+                console.log(
+                    `[STRIPE_WEBHOOK] Final payment attempt failed for user ${user.id}. Downgrading to Explorer.`
+                );
+                await prisma.user.update({
+                    where: { id: user.id },
+                    data: {
+                        plan: "free",
+                        stripeSubscriptionId: null,
+                        stripePriceId: null,
+                        stripeCurrentPeriodEnd: null,
+                        stripeCancelAtPeriodEnd: false,
+                        soundscape: "none",
+                        binaural_enabled: false,
+                    },
+                });
+                console.log(
+                    `[STRIPE_WEBHOOK] User ${user.id} downgraded. Soundscape & binaural disabled.`
+                );
+            } else {
+                console.log(
+                    `[STRIPE_WEBHOOK] Payment attempt ${attemptCount} failed for user ${user.id}. Stripe will retry.`
+                );
+            }
+        }
     }
 
     return new NextResponse(null, { status: 200 });

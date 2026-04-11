@@ -261,6 +261,8 @@ export async function POST(req: NextRequest) {
                     voice_model_id: true,
                     elevenlabs_voice_id: true,
                     voice_sample_url: true,
+                    soundscape: true,
+                    binaural_enabled: true,
                 },
             }),
             prisma.story.findUnique({ where: { id: storyId } }),
@@ -468,7 +470,19 @@ export async function POST(req: NextRequest) {
             }),
         );
 
-        const finalUrl = `/api/user/audio/stream?key=${encodeURIComponent(finalKey)}`;
+        // Save voice-only key so the mixing server can use it later
+        const voiceOnlyKey = `user_${user.id}/story_${story.id}_voice_${ts}.mp3`;
+        await s3.send(
+            new PutObjectCommand({
+                Bucket: BUCKET,
+                Key: voiceOnlyKey,
+                Body: finalAudio,
+                ContentType: 'audio/mpeg',
+            }),
+        );
+        console.log(`[assemble] ✅ Voice-only uploaded — ${voiceOnlyKey}`);
+
+        let finalUrl = `/api/user/audio/stream?key=${encodeURIComponent(finalKey)}`;
         await prisma.story.update({
             where: { id: story.id },
             data: {
@@ -476,12 +490,72 @@ export async function POST(req: NextRequest) {
                 audio_url: finalUrl,
                 audio_r2_key: finalKey,
                 audio_duration_secs: duration,
-                voice_only_r2_key: null,
+                voice_only_r2_key: voiceOnlyKey,
             },
         });
 
         console.log(`[assemble] ✅ Complete — ${finalAudio.byteLength} bytes, ${duration}s`);
         console.log(`[assemble] 🎙️ Voice composition: ${induction ? 'Admin intro + ' : ''}${userHasClonedVoice ? 'User cloned voice' : 'TTS'}`);
+
+        // ── Auto-mix with soundscape / binaural if user has them enabled ─────
+        // Only call mixing server if user explicitly selected a soundscape or enabled binaural
+        const userSoundscape = user.soundscape;
+        const userBinaural = !!(user as any).binaural_enabled;
+        const hasSoundscapeSelected = userSoundscape && userSoundscape !== 'none';
+
+        let mixedWithSoundscape = false;
+        if (hasSoundscapeSelected || userBinaural) {
+            try {
+                // Find soundscape asset if user selected one
+                let soundscapeAsset: any = null;
+                if (hasSoundscapeSelected) {
+                    soundscapeAsset = await prisma.soundscapeAsset.findFirst({
+                        where: { isActive: true, title: { contains: userSoundscape, mode: 'insensitive' } },
+                    });
+                    // Fallback: try by id
+                    if (!soundscapeAsset) {
+                        soundscapeAsset = await prisma.soundscapeAsset.findFirst({
+                            where: { isActive: true, id: userSoundscape },
+                        });
+                    }
+                }
+
+                console.log(
+                    `[assemble] 🎵 Mix requested — soundscape: ${soundscapeAsset ? `"${soundscapeAsset.title}" (${soundscapeAsset.id})` : 'none'}, binaural: ${userBinaural}`
+                );
+
+                const MIXING_SERVER = process.env.MIXING_SERVER_URL || 'http://localhost:4000';
+                const MIXING_SECRET = process.env.MIXING_API_SECRET || '';
+
+                const mixRes = await fetch(`${MIXING_SERVER}/mix`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-api-secret': MIXING_SECRET,
+                    },
+                    body: JSON.stringify({
+                        storyId: story.id,
+                        soundscapeId: soundscapeAsset?.id || null,
+                        backgroundVolume: 0.15,
+                        binauralEnabled: userBinaural,
+                    }),
+                });
+
+                if (mixRes.ok) {
+                    const mixData = await mixRes.json();
+                    finalUrl = mixData.audio_url || finalUrl;
+                    mixedWithSoundscape = true;
+                    console.log(`[assemble] ✅ Mixing server succeeded — combined key: ${mixData.combined_audio_key}`);
+                } else {
+                    const errText = await mixRes.text().catch(() => '');
+                    console.error(`[assemble] ⚠️ Mixing server returned ${mixRes.status}: ${errText}`);
+                }
+            } catch (mixErr: any) {
+                console.error(`[assemble] ⚠️ Mixing server call failed (non-fatal):`, mixErr.message);
+            }
+        } else {
+            console.log(`[assemble] ℹ️ No soundscape selected and binaural disabled — skipping mixing`);
+        }
 
         return NextResponse.json({
             success: true,
@@ -493,7 +567,8 @@ export async function POST(req: NextRequest) {
                 hasTTSIntro: introBuffers.length > 0,
                 hasUserVoice: userHasClonedVoice,
                 introSource: induction ? 'admin' : (introBuffers.length > 0 ? 'tts' : 'none'),
-                storySource: userHasClonedVoice ? 'cloned' : 'tts'
+                storySource: userHasClonedVoice ? 'cloned' : 'tts',
+                mixedWithSoundscape,
             }
         });
 

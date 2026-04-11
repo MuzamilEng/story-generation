@@ -3,6 +3,14 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { promises as fs } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { randomUUID } from 'crypto';
+import ffmpeg from 'fluent-ffmpeg';
+import ffmpegPath from '@ffmpeg-installer/ffmpeg';
+
+ffmpeg.setFfmpegPath(ffmpegPath.path);
 
 const s3 = new S3Client({
     region: 'us-east-1',
@@ -48,14 +56,40 @@ export async function POST(req: NextRequest) {
     const isMP3 = (incomingBuf[0] === 0x49 && incomingBuf[1] === 0x44 && incomingBuf[2] === 0x33) ||
                   (incomingBuf[0] === 0xFF && (incomingBuf[1] & 0xE0) === 0xE0);
 
-    if (!isMP3) {
-        return NextResponse.json(
-            { error: 'Please upload an MP3 file. Other audio formats are not supported on this server.' },
-            { status: 400 },
-        );
+    let finalBuf: Buffer;
+
+    if (isMP3) {
+        finalBuf = incomingBuf;
+    } else {
+        // Convert non-MP3 audio (e.g. WebM from browser recording) to MP3 via ffmpeg
+        const id = randomUUID();
+        const tmpInput = join(tmpdir(), `sys-audio-in-${id}`);
+        const tmpOutput = join(tmpdir(), `sys-audio-out-${id}.mp3`);
+
+        await fs.writeFile(tmpInput, incomingBuf);
+
+        try {
+            await new Promise<void>((resolve, reject) => {
+                ffmpeg(tmpInput)
+                    .toFormat('mp3')
+                    .audioBitrate(128)
+                    .on('error', reject)
+                    .on('end', () => resolve())
+                    .save(tmpOutput);
+            });
+            finalBuf = await fs.readFile(tmpOutput);
+        } catch (err) {
+            console.error('[system-audio] ffmpeg conversion failed:', err);
+            return NextResponse.json(
+                { error: 'Audio conversion failed. Please try uploading an MP3 file directly.' },
+                { status: 400 },
+            );
+        } finally {
+            await fs.unlink(tmpInput).catch(() => {});
+            await fs.unlink(tmpOutput).catch(() => {});
+        }
     }
 
-    const finalBuf = incomingBuf;
     // Estimate duration from 128kbps CBR file (16000 bytes/sec)
     const durationSecs = Math.round(finalBuf.byteLength / 16000);
     console.log(`[system-audio] Accepted MP3 upload. Size: ${finalBuf.byteLength} bytes, Duration: ~${durationSecs}s`);
