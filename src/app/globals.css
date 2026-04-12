@@ -117,7 +117,7 @@ body::before {
 }
 
 /* ── ENSURE CONTENT ABOVE OVERLAY ── */
-main, nav, footer, .page-content, header {
+main, footer, .page-content, header {
   position: relative;
   z-index: 10;
 }

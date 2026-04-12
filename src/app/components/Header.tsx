@@ -238,9 +238,14 @@ const Header: React.FC = () => {
               Pricing
             </Link>
             {session && (
-              <Link href="/user/dashboard" className={styles.navLink}>
-                Dashboard
-              </Link>
+              <>
+                <Link href="/user/dashboard" className={styles.navLink}>
+                  Dashboard
+                </Link>
+                <Link href="/feedback" className={styles.navLink}>
+                  Feedback
+                </Link>
+              </>
             )}
           </nav>
         ) : (
@@ -321,6 +326,12 @@ const Header: React.FC = () => {
               className={`${styles.navLink} ${pathname.startsWith("/user/manage-subscription") ? styles.active : ""}`}
             >
               Manage Subscription
+            </Link>
+            <Link
+              href="/feedback"
+              className={`${styles.navLink} ${pathname === "/feedback" ? styles.active : ""}`}
+            >
+              Feedback
             </Link>
           </nav>
         )}

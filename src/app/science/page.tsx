@@ -142,6 +142,8 @@ export default function SciencePage() {
         <div className={`${styles.inner} ${styles.reveal}`}>
           <span className={styles.sectionLabel}>The Power of You</span>
           <h2 className={styles.sectionH2}>The Voice Effect: <span className={styles.accent}>Why your own voice is the key.</span></h2>
+          <p className={styles.sectionBody}>Your voice is not a feature. It is the architecture. Every other layer of the ManifestMyStory system exists to deliver programming to your subconscious at depth — but it is the recognition of your own voice that opens the door before a single word of that programming is spoken.</p>
+          <p className={styles.sectionBody}>No external voice — however calming, however professional — produces the same neurological response. A stranger&apos;s voice is processed as external information. Your own voice is processed as internal truth. This distinction is not philosophical. It is biological. And it is why ManifestMyStory is built entirely around it.</p>
           <p className={styles.sectionBody}>Research into &quot;Self-Concept Activation&quot; shows that your brain responds to your own voice differently than to any other sound. When you hear another person speak, your brain processes it as external information. When you hear YOUR voice, the brain processes it as internal truth.</p>
           <p className={styles.sectionBody}>Hearing your goals described as a present reality in your own cloned voice triggers a phenomenon called Neural Coupling. Your brain literally cannot tell the difference between the memory of a real success and the vivid narration of a future success in your voice. To your nervous system, it becomes a memory of the future.</p>
 
@@ -162,6 +164,30 @@ export default function SciencePage() {
             </div>
             <p className={styles.sectionBody} style={{ fontSize: '13px', textAlign: 'center', marginBottom: 0 }}>Neuroscience shows that self-affirmation in one&apos;s own voice activates the reward centers of the brain far more than affirmations read or heard in a stranger&apos;s voice.</p>
           </div>
+        </div>
+      </section>
+
+      {/* SECTION — HYPNOTIC INDUCTION */}
+      <section className={styles.pageSection}>
+        <div className={`${styles.inner} ${styles.reveal}`}>
+          <span className={styles.sectionLabel}>The Gateway</span>
+          <h2 className={styles.sectionH2}>The Hypnotic Induction — <span className={styles.accent}>The Door Opens Before the Story Begins.</span></h2>
+          <p className={styles.sectionBody}>Most audio-based manifestation tools deliver their content while the listener is still in a conscious, analytical state. The critical mind is active. The filter is up. The programming is heard — and largely rejected.</p>
+          <p className={styles.sectionBody}>ManifestMyStory solves this with a hypnotic induction: a guided audio sequence, narrated in your own cloned voice, that walks your brain from alert beta down to theta — 4 to 8 Hz — before the story and its programming begin.</p>
+          <p className={styles.sectionBody}>The induction works faster and deeper when delivered in your own voice for the same reason the entire system does: your subconscious recognizes a familiar, trusted source and drops its defenses. By the time the first word of your personalized story plays, the critical filter is already disengaged. You are fully in the theta window. The door is open.</p>
+          <p className={styles.sectionBody}>This is the specific mechanism that separates ManifestMyStory from every other theta-based audio product on the market. The induction is not a generic relaxation sequence. It is your voice, guiding you into the state where your own programming lands without resistance.</p>
+        </div>
+      </section>
+
+      {/* SECTION — EMOTIONAL PRECISION */}
+      <section className={styles.pageSection}>
+        <div className={`${styles.inner} ${styles.reveal}`}>
+          <span className={styles.sectionLabel}>Neural Accelerant</span>
+          <h2 className={styles.sectionH2}>Emotional Precision — <span className={styles.accent}>Why the Inflection Is Not Cosmetic.</span></h2>
+          <p className={styles.sectionBody}>Hebb&apos;s Law — &quot;neurons that fire together, wire together&quot; — is already established. What accelerates that firing is emotional charge. Neutral information creates weak neural associations. Emotionally resonant information creates strong ones. This is why you remember a song from your childhood in vivid detail but cannot recall a list you read ten minutes ago.</p>
+          <p className={styles.sectionBody}>ManifestMyStory&apos;s AI-enhanced voice clone does not read your story flatly. It narrates with emotional precision — rising at moments of aspiration, grounding at moments of identity, speaking with the conviction of someone who already knows the outcome is real. The vocal tone is calibrated to match the emotional weight of each passage.</p>
+          <p className={styles.sectionBody}>This is not a cosmetic enhancement. It is the mechanism that determines how deeply the neural pathway forms. A story narrated without emotional inflection is information. A story narrated with the precise emotional tone of the moment it describes is an experience. Your brain encodes experience — not information — into long-term identity.</p>
+          <p className={styles.sectionBody}>Combined with the theta state established by the induction, and sustained by binaural beats beneath the story, the emotional inflection of the clone creates the conditions for the fastest possible subconscious reprogramming. The six layers are not additive. They are multiplicative.</p>
         </div>
       </section>
 
@@ -239,7 +265,7 @@ export default function SciencePage() {
           <div className={styles.convergence}>
             <span className={styles.convergenceLabel}>THE INTERSECTION OF ALL PATHS</span>
             <h2 className={styles.convergenceH}>Whether you come through science,<br />tradition, or the quantum field —<br />the destination is <span className={styles.accent}>the same.</span></h2>
-            <p className={styles.convergenceBody}>ManifestMyStory is the bridge between these worlds. Ancient intention. Modern precision. Your voice. Wherever you begin, the practice leads to the same place — the life you are building, heard every day in the voice you already trust completely.</p>
+            <p className={styles.convergenceBody}>ManifestMyStory is the bridge between these worlds. Ancient intention. Modern precision. Your voice. Wherever you begin, the practice leads to the same place — delivered to you across six precisely engineered layers, in the only voice your subconscious accepts without resistance.</p>
             <div className={styles.threePaths}>
               <Link href="/science" className={`${styles.pathCard} ${styles.active}`}>
                 <span className={`${styles.pathIcon} ${styles.activeIcon}`}>THE SCIENCE</span>

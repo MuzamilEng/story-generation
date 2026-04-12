@@ -112,6 +112,7 @@ export default function QuantumPage() {
               <span className={styles.mechanismNum}>01</span>
               <h3 className={styles.mechanismTitle}>Coherent <span className={styles.accent}>Focus</span></h3>
               <p className={styles.mechanismBody}>Quantum coherence is the state where waves are in perfect synchronization. A focused narrative in your own voice creates internal coherence, a clear signal that the field can respond to.</p>
+              <p className={styles.mechanismBody}>The emotional inflection of the AI-enhanced voice clone amplifies coherence further. A narrative delivered without emotional precision creates information — a signal the field receives weakly. A narrative delivered with the exact emotional tone of the reality it describes creates resonance — a signal the field responds to with force. Quantum coherence is not achieved by thinking clearly about the future. It is achieved by feeling it as already present. The voice that delivers that feeling with precision is not incidental to the system. It is the system.</p>
             </div>
             <div className={styles.mechanismCard}>
               <span className={styles.mechanismNum}>02</span>
@@ -129,6 +130,7 @@ export default function QuantumPage() {
           <h2 className={styles.sectionH2}>Nothing rests. Everything moves. <span className={styles.accent}>Everything vibrates.</span></h2>
           <p className={styles.sectionBody}>The principle is old, and quantum physics has proven it true: matter is 99.9999% empty space — fields of energy vibrating at different frequencies. What we perceive as &quot;solid&quot; is actually vibrational resonance.</p>
           <p className={styles.sectionBody}>Your voice is a physical vibration. By using your own voice to narrate your future as already real, you are literally &quot;tuning&quot; your internal field to the frequency of that reality. You aren&apos;t just hoping it comes true; you are becoming the vibrational match for it today.</p>
+          <p className={styles.sectionBody}>The six layers of ManifestMyStory are each calibrated to a different dimension of that alignment. The induction tunes the brain to theta — the frequency at which the field is most receptive. The story programs the field with a vivid, emotionally precise signal. The emotional inflection of the voice clone amplifies that signal with feeling, because feeling is the language the field responds to most powerfully. The NLP anchor trains the body to hold the resonance physically. The binaural beats sustain the state from start to finish. And the identity affirmations close the session with a declaration the subconscious accepts as already true. Together, they do not just describe the desired frequency. They become it.</p>
 
           <div className={styles.vibrationCard}>
             <div className={styles.voiceStats}>
@@ -156,7 +158,7 @@ export default function QuantumPage() {
           <div className={styles.convergence}>
             <span className={styles.convergenceLabel}>THE INTERSECTION OF ALL PATHS</span>
             <h2 className={styles.convergenceH}>Whether you come through science,<br />tradition, or the quantum field —<br />the destination is <span className={styles.accent}>the same.</span></h2>
-            <p className={styles.convergenceBody}>ManifestMyStory is the bridge between these worlds. Ancient intention. Modern precision. Your voice. Wherever you begin, the practice leads to the same place — the life you are building, heard every day in the voice you already trust completely.</p>
+            <p className={styles.convergenceBody}>ManifestMyStory is the bridge between these worlds. Ancient intention. Modern precision. Your voice. Wherever you begin, the practice leads to the same place — delivered to you across six precisely engineered layers, in the only voice your subconscious accepts without resistance.</p>
             <div className={styles.threePaths}>
               <Link href="/science" className={styles.pathCard}>
                 <span className={styles.pathIcon}>THE SCIENCE</span>

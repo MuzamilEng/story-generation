@@ -135,8 +135,11 @@ const CreateAccountForm: React.FC = () => {
     const code = searchParams.get("betaCode") || searchParams.get("code");
     if (code) {
       setFormData((prev) => ({ ...prev, betaCode: code.toUpperCase() }));
+    } else {
+      // No beta code in URL — redirect to /beta so they enter a code first
+      router.push("/beta");
     }
-  }, [searchParams]);
+  }, [searchParams, router]);
 
   useEffect(() => {
     document.title = "ManifestMyStory — Create Your Account";
@@ -518,17 +521,17 @@ const CreateAccountForm: React.FC = () => {
               </div> */}
 
               <div className={styles.field}>
-                <label htmlFor="betaCode">Beta code (Optional)</label>
+                <label htmlFor="betaCode">Beta Access Code</label>
                 <input
                   type="text"
                   id="betaCode"
-                  placeholder="e.g. VIP-BETA-2026"
+                  placeholder="Enter your access code"
                   value={formData.betaCode}
                   onChange={handleInputChange}
                   style={{ textTransform: 'uppercase' }}
                 />
                 <p style={{ fontSize: '12px', color: 'var(--ink-faint)', marginTop: '4px' }}>
-                  Have an invite? Enter it here for 2 months free of Amplifier.
+                  A beta access code is required during pre-launch. <Link href="/beta" style={{ color: 'var(--accent)' }}>Request access here</Link>.
                 </p>
               </div>
 

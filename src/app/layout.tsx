@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Cormorant_Garamond, Inter } from "next/font/google";
+import { Cormorant_Garamond, Inter, Fraunces } from "next/font/google";
 import { Providers } from "@/components/providers";
 import SharedBackground from "./components/SharedBackground";
 import "./globals.css";
@@ -19,6 +19,13 @@ const inter = Inter({
   display: "swap",
 });
 
+const fraunces = Fraunces({
+  variable: "--font-fraunces",
+  subsets: ["latin"],
+  weight: ["300", "400", "500"],
+  display: "swap",
+});
+
 export const metadata: Metadata = {
   title: "ManifestMyStory — Your Future Is Already Speaking",
   description:
@@ -32,7 +39,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${cormorant.variable} ${inter.variable}`}>
+      <body className={`${cormorant.variable} ${inter.variable} ${fraunces.variable}`}>
         <Providers>
           <SharedBackground />
           {children}

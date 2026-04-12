@@ -195,6 +195,12 @@ const UserHeader: React.FC = () => {
           >
             Pricing
           </Link>
+          <Link
+            href="/feedback"
+            className={`${styles.navLink} ${pathname === "/feedback" ? styles.active : ""}`}
+          >
+            Feedback
+          </Link>
         </nav>
 
         <div className={styles.topbarRight}>

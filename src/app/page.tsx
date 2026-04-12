@@ -1,395 +1,70 @@
 "use client";
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import styles from "../app/styles/Home.module.css";
-import Header from "../app/components/Header";
-import Sidebar from "../app/components/Sidebar";
+import s from "./styles/SplashV6.module.css";
 
-/* ── SVG ICONS ─────────────────────────────────────────── */
-const PlayIcon = () => (
-  <svg viewBox="0 0 24 24" fill="currentColor">
-    <path d="M8 5v14l11-7z" />
-  </svg>
-);
-const PauseIcon = () => (
-  <svg viewBox="0 0 24 24" fill="currentColor">
-    <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
-  </svg>
-);
+/* ── WAITLIST FORM (reusable) ─────────────────────────────── */
+const WaitlistForm: React.FC<{
+  variant?: "hero" | "invite";
+}> = ({ variant = "hero" }) => {
+  const [email, setEmail] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-/* ── DIVIDER ─────────────────────────────────────────────── */
-const Divider: React.FC = () => (
-  <div className={styles.dividerWrap}>
-    <div className={styles.dividerLine} />
-    <div className={styles.dividerMark}>
-      <svg width="30" height="30" viewBox="0 0 30 30" fill="none">
-        <circle cx="15" cy="15" r="13" stroke="#2A3D2F" strokeWidth="0.7" vectorEffect="non-scaling-stroke"/>
-        <circle cx="15" cy="9.5" r="8.5" stroke="#3D6B4A" strokeWidth="0.6" vectorEffect="non-scaling-stroke"/>
-        <circle cx="15" cy="20.5" r="8.5" stroke="#3D6B4A" strokeWidth="0.6" vectorEffect="non-scaling-stroke"/>
-        <circle cx="22.4" cy="12.2" r="8.5" stroke="#3D6B4A" strokeWidth="0.6" vectorEffect="non-scaling-stroke"/>
-        <circle cx="7.6" cy="12.2" r="8.5" stroke="#3D6B4A" strokeWidth="0.6" vectorEffect="non-scaling-stroke"/>
-        <circle cx="22.4" cy="17.8" r="8.5" stroke="#3D6B4A" strokeWidth="0.6" vectorEffect="non-scaling-stroke"/>
-        <circle cx="7.6" cy="17.8" r="8.5" stroke="#3D6B4A" strokeWidth="0.6" vectorEffect="non-scaling-stroke"/>
-        <circle cx="15" cy="15" r="8.5" stroke="#5A9968" strokeWidth="0.7" vectorEffect="non-scaling-stroke"/>
-        <line x1="15" y1="19" x2="15" y2="12.5" stroke="#4A8038" strokeWidth="1" strokeLinecap="round"/>
-        <path d="M15 16 Q12 14.5 11 12 Q13.5 12 14.5 14.5 Z" fill="#4A8038"/>
-        <path d="M15 16 Q18 14.5 19 12 Q16.5 12 15.5 14.5 Z" fill="#6AAB54"/>
-        <path d="M15 13 Q13.5 10.5 14 9 Q16.5 10.5 16 13 Z" fill="#8DBF7A"/>
-      </svg>
-    </div>
-    <div className={styles.dividerLine} />
-  </div>
-);
-
-/* ── HERO ─────────────────────────────────────────────────── */
-const Hero: React.FC = () => {
-  const geoRef = useRef<SVGSVGElement>(null);
-
-  // Parallax: Seed of Life shifts at 25% scroll speed
-  useEffect(() => {
-    const handleScroll = () => {
-      if (geoRef.current) {
-        const y = window.scrollY;
-        geoRef.current.style.transform = `translate(-50%, calc(-55% + ${y * 0.25}px))`;
-      }
-    };
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
-
-  return (
-    <section className={styles.hero}>
-      {/* Seed of Life geometry — blooms on load, parallax on scroll */}
-      <svg
-        ref={geoRef}
-        className={styles.heroGeo}
-        viewBox="0 0 520 520"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-        aria-hidden="true"
-      >
-        <circle cx="260" cy="260" r="245" stroke="#2A3D2F" strokeWidth="0.8" vectorEffect="non-scaling-stroke"/>
-        <circle cx="260" cy="260" r="228" stroke="#1A2A1F" strokeWidth="0.5" vectorEffect="non-scaling-stroke"/>
-        <circle cx="260" cy="167" r="167" stroke="#3D6B4A" strokeWidth="0.6" vectorEffect="non-scaling-stroke"/>
-        <circle cx="260" cy="353" r="167" stroke="#3D6B4A" strokeWidth="0.6" vectorEffect="non-scaling-stroke"/>
-        <circle cx="404.7" cy="218" r="167" stroke="#3D6B4A" strokeWidth="0.6" vectorEffect="non-scaling-stroke"/>
-        <circle cx="115.3" cy="218" r="167" stroke="#3D6B4A" strokeWidth="0.6" vectorEffect="non-scaling-stroke"/>
-        <circle cx="404.7" cy="302" r="167" stroke="#3D6B4A" strokeWidth="0.6" vectorEffect="non-scaling-stroke"/>
-        <circle cx="115.3" cy="302" r="167" stroke="#3D6B4A" strokeWidth="0.6" vectorEffect="non-scaling-stroke"/>
-        <circle cx="260" cy="260" r="167" stroke="#5A9968" strokeWidth="0.8" vectorEffect="non-scaling-stroke"/>
-        <line x1="260" y1="298" x2="260" y2="240" stroke="#4A8038" strokeWidth="1.5" strokeLinecap="round"/>
-        <path d="M260 268 Q242 258 236 242 Q248 242 257 254 Z" fill="#4A8038"/>
-        <path d="M260 268 Q278 258 284 242 Q272 242 263 254 Z" fill="#6AAB54"/>
-        <path d="M260 248 Q254 232 256 222 Q264 230 262 246 Z" fill="#8DBF7A"/>
-      </svg>
-
-      <div className={styles.heroInner}>
-        <p className={styles.heroEyebrow}>YOUR FUTURE IS ALREADY SPEAKING</p>
-        <div className={styles.heroBadge}>VOICE · AI · MANIFESTATION</div>
-
-        <h1 className={styles.heroTitle}>
-          <span className={styles.linePlain}>This is the life</span>
-          <span className={styles.linePlain}>you are building.</span>
-          <span className={styles.lineAccent}>Hear it.</span>
-        </h1>
-
-        <p className={styles.heroSub}>
-          A guided conversation draws out your deepest vision. We turn it into a
-          rich, sensory story — then narrate it back to you in your own voice.
-          Listen every morning. Watch your life follow.
-        </p>
-
-        <div className={styles.heroActions}>
-          <Link href="/user/goal-intake-ai" className={styles.btnPrimary}>
-            CREATE MY STORY — FREE
-          </Link>
-          <Link href="/science" className={styles.btnGhost}>
-            THE SCIENCE BEHIND IT
-          </Link>
-        </div>
-
-        <p className={styles.heroTruths}>YOUR VOICE · YOUR STORY · YOUR FUTURE</p>
-      </div>
-    </section>
-  );
-};
-
-/* ── AUDIO PLAYER ─────────────────────────────────────────── */
-const AudioPlayer: React.FC = () => {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [progress, setProgress] = useState(32);
-  const [currentTime, setCurrentTime] = useState("2:02");
-  const [litBars, setLitBars] = useState(14);
-  const heights = [8,12,18,14,22,16,10,24,18,12,20,15,8,19,23,11,16,20,14,9,21,17,13,25,18,10,22,15,19,12,16,8,20,14,24,18];
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
-
-  const togglePlay = () => setIsPlaying((p) => !p);
-
-  useEffect(() => {
-    if (isPlaying) {
-      intervalRef.current = setInterval(() => {
-        setProgress((prev) => {
-          const next = Math.min(100, prev + 0.15);
-          if (next >= 100) { setIsPlaying(false); return 100; }
-          return next;
-        });
-      }, 100);
-    } else if (intervalRef.current) {
-      clearInterval(intervalRef.current);
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.includes("@")) return;
+    setIsLoading(true);
+    try {
+      const res = await fetch("/api/waitlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ firstName: "Founding Member", email: email.trim() }),
+      });
+      if (res.ok) setSubmitted(true);
+    } catch {
+      // silent
+    } finally {
+      setIsLoading(false);
     }
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, [isPlaying]);
+  };
 
-  useEffect(() => {
-    const totalSec = 384; // 6:24
-    const sec = Math.round((progress * totalSec) / 100);
-    const m = Math.floor(sec / 60), s = sec % 60;
-    setCurrentTime(`${m}:${s.toString().padStart(2, "0")}`);
-    setLitBars(Math.round((progress * heights.length) / 100));
-  }, [progress, heights.length]);
+  const formClass = variant === "hero" ? s.emailForm : s.inviteForm;
+  const inputClass = variant === "hero" ? s.emailInput : s.inviteInput;
+  const btnClass = variant === "hero" ? s.emailBtn : s.inviteBtn;
+  const successClass = variant === "hero" ? s.emailBtnSuccess : s.inviteBtnSuccess;
 
   return (
-    <div className={styles.audioWrap}>
-      <div className={styles.audioCard}>
-        <span className={styles.acEyebrow}>SAMPLE AUDIO</span>
-        <p className={styles.acTitle}>
-          A Day in the Life of My Highest Self — Personal story · 6 min 24 sec · Generated in your voice
-        </p>
-
-        {/* Progress bar */}
-        <div className={styles.acProg} style={{ marginBottom: 14 }}>
-          <div className={styles.acFill} style={{ width: progress + "%" }} />
-        </div>
-
-        <div className={styles.acControls}>
-          <button className={styles.playBtn} onClick={togglePlay} aria-label={isPlaying ? "Pause" : "Play"}>
-            {isPlaying ? <PauseIcon /> : <PlayIcon />}
-          </button>
-
-          <div className={styles.waveform}>
-            {heights.map((h, i) => (
-              <div
-                key={i}
-                className={`${styles.wb} ${i < litBars ? styles.lit : ""}`}
-                style={{ height: h + "px" }}
-              />
-            ))}
-          </div>
-
-          <span className={styles.acTime}>{currentTime} / 6:24</span>
-        </div>
-
-        <p className={styles.acCaption}>
-          This is what your finished audio sounds like — except narrated in your voice, about your life.
-        </p>
-      </div>
-    </div>
+    <form className={formClass} onSubmit={handleSubmit}>
+      <input
+        type="email"
+        className={inputClass}
+        placeholder="Your email address"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        required
+        disabled={submitted}
+      />
+      <button
+        type="submit"
+        className={`${btnClass} ${submitted ? successClass : ""}`}
+        disabled={!email.includes("@") || isLoading || submitted}
+      >
+        {isLoading ? (
+          <span className={s.spinner} />
+        ) : submitted ? (
+          variant === "hero" ? "Invitation requested" : "Spot claimed"
+        ) : variant === "hero" ? (
+          "Request my invitation"
+        ) : (
+          "Claim my spot"
+        )}
+      </button>
+    </form>
   );
 };
-
-/* ── HOW IT WORKS ─────────────────────────────────────────── */
-const HowItWorks: React.FC = () => (
-  <section className={styles.fullSection} id="how">
-    <div style={{ maxWidth: 1400, margin: "0 auto" }}>
-      <div className="reveal">
-        <span className={styles.eyebrow}>THE PROCESS</span>
-        <h2 className={styles.secTitle}>
-          Four steps to <span className={styles.secTitle === "" ? "" : "accent"} style={{ color: "var(--accent)" }}>a new reality.</span>
-        </h2>
-        <p className={styles.secSub}>What follows can last a lifetime. This takes 10–20 minutes and is worth every one of them.</p>
-      </div>
-      <div className={`${styles.steps} reveal`}>
-        <div className={styles.stepCard}>
-          <span className={styles.stepNum}>01</span>
-          <div className={styles.stepIcon}>
-            <svg width="30" height="30" viewBox="0 0 30 30" fill="none">
-              <circle cx="15" cy="11" r="5" stroke="#5A9968" strokeWidth="0.8" vectorEffect="non-scaling-stroke"/>
-              <path d="M6 25 Q15 19 24 25" stroke="#5A9968" strokeWidth="0.8" fill="none" strokeLinecap="round"/>
-              <circle cx="15" cy="15" r="13" stroke="#2A3D2F" strokeWidth="0.6" vectorEffect="non-scaling-stroke"/>
-            </svg>
-          </div>
-          <h3 className={styles.stepTitle}>Tell us what your <span style={{ color: "var(--accent)" }}>best life</span> looks like</h3>
-          <p className={styles.stepText}>A guided AI conversation draws out your real vision — where you live, how you feel, who surrounds you, and what your perfect day actually looks like.</p>
-        </div>
-        <div className={styles.stepCard}>
-          <span className={styles.stepNum}>02</span>
-          <div className={styles.stepIcon}>
-            <svg width="30" height="30" viewBox="0 0 30 30" fill="none">
-              <rect x="3" y="5" width="24" height="20" rx="2" stroke="#2A3D2F" strokeWidth="0.6" vectorEffect="non-scaling-stroke"/>
-              <path d="M8 13 L13 17 L22 10" stroke="#5A9968" strokeWidth="1" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </div>
-          <h3 className={styles.stepTitle}>We write <span style={{ color: "var(--accent)" }}>your story</span></h3>
-          <p className={styles.stepText}>AI crafts a rich, sensory, first-person narrative set in your future — written as if everything you want has already come true. Because in this story, it has.</p>
-        </div>
-        <div className={styles.stepCard}>
-          <span className={styles.stepNum}>03</span>
-          <div className={styles.stepIcon}>
-            <svg width="30" height="30" viewBox="0 0 30 30" fill="none">
-              <circle cx="15" cy="15" r="8" stroke="#2A3D2F" strokeWidth="0.6" vectorEffect="non-scaling-stroke"/>
-              <circle cx="15" cy="15" r="3" fill="#3D6B4A"/>
-              <path d="M15 3.5 L15 1" stroke="#5A9968" strokeWidth="1" strokeLinecap="round"/>
-              <path d="M15 29 L15 26.5" stroke="#5A9968" strokeWidth="1" strokeLinecap="round"/>
-              <path d="M3.5 15 L1 15" stroke="#5A9968" strokeWidth="1" strokeLinecap="round"/>
-              <path d="M29 15 L26.5 15" stroke="#5A9968" strokeWidth="1" strokeLinecap="round"/>
-            </svg>
-          </div>
-          <h3 className={styles.stepTitle}>Hear it in <span style={{ color: "var(--accent)" }}>your voice</span></h3>
-          <p className={styles.stepText}>Record a 60-second sample. We clone your voice and deliver your story as audio — narrated by you, for you. Nobody else sounds like you.</p>
-        </div>
-        <div className={styles.stepCard}>
-          <span className={styles.stepNum}>04</span>
-          <div className={styles.stepIcon}>
-            <svg width="30" height="30" viewBox="0 0 30 30" fill="none">
-              <circle cx="15" cy="15" r="13" stroke="#2A3D2F" strokeWidth="0.6" vectorEffect="non-scaling-stroke"/>
-              <path d="M7 15 Q11 7 15 15 Q19 23 23 15" stroke="#5A9968" strokeWidth="1" fill="none" strokeLinecap="round"/>
-            </svg>
-          </div>
-          <h3 className={styles.stepTitle}>Listen <span style={{ color: "var(--accent)" }}>every day</span></h3>
-          <p className={styles.stepText}>Every morning and every night, your story reprograms your subconscious to notice and attract the people, actions, and opportunities that build your life.</p>
-        </div>
-      </div>
-    </div>
-  </section>
-);
-
-/* ── STORY SHOWCASE ───────────────────────────────────────── */
-const StoryShowcase: React.FC = () => (
-  <section className={styles.storySection} id="story">
-    <div className={styles.storyGrid}>
-      {/* Left: label + audio player */}
-      <div className="reveal">
-        <span className={styles.eyebrow}>YOUR STORY</span>
-        <h2 className={styles.secTitle}>
-          Not a generic script.<br/>
-          <span style={{ color: "var(--accent)" }}>Your life. Your words.</span>
-        </h2>
-        <p className={styles.secSub}>Every story is written from scratch based on your conversation. No two are ever the same.</p>
-        <AudioPlayer />
-      </div>
-
-      {/* Right: story card */}
-      <div className={`${styles.storyDemo} reveal`}>
-        <div className={styles.sdEyebrow}>
-          PERSONAL MANIFESTATION STORY
-          <span className={styles.sdBadge}>✓ APPROVED</span>
-        </div>
-        <div className={styles.sdTitle}>A Day in the Life of My Highest Self</div>
-        <div className={styles.sdMeta}>1,740 WORDS · ~13 MIN AUDIO · GENERATED FROM YOUR GOALS</div>
-        <div className={styles.sdBody}>
-          <div className={styles.sdText}>
-            I open my eyes before my alarm has a chance to sound. The room is quiet except for the low hum of the sea beyond the open window — that familiar rhythm that has become the backdrop of my whole life here. Pale morning light falls across the terracotta floor in long, warm strips...<br/><br/>
-            I rise without effort, the way I always do now. There is no resistance in the morning anymore, no heaviness I used to carry. I walk barefoot across the cool tiles and step onto the terrace, and there it is — the Atlantic stretching wide and silver under the early sun…
-          </div>
-          <div className={styles.sdFade} />
-        </div>
-        <div className={styles.sdFooter}>
-          <span className={styles.sdNote}>Your story continues for 1,700+ more words</span>
-          <Link href="/user/goal-intake-ai" className={styles.sdCta}>WRITE MINE →</Link>
-        </div>
-      </div>
-    </div>
-  </section>
-);
-
-/* ── TESTIMONIALS ─────────────────────────────────────────── */
-const TestiCard: React.FC<{ initials: string; name: string; role: string; text: string }> = ({
-  initials, name, role, text,
-}) => (
-  <div className={styles.testiCard}>
-    <p className={styles.testiText}>{text}</p>
-    <div className={styles.testiAuthor}>
-      <div className={styles.testiAvatar}>{initials}</div>
-      <div>
-        <div className={styles.testiName}>{name}</div>
-        <div className={styles.testiRole}>{role}</div>
-      </div>
-    </div>
-  </div>
-);
-
-const Testimonials: React.FC = () => (
-  <section className={styles.testimonialsSection}>
-    <div style={{ maxWidth: 1400, margin: "0 auto" }}>
-      <div className="reveal">
-        <span className={styles.eyebrow}>EARLY USERS</span>
-        <h2 className={styles.secTitle}>What people are <span style={{ color: "var(--accent)" }}>experiencing.</span></h2>
-      </div>
-      <div className={`${styles.testiGrid} reveal`}>
-        <TestiCard
-          initials="SM"
-          name="Sarah M."
-          role="Entrepreneur, 34"
-          text="I've tried journaling, vision boards, affirmations. Nothing hit like hearing my own voice describe the life I'm building. It feels different — personal."
-        />
-        <TestiCard
-          initials="JK"
-          name="James K."
-          role="Marketing Director, 41"
-          text="I was skeptical. Three weeks of listening and it changed something in me. I applied for the role I'd been putting off for two years — and got the job."
-        />
-        <TestiCard
-          initials="AT"
-          name="Amara T."
-          role="Teacher, 29"
-          text="The conversation to create my story made me cry. I hadn't let myself think about what I actually wanted in years. The process is transformative."
-        />
-      </div>
-    </div>
-  </section>
-);
-
-/* ── FINAL CTA ────────────────────────────────────────────── */
-const FinalCTA: React.FC = () => (
-  <section className={styles.finalCta} id="start">
-    {/* Ghost Seed of Life geometry */}
-    <svg className={styles.ctaGeo} viewBox="0 0 420 420" fill="none" aria-hidden="true">
-      <circle cx="210" cy="210" r="198" stroke="#8DBF7A" strokeWidth="0.6" vectorEffect="non-scaling-stroke"/>
-      <circle cx="210" cy="75" r="135" stroke="#8DBF7A" strokeWidth="0.5" vectorEffect="non-scaling-stroke"/>
-      <circle cx="210" cy="345" r="135" stroke="#8DBF7A" strokeWidth="0.5" vectorEffect="non-scaling-stroke"/>
-      <circle cx="327" cy="142" r="135" stroke="#8DBF7A" strokeWidth="0.5" vectorEffect="non-scaling-stroke"/>
-      <circle cx="93" cy="142" r="135" stroke="#8DBF7A" strokeWidth="0.5" vectorEffect="non-scaling-stroke"/>
-      <circle cx="327" cy="278" r="135" stroke="#8DBF7A" strokeWidth="0.5" vectorEffect="non-scaling-stroke"/>
-      <circle cx="93" cy="278" r="135" stroke="#8DBF7A" strokeWidth="0.5" vectorEffect="non-scaling-stroke"/>
-      <circle cx="210" cy="210" r="135" stroke="#8DBF7A" strokeWidth="0.6" vectorEffect="non-scaling-stroke"/>
-    </svg>
-
-    <div className={`${styles.finalInner} reveal`}>
-      <span className={styles.finalEyebrow}>YOUR FUTURE IS WAITING</span>
-      <h2 className={styles.finalTitle}>
-        The life you're building<br/>deserves to be <span style={{ color: "var(--accent)" }}>heard.</span>
-      </h2>
-      <p className={styles.finalSub}>
-        A conversation about your real vision. A story written in your voice. A practice that returns to you every morning and every night — until the life you imagined becomes the life you live.
-      </p>
-      <div className={styles.finalActions}>
-        <Link href="/user/goal-intake-ai" className={styles.btnPrimary}>
-          BEGIN MY STORY — FREE
-        </Link>
-        <p className={styles.finalProof}>NO CREDIT CARD REQUIRED · TAKES 10–20 MINUTES</p>
-      </div>
-    </div>
-  </section>
-);
-
-/* ── FOOTER ───────────────────────────────────────────────── */
-const Footer: React.FC = () => (
-  <footer className={styles.footer}>
-    <span className={styles.footLogo}>MANIFEST<span>MY</span>STORY</span>
-    <div className={styles.footLinks}>
-      <Link href="#how">HOW IT WORKS</Link>
-      <Link href="/pricing">PRICING</Link>
-      <Link href="/science">THE SCIENCE</Link>
-      <Link href="/quantum">THE QUANTUM FIELD</Link>
-      <Link href="/mystical">ANCIENT WISDOM</Link>
-      <Link href="#">PRIVACY</Link>
-      <Link href="#">TERMS</Link>
-    </div>
-    <span className={styles.footCopy}>Your future is already speaking. We help you listen.</span>
-  </footer>
-);
 
 /* ── SCROLL REVEAL HOOK ───────────────────────────────────── */
 const useScrollReveal = () => {
@@ -398,16 +73,36 @@ const useScrollReveal = () => {
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
-            entry.target.classList.add("visible");
+            entry.target.classList.add(s.fadeInVisible);
             observer.unobserve(entry.target);
           }
         });
       },
-      { threshold: 0.12 }
+      { threshold: 0.09 },
     );
-    document.querySelectorAll(".reveal").forEach((el) => observer.observe(el));
+    document.querySelectorAll(`.${s.fadeIn}`).forEach((el) => observer.observe(el));
     return () => observer.disconnect();
   }, []);
+};
+
+/* ── NAV ACTIVE SECTION TRACKER ───────────────────────────── */
+const useActiveSection = () => {
+  const [active, setActive] = useState("");
+  useEffect(() => {
+    const handleScroll = () => {
+      const sections = document.querySelectorAll("[id]");
+      let cur = "";
+      sections.forEach((sec) => {
+        if (window.scrollY >= (sec as HTMLElement).offsetTop - 100) {
+          cur = sec.id;
+        }
+      });
+      setActive(cur);
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+  return active;
 };
 
 /* ── MAIN PAGE ────────────────────────────────────────────── */
@@ -415,27 +110,468 @@ export default function Home() {
   useScrollReveal();
   const router = useRouter();
   const { data: session } = useSession();
+  const activeSection = useActiveSection();
+  const scarcityRef = useRef<HTMLDivElement>(null);
+  const [betaCode, setBetaCode] = useState("");
+  const [gateMsg, setGateMsg] = useState<"success" | "error" | null>(null);
 
+  // Redirect logged-in users
   useEffect(() => {
-    if (session?.user?.role === "ADMIN") {
-      router.push("/admin");
+    if (session?.user) {
+      if (session.user.role === "ADMIN") {
+        router.push("/admin");
+      } else {
+        router.push("/user/dashboard");
+      }
     }
   }, [session, router]);
 
+  // Scarcity bar animation
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (scarcityRef.current) scarcityRef.current.style.width = "33.6%";
+    }, 600);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Beta code check
+  const checkCode = useCallback(async () => {
+    const val = betaCode.trim().toUpperCase();
+    if (!val) return;
+    try {
+      const res = await fetch("/api/beta/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: val }),
+      });
+      if (res.ok) {
+        setGateMsg("success");
+        setTimeout(() => {
+          router.push(`/auth/signup?betaCode=${encodeURIComponent(val)}`);
+        }, 1500);
+      } else {
+        setGateMsg("error");
+      }
+    } catch {
+      setGateMsg("error");
+    }
+  }, [betaCode, router]);
+
+  const tabLink = (href: string, label: string) => {
+    const id = href.replace("#", "");
+    return (
+      <li key={id}>
+        <a
+          href={href}
+          className={`${s.navTabLink} ${activeSection === id ? s.navTabLinkActive : ""}`}
+        >
+          {label}
+        </a>
+      </li>
+    );
+  };
+
   return (
-    <div className={styles.container}>
-      <Header />
-      <Sidebar isLandingPage />
-      <Hero />
-      <Divider />
-      <HowItWorks />
-      <Divider />
-      <StoryShowcase />
-      <Divider />
-      <Testimonials />
-      <Divider />
-      <FinalCTA />
-      <Footer />
-    </div>
+    <>
+      {/* NAV */}
+      <nav className={s.nav}>
+        <a href="#" className={s.navLogo}>Manifest My Story</a>
+        <ul className={s.navTabs}>
+          {tabLink("#how", "How it works")}
+          {tabLink("#voice", "The voice")}
+          {tabLink("#features", "The science")}
+          <li>
+            <Link href="/why-it-works" className={s.navTabLink}>Why it works</Link>
+          </li>
+          {tabLink("#story", "Our story")}
+        </ul>
+        <div className={s.navRight}>
+          <Link href="/auth/signin" className={s.navSignIn}>Sign In</Link>
+          <a href="#invite" className={s.navInvite}>Request invitation</a>
+        </div>
+      </nav>
+
+      {/* HERO */}
+      <div className={s.hero}>
+        <div className={s.heroGlow} />
+        <div className={s.heroGlow2} />
+        <div className={s.heroEyebrow}>Founding invitations — 500 spots only</div>
+        <h1 className={s.heroHeadline}>
+          Hear your future.<br />In <em className={s.heroHeadlineEm}>your own voice.</em>
+        </h1>
+        <p className={s.heroKicker}>The most powerful manifestation tool ever built.</p>
+
+        <div className={s.scarcityWrap}>
+          <div className={s.scarcityTop}>
+            <span className={s.scarcityTopSpan}>Founding spots claimed</span>
+            <strong className={s.scarcityTopStrong}>168 of 500</strong>
+          </div>
+          <div className={s.scarcityTrack}>
+            <div className={s.scarcityFill} ref={scarcityRef} />
+          </div>
+          <p className={s.scarcityNote}>When 500 spots are filled, founding access closes permanently.</p>
+        </div>
+
+        <WaitlistForm variant="hero" />
+        <p className={s.heroMicro}>
+          <strong className={s.heroMicroStrong}>Founding members receive early access before public launch</strong> + 50% off for life.
+        </p>
+
+        <div className={s.scrollHint}>
+          <span className={s.scrollHintText}>Discover</span>
+          <div className={s.scrollLine} />
+        </div>
+      </div>
+
+      {/* SYNCHRONICITY STRIP */}
+      <div className={`${s.syncStrip} ${s.fadeIn}`}>
+        <div className={s.syncInner}>
+          <span className={s.syncEyebrow}>What begins to happen</span>
+          <p className={s.syncText}>
+            The goals arrive differently than you expect.<br />
+            <em className={s.syncTextEm}>Doors open that you did not knock on.</em><br />
+            A quiet intuition develops — and starts directing your next move.
+          </p>
+          <p className={s.syncSub}>
+            Ancient traditions called it alignment. Quantum physicists call it field resonance. Neuroscientists call it reticular activation.
+            Whatever name you give it — once you experience it, you will never question the process again.
+          </p>
+        </div>
+      </div>
+
+      {/* HOW IT WORKS */}
+      <section className={s.section} id="how">
+        <div className={s.fadeIn}>
+          <div className={s.sectionEyebrow}>How it works</div>
+          <h2 className={s.sectionHeadline}>Three steps to a story that changes you</h2>
+          <p className={s.sectionBody}>
+            ManifestMyStory is the tool. The practice is showing up for it — listening consistently, taking the actions that arise,
+            and doing the work of becoming the person in your story. The tool builds the path. You walk it.
+          </p>
+        </div>
+        <div className={`${s.howGrid} ${s.fadeIn} ${s.delay1}`}>
+          <div className={s.howStep}>
+            <span className={s.stepNum}>01</span>
+            <h3 className={s.stepTitle}>Define your goals and proof actions</h3>
+            <p className={s.stepBody}>
+              Our intake goes deeper than goals. You define what you want — and the sensory proof that it has already arrived.
+              Not what you are doing now, but what you are experiencing once the goal is real. Waking up in the dream house.
+              Walking into the business. Feeling the freedom. The AI builds your story around that future evidence — giving your
+              subconscious something vivid and specific to move toward.
+            </p>
+            <span className={s.stepLine} />
+          </div>
+          <div className={s.howStep}>
+            <span className={s.stepNum}>02</span>
+            <h3 className={s.stepTitle}>Clone your voice in under a minute</h3>
+            <p className={s.stepBody}>
+              Record a short voice sample. Our AI captures your unique vocal signature — tone, cadence, emotional resonance — and
+              recreates it with striking accuracy. Then enhances it with the emotional inflection your story deserves.
+            </p>
+            <span className={s.stepLine} />
+          </div>
+          <div className={s.howStep}>
+            <span className={s.stepNum}>03</span>
+            <h3 className={s.stepTitle}>Listen every night in theta state</h3>
+            <p className={s.stepBody}>
+              Your personalized story plays each night as you drift toward sleep — when the subconscious is most open and most
+              receptive. The programming is delivered at depth. The subconscious hears the one voice it cannot argue with.
+            </p>
+            <span className={s.stepLine} />
+          </div>
+        </div>
+      </section>
+
+      <div className={s.divider} />
+
+      {/* THE VOICE */}
+      <div className={s.voiceSection} id="voice">
+        <div className={s.voiceInner}>
+          <div className={`${s.voiceHeader} ${s.fadeIn}`}>
+            <div className={s.voiceHeaderEyebrow}>What makes this tool different from everything else</div>
+            <h2 className={s.voiceHeadline}>Your voice is the key that opens the subconscious door.</h2>
+            <p className={s.voiceBody}>
+              Every other manifestation tool uses someone else&rsquo;s voice. A stranger&rsquo;s voice — however calming — triggers the
+              brain&rsquo;s critical filter. Your own voice bypasses it entirely. This is not a design choice. It is neuroscience. Built for
+              individuals. Designed to scale with coaches and practitioners.
+            </p>
+          </div>
+
+          {/* Audio stack */}
+          <div className={`${s.audioStack} ${s.fadeIn} ${s.delay1}`}>
+            {[
+              { cls: s.audioLayer1, tag: "Layer 1 — Opens the door", name: "Hypnotic induction", desc: "A guided audio sequence walks the brain from alert beta down to theta — 4 to 8 Hz. The subconscious recognizes a familiar, trusted source and the critical filter drops. The door opens before the story and its programming begin.", badge: "voice" },
+              { cls: s.audioLayer2, tag: "Layer 2 — Builds the narrative", name: "AI-written personalized story", desc: "A sensory-rich, emotionally vivid story built around your specific goals and proof actions. Not a template. Shaped by clinical NLP architecture and designed to make the subconscious feel the future as something already underway.", badge: "voice" },
+              { cls: s.audioLayer3, tag: "Layer 3 — Deepens the delivery", name: "Emotional inflection in the clone", desc: "The AI-enhanced clone does not read flatly. It rises at moments of aspiration, softens at moments of truth, and speaks with the conviction of someone who already knows the outcome. The emotional tone matches the moment — making every word land at depth rather than surface level.", badge: "voice" },
+              { cls: s.audioLayer4, tag: "Layer 4 — Anchors the emotion", name: "NLP emotional anchoring", desc: "A physical cue woven into the story trains the body to access the emotional state of the desired future on demand. Based on proven Neuro-Linguistic Programming technique used by elite performers and practitioners worldwide. The body begins to feel the goal before it arrives.", badge: "beats" },
+              { cls: s.audioLayer5, tag: "Layer 5 — Sustains the state", name: "Binaural theta beats", desc: "Theta-frequency binaural beats at 4–8 Hz run beneath the story from start to close — sustaining and deepening the brain state throughout. The induction opens the door. The beats hold it open. Nothing pulls the mind back to beta during the experience.", badge: "beats" },
+              { cls: s.audioLayer6, tag: "Layer 6 — Seals with identity", name: "Identity affirmations", desc: "The experience closes with identity-level affirmations — spoken by the one voice the subconscious cannot dismiss. The last thing heard before sleep is a declaration of becoming. Not aspiration. Not hope. The voice that has always known what you are capable of, confirming it at the moment of deepest receptivity.", badge: "voice" },
+            ].map((layer, i) => (
+              <React.Fragment key={i}>
+                {i > 0 && <div className={s.layerConnector}>↓</div>}
+                <div className={`${s.audioLayer} ${layer.cls}`}>
+                  <div className={s.layerLabel}>
+                    <span className={s.layerTag}>{layer.tag}</span>
+                    <span className={s.layerName}>{layer.name}</span>
+                  </div>
+                  <div className={s.layerDesc}>{layer.desc}</div>
+                  <div className={s.layerBadge}>
+                    <span className={`${s.layerBadgeSpan} ${layer.badge === "voice" ? s.badgeVoice : s.badgeBeats}`}>
+                      {layer.badge === "voice" ? "Your voice" : layer.name.includes("NLP") ? "NLP layer" : "Audio layer"}
+                    </span>
+                  </div>
+                </div>
+              </React.Fragment>
+            ))}
+          </div>
+
+          {/* Voice mechanism cards */}
+          <div className={`${s.voiceCards} ${s.fadeIn} ${s.delay2}`}>
+            <div className={s.voiceCard}>
+              <div className={s.voiceCardNum}>01</div>
+              <h3 className={s.voiceCardTitle}><em className={s.voiceCardTitleEm}>Induces</em> — the door opens</h3>
+              <p className={s.voiceCardBody}>
+                When the subconscious hears a familiar, trusted source, it does not raise its defenses. The critical filter drops before a
+                single word of programming is delivered. No external voice — however calming — produces this response. This is the
+                mechanism that makes everything else possible.
+              </p>
+            </div>
+            <div className={s.voiceCard}>
+              <div className={s.voiceCardNum}>02</div>
+              <h3 className={s.voiceCardTitle}><em className={s.voiceCardTitleEm}>Delivers</em> — six layers, one architecture</h3>
+              <p className={s.voiceCardBody}>
+                With the subconscious fully open, all six layers work simultaneously. The story programs. The inflection makes it land. The
+                anchor trains the body. The beats sustain the state. Each layer serves a distinct neurological function. Together they create
+                conditions for genuine subconscious change.
+              </p>
+            </div>
+            <div className={s.voiceCard}>
+              <div className={s.voiceCardNum}>03</div>
+              <h3 className={s.voiceCardTitle}><em className={s.voiceCardTitleEm}>Seals</em> — identity closes the loop</h3>
+              <p className={s.voiceCardBody}>
+                The last input the subconscious receives before sleep is not a goal. It is a statement of identity. Spoken at the moment of
+                deepest receptivity — at the threshold of sleep — by the one voice it cannot argue with. The subconscious accepts it as
+                already true. That is where transformation begins.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* FEATURES / THE SCIENCE */}
+      <section className={s.section} id="features">
+        <div className={s.featuresWrap}>
+          <div className={s.fadeIn}>
+            <div className={s.sectionEyebrow}>What is inside every story</div>
+            <h2 className={s.sectionHeadline}>Six layers. One tool. Nothing like it.</h2>
+            <p className={s.sectionBody}>
+              What once took years of coaching and thousands of hours to develop — we can now build for you in minutes. Not because we
+              simplified the method. Because AI finally made the full method available to everyone. This is the tool. The practice is
+              showing up for it.
+            </p>
+          </div>
+          <div className={`${s.featureList} ${s.fadeIn} ${s.delay1}`}>
+            {[
+              { icon: <><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 3"/></>, name: "Theta state hypnotic induction", desc: "A guided sequence walks the brain to 4–8 Hz before the story and programming begin. The subconscious recognizes a trusted source and the critical filter drops — the door opens before a single goal is spoken." },
+              { icon: <><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49m-8.48-.01a6 6 0 0 1 0-8.49m11.31-2.82a10 10 0 0 1 0 14.14m-14.14 0a10 10 0 0 1 0-14.14"/></>, name: "AI-written personalized story", desc: "Not a template. A sensory-rich, emotionally vivid story built around your specific goals and proof actions — shaped by clinical NLP architecture, specific to you alone." },
+              { icon: <><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></>, name: "AI voice cloning with emotional inflection", desc: "Not a flat clone — an emotionally expressive recreation that rises, grounds, and lands with precision. The tone matches the moment. The subconscious receives something it recognizes as intimately its own." },
+              { icon: <><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></>, name: "NLP emotional anchoring", desc: "A physical cue woven into your story trains your body to access the emotional state of your desired future on demand. Used by elite performers and therapeutic practitioners worldwide." },
+              { icon: <><path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></>, name: "Identity-level affirmations", desc: "Not what you want — who you are. Statements of becoming, delivered at the moment of deepest receptivity. The voice that has always known what you are capable of, saying it directly to the part of you that listens." },
+              { icon: <><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></>, name: "Binaural theta audio layer", desc: "Theta-frequency binaural beats sustain the brain state from induction to close — deepening receptivity across every minute of your practice. The door stays open the whole time." },
+            ].map((f, i) => (
+              <div key={i} className={s.featureItem}>
+                <div className={s.featureIcon}>
+                  <svg viewBox="0 0 24 24">{f.icon}</svg>
+                </div>
+                <div>
+                  <div className={s.featureName}>{f.name}</div>
+                  <div className={s.featureDesc}>{f.desc}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* WHY IT WORKS */}
+      <div className={s.whyFull} id="why">
+        <div className={s.whyInner}>
+          <div className={s.fadeIn}>
+            <div className={s.sectionEyebrow}>Why it works</div>
+            <h2 className={s.sectionHeadline} style={{ maxWidth: 680 }}>
+              Three truths. Three completely different paths to the same conclusion.
+            </h2>
+            <p className={s.sectionBody}>
+              Modern neuroscience, quantum physics, and ancient wisdom each arrived here independently.
+              ManifestMyStory is built at that intersection.
+            </p>
+          </div>
+          <div className={`${s.whyCards} ${s.fadeIn} ${s.delay1}`}>
+            <div className={s.whyCard}>
+              <span className={s.whyTag}>Neuroscience</span>
+              <h3 className={s.whyTitle}>Neuroplasticity and subconscious reprogramming</h3>
+              <p className={s.whyBody}>
+                Your brain rewires itself through consistent, emotionally-charged repetition. The theta state before sleep is when this
+                process is most efficient. New neural pathways form that change how you filter and respond to every opportunity around you.
+              </p>
+              <Link href="/why-it-works#voice" className={s.whyLink}>Explore the method →</Link>
+            </div>
+            <div className={s.whyCard}>
+              <span className={s.whyTag}>Quantum Theory</span>
+              <h3 className={s.whyTitle}>The quantum field and energy alignment</h3>
+              <p className={s.whyBody}>
+                Your thoughts and emotions generate measurable electromagnetic fields. Quantum coherence research suggests that aligning your
+                internal state with your desired reality is not metaphor — it is mechanism. The observer shapes what is observed.
+              </p>
+              <Link href="/quantum" className={s.whyLink}>Explore the field →</Link>
+            </div>
+            <div className={s.whyCard}>
+              <span className={s.whyTag}>Ancient Wisdom</span>
+              <h3 className={s.whyTitle}>What every tradition already knew</h3>
+              <p className={s.whyBody}>
+                From Vedic meditation to Stoic visualization, from ancient Egypt to the monasteries of Tibet — every enduring wisdom
+                tradition built practices around the same truth. Your inner world shapes your outer world. Modern science is catching up.
+              </p>
+              <Link href="/why-it-works#why" className={s.whyLink}>Ancient meets modern →</Link>
+            </div>
+          </div>
+        </div>
+      </div>
+
+
+      {/* FOUNDER ORIGIN */}
+      <div className={s.originSection} id="story">
+        <div className={s.originInner}>
+          <div className={`${s.originHeader} ${s.fadeIn}`}>
+            <div className={s.sectionEyebrow}>Why this exists</div>
+            <h2 className={s.sectionHeadline} style={{ maxWidth: 760 }}>
+              I built this for myself and my team. Then I programmed a bigger purpose into it.
+            </h2>
+          </div>
+          <div className={`${s.originGrid} ${s.fadeIn} ${s.delay1}`}>
+            <div className={s.originCard}>
+              <span className={s.originNum}>The beginning</span>
+              <h3 className={s.originTitle}>Started with a notebook and a business goal</h3>
+              <p className={s.originBody}>
+                I started with a notebook, a voice recorder, and a business goal I had no idea how to reach.{" "}
+                <em className={s.originBodyEm}>Six years later I had hit every goal I programmed</em> — and built this platform so you
+                could start where I am now, not where I began.
+              </p>
+            </div>
+            <div className={s.originCard}>
+              <span className={s.originNum}>The refinement</span>
+              <h3 className={s.originTitle}>Continuously learned, refined, and made it more powerful</h3>
+              <p className={s.originBody}>
+                The timing is not always yours to control. Twice, the goal arrived a year late. I used to call that failure. Now I
+                understand it as the process completing on its own schedule — and I have{" "}
+                <em className={s.originBodyEm}>learned to program with that in mind.</em> The method grew more powerful every year.
+              </p>
+            </div>
+            <div className={s.originCard}>
+              <span className={s.originNum}>The expansion</span>
+              <h3 className={s.originTitle}>Then I programmed a bigger purpose into the practice itself</h3>
+              <p className={s.originBody}>
+                This year I programmed into my own story that I wanted to make a life-changing impact for 100,000 lives over the coming
+                years. <em className={s.originBodyEm}>The method I am asking you to trust is the same method I used to build this platform.</em>{" "}
+                I am a living demonstration of the practice. The tool works. The work is yours.
+              </p>
+            </div>
+          </div>
+          <div className={`${s.originMission} ${s.fadeIn} ${s.delay2}`}>
+            <div>
+              <span className={s.originMissionLabel}>The goal inside the practice</span>
+              <div className={s.originMissionNum}>
+                100,000<span className={s.originMissionNumSub}>lives transformed</span>
+              </div>
+            </div>
+            <div>
+              <p className={s.originMissionText}>
+                Bringing ManifestMyStory to the public is itself an act of manifestation in progress.{" "}
+                <em className={s.originMissionTextEm}>Your decision to sign up is part of something larger than a wellness app.</em>
+              </p>
+              <p className={s.originMissionSub}>
+                My philanthropy work — including sponsoring a water treatment plant currently serving 11,500 people in Tanzania — showed me
+                what becomes possible when you program a purpose-driven goal and commit to the practice. This platform is the next
+                expression of that same intention.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* INVITE */}
+      <div className={s.inviteSection} id="invite">
+        <div className={`${s.inviteInner} ${s.fadeIn}`}>
+          <div className={s.inviteEyebrow}>Your founding invitation</div>
+          <h2 className={s.inviteHeadline}>Your story is waiting.</h2>
+          <p className={s.inviteBody}>
+            We are opening ManifestMyStory to a <strong className={s.inviteBodyStrong}>founding group of 500 people only.</strong>{" "}
+            When those spots are claimed, this invitation closes permanently.
+          </p>
+          <p className={s.inviteBody} style={{ marginBottom: 16 }}>
+            This is not a waitlist. <strong className={s.inviteBodyStrong}>This is an invitation to be first.</strong>
+          </p>
+          <p className={s.inviteBody} style={{ fontSize: 14, marginBottom: 28 }}>
+            The tool does the building. The practice is showing up — listening consistently, taking the actions that surface, and doing the
+            inner work when your ego resists. Sometimes you will know exactly what the story is directing you toward and not want to do it.
+            That is where the real transformation happens.
+          </p>
+
+          <div className={s.earlyAccessBanner}>
+            <div className={s.earlyAccessHead}>What founding members receive</div>
+            <ul className={s.earlyAccessList}>
+              <li className={s.earlyAccessItem}>Early access to the platform before public launch</li>
+              <li className={s.earlyAccessItem}>First to experience the full product and shape its future</li>
+              <li className={s.earlyAccessItem}>50% off your subscription — locked in for life</li>
+              <li className={s.earlyAccessItem}>Direct line to the founding team during beta</li>
+            </ul>
+          </div>
+
+          <div className={s.inviteScarcity}>
+            <div className={s.inviteDot} />
+            <p className={s.inviteScarcityText}>
+              168 of 500 founding spots claimed <span className={s.inviteScarcitySpan}>— when filled, this closes permanently</span>
+            </p>
+          </div>
+
+          <WaitlistForm variant="invite" />
+          <p className={s.inviteMicro}>
+            <strong className={s.inviteMicroStrong}>Early access + 50% off for life, locked in.</strong> No credit card. No commitment. Just first.
+          </p>
+
+          <div className={s.betaDivider}>
+            <span className={s.betaDividerText}>Already have a beta access code?</span>
+          </div>
+          <div className={s.betaCodeRow}>
+            <input
+              className={s.betaCodeInput}
+              type="text"
+              placeholder="Enter your code"
+              value={betaCode}
+              onChange={(e) => {
+                setBetaCode(e.target.value);
+                setGateMsg(null);
+              }}
+              onKeyDown={(e) => e.key === "Enter" && checkCode()}
+            />
+            <button className={s.betaCodeBtn} onClick={checkCode}>
+              Access beta
+            </button>
+          </div>
+          {gateMsg === "success" && (
+            <p className={s.gateSuccess}>Access granted — taking you in now...</p>
+          )}
+          {gateMsg === "error" && (
+            <p className={s.gateError}>That code does not look right. Reach out if you need help.</p>
+          )}
+        </div>
+      </div>
+
+      {/* FOOTER */}
+      <footer className={s.footer}>
+        <div className={s.footerLogo}>Manifest My Story</div>
+        <p className={s.footerCopy}>Copyright © 2026 Manifest My Story. All rights reserved.</p>
+      </footer>
+    </>
   );
 }

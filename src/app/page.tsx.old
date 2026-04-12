@@ -1,0 +1,404 @@
+"use client";
+import React, { useState, useEffect, useRef } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
+import styles from "./styles/PreLaunch.module.css";
+
+/* ── SEED OF LIFE SVG ──────────────────────────────────────── */
+const SeedOfLifeGeo: React.FC<{ className?: string }> = ({ className }) => (
+  <svg
+    className={className}
+    viewBox="0 0 520 520"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    aria-hidden="true"
+  >
+    <circle cx="260" cy="260" r="245" stroke="#2A3D2F" strokeWidth="0.8" vectorEffect="non-scaling-stroke" />
+    <circle cx="260" cy="260" r="228" stroke="#1A2A1F" strokeWidth="0.5" vectorEffect="non-scaling-stroke" />
+    <circle cx="260" cy="167" r="167" stroke="#3D6B4A" strokeWidth="0.6" vectorEffect="non-scaling-stroke" />
+    <circle cx="260" cy="353" r="167" stroke="#3D6B4A" strokeWidth="0.6" vectorEffect="non-scaling-stroke" />
+    <circle cx="404.7" cy="218" r="167" stroke="#3D6B4A" strokeWidth="0.6" vectorEffect="non-scaling-stroke" />
+    <circle cx="115.3" cy="218" r="167" stroke="#3D6B4A" strokeWidth="0.6" vectorEffect="non-scaling-stroke" />
+    <circle cx="404.7" cy="302" r="167" stroke="#3D6B4A" strokeWidth="0.6" vectorEffect="non-scaling-stroke" />
+    <circle cx="115.3" cy="302" r="167" stroke="#3D6B4A" strokeWidth="0.6" vectorEffect="non-scaling-stroke" />
+    <circle cx="260" cy="260" r="167" stroke="#5A9968" strokeWidth="0.8" vectorEffect="non-scaling-stroke" />
+    <line x1="260" y1="298" x2="260" y2="240" stroke="#4A8038" strokeWidth="1.5" strokeLinecap="round" />
+    <path d="M260 268 Q242 258 236 242 Q248 242 257 254 Z" fill="#4A8038" />
+    <path d="M260 268 Q278 258 284 242 Q272 242 263 254 Z" fill="#6AAB54" />
+    <path d="M260 248 Q254 232 256 222 Q264 230 262 246 Z" fill="#8DBF7A" />
+  </svg>
+);
+
+/* ── DIVIDER ─────────────────────────────────────────────── */
+const Divider: React.FC = () => (
+  <div className={styles.dividerWrap}>
+    <div className={styles.dividerLine} />
+    <div className={styles.dividerMark}>
+      <svg width="30" height="30" viewBox="0 0 30 30" fill="none">
+        <circle cx="15" cy="15" r="13" stroke="#2A3D2F" strokeWidth="0.7" vectorEffect="non-scaling-stroke" />
+        <circle cx="15" cy="9.5" r="8.5" stroke="#3D6B4A" strokeWidth="0.6" vectorEffect="non-scaling-stroke" />
+        <circle cx="15" cy="20.5" r="8.5" stroke="#3D6B4A" strokeWidth="0.6" vectorEffect="non-scaling-stroke" />
+        <circle cx="22.4" cy="12.2" r="8.5" stroke="#3D6B4A" strokeWidth="0.6" vectorEffect="non-scaling-stroke" />
+        <circle cx="7.6" cy="12.2" r="8.5" stroke="#3D6B4A" strokeWidth="0.6" vectorEffect="non-scaling-stroke" />
+        <circle cx="22.4" cy="17.8" r="8.5" stroke="#3D6B4A" strokeWidth="0.6" vectorEffect="non-scaling-stroke" />
+        <circle cx="7.6" cy="17.8" r="8.5" stroke="#3D6B4A" strokeWidth="0.6" vectorEffect="non-scaling-stroke" />
+        <circle cx="15" cy="15" r="8.5" stroke="#5A9968" strokeWidth="0.7" vectorEffect="non-scaling-stroke" />
+      </svg>
+    </div>
+    <div className={styles.dividerLine} />
+  </div>
+);
+
+/* ── WAITLIST FORM (reusable) ─────────────────────────────── */
+const WaitlistForm: React.FC<{ compact?: boolean }> = ({ compact }) => {
+  const [firstName, setFirstName] = useState("");
+  const [email, setEmail] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!firstName.trim() || !email.includes("@")) return;
+
+    setIsLoading(true);
+    setError("");
+
+    try {
+      const res = await fetch("/api/waitlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ firstName: firstName.trim(), email: email.trim() }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        setError(data.error || "Something went wrong.");
+        setIsLoading(false);
+        return;
+      }
+
+      setSubmitted(true);
+    } catch {
+      setError("Something went wrong. Please try again.");
+      setIsLoading(false);
+    }
+  };
+
+  if (submitted) {
+    return (
+      <div className={styles.successMessage}>
+        <div className={styles.successIcon}>✓</div>
+        <h3 className={styles.successTitle}>You&rsquo;re in!</h3>
+        <p className={styles.successText}>
+          Check your inbox for your exclusive founding member discount.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <form className={styles.waitlistForm} onSubmit={handleSubmit}>
+      <div className={compact ? styles.inputGroup : styles.inputRow}>
+        <div className={styles.inputGroup}>
+          <label className={styles.inputLabel} htmlFor={compact ? "fn-footer" : "fn-main"}>
+            First Name
+          </label>
+          <input
+            id={compact ? "fn-footer" : "fn-main"}
+            type="text"
+            className={styles.input}
+            placeholder="E.g. Sarah"
+            value={firstName}
+            onChange={(e) => setFirstName(e.target.value)}
+            required
+          />
+        </div>
+        <div className={styles.inputGroup}>
+          <label className={styles.inputLabel} htmlFor={compact ? "em-footer" : "em-main"}>
+            Email Address
+          </label>
+          <input
+            id={compact ? "em-footer" : "em-main"}
+            type="email"
+            className={styles.input}
+            placeholder="you@example.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
+        </div>
+      </div>
+      {error && <p className={styles.formError}>{error}</p>}
+      <button
+        type="submit"
+        className={styles.waitlistBtn}
+        disabled={!firstName.trim() || !email.includes("@") || isLoading}
+      >
+        {isLoading ? <div className={styles.spinner} /> : "Join the Waitlist — Get 50% Off at Launch"}
+      </button>
+    </form>
+  );
+};
+
+/* ── HERO ─────────────────────────────────────────────────── */
+const Hero: React.FC = () => {
+  const geoRef = useRef<SVGSVGElement>(null);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      if (geoRef.current) {
+        const y = window.scrollY;
+        geoRef.current.style.transform = `translate(-50%, calc(-55% + ${y * 0.25}px))`;
+      }
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  return (
+    <section className={styles.hero}>
+      <svg
+        ref={geoRef}
+        className={styles.heroGeo}
+        viewBox="0 0 520 520"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        aria-hidden="true"
+      >
+        <circle cx="260" cy="260" r="245" stroke="#2A3D2F" strokeWidth="0.8" vectorEffect="non-scaling-stroke" />
+        <circle cx="260" cy="260" r="228" stroke="#1A2A1F" strokeWidth="0.5" vectorEffect="non-scaling-stroke" />
+        <circle cx="260" cy="167" r="167" stroke="#3D6B4A" strokeWidth="0.6" vectorEffect="non-scaling-stroke" />
+        <circle cx="260" cy="353" r="167" stroke="#3D6B4A" strokeWidth="0.6" vectorEffect="non-scaling-stroke" />
+        <circle cx="404.7" cy="218" r="167" stroke="#3D6B4A" strokeWidth="0.6" vectorEffect="non-scaling-stroke" />
+        <circle cx="115.3" cy="218" r="167" stroke="#3D6B4A" strokeWidth="0.6" vectorEffect="non-scaling-stroke" />
+        <circle cx="404.7" cy="302" r="167" stroke="#3D6B4A" strokeWidth="0.6" vectorEffect="non-scaling-stroke" />
+        <circle cx="115.3" cy="302" r="167" stroke="#3D6B4A" strokeWidth="0.6" vectorEffect="non-scaling-stroke" />
+        <circle cx="260" cy="260" r="167" stroke="#5A9968" strokeWidth="0.8" vectorEffect="non-scaling-stroke" />
+      </svg>
+
+      <div className={styles.heroInner}>
+        <p className={styles.heroEyebrow}>LAUNCHING SOON</p>
+        <div className={styles.heroBadge}>VOICE · AI · MANIFESTATION</div>
+
+        <h1 className={styles.heroTitle}>
+          Hear Your Future.{" "}
+          <span className={styles.heroTitleAccent}>In Your Own Voice.</span>
+        </h1>
+
+        <p className={styles.heroSub}>
+          AI-generated manifestation stories — written for your exact goals,
+          narrated in your cloned voice. Launching soon.
+        </p>
+
+        <div className={styles.heroActions}>
+          <a href="#waitlist" className={styles.btnPrimary}>
+            Join the Waitlist — Get 50% Off at Launch
+          </a>
+          <a href="#method" className={styles.btnGhost}>
+            Learn How It Works
+          </a>
+        </div>
+      </div>
+    </section>
+  );
+};
+
+/* ── TEASER CARDS ─────────────────────────────────────────── */
+const TeaserContent: React.FC = () => (
+  <section className={styles.teaserSection} id="method">
+    <div className="reveal">
+      <span className={styles.eyebrow}>THE METHOD BEHIND THE MAGIC</span>
+      <h2 className={styles.secTitle}>
+        Explore the science, the field, and the ancient traditions.
+      </h2>
+      <p className={styles.secSub}>
+        ManifestMyStory is built on the intersection of neuroscience, quantum physics, and timeless spiritual practices.
+      </p>
+    </div>
+
+    <div className={`${styles.teaserGrid} reveal`}>
+      <Link href="/science" className={styles.teaserCard}>
+        <div className={styles.teaserIcon}>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#5A9968" strokeWidth="1.5">
+            <circle cx="12" cy="12" r="10" />
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10" />
+            <path d="M8 12h8M12 8v8" strokeLinecap="round" />
+          </svg>
+        </div>
+        <h3 className={styles.teaserCardTitle}>The Science</h3>
+        <p className={styles.teaserCardDesc}>
+          Discover how NLP, neuroplasticity, and voice recognition work together to reprogram your subconscious mind.
+        </p>
+        <span className={styles.teaserCardLink}>Read More →</span>
+      </Link>
+
+      <Link href="/quantum" className={styles.teaserCard}>
+        <div className={styles.teaserIcon}>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#5A9968" strokeWidth="1.5">
+            <circle cx="12" cy="12" r="3" />
+            <ellipse cx="12" cy="12" rx="10" ry="4" />
+            <ellipse cx="12" cy="12" rx="10" ry="4" transform="rotate(60 12 12)" />
+            <ellipse cx="12" cy="12" rx="10" ry="4" transform="rotate(120 12 12)" />
+          </svg>
+        </div>
+        <h3 className={styles.teaserCardTitle}>The Quantum Field</h3>
+        <p className={styles.teaserCardDesc}>
+          Understand how observation shapes reality and how your focused intention collapses infinite possibility into form.
+        </p>
+        <span className={styles.teaserCardLink}>Read More →</span>
+      </Link>
+
+      <Link href="/mystical" className={styles.teaserCard}>
+        <div className={styles.teaserIcon}>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#5A9968" strokeWidth="1.5">
+            <path d="M12 2L2 7l10 5 10-5-10-5z" />
+            <path d="M2 17l10 5 10-5" />
+            <path d="M2 12l10 5 10-5" />
+          </svg>
+        </div>
+        <h3 className={styles.teaserCardTitle}>Ancient Wisdom &amp; Spirituality</h3>
+        <p className={styles.teaserCardDesc}>
+          Explore how manifestation principles appear across ancient traditions — from Hermeticism to Buddhist visualization.
+        </p>
+        <span className={styles.teaserCardLink}>Read More →</span>
+      </Link>
+    </div>
+  </section>
+);
+
+/* ── TRUST STRIP ─────────────────────────────────────────── */
+const TrustStrip: React.FC = () => (
+  <section className={styles.trustStrip}>
+    <span className={styles.trustTitle}>Built On</span>
+    <div className={styles.trustBadges}>
+      <div className={styles.trustBadge}>
+        <div className={styles.trustIcon}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <circle cx="12" cy="12" r="10" />
+            <path d="M8 12h8M12 8v8" strokeLinecap="round" />
+          </svg>
+        </div>
+        <span className={styles.trustLabel}>NLP &amp; Neuroscience</span>
+      </div>
+      <div className={styles.trustBadge}>
+        <div className={styles.trustIcon}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+          </svg>
+        </div>
+        <span className={styles.trustLabel}>Neuroplasticity</span>
+      </div>
+      <div className={styles.trustBadge}>
+        <div className={styles.trustIcon}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z" />
+            <path d="M19 10v2a7 7 0 01-14 0v-2" />
+            <line x1="12" y1="19" x2="12" y2="23" />
+            <line x1="8" y1="23" x2="16" y2="23" />
+          </svg>
+        </div>
+        <span className={styles.trustLabel}>Voice AI</span>
+      </div>
+    </div>
+  </section>
+);
+
+/* ── FOOTER ───────────────────────────────────────────────── */
+const Footer: React.FC = () => (
+  <footer className={styles.footer}>
+    <div className={styles.waitlistCard} id="waitlist-footer">
+      <h3 className={styles.waitlistTitle}>Be the first to know.</h3>
+      <p className={styles.waitlistSub}>50% off for founding members.</p>
+      <WaitlistForm compact />
+    </div>
+
+    <span className={styles.footLogo}>
+      MANIFEST<span>MY</span>STORY
+    </span>
+    <div className={styles.footLinks}>
+      <Link href="/science">THE SCIENCE</Link>
+      <Link href="/quantum">THE QUANTUM FIELD</Link>
+      <Link href="/mystical">ANCIENT WISDOM</Link>
+      <Link href="/auth/signin">SIGN IN</Link>
+    </div>
+    <span className={styles.footCopy}>
+      © 2026 ManifestMyStory. Your future is already speaking.
+    </span>
+  </footer>
+);
+
+/* ── SCROLL REVEAL ────────────────────────────────────────── */
+const useScrollReveal = () => {
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("visible");
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.12 }
+    );
+    document.querySelectorAll(".reveal").forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+  }, []);
+};
+
+/* ── MAIN PRE-LAUNCH PAGE ─────────────────────────────────── */
+export default function Home() {
+  useScrollReveal();
+  const router = useRouter();
+  const { data: session } = useSession();
+
+  // If already logged in, redirect to dashboard
+  useEffect(() => {
+    if (session?.user) {
+      if (session.user.role === "ADMIN") {
+        router.push("/admin");
+      } else {
+        router.push("/user/dashboard");
+      }
+    }
+  }, [session, router]);
+
+  return (
+    <div className={styles.container}>
+      {/* Topbar */}
+      <header className={styles.topbar}>
+        <div className={styles.logo}>
+          Manifest<span>My</span>Story
+        </div>
+        <div className={styles.topbarRight}>
+          <Link href="/auth/signin" className={styles.topbarLink}>
+            Sign In
+          </Link>
+        </div>
+      </header>
+
+      <Hero />
+      <Divider />
+
+      {/* Primary Waitlist Section */}
+      <section className={styles.waitlistSection} id="waitlist">
+        <div className={`${styles.waitlistCard} reveal`}>
+          <h2 className={styles.waitlistTitle}>Join the Founding Members</h2>
+          <p className={styles.waitlistSub}>
+            Be the first to experience ManifestMyStory and lock in 50% off at launch.
+          </p>
+          <WaitlistForm />
+        </div>
+      </section>
+
+      <Divider />
+      <TeaserContent />
+      <Divider />
+      <TrustStrip />
+      <Footer />
+    </div>
+  );
+}

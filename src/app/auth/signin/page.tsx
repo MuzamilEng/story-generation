@@ -211,7 +211,7 @@ const SignIn: React.FC = () => {
           Manifest<span>MyStory</span>
         </Link>
         <div className={styles.topbarRight}>
-          New here? <Link href={`/auth/signup?next=${encodeURIComponent(nextUrl)}`}>Create a free account</Link>
+          New here? <Link href="/beta">Create a free account</Link>
         </div>
       </header>
 
@@ -341,7 +341,7 @@ const SignIn: React.FC = () => {
               </button>
 
               <p className={styles.signupNote}>
-                Don't have an account? <Link href={`/auth/signup?next=${encodeURIComponent(nextUrl)}`}>Create one free</Link>
+                Don't have an account? <Link href="/beta">Create one free</Link>
               </p>
 
               <div className={styles.securityRow}>

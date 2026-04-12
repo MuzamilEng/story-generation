@@ -49,7 +49,11 @@ export async function proxy(request: NextRequest) {
         '/privacy',
         '/terms',
         '/pricing',
-        '/unauthorized'
+        '/unauthorized',
+        '/beta',
+        '/science',
+        '/quantum',
+        '/mystical',
     ]
     const isPublicPath = publicPaths.includes(pathname)
 
@@ -64,7 +68,7 @@ export async function proxy(request: NextRequest) {
         '/user/account-setting',
         '/user/manage-subscription',
         '/user/story',
-
+        '/feedback',
     ]
 
     // Check if the current pathname is one of the user app pages or starts with /user/
@@ -92,7 +96,17 @@ export async function proxy(request: NextRequest) {
         return NextResponse.next();
     }
 
-    // 5. Handle Unauthenticated Users
+    // 5. PRE-LAUNCH GATE: Signup requires a beta code
+    if (pathname === '/auth/signup') {
+        const betaCode = request.nextUrl.searchParams.get('betaCode') || request.nextUrl.searchParams.get('code')
+        if (!betaCode) {
+            console.log('[REDIRECT] Signup without beta code → /beta')
+            return NextResponse.redirect(new URL('/beta', request.url))
+        }
+        return NextResponse.next()
+    }
+
+    // 6. Handle Unauthenticated Users
     // If user is trying to access a protected user page and is not logged in
     if (isProtectedUserPage) {
         console.log('[REDIRECT] Protected user page (%s) without auth → /auth/signin', pathname)

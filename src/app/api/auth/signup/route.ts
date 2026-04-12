@@ -14,15 +14,21 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Optional: Validate beta code early if provided
+    // Beta code is REQUIRED for signup during pre-launch
+    if (!betaCode) {
+      return NextResponse.json(
+        { error: "A beta access code is required to create an account." },
+        { status: 400 }
+      )
+    }
+
+    // Validate beta code
     let validBetaCode: any = null;
-    if (betaCode) {
-      validBetaCode = await prisma.betaCode.findUnique({
-        where: { code: betaCode.toUpperCase() }
-      });
-      if (!validBetaCode || !validBetaCode.isActive || validBetaCode.current_uses >= validBetaCode.max_uses) {
-        return NextResponse.json({ error: "Invalid or expired beta code." }, { status: 400 });
-      }
+    validBetaCode = await prisma.betaCode.findUnique({
+      where: { code: betaCode.toUpperCase() }
+    });
+    if (!validBetaCode || !validBetaCode.isActive || validBetaCode.current_uses >= validBetaCode.max_uses) {
+      return NextResponse.json({ error: "Invalid or expired beta code." }, { status: 400 });
     }
 
     // Check if user already exists
@@ -40,42 +46,36 @@ export async function POST(request: NextRequest) {
     // Hash password
     const hashedPassword = await hash(password, 12)
 
-    // Create user and link beta code if valid
+    // Create user and link beta code
     const user = await prisma.$transaction(async (tx) => {
+      const twoMonthsFromNow = new Date();
+      twoMonthsFromNow.setMonth(twoMonthsFromNow.getMonth() + 2);
+      const betaPlan = betaTypeToPlan(validBetaCode.type);
+
       const newUser = await tx.user.create({
         data: {
           name: name,
           email,
           password_hash: hashedPassword,
           role: (role === "ADMIN" ? "ADMIN" : "USER") as any,
+          is_beta: true,
+          beta_source: betaCode.toUpperCase(),
+          plan: betaPlan,
         }
       });
 
-      if (validBetaCode) {
-        const twoMonthsFromNow = new Date();
-        twoMonthsFromNow.setMonth(twoMonthsFromNow.getMonth() + 2);
+      await tx.userBetaCode.create({
+        data: {
+          userId: newUser.id,
+          codeId: validBetaCode.id,
+          expiresAt: twoMonthsFromNow
+        }
+      });
 
-        // Derive plan from beta code type (e.g. "manifester_2_months" → manifester)
-        const betaPlan = betaTypeToPlan(validBetaCode.type);
-
-        await tx.user.update({
-          where: { id: newUser.id },
-          data: { plan: betaPlan }
-        });
-
-        await tx.userBetaCode.create({
-          data: {
-            userId: newUser.id,
-            codeId: validBetaCode.id,
-            expiresAt: twoMonthsFromNow
-          }
-        });
-
-        await tx.betaCode.update({
-          where: { id: validBetaCode.id },
-          data: { current_uses: { increment: 1 } }
-        });
-      }
+      await tx.betaCode.update({
+        where: { id: validBetaCode.id },
+        data: { current_uses: { increment: 1 } }
+      });
 
       return newUser;
     });

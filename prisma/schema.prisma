@@ -70,6 +70,9 @@ model User {
   stripeCancelAtPeriodEnd Boolean        @default(false) @map("stripe_cancel_at_period_end")
   binaural_enabled        Boolean        @default(false) @map("binaural_enabled")
   soundscape              String         @default("none") @map("soundscape")
+  is_beta                 Boolean        @default(false) @map("is_beta")
+  beta_source             String?        @map("beta_source")
+  has_completed_survey    Boolean        @default(false) @map("has_completed_survey")
   accounts                Account[]
   voiceSamples            VoiceSample[]
 
@@ -77,6 +80,7 @@ model User {
   playEvents              PlayEvent[]
   stories                 Story[]
   betaCodes               UserBetaCode[]
+  betaFeedback            BetaFeedback?
 
   @@index([email])
   @@map("users")
@@ -222,6 +226,25 @@ model UserBetaCode {
   @@index([userId])
   @@index([codeId])
   @@map("user_beta_codes")
+}
+
+model WaitlistEntry {
+  id        String   @id @default(cuid())
+  firstName String   @map("first_name")
+  email     String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("waitlist_entries")
+}
+
+model BetaFeedback {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  responses Json     @map("responses")
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("beta_feedback")
 }
 
 model SystemAudio {

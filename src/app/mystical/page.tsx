@@ -258,13 +258,53 @@ export default function MysticalPage() {
         </div>
       </section>
 
+      {/* SECTION — THE VOICE AS THE INSTRUMENT */}
+      <section className={styles.pageSection}>
+        <div className={`${styles.inner} ${styles.reveal}`}>
+          <span className={styles.sectionLabel}>The Primordial Technology</span>
+          <h2 className={styles.sectionH2}>The Voice Was Always <span className={styles.accent}>the Instrument.</span></h2>
+          <p className={styles.sectionBody}>Every tradition that endured — across five thousand years and every inhabited continent — built its most powerful practices around the same instrument. Not a written text. Not a symbol. Not a gesture. A voice. Specifically, the practitioner&apos;s own voice, spoken or chanted in the first person, declaring a desired reality as already present.</p>
+          
+          <div className={styles.stepsList}>
+            <div className={styles.stepItem}>
+              <span className={styles.stepNumLg}>01</span>
+              <div>
+                <h3 className={styles.stepContentTitle}>Vedic <span className={styles.accent}>Tradition</span></h3>
+                <p className={styles.stepContentBody}>The Sanskrit word &quot;mantra&quot; translates literally as &quot;instrument of the mind.&quot; Vedic mantras were not meant to be read silently or heard from a teacher. They were meant to be spoken — by the practitioner, in their own voice, repeatedly, until the vibration of the words rewired the speaker&apos;s inner state. The mantra was the programming. The voice was the delivery mechanism.</p>
+              </div>
+            </div>
+            <div className={styles.stepItem}>
+              <span className={styles.stepNumLg}>02</span>
+              <div>
+                <h3 className={styles.stepContentTitle}>Egyptian <span className={styles.accent}>Sacred Speech</span></h3>
+                <p className={styles.stepContentBody}>In ancient Egypt, the concept of &quot;Heka&quot; — sacred speech — was considered the most powerful force in creation. The Egyptians believed that to name something in the first person, with intention and repetition, was to call it into physical existence. Priests and initiates did not pray to a god to create on their behalf. They spoke the desired reality into being themselves, in their own voice, as if it were already true.</p>
+              </div>
+            </div>
+            <div className={styles.stepItem}>
+              <span className={styles.stepNumLg}>03</span>
+              <div>
+                <h3 className={styles.stepContentTitle}>Tibetan and <span className={styles.accent}>Buddhist Practice</span></h3>
+                <p className={styles.stepContentBody}>Tibetan Buddhism developed some of the most sophisticated voice-based practices in human history. Visualization combined with chanted intention — in the practitioner&apos;s own voice — was understood to create resonance between the inner image and the outer world. The practice was not passive. It was precise, repeated, and deeply personal. The voice was the bridge between what was imagined and what became manifest.</p>
+              </div>
+            </div>
+          </div>
+
+          <div className={styles.mechanismCardFull}>
+            <h3 className={styles.newTitle}>The pattern across all <span className={styles.accent}>traditions.</span></h3>
+            <p className={styles.newBody}>In every case, across every culture, the pattern is the same. The practitioner uses their own voice. They speak in the first person. They declare the desired reality as already present. They repeat the practice at consistent intervals — often at the transition points between sleep and waking. And they report that over time, what they declared began to appear.</p>
+            <p className={styles.newBody}>The ancients did not have neuroscience to explain why this worked. They had something more reliable: thousands of years of direct observation of what happened when people did it consistently. ManifestMyStory is the modern expression of that ancient knowing — with six precisely engineered layers that explain exactly why the voice was always the instrument, and exactly how to use it at maximum power.</p>
+          </div>
+        </div>
+      </section>
+
       {/* CONVERGENCE */}
       <section className={styles.pageSection} style={{ borderTop: 'none' }}>
         <div className={`${styles.inner} ${styles.reveal}`}>
           <div className={styles.convergence}>
             <span className={styles.convergenceLabel}>THE INTERSECTION OF ALL PATHS</span>
             <h2 className={styles.convergenceH}>Whether you come through science,<br />tradition, or the quantum field —<br />the destination is <span className={styles.accent}>the same.</span></h2>
-            <p className={styles.convergenceBody}>ManifestMyStory is the bridge between these worlds. Ancient intention. Modern precision. Your voice. Wherever you begin, the practice leads to the same place — the life you are building, heard every day in the voice you already trust completely.</p>
+            <p className={styles.convergenceBody}>ManifestMyStory is the bridge between these worlds. Ancient intention. Modern precision. Your voice. Wherever you begin, the practice leads to the same place — delivered to you across six precisely engineered layers, in the only voice your subconscious accepts without resistance.</p>
+            <p className={styles.convergenceBody}>What every tradition practiced intuitively, ManifestMyStory delivers with precision. The induction that opens the theta window. The story that programs it. The emotional inflection that makes the programming land at depth. The NLP anchor that trains the body to hold it. The binaural beats that sustain the state. The identity affirmations that close the session with a declaration the subconscious cannot argue with. Six layers. Five thousand years of wisdom behind them. The voice that has always known what you are capable of — now delivering it with the precision the ancients could only approximate.</p>
             <div className={styles.threePaths}>
               <Link href="/science" className={styles.pathCard}>
                 <span className={styles.pathIcon}>THE SCIENCE</span>

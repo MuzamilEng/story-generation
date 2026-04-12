@@ -1,0 +1,438 @@
+/* ═══════════════════════════════════════════════════════════
+   FEEDBACK SURVEY
+   ═══════════════════════════════════════════════════════════ */
+
+.container {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px 20px 80px;
+}
+
+/* ── Top Bar ── */
+.topBar {
+  width: 100%;
+  max-width: 640px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.backToApp {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--muted);
+  text-decoration: none;
+  padding: 8px 16px;
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  transition: all 0.3s ease;
+  background: transparent;
+}
+
+.backToApp:hover {
+  color: var(--accent);
+  border-color: var(--green2);
+}
+
+.backToApp svg {
+  width: 16px;
+  height: 16px;
+}
+
+.stepCounter {
+  font-family: var(--sans);
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: var(--dim);
+}
+
+.progressBar {
+  width: 100%;
+  max-width: 640px;
+  height: 3px;
+  background: var(--border1);
+  border-radius: 2px;
+  margin-bottom: 24px;
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--green1), var(--accent));
+  border-radius: 2px;
+  transition: width 0.4s ease;
+}
+
+.card {
+  max-width: 640px;
+  width: 100%;
+  background: rgba(12, 15, 13, 0.85);
+  border: 1px solid var(--border2);
+  border-radius: 16px;
+  padding: 48px 40px;
+  position: relative;
+  z-index: 1;
+}
+
+.logo {
+  font-family: var(--sans);
+  font-size: 11px;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  color: var(--muted);
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.logo span {
+  color: var(--accent);
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+.title {
+  font-family: var(--serif);
+  font-size: 28px;
+  font-weight: 300;
+  color: var(--text);
+  margin-bottom: 12px;
+}
+
+.intro {
+  font-family: var(--sans);
+  font-size: 14px;
+  color: var(--muted);
+  line-height: 1.7;
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+/* ── Step Navigation ── */
+.stepNav {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-bottom: 40px;
+}
+
+.stepDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border2);
+  transition: all 0.3s ease;
+  cursor: pointer;
+  border: none;
+  padding: 0;
+}
+
+.stepDot.active {
+  background: var(--accent);
+  width: 24px;
+  border-radius: 4px;
+}
+
+.stepDot.completed {
+  background: var(--green2);
+}
+
+/* ── Section ── */
+.section {
+  margin-bottom: 8px;
+}
+
+.sectionTitle {
+  font-family: var(--sans);
+  font-size: 10px;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  color: var(--green2);
+  margin-bottom: 24px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border1);
+}
+
+/* ── Question ── */
+.question {
+  margin-bottom: 28px;
+}
+
+.questionLabel {
+  font-family: var(--sans);
+  font-size: 14px;
+  color: var(--text);
+  margin-bottom: 12px;
+  line-height: 1.6;
+}
+
+/* ── Scale Input ── */
+.scaleGroup {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.scaleBtn {
+  flex: 1;
+  padding: 10px 0;
+  background: rgba(26, 42, 31, 0.4);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  color: var(--muted);
+  font-family: var(--sans);
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.scaleBtn:hover {
+  border-color: var(--green2);
+  color: var(--text);
+}
+
+.scaleBtn.selected {
+  background: var(--green1);
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.scaleLabels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+}
+
+.scaleLabel {
+  font-family: var(--sans);
+  font-size: 10px;
+  color: var(--dim);
+  letter-spacing: 0.5px;
+}
+
+/* ── Radio / Choice ── */
+.choiceGroup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.choiceBtn {
+  padding: 8px 16px;
+  background: rgba(26, 42, 31, 0.4);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  color: var(--muted);
+  font-family: var(--sans);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.choiceBtn:hover {
+  border-color: var(--green2);
+  color: var(--text);
+}
+
+.choiceBtn.selected {
+  background: var(--green1);
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+/* ── Text Input ── */
+.textInput {
+  width: 100%;
+  min-height: 80px;
+  background: rgba(26, 42, 31, 0.4);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-family: var(--sans);
+  font-size: 14px;
+  color: var(--text);
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.3s ease;
+  line-height: 1.6;
+}
+
+.textInput:focus {
+  border-color: var(--accent);
+}
+
+.textInput::placeholder {
+  color: var(--dim);
+}
+
+/* ── NPS Scale ── */
+.npsGroup {
+  display: grid;
+  grid-template-columns: repeat(11, 1fr);
+  gap: 4px;
+}
+
+.npsBtn {
+  padding: 10px 0;
+  background: rgba(26, 42, 31, 0.4);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  color: var(--muted);
+  font-family: var(--sans);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.npsBtn:hover {
+  border-color: var(--green2);
+}
+
+.npsBtn.selected {
+  background: var(--green1);
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+/* ── Navigation Buttons ── */
+.navButtons {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 36px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border1);
+}
+
+.backBtn {
+  padding: 12px 24px;
+  background: transparent;
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  color: var(--muted);
+  font-family: var(--sans);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.backBtn:hover {
+  border-color: var(--green2);
+  color: var(--text);
+}
+
+.nextBtn {
+  padding: 12px 32px;
+  background: linear-gradient(135deg, var(--green1), var(--green2));
+  border: none;
+  border-radius: 8px;
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.nextBtn:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.nextBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ── Thank You ── */
+.thankYou {
+  text-align: center;
+  padding: 40px 0;
+}
+
+.thankYouIcon {
+  font-size: 60px;
+  margin-bottom: 20px;
+}
+
+.thankYouTitle {
+  font-family: var(--serif);
+  font-size: 32px;
+  font-weight: 300;
+  color: var(--accent);
+  margin-bottom: 12px;
+}
+
+.thankYouText {
+  font-family: var(--sans);
+  font-size: 15px;
+  color: var(--muted);
+  line-height: 1.7;
+  max-width: 400px;
+  margin: 0 auto 28px;
+}
+
+.dashboardLink {
+  display: inline-block;
+  padding: 12px 32px;
+  background: linear-gradient(135deg, var(--green1), var(--green2));
+  border: none;
+  border-radius: 8px;
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  text-decoration: none;
+  transition: all 0.3s ease;
+}
+
+.dashboardLink:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+/* ── Spinner ── */
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: var(--text);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  margin: 0 auto;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Responsive ── */
+@media (max-width: 640px) {
+  .card {
+    padding: 32px 20px;
+  }
+
+  .scaleGroup {
+    flex-wrap: wrap;
+  }
+
+  .scaleBtn {
+    min-width: 40px;
+  }
+
+  .npsGroup {
+    grid-template-columns: repeat(6, 1fr);
+  }
+}
