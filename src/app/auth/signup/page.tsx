@@ -75,20 +75,6 @@ const ArrowIcon = () => (
   </svg>
 );
 
-interface StepItemProps {
-  number: number;
-  label: string;
-  status: "done" | "active" | "pending";
-}
-
-const StepItem: React.FC<StepItemProps> = ({ number, label, status }) => (
-  <div className={`${styles.stepItem} ${styles[status]}`}>
-    <div className={styles.stepNum}>
-      {status === "done" ? <CheckIcon /> : number}
-    </div>
-    {label}
-  </div>
-);
 
 const CreateAccountForm: React.FC = () => {
   const router = useRouter();
@@ -293,16 +279,6 @@ const CreateAccountForm: React.FC = () => {
         </div>
       </div>
 
-      <div className={styles.stepsBar}>
-        <div className={styles.stepsRow}>
-          <StepItem number={1} label="Your Goals" status="done" />
-          <StepItem number={2} label="Your Story" status="done" />
-          <StepItem number={3} label="Free Sample" status="done" />
-          <StepItem number={4} label="Create Account" status="active" />
-          <StepItem number={5} label="Choose Plan" status="pending" />
-          <StepItem number={6} label="Full Audio" status="pending" />
-        </div>
-      </div>
 
       <div className={styles.page}>
         {/* LEFT PREVIEW */}

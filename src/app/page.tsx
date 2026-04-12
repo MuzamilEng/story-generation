@@ -114,6 +114,7 @@ export default function Home() {
   const scarcityRef = useRef<HTMLDivElement>(null);
   const [betaCode, setBetaCode] = useState("");
   const [gateMsg, setGateMsg] = useState<"success" | "error" | null>(null);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   // Redirect logged-in users
   useEffect(() => {
@@ -157,13 +158,18 @@ export default function Home() {
     }
   }, [betaCode, router]);
 
-  const tabLink = (href: string, label: string) => {
+  const tabLink = (href: string, label: string, isMobile = false) => {
     const id = href.replace("#", "");
+    const active = activeSection === id;
+    const baseClass = isMobile ? s.mobileNavTabLink : s.navTabLink;
+    const activeClass = isMobile ? s.mobileNavTabLinkActive : s.navTabLinkActive;
+
     return (
       <li key={id}>
         <a
           href={href}
-          className={`${s.navTabLink} ${activeSection === id ? s.navTabLinkActive : ""}`}
+          className={`${baseClass} ${active ? activeClass : ""}`}
+          onClick={() => isMobile && setIsMenuOpen(false)}
         >
           {label}
         </a>
@@ -189,7 +195,47 @@ export default function Home() {
           <Link href="/auth/signin" className={s.navSignIn}>Sign In</Link>
           <a href="#invite" className={s.navInvite}>Request invitation</a>
         </div>
+
+        {/* Hamburger */}
+        <button 
+          className={s.navMobileBtn} 
+          onClick={() => setIsMenuOpen(!isMenuOpen)}
+          aria-label="Toggle menu"
+        >
+          {isMenuOpen ? (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          ) : (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+          )}
+        </button>
       </nav>
+
+      {/* MOBILE SIDEBAR */}
+      <div 
+        className={`${s.mobileMenuOverlay} ${isMenuOpen ? s.mobileMenuOverlayOpen : ""}`} 
+        onClick={() => setIsMenuOpen(false)}
+      />
+      <div className={`${s.mobileMenu} ${isMenuOpen ? s.mobileMenuOpen : ""}`}>
+        <ul className={s.mobileNavTabs}>
+          {tabLink("#how", "How it works", true)}
+          {tabLink("#voice", "The voice", true)}
+          {tabLink("#features", "The science", true)}
+          <li>
+            <Link 
+              href="/why-it-works" 
+              className={s.mobileNavTabLink} 
+              onClick={() => setIsMenuOpen(false)}
+            >
+              Why it works
+            </Link>
+          </li>
+          {tabLink("#story", "Our story", true)}
+        </ul>
+        <div className={s.mobileNavRight}>
+          <Link href="/auth/signin" className={s.mobileNavSignIn} onClick={() => setIsMenuOpen(false)}>Sign In</Link>
+          <a href="#invite" className={s.mobileNavInvite} onClick={() => setIsMenuOpen(false)}>Request invitation</a>
+        </div>
+      </div>
 
       {/* HERO */}
       <div className={s.hero}>

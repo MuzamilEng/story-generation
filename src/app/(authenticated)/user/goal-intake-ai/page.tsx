@@ -366,24 +366,6 @@ const CompletionCard: React.FC<CompletionCardProps> = ({
   const [editValue, setEditValue] = useState("");
 
   const handleClick = () => {
-    if (!isReadyToGenerate) {
-      // Show feedback instead of silent disable
-      const norm = normalizeGoals(capturedGoals);
-      const missing = [];
-      if (!norm.actionsAfter) missing.push("Proof Actions");
-      if (!norm.coreFeeling) missing.push("Core Feeling");
-      if (!norm.timeframe) missing.push("Timeframe");
-      if (!norm.identityStatements || norm.identityStatements.length === 0)
-        missing.push("Identity Statements");
-
-      if (missing.length > 0) {
-        // If key things are missing, let the user know
-        alert(
-          `Before we generate, please make sure these are filled in: ${missing.join(", ")}. You can edit them above or tell Maya more.`,
-        );
-        return;
-      }
-    }
     setGenerating(true);
     onGenerate("long");
   };
@@ -643,9 +625,7 @@ const CompletionCard: React.FC<CompletionCardProps> = ({
             </>
           ) : (
             <>
-              {isReadyToGenerate
-                ? "Confirm & Generate My Story"
-                : "Complete Vision to Generate"}
+              Confirm & Generate My Story
               <ArrowIcon />
             </>
           )}
@@ -1777,63 +1757,8 @@ const GoalDiscovery: React.FC = () => {
               onClick={() => {
                 setIsComplete(true);
               }}
-              disabled={(() => {
-                const norm = normalizeGoals(capturedGoals);
-                const hasAllAreas =
-                  Array.isArray(norm.selectedAreas) &&
-                  norm.selectedAreas.length > 0;
-                const hasProofActions = !!(
-                  norm.actionsAfter &&
-                  String(norm.actionsAfter).trim().length > 10
-                );
-                const hasTone = !!(
-                  norm.tone && String(norm.tone).trim().length > 0
-                );
-                const hasSetting = !!(
-                  norm.location && String(norm.location).trim().length > 0
-                );
-                const hasCoreFeeling = !!(
-                  norm.coreFeeling && String(norm.coreFeeling).trim().length > 0
-                );
-                const hasIdentity = !!(
-                  norm.identityStatements && norm.identityStatements.length > 0
-                );
-                const hasTimeframe = !!(
-                  norm.timeframe && String(norm.timeframe).trim().length > 0
-                );
-                return !(
-                  hasAllAreas &&
-                  hasProofActions &&
-                  hasTone &&
-                  hasSetting &&
-                  hasCoreFeeling &&
-                  hasIdentity &&
-                  hasTimeframe
-                );
-              })()}
-              title={(() => {
-                const norm = normalizeGoals(capturedGoals);
-                const missing = [];
-                if (!norm.selectedAreas || norm.selectedAreas.length === 0)
-                  missing.push("Life Areas");
-                if (
-                  !norm.actionsAfter ||
-                  String(norm.actionsAfter).trim().length <= 10
-                )
-                  missing.push("Proof Actions");
-                if (!norm.tone) missing.push("Tone");
-                if (!norm.location) missing.push("Setting");
-                if (!norm.coreFeeling) missing.push("Core Feeling");
-                if (
-                  !norm.identityStatements ||
-                  norm.identityStatements.length === 0
-                )
-                  missing.push("Identity Statements");
-                if (!norm.timeframe) missing.push("Timeframe");
-                return missing.length > 0
-                  ? `Still needed: ${missing.join(", ")}`
-                  : "Click here whenever you feel ready to see your story";
-              })()}
+              disabled={false}
+              title="Click here whenever you feel ready to see your story"
             >
               <span>Ready to see your story?</span>
               <strong>Finish & Generate →</strong>

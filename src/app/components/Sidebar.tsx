@@ -65,13 +65,6 @@ const FlaskIcon = () => (
   </svg>
 );
 
-const FeedbackIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
-    <line x1="9" y1="9" x2="15" y2="9" />
-    <line x1="9" y1="13" x2="13" y2="13" />
-  </svg>
-);
 
 const LogoutIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -217,16 +210,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isLandingPage = false }) => {
           label: "Voice Recording",
           icon: <MicIcon />,
         },
-        {
-          href: "/user/audio-download",
-          label: "Audio Download",
-          icon: <DownloadIcon />,
-        },
-        {
-          href: "/feedback",
-          label: "Give Feedback",
-          icon: <FeedbackIcon />,
-        },
+        { href: "/user/audio-download", label: "Audio Download", icon: <DownloadIcon /> },
       ];
 
   const exploreNav = isLandingPage

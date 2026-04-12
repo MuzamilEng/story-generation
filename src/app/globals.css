@@ -29,6 +29,10 @@
   --border-accent: rgba(141, 191, 122, 0.25);
   --accent-deep:   var(--green1);
   --accent-glow:   rgba(141, 191, 122, 0.15);
+  --accent-light:  rgba(141, 191, 122, 0.1);
+  --accent-mid:    rgba(141, 191, 122, 0.4);
+  --gold-bg:       rgba(201, 168, 76, 0.08);
+  --gold-border:   rgba(201, 168, 76, 0.2);
   --surface-raised: var(--surface);
 
   /* Typography */

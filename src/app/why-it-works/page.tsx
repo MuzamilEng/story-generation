@@ -24,6 +24,35 @@ function useLocalScrollReveal() {
 
 export default function WhyItWorks() {
   useLocalScrollReveal();
+  const [isMenuOpen, setIsMenuOpen] = React.useState(false);
+
+  const tabLink = (href: string, label: string, isMobile = false) => {
+    const isCurrent = label === "Why it works";
+    const baseClass = isMobile ? splash.mobileNavTabLink : splash.navTabLink;
+    const activeClass = isMobile ? splash.mobileNavTabLinkActive : splash.navTabLinkActive;
+
+    return (
+      <li key={label}>
+        {href.startsWith("/") ? (
+          <Link 
+            href={href} 
+            className={`${baseClass} ${isCurrent ? activeClass : ""}`}
+            onClick={() => isMobile && setIsMenuOpen(false)}
+          >
+            {label}
+          </Link>
+        ) : (
+          <a 
+            href={href} 
+            className={`${baseClass} ${isCurrent ? activeClass : ""}`}
+            onClick={() => isMobile && setIsMenuOpen(false)}
+          >
+            {label}
+          </a>
+        )}
+      </li>
+    );
+  };
 
   return (
     <div className={s.container}>
@@ -31,21 +60,49 @@ export default function WhyItWorks() {
       <nav className={splash.nav}>
         <Link href="/" className={splash.navLogo}>Manifest My Story</Link>
         <ul className={splash.navTabs}>
-          <li><Link href="/#how" className={splash.navTabLink}>How it works</Link></li>
-          <li><Link href="/#voice" className={splash.navTabLink}>The voice</Link></li>
-          <li><Link href="/#features" className={splash.navTabLink}>The science</Link></li>
-          <li>
-            <Link href="/why-it-works" className={`${splash.navTabLink} ${splash.navTabLinkActive}`}>
-              Why it works
-            </Link>
-          </li>
-          <li><Link href="/#story" className={splash.navTabLink}>Our story</Link></li>
+          {tabLink("/#how", "How it works")}
+          {tabLink("/#voice", "The voice")}
+          {tabLink("/#features", "The science")}
+          {tabLink("/why-it-works", "Why it works")}
+          {tabLink("/#story", "Our story")}
         </ul>
         <div className={splash.navRight}>
           <Link href="/auth/signin" className={splash.navSignIn}>Sign In</Link>
           <Link href="/#invite" className={splash.navInvite}>Request invitation</Link>
         </div>
+
+        {/* Hamburger */}
+        <button 
+          className={splash.navMobileBtn} 
+          onClick={() => setIsMenuOpen(!isMenuOpen)}
+          aria-label="Toggle menu"
+        >
+          {isMenuOpen ? (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          ) : (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+          )}
+        </button>
       </nav>
+
+      {/* MOBILE SIDEBAR */}
+      <div 
+        className={`${splash.mobileMenuOverlay} ${isMenuOpen ? splash.mobileMenuOverlayOpen : ""}`} 
+        onClick={() => setIsMenuOpen(false)}
+      />
+      <div className={`${splash.mobileMenu} ${isMenuOpen ? splash.mobileMenuOpen : ""}`}>
+        <ul className={splash.mobileNavTabs}>
+          {tabLink("/#how", "How it works", true)}
+          {tabLink("/#voice", "The voice", true)}
+          {tabLink("/#features", "The science", true)}
+          {tabLink("/why-it-works", "Why it works", true)}
+          {tabLink("/#story", "Our story", true)}
+        </ul>
+        <div className={splash.mobileNavRight}>
+          <Link href="/auth/signin" className={splash.mobileNavSignIn} onClick={() => setIsMenuOpen(false)}>Sign In</Link>
+          <Link href="/#invite" className={splash.mobileNavInvite} onClick={() => setIsMenuOpen(false)}>Request invitation</Link>
+        </div>
+      </div>
 
       {/* HERO */}
       <div className={s.hero}>

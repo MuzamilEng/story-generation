@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import styles from "../../../styles/AudioReady.module.css";
 import { useStoryStore } from "@/store/useStoryStore";
 import { useGlobalUI } from "@/components/ui/global-ui-context";
+import FeedbackPopup from "@/components/FeedbackPopup";
 
 // Icon Components (kept as they were)
 const CheckIcon = () => (
@@ -150,6 +151,52 @@ const AudioReadyContent: React.FC = () => {
   const [selectedSoundscapeId, setSelectedSoundscapeId] = useState<string | null>(null);
 
   const { clearStore } = useStoryStore();
+  const [showFeedback, setShowFeedback] = useState(false);
+
+  useEffect(() => {
+    const checkFeedback = async () => {
+      // Don't show if already dismissed in this session
+      if (sessionStorage.getItem("feedback_dismissed")) return;
+
+      try {
+        const res = await fetch("/api/feedback");
+        if (res.ok) {
+          const { shouldShowSurvey } = await res.json();
+          if (shouldShowSurvey) {
+            // Show feedback after a short delay to let the page load
+            setTimeout(() => {
+              setShowFeedback(true);
+            }, 3000);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to check feedback status", err);
+      }
+    };
+    if (story) {
+      checkFeedback();
+    }
+  }, [story]);
+
+  const handleFeedbackSubmit = async (responses: any) => {
+    try {
+      const res = await fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ responses }),
+      });
+      if (res.ok) {
+        showToast("Thank you for your feedback!", "success");
+        setShowFeedback(false);
+      } else {
+        const data = await res.json();
+        showToast(data.error || "Failed to submit feedback", "error");
+      }
+    } catch (err) {
+      console.error("Feedback submission failed", err);
+      showToast("Failed to submit feedback", "error");
+    }
+  };
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -798,7 +845,7 @@ const AudioReadyContent: React.FC = () => {
             in your voice. Listen every morning and night to begin rewiring your
             mind toward your future.
           </p>
-          <div style={{ marginTop: "1.5rem" }}>
+          <div style={{ marginTop: "1.5rem", display: "flex", gap: "0.75rem", justifyContent: "center", flexWrap: "wrap" }}>
             <button
               className={styles.dashboardBtn}
               onClick={() => router.push("/user/dashboard")}
@@ -809,6 +856,24 @@ const AudioReadyContent: React.FC = () => {
               }}
             >
               ← Back to Dashboard
+            </button>
+            <button
+              onClick={() => setShowFeedback(true)}
+              style={{
+                padding: "0.6rem 1.5rem",
+                borderRadius: "8px",
+                cursor: "pointer",
+                background: "linear-gradient(135deg, var(--green1), var(--green2))",
+                border: "none",
+                color: "var(--text)",
+                fontFamily: "var(--sans)",
+                fontSize: "12px",
+                fontWeight: 500,
+                letterSpacing: "1px",
+                textTransform: "uppercase" as const,
+              }}
+            >
+              Give Feedback
             </button>
           </div>
         </div>
@@ -1330,6 +1395,16 @@ const AudioReadyContent: React.FC = () => {
           </div>
         )}
       </div>
+
+      {showFeedback && (
+        <FeedbackPopup
+          onClose={() => {
+            sessionStorage.setItem("feedback_dismissed", "true");
+            setShowFeedback(false);
+          }}
+          onSubmit={handleFeedbackSubmit}
+        />
+      )}
     </div>
   );
 };

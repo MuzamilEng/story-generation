@@ -5,7 +5,6 @@ import { useSession } from "next-auth/react";
 import UserHeader from "../components/UserHeader";
 import Sidebar from "../components/Sidebar";
 import PlanExpiredBanner from "../components/PlanExpiredBanner";
-import FeedbackPrompt from "../components/FeedbackPrompt";
 
 export default function UserLayout({
   children,
@@ -50,8 +49,6 @@ export default function UserLayout({
         {children}
       </main>
 
-      {/* Beta feedback survey prompt */}
-      <FeedbackPrompt />
 
       {/* Give content room to breathe below the fixed hamburger on mobile */}
       <style>{`
