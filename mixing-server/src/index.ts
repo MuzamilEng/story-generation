@@ -141,6 +141,7 @@ app.post('/mix', requireAuth, async (req, res) => {
     res.json({
       success: true,
       combined_audio_key: newCombinedKey,
+      soundscape_audio_key: soundscape?.r2_key ?? null,
       audio_url: audioUrl,
     });
   } catch (err: any) {

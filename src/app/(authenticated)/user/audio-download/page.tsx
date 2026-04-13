@@ -270,8 +270,16 @@ const AudioReadyContent: React.FC = () => {
           const data = await res.json();
           const assets = data.assets || [];
           setAvailableSoundscapes(assets);
-          // Pre-select the default track (Adrift) if no soundscape is already applied
-          if (!selectedSoundscapeId && !story?.combined_audio_key) {
+          // If a soundscape was already mixed into this story, match it by r2_key
+          if (story?.soundscape_audio_key && story?.combined_audio_key) {
+            const matched = assets.find(
+              (sc: any) => sc.r2_key === story.soundscape_audio_key
+            );
+            if (matched) {
+              setSelectedSoundscapeId(matched.id);
+            }
+          } else if (!selectedSoundscapeId && !story?.combined_audio_key) {
+            // No soundscape applied yet — pre-select the default track
             const defaultTrack = assets.find((sc: any) => sc.isDefault);
             if (defaultTrack) {
               setSelectedSoundscapeId(defaultTrack.id);
@@ -305,9 +313,15 @@ const AudioReadyContent: React.FC = () => {
           backgroundVolume: 0.08,
         }),
       });
-      const data = await res.json();
+      let data;
+      try {
+        data = await res.json();
+      } catch {
+        showToast("Something went wrong while applying background music. Please try again.", "error");
+        return;
+      }
       if (!res.ok) {
-        showToast(data.error || "Mixing failed", "error");
+        showToast("Something went wrong while applying background music. Please try again.", "error");
         return;
       }
       // Update local story state with new audio URL
@@ -315,6 +329,7 @@ const AudioReadyContent: React.FC = () => {
         ...prev,
         audio_url: data.audio_url,
         combined_audio_key: data.combined_audio_key,
+        soundscape_audio_key: data.soundscape_audio_key ?? prev.soundscape_audio_key,
       }));
       setSoundscapeOn(true);
       setSelectedSoundscapeId(soundscapeId);
@@ -325,7 +340,7 @@ const AudioReadyContent: React.FC = () => {
       showToast("Background music applied ✓", "success");
     } catch (err) {
       console.error("Server mix failed:", err);
-      showToast("Failed to mix audio on server", "error");
+      showToast("Something went wrong while applying background music. Please try again.", "error");
     } finally {
       setIsServerMixing(false);
       setMixingTrackId(null);
@@ -348,9 +363,15 @@ const AudioReadyContent: React.FC = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ storyId: story.id }),
       });
-      const data = await res.json();
+      let data;
+      try {
+        data = await res.json();
+      } catch {
+        showToast("Something went wrong while removing background music. Please try again.", "error");
+        return;
+      }
       if (!res.ok) {
-        showToast(data.error || "Unmix failed", "error");
+        showToast("Something went wrong while removing background music. Please try again.", "error");
         return;
       }
       setStory((prev: any) => ({
@@ -367,7 +388,7 @@ const AudioReadyContent: React.FC = () => {
       showToast("Background music removed", "success");
     } catch (err) {
       console.error("Server unmix failed:", err);
-      showToast("Failed to remove background sound", "error");
+      showToast("Something went wrong while removing background music. Please try again.", "error");
     } finally {
       setIsServerMixing(false);
       setMixingTrackId(null);
@@ -890,6 +911,46 @@ const AudioReadyContent: React.FC = () => {
 
   return (
     <div className={styles.container}>
+      {/* Full-screen loader while server mix/unmix is in progress */}
+      {isServerMixing && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.7)",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "14px",
+            zIndex: 9999,
+          }}
+        >
+          <span
+            style={{
+              display: "inline-block",
+              width: 36,
+              height: 36,
+              border: "3px solid rgba(255,255,255,0.15)",
+              borderTop: "3px solid var(--accent)",
+              borderRadius: "50%",
+              animation: "spin 0.8s linear infinite",
+            }}
+          />
+          <span
+            style={{
+              fontSize: "0.9rem",
+              color: "rgba(255,255,255,0.8)",
+              fontFamily: "var(--sans)",
+            }}
+          >
+            {mixingTrackId === "unmix"
+              ? "Removing background music — please wait…"
+              : "Applying your background music — please wait…"}
+          </span>
+        </div>
+      )}
+
       {/* Background audio elements kept hidden but active */}
       {story?.soundscape_audio_key && (
         <audio
@@ -902,6 +963,7 @@ const AudioReadyContent: React.FC = () => {
               `[audio] Failed to load soundscape: ${story.soundscape_audio_key}`,
             );
             setSoundscapeOn(false);
+            showToast("Unable to load background soundscape. Please try again later.", "error");
           }}
         />
       )}
@@ -916,6 +978,7 @@ const AudioReadyContent: React.FC = () => {
               `[audio] Failed to load binaural: ${story.binaural_audio_key}`,
             );
             setBinauralOn(false);
+            showToast("Unable to load binaural audio. Please try again later.", "error");
           }}
         />
       )}
@@ -1033,45 +1096,7 @@ const AudioReadyContent: React.FC = () => {
                     className={styles.playerControls}
                     style={{ padding: 0, position: "relative" }}
                   >
-                    {/* Mixing overlay — shown while server mix/unmix is in progress */}
-                    {isServerMixing && (
-                      <div
-                        style={{
-                          position: "absolute",
-                          inset: 0,
-                          background: "rgba(0,0,0,0.65)",
-                          borderRadius: "inherit",
-                          display: "flex",
-                          flexDirection: "column",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          gap: "10px",
-                          zIndex: 10,
-                        }}
-                      >
-                        <span
-                          style={{
-                            display: "inline-block",
-                            width: 22,
-                            height: 22,
-                            border: "2.5px solid rgba(255,255,255,0.15)",
-                            borderTop: "2.5px solid var(--accent)",
-                            borderRadius: "50%",
-                            animation: "spin 0.8s linear infinite",
-                          }}
-                        />
-                        <span
-                          style={{
-                            fontSize: "0.78rem",
-                            color: "rgba(255,255,255,0.7)",
-                          }}
-                        >
-                          {mixingTrackId === "unmix"
-                            ? "Removing background music — please wait…"
-                            : "Applying your background music — please wait…"}
-                        </span>
-                      </div>
-                    )}
+
                     <div className={styles.ctrlRow}>
                       <button
                         className={styles.ctrlSkip}
@@ -1274,23 +1299,28 @@ const AudioReadyContent: React.FC = () => {
                                   color: isSelected
                                     ? "var(--accent)"
                                     : "var(--ink)",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "6px",
                                 }}
                               >
                                 {sc.title}
-                                {isMixingThis && " ⏳"}
-                                {isSelected && !isMixingThis && " ✓"}
-                                {sc.isDefault && !isSelected && (
+                                {isMixingThis && (
                                   <span
                                     style={{
-                                      fontSize: "0.62rem",
-                                      marginLeft: "6px",
-                                      color: "rgba(255,255,255,0.35)",
-                                      fontWeight: 400,
+                                      display: "inline-block",
+                                      width: 12,
+                                      height: 12,
+                                      border: "2px solid rgba(255,255,255,0.15)",
+                                      borderTop: "2px solid var(--accent)",
+                                      borderRadius: "50%",
+                                      animation: "spin 0.8s linear infinite",
+                                      flexShrink: 0,
                                     }}
-                                  >
-                                    Recommended
-                                  </span>
+                                  />
                                 )}
+                                {isSelected && !isMixingThis && " ✓"}
+
                               </span>
                             </div>
                             {sc.mood && (

@@ -72,6 +72,7 @@ export async function GET(req: NextRequest) {
                     id: a.id,
                     title: a.title,
                     image_url: a.image_url,
+                    r2_key: a.r2_key,
                     preview_url: `/api/user/audio/stream?key=${encodeURIComponent(a.r2_key)}`,
                     duration_s: a.duration_s,
                     value: a.title.toLowerCase(),
