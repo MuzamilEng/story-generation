@@ -89,6 +89,14 @@ export async function PATCH(
         const body = await req.json();
         const { title, content } = body;
 
+        // Enforce 3000-word hard cap on manual edits
+        if (content !== undefined) {
+            const wordCount = content.split(/\s+/).filter(Boolean).length;
+            if (wordCount > 3000) {
+                return NextResponse.json({ error: 'Story exceeds the 3000-word limit. Please shorten it before saving.' }, { status: 400 });
+            }
+        }
+
         // Perform update — ensure ownership
         const updatedStory = await prisma.story.update({
             where: {

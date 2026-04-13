@@ -429,11 +429,14 @@ CRITICAL: Use the user's EXACT words. If they selected 'I am $100 million. This 
         multiplier = 1.0;
     }
 
+    // Hard cap helper — no vision block should exceed values that push total story past 3000 words
+    const cap = (n: number) => Math.min(n, 1600);
+
     const visionWordCounts: Record<Tier, string> = {
         explorer: `${Math.round(550 * multiplier)}-${Math.round(650 * multiplier)} words (1 life area, proof actions)`,
-        activator: `${Math.round(700 * multiplier)}-${Math.round(850 * multiplier)} words (up to 3 areas, proof actions)`,
-        manifester: `${Math.round(900 * multiplier)}-${Math.round(1100 * multiplier)} words (all selected areas, proof actions)`,
-        amplifier: `${Math.round(1300 * multiplier)}-${Math.round(1600 * multiplier)} words (all areas, 2+ scenes per area)`
+        activator: `${Math.round(700 * multiplier)}-${cap(Math.round(850 * multiplier))} words (up to 3 areas, proof actions)`,
+        manifester: `${Math.round(900 * multiplier)}-${cap(Math.round(1100 * multiplier))} words (all selected areas, proof actions)`,
+        amplifier: `${Math.round(1300 * multiplier)}-${cap(Math.round(1600 * multiplier))} words (all areas, 2+ scenes per area)`
     };
 
     const currentVisionTarget = visionWordCounts[userTier];

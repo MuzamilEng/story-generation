@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { model } from '@/lib/langchain'
+import { invokeWithFallback } from '@/lib/langchain'
 import { HumanMessage, SystemMessage } from "@langchain/core/messages"
 import { buildStoryPrompt, normalizeGoals } from '@/lib/story-utils'
 import { betaTypeToPlan } from '@/lib/beta-utils'
@@ -32,6 +32,7 @@ function getSystemMessage(tier: Tier, targetLength?: string | null): string {
         multiplier = 1.0;
     }
 
+    const MAX_WORDS = 3000;
     const targets: Record<Tier, number> = {
         explorer: Math.round(750 * multiplier),
         activator: Math.round(1200 * multiplier),
@@ -39,7 +40,7 @@ function getSystemMessage(tier: Tier, targetLength?: string | null): string {
         amplifier: Math.round(3500 * multiplier)
     };
 
-    const targetWc = targets[tier];
+    const targetWc = Math.min(targets[tier], MAX_WORDS);
 
     return `${BASE_SYSTEM_MESSAGE}
 
@@ -54,33 +55,11 @@ Luxuriate in the scenes. Expand the textures, the scents, and the unhurried inte
 }
 
 async function generateStory(prompt: string, systemMessage: string): Promise<string> {
-    const chatModel = model as any;
-    const maxRetries = 4;
-
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-        try {
-            const response = await chatModel.invoke([
-                new SystemMessage(systemMessage),
-                new HumanMessage(prompt)
-            ], {
-                max_tokens: 16384
-            });
-            return response.content as string;
-        } catch (err: any) {
-            const status = err?.status || err?.response?.status;
-            const isRetryable = status === 529 || status === 503 || status === 429;
-
-            if (isRetryable && attempt < maxRetries) {
-                const delay = Math.min(1000 * Math.pow(2, attempt - 1), 15000) + Math.random() * 1000;
-                console.warn(`[STORY_GENERATE] Attempt ${attempt}/${maxRetries} failed (status ${status}). Retrying in ${Math.round(delay)}ms...`);
-                await new Promise(resolve => setTimeout(resolve, delay));
-            } else {
-                throw err;
-            }
-        }
-    }
-
-    throw new Error('Story generation failed after all retries');
+    const response = await invokeWithFallback([
+        new SystemMessage(systemMessage),
+        new HumanMessage(prompt)
+    ], { primaryRetries: 3 });
+    return response.content as string;
 }
 
 export async function POST(

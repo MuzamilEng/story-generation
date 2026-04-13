@@ -30,11 +30,12 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: 'Key is required' }, { status: 400 });
         }
 
-        // Security: Ensure the key belongs to the user OR is a system asset
+        // Security: Ensure the key belongs to the user OR is a system/soundscape asset
         const isUserAsset = key.startsWith(`user_${session.user.id}/`);
         const isSystemAsset = key.startsWith('system/');
+        const isSoundscapeAsset = key.startsWith('soundscapes/');
 
-        if (!isUserAsset && !isSystemAsset) {
+        if (!isUserAsset && !isSystemAsset && !isSoundscapeAsset) {
             return NextResponse.json({ error: 'Unauthorized key access' }, { status: 403 });
         }
 

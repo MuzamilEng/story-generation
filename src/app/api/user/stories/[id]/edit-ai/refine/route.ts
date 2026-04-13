@@ -71,7 +71,8 @@ INSTRUCTION: Carefully integrate all feedback into the narrative. Correct any in
 ━━━ WRITING RULES ━━━
 - First person, present tense throughout.
 - Flowing prose only — no headings, bullets, or section labels.
-- Keep the story approximately ${story.word_count || 1000} words. Do not significantly shorten or pad it.
+- Keep the story approximately ${Math.min(story.word_count || 1000, 3000)} words. Do not significantly shorten or pad it.
+- HARD LIMIT: The story must NEVER exceed 3000 words.
 - Every response must include a Title on the first line, followed by '---' on a new line, followed by the Story Text.
 - Every change must serve the user's vision. Do not introduce new details that were not provided or implied.
 

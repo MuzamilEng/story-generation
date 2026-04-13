@@ -79,9 +79,9 @@ function estimateMp3Duration(buf: Buffer): number {
  * binaural theta beats using FFmpeg.
  *
  * Layout (when background is present):
- *   [0–2s]  Background sound only (no voice)
- *   [2s–…]  Voice narration mixed over background (+ binaural if enabled)
- *   Background loops to cover full duration.
+ *   [0–5s]   Background sound only (no voice) — 5s pre-roll
+ *   [5s–…]   Voice narration mixed over background (+ binaural if enabled)
+ *   [end–+15s] Background continues for 15s after voice ends, then fades out over the last 8s
  *
  * Layout (binaural only, no background):
  *   Voice narration with binaural theta beats layered underneath.
@@ -97,7 +97,9 @@ export function mixAudio(opts: MixOptions): Promise<Buffer> {
   } = opts;
 
   const hasBackground = backgroundBuffer && backgroundBuffer.length > 0;
-  const BG_LEAD_SECS = hasBackground ? 2 : 0;
+  const BG_LEAD_SECS = hasBackground ? 5 : 0;
+  const BG_TAIL_SECS = hasBackground ? 15 : 0;
+  const BG_FADE_OUT_SECS = 8; // fade-out duration at the end of the tail
 
   const tmpDir = path.join(os.tmpdir(), `mix-${randomUUID()}`);
   fs.mkdirSync(tmpDir, { recursive: true });
@@ -115,7 +117,7 @@ export function mixAudio(opts: MixOptions): Promise<Buffer> {
   let binauralPath: string | null = null;
   if (binauralEnabled) {
     binauralPath = path.join(tmpDir, 'binaural.wav');
-    const estDuration = estimateMp3Duration(voiceBuffer) + BG_LEAD_SECS;
+    const estDuration = estimateMp3Duration(voiceBuffer) + BG_LEAD_SECS + BG_TAIL_SECS;
     generateBinauralWav(binauralPath, estDuration);
   }
 
@@ -140,36 +142,45 @@ export function mixAudio(opts: MixOptions): Promise<Buffer> {
     const mixLabels: string[] = [];
     let mixCount = 1; // voice always present
 
-    // Voice: delay if background lead-in
+    // Voice: delay if background lead-in, boost volume to compensate for amix normalization
     if (BG_LEAD_SECS > 0) {
-      filters.push(`[0:a]adelay=${BG_LEAD_SECS * 1000}|${BG_LEAD_SECS * 1000}[delayed_voice]`);
+      filters.push(`[0:a]adelay=${BG_LEAD_SECS * 1000}|${BG_LEAD_SECS * 1000},volume=2.0[delayed_voice]`);
       mixLabels.push('[delayed_voice]');
     } else {
-      filters.push(`[0:a]aresample=44100[voice_out]`);
+      filters.push(`[0:a]aresample=44100,volume=2.0[voice_out]`);
       mixLabels.push('[voice_out]');
     }
 
-    // Background: loop + fade in + volume
+    // Background: loop to cover full duration (voice + pre-roll + post-roll),
+    // then fade out over the last BG_FADE_OUT_SECS seconds, volume kept low
     if (bgIdx >= 0) {
+      const estVoiceDuration = estimateMp3Duration(voiceBuffer);
+      const totalBgDuration = BG_LEAD_SECS + estVoiceDuration + BG_TAIL_SECS;
+      const fadeStart = totalBgDuration - BG_FADE_OUT_SECS;
       filters.push(
-        `[${bgIdx}:a]aloop=loop=-1:size=2e+09,afade=t=in:st=0:d=${BG_LEAD_SECS},volume=${backgroundVolume}[bg]`
+        `[${bgIdx}:a]aloop=loop=-1:size=2e+09,atrim=0:${totalBgDuration},afade=t=in:st=0:d=${BG_LEAD_SECS},afade=t=out:st=${fadeStart}:d=${BG_FADE_OUT_SECS},volume=${backgroundVolume}[bg]`
       );
       mixLabels.push('[bg]');
       mixCount++;
     }
 
-    // Binaural: already generated as WAV, just loop it
+    // Binaural: loop and trim to match the total output duration
     if (binIdx >= 0) {
+      const estVoiceDur = bgIdx >= 0 ? 0 : estimateMp3Duration(voiceBuffer); // already calculated above if bg present
+      const binDuration = bgIdx >= 0
+        ? BG_LEAD_SECS + estimateMp3Duration(voiceBuffer) + BG_TAIL_SECS
+        : estVoiceDur + BG_LEAD_SECS;
       filters.push(
-        `[${binIdx}:a]aloop=loop=-1:size=2e+09[binaural]`
+        `[${binIdx}:a]aloop=loop=-1:size=2e+09,atrim=0:${binDuration}[binaural]`
       );
       mixLabels.push('[binaural]');
       mixCount++;
     }
 
-    // Mix all streams
+    // Use 'longest' when background has a post-roll tail, otherwise 'first' (voice duration)
+    const durationMode = hasBackground ? 'longest' : 'first';
     filters.push(
-      `${mixLabels.join('')}amix=inputs=${mixCount}:duration=first:dropout_transition=3[out]`
+      `${mixLabels.join('')}amix=inputs=${mixCount}:duration=${durationMode}:dropout_transition=3[out]`
     );
 
     cmd.complexFilter(filters)

@@ -142,13 +142,19 @@ const AudioReadyContent: React.FC = () => {
   const audioRef = useRef<HTMLAudioElement>(null);
   const soundscapeRef = useRef<HTMLAudioElement>(null);
   const binauralRef = useRef<HTMLAudioElement>(null);
+  const pendingAutoplay = useRef(false);
   const waveformCount = 80;
 
   const [soundscapeOn, setSoundscapeOn] = useState(false);
   const [binauralOn, setBinauralOn] = useState(false);
   const [isServerMixing, setIsServerMixing] = useState(false);
+  const [mixingTrackId, setMixingTrackId] = useState<string | null>(null);
   const [availableSoundscapes, setAvailableSoundscapes] = useState<any[]>([]);
-  const [selectedSoundscapeId, setSelectedSoundscapeId] = useState<string | null>(null);
+  const [selectedSoundscapeId, setSelectedSoundscapeId] = useState<
+    string | null
+  >(null);
+  const [previewingId, setPreviewingId] = useState<string | null>(null);
+  const previewAudioRef = useRef<HTMLAudioElement>(null);
 
   const { clearStore } = useStoryStore();
   const [showFeedback, setShowFeedback] = useState(false);
@@ -262,19 +268,33 @@ const AudioReadyContent: React.FC = () => {
         const res = await fetch("/api/user/soundscapes");
         if (res.ok) {
           const data = await res.json();
-          setAvailableSoundscapes(data.assets || []);
+          const assets = data.assets || [];
+          setAvailableSoundscapes(assets);
+          // Pre-select the default track (Adrift) if no soundscape is already applied
+          if (!selectedSoundscapeId && !story?.combined_audio_key) {
+            const defaultTrack = assets.find((sc: any) => sc.isDefault);
+            if (defaultTrack) {
+              setSelectedSoundscapeId(defaultTrack.id);
+            }
+          }
         }
       } catch (err) {
         console.error("Failed to fetch soundscapes", err);
       }
     };
     fetchSoundscapes();
-  }, []);
+  }, [story]);
 
   /** Server-side mix: sends voice + selected soundscape to the Express mixing server */
   const handleServerMix = async (soundscapeId: string) => {
     if (!story?.id || !soundscapeId) return;
     setIsServerMixing(true);
+    setMixingTrackId(soundscapeId);
+    // Stop current playback while mixing
+    if (audioRef.current) {
+      audioRef.current.pause();
+    }
+    setIsPlaying(false);
     try {
       const res = await fetch("/api/user/audio/mix", {
         method: "POST",
@@ -282,7 +302,7 @@ const AudioReadyContent: React.FC = () => {
         body: JSON.stringify({
           storyId: story.id,
           soundscapeId,
-          backgroundVolume: 0.15,
+          backgroundVolume: 0.08,
         }),
       });
       const data = await res.json();
@@ -298,16 +318,17 @@ const AudioReadyContent: React.FC = () => {
       }));
       setSoundscapeOn(true);
       setSelectedSoundscapeId(soundscapeId);
-      showToast("Background sound mixed successfully!", "success");
-      // Reload the audio element with the new mixed URL
-      if (audioRef.current) {
-        audioRef.current.load();
-      }
+      // Reset player state for the new audio and request autoplay
+      setIsPlaying(false);
+      setCurrentTime(0);
+      pendingAutoplay.current = true;
+      showToast("Background music applied ✓", "success");
     } catch (err) {
       console.error("Server mix failed:", err);
       showToast("Failed to mix audio on server", "error");
     } finally {
       setIsServerMixing(false);
+      setMixingTrackId(null);
     }
   };
 
@@ -315,6 +336,12 @@ const AudioReadyContent: React.FC = () => {
   const handleServerUnmix = async () => {
     if (!story?.id) return;
     setIsServerMixing(true);
+    setMixingTrackId("unmix");
+    // Stop current playback while unmixing
+    if (audioRef.current) {
+      audioRef.current.pause();
+    }
+    setIsPlaying(false);
     try {
       const res = await fetch("/api/user/audio/unmix", {
         method: "POST",
@@ -333,17 +360,67 @@ const AudioReadyContent: React.FC = () => {
       }));
       setSoundscapeOn(false);
       setSelectedSoundscapeId(null);
-      showToast("Reverted to voice-only audio", "success");
-      if (audioRef.current) {
-        audioRef.current.load();
-      }
+      // Reset player state for the new audio and request autoplay
+      setIsPlaying(false);
+      setCurrentTime(0);
+      pendingAutoplay.current = true;
+      showToast("Background music removed", "success");
     } catch (err) {
       console.error("Server unmix failed:", err);
       showToast("Failed to remove background sound", "error");
     } finally {
       setIsServerMixing(false);
+      setMixingTrackId(null);
     }
   };
+
+  /** Toggle preview playback for a soundscape track (capped at 45s) */
+  const PREVIEW_MAX_SECS = 45;
+  const togglePreview = (soundscape: any) => {
+    if (!previewAudioRef.current) return;
+    if (previewingId === soundscape.id) {
+      // Stop preview
+      previewAudioRef.current.pause();
+      previewAudioRef.current.currentTime = 0;
+      setPreviewingId(null);
+    } else {
+      // Start preview of this track
+      previewAudioRef.current.pause();
+      previewAudioRef.current.src = soundscape.preview_url;
+      previewAudioRef.current.volume = 0.5;
+      previewAudioRef.current.currentTime = 0;
+      previewAudioRef.current.play().catch(() => {});
+      setPreviewingId(soundscape.id);
+    }
+  };
+
+  // Stop preview when it ends naturally or after 45s
+  useEffect(() => {
+    const el = previewAudioRef.current;
+    if (!el) return;
+    const onEnded = () => setPreviewingId(null);
+    const onTimeUpdate = () => {
+      if (el.currentTime >= PREVIEW_MAX_SECS) {
+        el.pause();
+        el.currentTime = 0;
+        setPreviewingId(null);
+      }
+    };
+    el.addEventListener("ended", onEnded);
+    el.addEventListener("timeupdate", onTimeUpdate);
+    return () => {
+      el.removeEventListener("ended", onEnded);
+      el.removeEventListener("timeupdate", onTimeUpdate);
+    };
+  }, []);
+
+  // Stop preview when server mixing starts
+  useEffect(() => {
+    if (isServerMixing && previewAudioRef.current) {
+      previewAudioRef.current.pause();
+      setPreviewingId(null);
+    }
+  }, [isServerMixing]);
 
   useEffect(() => {
     // Generate random-ish waveform heights
@@ -516,9 +593,15 @@ const AudioReadyContent: React.FC = () => {
 
   const handleMetadata = () => {
     if (audioRef.current) {
-      const d = audioRef.current.duration; 
+      const d = audioRef.current.duration;
       if (d && isFinite(d) && d > 0) {
         setDuration(d);
+      }
+      // Auto-play after mix/unmix swapped the audio source
+      if (pendingAutoplay.current) {
+        pendingAutoplay.current = false;
+        audioRef.current.play().catch(() => {});
+        setIsPlaying(true);
       }
     }
   };
@@ -586,12 +669,16 @@ const AudioReadyContent: React.FC = () => {
       setMixProgress(60);
 
       // 3. Setup OfflineAudioContext
-      // We use the voice buffer length as the master duration
-      const duration = voiceBuffer.duration;
+      // Background: 5s pre-roll + voice + 15s post-roll with fade-out
+      const BG_LEAD = soundscapeBuffer ? 5 : 0;
+      const BG_TAIL = soundscapeBuffer ? 15 : 0;
+      const BG_FADE = 8;
+      const voiceDuration = voiceBuffer.duration;
+      const totalDuration = BG_LEAD + voiceDuration + BG_TAIL;
       const sampleRate = voiceBuffer.sampleRate;
       const offlineCtx = new OfflineAudioContext(
         2,
-        duration * sampleRate,
+        totalDuration * sampleRate,
         sampleRate,
       );
 
@@ -607,9 +694,13 @@ const AudioReadyContent: React.FC = () => {
         bgSource.buffer = soundscapeBuffer;
         bgSource.loop = true;
         const bgGain = offlineCtx.createGain();
-        bgGain.gain.value = 0.15; // Set softly as per design
+        bgGain.gain.value = 0.15; // Dim background
+        // Fade out over the last 8s of the post-roll
+        const fadeStart = totalDuration - BG_FADE;
+        bgGain.gain.setValueAtTime(0.15, fadeStart);
+        bgGain.gain.linearRampToValueAtTime(0, totalDuration);
         bgSource.connect(bgGain).connect(offlineCtx.destination);
-        bgSource.start(0);
+        bgSource.start(0); // Background starts at t=0
       }
 
       if (binauralBuffer) {
@@ -622,7 +713,7 @@ const AudioReadyContent: React.FC = () => {
         binSource.start(0);
       }
 
-      voiceSource.start(0);
+      voiceSource.start(BG_LEAD); // Voice starts after background pre-roll
 
       setMixProgress(80);
 
@@ -845,7 +936,15 @@ const AudioReadyContent: React.FC = () => {
             in your voice. Listen every morning and night to begin rewiring your
             mind toward your future.
           </p>
-          <div style={{ marginTop: "1.5rem", display: "flex", gap: "0.75rem", justifyContent: "center", flexWrap: "wrap" }}>
+          <div
+            style={{
+              marginTop: "1.5rem",
+              display: "flex",
+              gap: "0.75rem",
+              justifyContent: "center",
+              flexWrap: "wrap",
+            }}
+          >
             <button
               className={styles.dashboardBtn}
               onClick={() => router.push("/user/dashboard")}
@@ -863,7 +962,8 @@ const AudioReadyContent: React.FC = () => {
                 padding: "0.6rem 1.5rem",
                 borderRadius: "8px",
                 cursor: "pointer",
-                background: "linear-gradient(135deg, var(--green1), var(--green2))",
+                background:
+                  "linear-gradient(135deg, var(--green1), var(--green2))",
                 border: "none",
                 color: "var(--text)",
                 fontFamily: "var(--sans)",
@@ -898,9 +998,14 @@ const AudioReadyContent: React.FC = () => {
             <div style={{ marginTop: "2rem", marginBottom: "0.5rem" }}>
               {story?.audio_url && (
                 <>
-                  {/* Hidden audio element — drives playback, no native controls */}
+                  {/* Hidden audio element — drives playback, no native controls.
+                      key={story.audio_url} forces React to remount when the URL
+                      changes (e.g. after server mix/unmix) so the browser actually
+                      loads the new file. */}
                   <audio
+                    key={story.audio_url}
                     ref={audioRef}
+                    src={story.audio_url}
                     preload="auto"
                     onPlay={handlePlay}
                     onPause={handlePause}
@@ -921,12 +1026,52 @@ const AudioReadyContent: React.FC = () => {
                     }}
                     crossOrigin="anonymous"
                     playsInline
-                  >
-                    <source src={story.audio_url} type="audio/mpeg" />
-                  </audio>
+                  />
 
                   {/* Custom controls UI */}
-                  <div className={styles.playerControls} style={{ padding: 0 }}>
+                  <div
+                    className={styles.playerControls}
+                    style={{ padding: 0, position: "relative" }}
+                  >
+                    {/* Mixing overlay — shown while server mix/unmix is in progress */}
+                    {isServerMixing && (
+                      <div
+                        style={{
+                          position: "absolute",
+                          inset: 0,
+                          background: "rgba(0,0,0,0.65)",
+                          borderRadius: "inherit",
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: "10px",
+                          zIndex: 10,
+                        }}
+                      >
+                        <span
+                          style={{
+                            display: "inline-block",
+                            width: 22,
+                            height: 22,
+                            border: "2.5px solid rgba(255,255,255,0.15)",
+                            borderTop: "2.5px solid var(--accent)",
+                            borderRadius: "50%",
+                            animation: "spin 0.8s linear infinite",
+                          }}
+                        />
+                        <span
+                          style={{
+                            fontSize: "0.78rem",
+                            color: "rgba(255,255,255,0.7)",
+                          }}
+                        >
+                          {mixingTrackId === "unmix"
+                            ? "Removing background music — please wait…"
+                            : "Applying your background music — please wait…"}
+                        </span>
+                      </div>
+                    )}
                     <div className={styles.ctrlRow}>
                       <button
                         className={styles.ctrlSkip}
@@ -998,64 +1143,282 @@ const AudioReadyContent: React.FC = () => {
             style={{ paddingTop: "0.5rem" }}
           >
             <div className={styles.layerControls}>
-              {/* Server-side soundscape mixing */}
+              {/* Hidden audio element for previewing soundscapes */}
+              <audio ref={previewAudioRef} preload="none" />
+
+              {/* Soundscape selection with preview */}
               {availableSoundscapes.length > 0 && (
                 <div style={{ width: "100%" }}>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "8px" }}>
-                    {availableSoundscapes.map((sc: any) => (
+                  {/* Theta statement — shown once at top */}
+                  <div
+                    style={{
+                      fontSize: "0.72rem",
+                      color: "rgba(255,255,255,0.55)",
+                      marginBottom: "10px",
+                      textAlign: "center",
+                      lineHeight: "1.5",
+                      maxWidth: "520px",
+                      margin: "0 auto 10px",
+                    }}
+                  >
+                    Every track below is layered with Theta binaural beats (4–8
+                    Hz) — frequencies clinically associated with deep relaxation
+                    and subconscious receptivity. Simply choose the sound that
+                    feels right, put on headphones, and let your story do the
+                    rest.
+                  </div>
+                  {/* Headphones nudge */}
+                  <div
+                    style={{
+                      fontSize: "0.68rem",
+                      color: "rgba(255,255,255,0.4)",
+                      textAlign: "center",
+                      marginBottom: "12px",
+                    }}
+                  >
+                    🎧 Best with headphones
+                  </div>
+                  {/* Track cards grid */}
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "8px",
+                      marginBottom: "8px",
+                    }}
+                  >
+                    {availableSoundscapes.map((sc: any) => {
+                      const isSelected = selectedSoundscapeId === sc.id;
+                      const isPreviewing = previewingId === sc.id;
+                      const isMixingThis = mixingTrackId === sc.id;
+                      return (
+                        <div
+                          key={sc.id}
+                          style={{
+                            display: "flex",
+                            alignItems: "flex-start",
+                            gap: "0",
+                            borderRadius: "10px",
+                            overflow: "hidden",
+                            border: `1px solid ${isSelected ? "var(--accent)" : "var(--border)"}`,
+                            background: isSelected
+                              ? "var(--accent-light)"
+                              : "rgba(255,255,255,0.04)",
+                            transition: "all 0.2s",
+                          }}
+                        >
+                          {/* Preview button */}
+                          <button
+                            onClick={() => togglePreview(sc)}
+                            style={{
+                              background: "none",
+                              border: "none",
+                              borderRight: `1px solid ${isSelected ? "var(--accent)" : "var(--border)"}`,
+                              padding: "12px 10px",
+                              cursor: "pointer",
+                              color: isPreviewing
+                                ? "var(--accent)"
+                                : "rgba(255,255,255,0.5)",
+                              fontSize: "0.9rem",
+                              display: "flex",
+                              alignItems: "center",
+                              transition: "color 0.2s",
+                              flexShrink: 0,
+                            }}
+                            title={
+                              isPreviewing
+                                ? "Stop preview"
+                                : "Preview track (45s)"
+                            }
+                          >
+                            {isPreviewing ? "⏸" : "▶"}
+                          </button>
+                          {/* Track info + select */}
+                          <button
+                            onClick={() => {
+                              if (isServerMixing) return;
+                              if (previewAudioRef.current) {
+                                previewAudioRef.current.pause();
+                                setPreviewingId(null);
+                              }
+                              if (isSelected && story?.combined_audio_key) {
+                                handleServerUnmix();
+                              } else {
+                                handleServerMix(sc.id);
+                              }
+                            }}
+                            disabled={isServerMixing}
+                            style={{
+                              background: "none",
+                              border: "none",
+                              padding: "8px 12px",
+                              cursor: isServerMixing ? "default" : "pointer",
+                              opacity: isServerMixing ? 0.6 : 1,
+                              textAlign: "left",
+                              flex: 1,
+                              minWidth: 0,
+                            }}
+                          >
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "6px",
+                                marginBottom: "2px",
+                              }}
+                            >
+                              <span
+                                style={{
+                                  fontSize: "0.78rem",
+                                  fontWeight: 500,
+                                  color: isSelected
+                                    ? "var(--accent)"
+                                    : "var(--ink)",
+                                }}
+                              >
+                                {sc.title}
+                                {isMixingThis && " ⏳"}
+                                {isSelected && !isMixingThis && " ✓"}
+                                {sc.isDefault && !isSelected && (
+                                  <span
+                                    style={{
+                                      fontSize: "0.62rem",
+                                      marginLeft: "6px",
+                                      color: "rgba(255,255,255,0.35)",
+                                      fontWeight: 400,
+                                    }}
+                                  >
+                                    Recommended
+                                  </span>
+                                )}
+                              </span>
+                            </div>
+                            {sc.mood && (
+                              <div
+                                style={{
+                                  fontSize: "0.65rem",
+                                  color: isSelected
+                                    ? "var(--accent)"
+                                    : "rgba(255,255,255,0.45)",
+                                  marginBottom: "2px",
+                                }}
+                              >
+                                {sc.mood}
+                              </div>
+                            )}
+                            {sc.bestFor && (
+                              <div
+                                style={{
+                                  fontSize: "0.62rem",
+                                  color: "rgba(255,255,255,0.3)",
+                                }}
+                              >
+                                Best for: {sc.bestFor}
+                              </div>
+                            )}
+                          </button>
+                        </div>
+                      );
+                    })}
+                    {/* No Music option */}
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        borderRadius: "10px",
+                        overflow: "hidden",
+                        border: `1px solid ${!selectedSoundscapeId && !story?.combined_audio_key ? "var(--accent)" : "var(--border)"}`,
+                        background:
+                          !selectedSoundscapeId && !story?.combined_audio_key
+                            ? "var(--accent-light)"
+                            : "rgba(255,255,255,0.04)",
+                        transition: "all 0.2s",
+                      }}
+                    >
                       <button
-                        key={sc.id}
-                        className={`${styles.layerBtn} ${selectedSoundscapeId === sc.id ? styles.active : ""}`}
                         onClick={() => {
                           if (isServerMixing) return;
-                          if (selectedSoundscapeId === sc.id && story?.combined_audio_key) {
-                            // Already mixed with this soundscape — unmix
+                          if (previewAudioRef.current) {
+                            previewAudioRef.current.pause();
+                            setPreviewingId(null);
+                          }
+                          if (story?.combined_audio_key) {
                             handleServerUnmix();
                           } else {
-                            handleServerMix(sc.id);
+                            setSelectedSoundscapeId(null);
                           }
                         }}
                         disabled={isServerMixing}
-                        style={{ opacity: isServerMixing ? 0.6 : 1 }}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          padding: "10px 14px",
+                          cursor: isServerMixing ? "default" : "pointer",
+                          opacity: isServerMixing ? 0.6 : 1,
+                          textAlign: "left",
+                          flex: 1,
+                          color:
+                            !selectedSoundscapeId && !story?.combined_audio_key
+                              ? "var(--accent)"
+                              : "var(--ink-muted)",
+                          fontSize: "0.75rem",
+                        }}
                       >
-                        🌊 {sc.title}
+                        🔇 No Music — voice only
+                        {!selectedSoundscapeId &&
+                          !story?.combined_audio_key &&
+                          " ✓"}
                       </button>
-                    ))}
-                    {story?.combined_audio_key && (
-                      <button
-                        className={styles.layerBtn}
-                        onClick={() => !isServerMixing && handleServerUnmix()}
-                        disabled={isServerMixing}
-                        style={{ opacity: isServerMixing ? 0.6 : 1 }}
-                      >
-                        ✕ Remove Background
-                      </button>
-                    )}
+                    </div>
                   </div>
                   {isServerMixing && (
-                    <div style={{ fontSize: "0.78rem", color: "rgba(255,255,255,0.5)", textAlign: "center" }}>
-                      Mixing audio on server...
+                    <div
+                      style={{
+                        fontSize: "0.78rem",
+                        color: "rgba(255,255,255,0.5)",
+                        textAlign: "center",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "8px",
+                      }}
+                    >
+                      <span
+                        style={{
+                          display: "inline-block",
+                          width: 14,
+                          height: 14,
+                          border: "2px solid rgba(255,255,255,0.2)",
+                          borderTop: "2px solid var(--accent)",
+                          borderRadius: "50%",
+                          animation: "spin 0.8s linear infinite",
+                        }}
+                      />
+                      {mixingTrackId === "unmix"
+                        ? "Removing background music…"
+                        : "Applying background music…"}
                     </div>
                   )}
                 </div>
               )}
 
               {/* Fallback: original soundscape toggle when no server mixing available */}
-              {availableSoundscapes.length === 0 && story?.soundscape_audio_key && (
-                <button
-                  className={`${styles.layerBtn} ${soundscapeOn ? styles.active : ""}`}
-                  onClick={() => {
-                    setSoundscapeOn(!soundscapeOn);
-                    if (!soundscapeOn && isPlaying) {
-                      soundscapeRef.current?.play();
-                    } else {
-                      soundscapeRef.current?.pause();
-                    }
-                  }}
-                >
-                  🌊 {soundscapeOn ? "Soundscape: ON" : "Soundscape: OFF"}
-                </button>
-              )}
+              {availableSoundscapes.length === 0 &&
+                story?.soundscape_audio_key && (
+                  <button
+                    className={`${styles.layerBtn} ${soundscapeOn ? styles.active : ""}`}
+                    onClick={() => {
+                      setSoundscapeOn(!soundscapeOn);
+                      if (!soundscapeOn && isPlaying) {
+                        soundscapeRef.current?.play();
+                      } else {
+                        soundscapeRef.current?.pause();
+                      }
+                    }}
+                  >
+                    🌊 {soundscapeOn ? "Soundscape: ON" : "Soundscape: OFF"}
+                  </button>
+                )}
 
               {/* Binaural toggle */}
               {story?.binaural_audio_key && (

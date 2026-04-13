@@ -3,6 +3,11 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { execFile } from 'child_process';
+import { writeFileSync, readFileSync, mkdirSync, rmSync } from 'fs';
+import { join } from 'path';
+import { tmpdir } from 'os';
+import { randomUUID } from 'crypto';
 
 const s3 = new S3Client({
     region: 'us-east-1',
@@ -46,9 +51,38 @@ export async function POST(req: NextRequest) {
         }
 
         const timestamp = Date.now();
-        const audioBuf = Buffer.from(await audioFile.arrayBuffer());
+        let audioBuf = Buffer.from(await audioFile.arrayBuffer());
         const audioKey = `system/soundscapes/${title.toLowerCase().replace(/\s+/g, '_')}_${timestamp}.mp3`;
-        const durationSecs = Math.round(audioBuf.byteLength / 16000); // estimate
+
+        // Trim audio to max 25 minutes using ffmpeg
+        const MAX_DURATION_SECS = 25 * 60; // 25 minutes
+        const estimatedDuration = Math.round(audioBuf.byteLength / 16000);
+
+        if (estimatedDuration > MAX_DURATION_SECS) {
+            const tmpDir = join(tmpdir(), `trim-${randomUUID()}`);
+            mkdirSync(tmpDir, { recursive: true });
+            const inputPath = join(tmpDir, 'input.mp3');
+            const outputPath = join(tmpDir, 'trimmed.mp3');
+            writeFileSync(inputPath, audioBuf);
+
+            await new Promise<void>((resolve, reject) => {
+                execFile('ffmpeg', [
+                    '-i', inputPath,
+                    '-t', String(MAX_DURATION_SECS),
+                    '-c:a', 'libmp3lame',
+                    '-b:a', '128k',
+                    '-y', outputPath,
+                ], (error) => {
+                    if (error) reject(error);
+                    else resolve();
+                });
+            });
+
+            audioBuf = readFileSync(outputPath);
+            rmSync(tmpDir, { recursive: true, force: true });
+        }
+
+        const durationSecs = Math.min(Math.round(audioBuf.byteLength / 16000), MAX_DURATION_SECS);
 
         // Upload audio to R2
         await s3.send(
