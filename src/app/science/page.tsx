@@ -2,8 +2,7 @@
 
 import React, { useEffect } from 'react';
 import Link from 'next/link';
-import Header from '../components/Header';
-import Sidebar from '../components/Sidebar';
+import PublicNav from '../components/PublicNav';
 import styles from '../styles/PremiumExploration.module.css';
 
 export default function SciencePage() {
@@ -19,8 +18,7 @@ export default function SciencePage() {
 
   return (
     <div className={styles.mainContainer}>
-      <Header />
-      <Sidebar isLandingPage />
+      <PublicNav />
 
       {/* HERO */}
       <section className={styles.hero}>

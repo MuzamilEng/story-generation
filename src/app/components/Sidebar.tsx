@@ -215,11 +215,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isLandingPage = false }) => {
 
   const exploreNav = isLandingPage
     ? []
-    : [
-        { href: "/science", label: "The Science", icon: <FlaskIcon /> },
-        { href: "/quantum", label: "Quantum Theory", icon: <FlaskIcon /> },
-        { href: "/mystical", label: "Ancient Wisdom", icon: <BookOpenIcon /> },
-      ];
+    : [];
 
   const accountNav =
     isLandingPage && !session

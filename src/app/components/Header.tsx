@@ -259,53 +259,6 @@ const Header: React.FC = () => {
             >
               My Stories
             </Link>
-            <div
-              className={styles.dropdownWrapper}
-              onMouseEnter={handleExploreEnter}
-              onMouseLeave={handleExploreLeave}
-            >
-              <button
-                className={`${styles.navLink} ${exploreOpen ? styles.active : ""}`}
-              >
-                Explore <span className={styles.chevron}></span>
-              </button>
-              <div
-                className={`${styles.dropdownMenu} ${exploreOpen ? styles.open : ""}`}
-              >
-                <Link
-                  href="/science"
-                  className={styles.dropdownItem}
-                  onClick={handleLinkClick}
-                >
-                  <span className={styles.ddTitle}>The Science</span>
-                  <span className={styles.ddSub}>
-                    Neuroscience, the RAS & theta waves
-                  </span>
-                </Link>
-                <div className={styles.ddDivider} />
-                <Link
-                  href="/quantum"
-                  className={styles.dropdownItem}
-                  onClick={handleLinkClick}
-                >
-                  <span className={styles.ddTitle}>Quantum Theory</span>
-                  <span className={styles.ddSub}>
-                    Observer effect & possibility
-                  </span>
-                </Link>
-                <div className={styles.ddDivider} />
-                <Link
-                  href="/mystical"
-                  className={styles.dropdownItem}
-                  onClick={handleLinkClick}
-                >
-                  <span className={styles.ddTitle}>Ancient Wisdom</span>
-                  <span className={styles.ddSub}>
-                    What every tradition practiced
-                  </span>
-                </Link>
-              </div>
-            </div>
             <Link
               href="/pricing"
               className={`${styles.navLink} ${pathname === "/pricing" ? styles.active : ""}`}

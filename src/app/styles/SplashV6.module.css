@@ -13,6 +13,21 @@
 .navSignIn { font-size: 12px; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase; color: #7A7870; text-decoration: none; transition: color 0.2s; }
 .navSignIn:hover { color: #E8E6DF; }
 
+/* NAV DROPDOWN */
+.navDropdown { position: relative; display: flex; align-items: stretch; height: 100%; }
+.navDropdownTrigger { display: flex; align-items: center; height: 100%; padding: 0 24px; font-size: 12px; font-weight: 500; letter-spacing: 0.07em; text-transform: uppercase; color: #7A7870; text-decoration: none; border: none; background: none; border-bottom: 2px solid transparent; transition: color 0.2s, border-color 0.2s; cursor: pointer; gap: 5px; }
+.navDropdownTrigger:hover { color: #E8E6DF; border-bottom-color: rgba(141,191,122,0.3); }
+.navDropdownTriggerActive { color: #E8E6DF; border-bottom-color: #8DBF7A; }
+.navDropdownMenu { position: absolute; top: 100%; left: 0; min-width: 220px; background: rgba(13,13,20,0.98); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 8px 0; opacity: 0; visibility: hidden; transform: translateY(4px); transition: opacity 0.2s, visibility 0.2s, transform 0.2s; z-index: 200; }
+.navDropdown:hover .navDropdownMenu { opacity: 1; visibility: visible; transform: translateY(0); }
+.navDropdownItem { display: block; padding: 10px 20px; font-size: 12px; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase; color: #7A7870; text-decoration: none; transition: color 0.15s, background 0.15s; }
+.navDropdownItem:hover { color: #E8E6DF; background: rgba(141,191,122,0.08); }
+
+/* MOBILE DROPDOWN */
+.mobileNavDropdownItems { list-style: none; padding: 8px 0 0 16px; margin: 0; display: flex; flex-direction: column; gap: 16px; }
+.mobileNavDropdownItem { font-size: 14px; font-weight: 400; letter-spacing: 0.05em; text-transform: uppercase; color: #5A5950; text-decoration: none; transition: color 0.2s; }
+.mobileNavDropdownItem:hover { color: #E8E6DF; }
+
 /* MOBILE MENU TOGGLE */
 .navMobileBtn { display: none; background: transparent; border: none; padding: 8px; color: #7A7870; cursor: pointer; transition: color 0.2s; z-index: 101; }
 .navMobileBtn:hover { color: #E8E6DF; }
@@ -50,14 +65,18 @@
 .scarcityFill { height: 100%; width: 0%; background: linear-gradient(to right, #8DBF7A, #C9A84C); border-radius: 1px; transition: width 1.2s cubic-bezier(0.4,0,0.2,1); }
 .scarcityNote { margin-top: 7px; font-size: 11px; color: #52504A; text-align: center; }
 
-.emailForm { position: relative; z-index: 1; display: flex; max-width: 460px; width: 100%; margin-bottom: 12px; border: 1px solid rgba(255,255,255,0.11); border-radius: 4px; overflow: hidden; opacity: 0; animation: fadeUp 0.9s ease 0.7s forwards; }
-.emailInput { flex: 1; background: rgba(255,255,255,0.03); border: none; padding: 16px 18px; font-family: var(--font-inter), system-ui, sans-serif; font-size: 14px; color: #E8E6DF; outline: none; min-width: 0; }
+.emailForm { position: relative; z-index: 1; display: flex; flex-direction: column; max-width: 460px; width: 100%; margin-bottom: 12px; opacity: 0; animation: fadeUp 0.9s ease 0.7s forwards; }
+.emailFields { display: flex; flex-wrap: wrap; border: 1px solid rgba(255,255,255,0.11); border-radius: 4px 4px 0 0; overflow: hidden; }
+.emailInput { flex: 1 1 45%; background: rgba(255,255,255,0.03); border: none; border-right: 1px solid rgba(255,255,255,0.07); padding: 16px 18px; font-family: var(--font-inter), system-ui, sans-serif; font-size: 14px; color: #E8E6DF; outline: none; min-width: 0; }
+.emailInput:last-child { border-right: none; }
 .emailInput::placeholder { color: #52504A; }
 .emailInput:focus { background: rgba(255,255,255,0.05); }
-.emailBtn { background: #C9A84C; border: none; padding: 16px 24px; font-family: var(--font-inter), system-ui, sans-serif; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #0A0A10; cursor: pointer; white-space: nowrap; transition: background 0.2s; }
+.emailBtn { background: #C9A84C; border: 1px solid rgba(255,255,255,0.11); border-top: none; border-radius: 0 0 4px 4px; padding: 16px 24px; font-family: var(--font-inter), system-ui, sans-serif; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #0A0A10; cursor: pointer; white-space: nowrap; transition: background 0.2s; }
 .emailBtn:hover { background: #D9B85C; }
 .emailBtn:disabled { opacity: 0.6; cursor: not-allowed; }
 .emailBtnSuccess { background: #4A7A38 !important; color: #E8E6DF !important; }
+.formSuccess { position: relative; z-index: 1; max-width: 460px; width: 100%; margin-bottom: 12px; padding: 20px 24px; background: rgba(141,191,122,0.08); border: 1px solid rgba(141,191,122,0.25); border-radius: 4px; font-family: var(--font-inter), system-ui, sans-serif; font-size: 15px; font-weight: 400; color: #8DBF7A; text-align: center; line-height: 1.5; animation: fadeUp 0.5s ease forwards; }
+.fieldError { font-size: 12px; color: #e05252; margin: 6px 0 0; padding: 0 4px; font-weight: 400; line-height: 1.4; }
 .heroMicro { position: relative; z-index: 1; font-size: 12px; color: #52504A; opacity: 0; animation: fadeUp 0.9s ease 0.85s forwards; }
 .heroMicroStrong { color: #8DBF7A; font-weight: 500; }
 .scrollHint { position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); z-index: 1; display: flex; flex-direction: column; align-items: center; gap: 8px; opacity: 0; animation: fadeUp 0.9s ease 1.3s forwards; }
@@ -184,11 +203,13 @@
 .inviteDot { width: 7px; height: 7px; border-radius: 50%; background: #C9A84C; flex-shrink: 0; animation: pulse 2s ease infinite; }
 .inviteScarcityText { font-size: 12px; font-weight: 500; color: #C9A84C; text-align: left; line-height: 1.5; }
 .inviteScarcitySpan { font-weight: 300; color: rgba(201,168,76,0.65); }
-.inviteForm { display: flex; max-width: 420px; margin: 0 auto 10px; border: 1px solid rgba(255,255,255,0.11); border-radius: 4px; overflow: hidden; }
-.inviteInput { flex: 1; background: rgba(255,255,255,0.03); border: none; padding: 16px 16px; font-family: var(--font-inter), system-ui, sans-serif; font-size: 14px; color: #E8E6DF; outline: none; min-width: 0; }
+.inviteForm { display: flex; flex-direction: column; max-width: 420px; margin: 0 auto 10px; }
+.inviteFields { display: flex; flex-wrap: wrap; border: 1px solid rgba(255,255,255,0.11); border-radius: 4px 4px 0 0; overflow: hidden; }
+.inviteInput { flex: 1 1 45%; background: rgba(255,255,255,0.03); border: none; border-right: 1px solid rgba(255,255,255,0.07); padding: 16px 16px; font-family: var(--font-inter), system-ui, sans-serif; font-size: 14px; color: #E8E6DF; outline: none; min-width: 0; }
+.inviteInput:last-child { border-right: none; }
 .inviteInput::placeholder { color: #52504A; }
 .inviteInput:focus { background: rgba(255,255,255,0.05); }
-.inviteBtn { background: #C9A84C; border: none; padding: 16px 22px; font-family: var(--font-inter), system-ui, sans-serif; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #0A0A10; cursor: pointer; white-space: nowrap; transition: background 0.2s; }
+.inviteBtn { background: #C9A84C; border: 1px solid rgba(255,255,255,0.11); border-top: none; border-radius: 0 0 4px 4px; padding: 16px 22px; font-family: var(--font-inter), system-ui, sans-serif; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #0A0A10; cursor: pointer; white-space: nowrap; transition: background 0.2s; }
 .inviteBtn:hover { background: #D9B85C; }
 .inviteBtn:disabled { opacity: 0.6; cursor: not-allowed; }
 .inviteBtnSuccess { background: #4A7A38 !important; color: #E8E6DF !important; }

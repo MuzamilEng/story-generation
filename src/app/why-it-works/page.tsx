@@ -67,8 +67,15 @@ export default function WhyItWorks() {
         </Link>
         <ul className={splash.navTabs}>
           {tabLink("/#how", "How it works")}
-          {tabLink("/science", "The Science")}
-          {tabLink("/why-it-works", "Why it works")}
+          <li className={splash.navDropdown}>
+            <Link href="/why-it-works" className={`${splash.navDropdownTrigger} ${splash.navDropdownTriggerActive}`}>Why it works ▾</Link>
+            <div className={splash.navDropdownMenu}>
+              <Link href="/why-it-works" className={splash.navDropdownItem}>Overview</Link>
+              <Link href="/science" className={splash.navDropdownItem}>The Science</Link>
+              <Link href="/quantum" className={splash.navDropdownItem}>The Quantum Field</Link>
+              <Link href="/mystical" className={splash.navDropdownItem}>Ancient Wisdom</Link>
+            </div>
+          </li>
           {tabLink("/our-story", "Our story")}
         </ul>
         <div className={splash.navRight}>
@@ -122,10 +129,20 @@ export default function WhyItWorks() {
       >
         <ul className={splash.mobileNavTabs}>
           {tabLink("/#how", "How it works", true)}
-          {tabLink("/science", "The Science", true)}
-          {tabLink("/quantum", "The Quantum Field", true)}
-          {tabLink("/mystical", "Ancient Wisdom", true)}
-          {tabLink("/why-it-works", "Why it works", true)}
+          <li>
+            <Link
+              href="/why-it-works"
+              className={`${splash.mobileNavTabLink} ${splash.mobileNavTabLinkActive}`}
+              onClick={() => setIsMenuOpen(false)}
+            >
+              Why it works
+            </Link>
+            <ul className={splash.mobileNavDropdownItems}>
+              <li><Link href="/science" className={splash.mobileNavDropdownItem} onClick={() => setIsMenuOpen(false)}>The Science</Link></li>
+              <li><Link href="/quantum" className={splash.mobileNavDropdownItem} onClick={() => setIsMenuOpen(false)}>The Quantum Field</Link></li>
+              <li><Link href="/mystical" className={splash.mobileNavDropdownItem} onClick={() => setIsMenuOpen(false)}>Ancient Wisdom</Link></li>
+            </ul>
+          </li>
           {tabLink("/our-story", "Our story", true)}
         </ul>
         <div className={splash.mobileNavRight}>

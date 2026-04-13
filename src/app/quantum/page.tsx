@@ -2,7 +2,7 @@
 
 import React, { useEffect } from 'react';
 import Link from 'next/link';
-import Header from '../components/Header';
+import PublicNav from '../components/PublicNav';
 import styles from '../styles/PremiumExploration.module.css';
 
 export default function QuantumPage() {
@@ -18,7 +18,7 @@ export default function QuantumPage() {
 
   return (
     <div className={styles.mainContainer}>
-      <Header />
+      <PublicNav />
 
       {/* HERO */}
       <section className={styles.hero}>

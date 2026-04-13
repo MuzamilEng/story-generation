@@ -171,12 +171,12 @@ const UserHeader: React.FC = () => {
           >
             My Stories
           </Link>
-          <Link
+          {/* <Link
             href="/science"
             className={`${styles.navLink} ${pathname === "/science" ? styles.active : ""}`}
           >
             The Science
-          </Link>
+          </Link> */}
           <Link
             href="/user/account-setting"
             className={`${styles.navLink} ${pathname === "/user/account-setting" ? styles.active : ""}`}
@@ -189,12 +189,12 @@ const UserHeader: React.FC = () => {
           >
             Manage Subscription
           </Link>
-          <Link
+          {/* <Link
             href="/pricing"
             className={`${styles.navLink} ${pathname === "/pricing" ? styles.active : ""}`}
           >
             Pricing
-          </Link>
+          </Link> */}
         </nav>
 
         <div className={styles.topbarRight}>
