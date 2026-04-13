@@ -4,11 +4,12 @@
   "private": true,
   "scripts": {
     "setup": "npx prisma generate --schema=../prisma/schema.prisma",
-    "build": "echo 'No build step needed'",
+    "build": "npx prisma generate --schema=../prisma/schema.prisma",
     "dev": "npx tsx watch src/index.ts",
     "start": "npx tsx src/index.ts"
   },
   "dependencies": {
+    "@prisma/client": "^6.19.1",
     "@aws-sdk/client-s3": "^3.1006.0",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
@@ -17,6 +18,7 @@
     "@ffmpeg-installer/ffmpeg": "^1.1.0"
   },
   "devDependencies": {
+    "prisma": "^6.19.1",
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
     "@types/fluent-ffmpeg": "^2.1.28",
