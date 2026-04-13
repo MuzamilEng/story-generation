@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "setup": "npx prisma generate --schema=../prisma/schema.prisma",
+    "build": "echo 'No build step needed'",
     "dev": "npx tsx watch src/index.ts",
     "start": "npx tsx src/index.ts"
   },
