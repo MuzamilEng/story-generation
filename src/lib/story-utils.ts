@@ -389,23 +389,22 @@ POSITION 1 — OPENING AFFIRMATION PLANTING (3 statements)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Immediately after the induction threshold moment ('That part of you is listening now. And it is ready.'), plant 3 opening identity affirmations BEFORE the [INTRO_END] marker and before the first · · · separator and vision opening.
 
+Plant the user's selected identity statements VERBATIM.
+Do not rephrase, soften, or NLP-restructure them.
+If the user selected 'Everything I touch turns to gold' — plant that exact phrase. The rawness and directness is the point.
+
 These must be:
-- Present-tense and identity-level — NOT future-tense goals
-- BEING-level — who this person IS, not what they will do or have
-- Drawn from identityStatements[] and areaAffirmations{}
-- Broad enough to set the identity frame for the entire vision
-- Delivered as quiet first-person recognitions, one breath apart
-- Written in first person ("I am...")
+- Present-tense, first person — EXACTLY as the user selected them
+- VERBATIM from identityStatements[] and areaAffirmations{} — do not rewrite
+- Direct and bold — do not soften or intellectualize
+- Delivered as quiet first-person declarations, one breath apart
 - Followed by the [INTRO_END] marker, then · · · separator, then vision opening
 
 Source statements to draw from:
 Identity statements: ${Array.isArray(answers.identityStatements) ? answers.identityStatements.join(' | ') : answers.identityStatements}
 Per-area affirmations: ${Object.entries(answers).filter(([k]) => k.startsWith('areaAffirmations_')).map(([k, v]) => `${k.replace('areaAffirmations_', '').toUpperCase()}: ${Array.isArray(v) ? v.join('; ') : v}`).join(' | ') || 'Derive from goals'}
 
-Example (adapt to user's actual statements — do NOT use this example verbatim):
-'I am someone whose daily practices create extraordinary energy and healing.
-I am a creator of extraordinary abundance, and prosperity flows through everything I touch.
-I am a man of deep purpose, and my success transforms lives far beyond my own.'
+CRITICAL: Use the user's EXACT words. If they selected 'I am $100 million. This is simply who I am.' — plant that exact phrase. Do not rephrase to 'I am someone whose abundance knows no limits.' The power is in the directness.
 
 [INTRO_END]
 
@@ -674,9 +673,14 @@ STEP 1 — DISSOLUTION:
 The scene slowly dissolves, not into nothingness, but into the deep subconscious. The feeling remains even as the details fade. Use transitional language that invites release: "You can let it all go now. Let every image soften. Let every vision dissolve into warm light. You don't need to hold on to any of it. Your subconscious mind has received every word. Every feeling. Every instruction. It is already working."
 
 STEP 2 — POSITION 2: CLOSING AFFIRMATION PLANTING (3-5 statements — REQUIRED):
-After dissolution, plant 3-5 closing affirmations before sleep seeding. This is the deepest receptive moment — the critical faculty is fully offline. Plant the most powerful BEING-level statements here.
+After dissolution, plant 3-5 closing affirmations before sleep seeding. This is the deepest receptive moment — the critical faculty is fully offline. Plant the most powerful statements here.
+
+Plant the user's selected identity statements VERBATIM.
+Do not rephrase, soften, or NLP-restructure them.
+If the user selected 'Everything I touch turns to gold' — plant that exact phrase. The rawness and directness is the point.
+
 Use remaining statements from identityStatements[] and areaAffirmations{} that were NOT already used in Position 1 (opening affirmations). Do not repeat the same statements used at the opening.
-Do not rewrite or paraphrase — these are the user's own claimed identity.
+Do not rewrite or paraphrase — these are the user's own claimed identity. Use their EXACT words.
 
 Structure:
 - Organize: Having → Doing → Being (most powerful lands last)
@@ -686,14 +690,13 @@ Structure:
 - Never present as a list — arrive as flowing prose, one breath apart
 - IDENTITY SHIFT: Even though the guided voice is in 2nd person for the dissolution, the ENTIRE CLOSING AFFIRMATION PLANTING section (Position 2) — including affirmations AND bridge prose between them — must be written in FIRST PERSON present tense ("I am...", "I feel..."). Never switch to second person ("you") during the affirmation planting. The guide's "you" voice stops at the end of dissolution and resumes only at the subconscious programming step.
 - WRONG: 'you feel yourself becoming someone whose energy radiates...'
-- CORRECT: 'I am someone whose energy radiates so powerfully that people are drawn to me.'
-- Final affirmation must always be a BEING-level statement ("I am...")
-- Final BEING statement is the last word before sleep seeding begins
+- CORRECT: 'Everything I touch turns to gold. And as this truth settles deeper into every cell... I am $100 million. This is simply who I am.'
+- Final affirmation must always be the MOST powerful and bold statement — the one most uncomfortable to claim
+- Final statement is the last word before sleep seeding begins
 
 - Then flow directly into: 'Sleep now... and receive.' x3
 
-Example rhythm (adapt — do NOT copy verbatim):
-'I am someone whose energy radiates so powerfully that people are drawn to me. And as this truth settles deeper into every cell... I am someone who creates life-changing impact across the planet. Each time I hear these words, they become more completely mine... I am someone whose mind, body, and spirit are in perfect alignment.'
+CRITICAL: Use the user's EXACT selected statements. Do not intellectualize them into NLP constructions. 'My boys look up to me. I earned that.' stays exactly as is — do not rephrase to 'I am a father whose presence shapes the men my sons are becoming.'
 
 The user's identity statements: ${Array.isArray(answers.identityStatements) ? answers.identityStatements.join(' | ') : answers.identityStatements}
 The user's per-area affirmations: ${Object.entries(answers).filter(([k]) => k.startsWith('areaAffirmations_')).map(([k, v]) => `${k.replace('areaAffirmations_', '').toUpperCase()}: ${Array.isArray(v) ? v.join('; ') : v}`).join(' | ') || 'None — derive from goals'}
@@ -851,7 +854,7 @@ ${answers.actionsAfter}
 IDENTITY STATEMENTS — user's own claimed identity. Use VERBATIM in affirmation close after dissolution. Do not rewrite:
 ${Array.isArray(answers.identityStatements) ? answers.identityStatements.join(", ") : answers.identityStatements}
 
-PER-AREA AFFIRMATIONS — plant these by area AFTER dissolution, before identity statements:
+PER-AREA AFFIRMATIONS — plant these VERBATIM by area AFTER dissolution, before identity statements. Do not rephrase or NLP-restructure — use the user's exact words:
 ${Object.entries(answers).filter(([k]) => k.startsWith('areaAffirmations_')).map(([k, v]) => `${k.replace('areaAffirmations_', '').toUpperCase()}: ${Array.isArray(v) ? v.join('; ') : v}`).join('\n') || 'None captured — derive 2-3 BEING-level affirmations per area from the user goals above'}
 
 TIMEFRAME — open the story in this specific future moment:

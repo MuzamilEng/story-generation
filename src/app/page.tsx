@@ -189,7 +189,9 @@ export default function Home() {
           <li>
             <Link href="/why-it-works" className={s.navTabLink}>Why it works</Link>
           </li>
-          {tabLink("#story", "Our story")}
+          <li>
+            <Link href="/our-story" className={s.navTabLink}>Our story</Link>
+          </li>
         </ul>
         <div className={s.navRight}>
           <Link href="/auth/signin" className={s.navSignIn}>Sign In</Link>
@@ -229,7 +231,15 @@ export default function Home() {
               Why it works
             </Link>
           </li>
-          {tabLink("#story", "Our story", true)}
+          <li>
+            <Link 
+              href="/our-story" 
+              className={s.mobileNavTabLink} 
+              onClick={() => setIsMenuOpen(false)}
+            >
+              Our story
+            </Link>
+          </li>
         </ul>
         <div className={s.mobileNavRight}>
           <Link href="/auth/signin" className={s.mobileNavSignIn} onClick={() => setIsMenuOpen(false)}>Sign In</Link>

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { sendWaitlistWelcomeEmail } from "@/lib/email";
 
 export async function POST(req: NextRequest) {
   try {
@@ -23,6 +24,10 @@ export async function POST(req: NextRequest) {
 
     if (existing) {
       // Don't reveal if email exists — return success silently
+      // Still send welcome email in case they missed it the first time
+      sendWaitlistWelcomeEmail(sanitizedEmail, sanitizedName).catch((err) =>
+        console.error("[WAITLIST_EMAIL_ERROR]", err)
+      );
       return NextResponse.json({ success: true });
     }
 
@@ -33,8 +38,10 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // TODO: Trigger welcome email via Resend/SendGrid when configured
-    // For now, entries are stored in the waitlist_entries table
+    // Send welcome email (non-blocking — don't fail the request if email fails)
+    sendWaitlistWelcomeEmail(sanitizedEmail, sanitizedName).catch((err) =>
+      console.error("[WAITLIST_EMAIL_ERROR]", err)
+    );
 
     return NextResponse.json({ success: true });
   } catch (error) {

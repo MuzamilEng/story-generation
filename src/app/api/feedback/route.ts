@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { sendFeedbackNotification } from "@/lib/email";
 
 export async function POST(req: NextRequest) {
   try {
@@ -17,20 +18,15 @@ export async function POST(req: NextRequest) {
 
     const userId = session.user.id;
 
-    // Check if already submitted
-    const existing = await prisma.betaFeedback.findUnique({
-      where: { userId },
-    });
-
-    if (existing) {
-      return NextResponse.json({ error: "You have already submitted feedback." }, { status: 400 });
-    }
-
-    // Store feedback and mark survey as completed
+    // Upsert feedback — create or update if already submitted
     await prisma.$transaction([
-      prisma.betaFeedback.create({
-        data: {
+      prisma.betaFeedback.upsert({
+        where: { userId },
+        create: {
           userId,
+          responses,
+        },
+        update: {
           responses,
         },
       }),
@@ -40,7 +36,15 @@ export async function POST(req: NextRequest) {
       }),
     ]);
 
-    // TODO: Send email notification to Michael when configured
+    // Notify Michael (non-blocking)
+    console.log("[FEEDBACK_EMAIL] Attempting to send notification...");
+    sendFeedbackNotification(
+      session.user.name ?? "Unknown",
+      session.user.email ?? "unknown",
+      responses
+    )
+      .then(() => console.log("[FEEDBACK_EMAIL] Sent successfully"))
+      .catch((err) => console.error("[FEEDBACK_EMAIL_ERROR]", err.message, err.code, err));
 
     return NextResponse.json({ success: true });
   } catch (error) {

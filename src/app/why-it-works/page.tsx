@@ -64,7 +64,7 @@ export default function WhyItWorks() {
           {tabLink("/#voice", "The voice")}
           {tabLink("/#features", "The science")}
           {tabLink("/why-it-works", "Why it works")}
-          {tabLink("/#story", "Our story")}
+          {tabLink("/our-story", "Our story")}
         </ul>
         <div className={splash.navRight}>
           <Link href="/auth/signin" className={splash.navSignIn}>Sign In</Link>
@@ -96,7 +96,7 @@ export default function WhyItWorks() {
           {tabLink("/#voice", "The voice", true)}
           {tabLink("/#features", "The science", true)}
           {tabLink("/why-it-works", "Why it works", true)}
-          {tabLink("/#story", "Our story", true)}
+          {tabLink("/our-story", "Our story", true)}
         </ul>
         <div className={splash.mobileNavRight}>
           <Link href="/auth/signin" className={splash.mobileNavSignIn} onClick={() => setIsMenuOpen(false)}>Sign In</Link>

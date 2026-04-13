@@ -516,7 +516,7 @@ const AudioReadyContent: React.FC = () => {
 
   const handleMetadata = () => {
     if (audioRef.current) {
-      const d = audioRef.current.duration;
+      const d = audioRef.current.duration; 
       if (d && isFinite(d) && d > 0) {
         setDuration(d);
       }
