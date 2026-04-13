@@ -766,7 +766,7 @@ const VoiceRecordingContent: React.FC = () => {
       }
     } catch (e) {
       console.error(e);
-      showToast("Failed to save voice sample.", "error");
+      showToast("Could not upload voice. Please try again in a moment.", "error");
     } finally {
       setIsSaving(false);
     }

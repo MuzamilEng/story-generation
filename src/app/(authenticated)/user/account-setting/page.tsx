@@ -456,7 +456,7 @@ const InlineRecorder: React.FC<InlineRecorderProps> = ({
         showToast("❌ " + (data.error || "Failed to save"));
       }
     } catch {
-      showToast("❌ Failed to save voice");
+      showToast("❌ Could not upload voice. Please try again in a moment.");
     } finally {
       setIsSaving(false);
     }
@@ -1387,7 +1387,7 @@ const AccountSettings: React.FC = () => {
               title="Background Soundscape"
               subtitle="Ambient audio mixed softly beneath your story at −18 dB"
             />
-            {userData.plan === "free" || userData.plan === "activator" ? (
+            {(userData.plan === "free" || userData.plan === "activator") && !isActuallyBeta ? (
               <div
                 style={{
                   padding: "16px 24px",
@@ -1435,7 +1435,7 @@ const AccountSettings: React.FC = () => {
               subtitle="Theta frequency (4–8 Hz) layered softly under the full audio at −18 dB"
               iconColor="gold"
             />
-            {userData.plan !== "amplifier" ? (
+            {userData.plan !== "amplifier" && !isActuallyBeta ? (
               <div
                 style={{
                   padding: "16px 24px",

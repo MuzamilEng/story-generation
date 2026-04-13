@@ -1751,19 +1751,40 @@ const GoalDiscovery: React.FC = () => {
           </div>
 
           {/* Sidebar finish button - only active when all required fields captured */}
-          {!isComplete && (
+          {!isComplete && (() => {
+            const visibleTopicIds = TOPICS.filter((topic) => {
+              if (AREA_TOPIC_IDS.includes(topic.id)) {
+                const rawAreas =
+                  ((capturedGoals?.selectedAreas ||
+                    capturedGoals?.SELECTEDAREAS) as string[]) || [];
+                const areas = Array.isArray(rawAreas) ? rawAreas : [rawAreas];
+                return areas.some((a) => {
+                  const s = String(a).toLowerCase();
+                  if (s === topic.id) return true;
+                  if (s.includes(topic.id)) return true;
+                  if (topic.id === "spirituality" && s.includes("spirit")) return true;
+                  if (topic.id === "purpose" && s.includes("career")) return true;
+                  return false;
+                });
+              }
+              return true;
+            }).map((t) => t.id);
+            const allTopicsResponded = visibleTopicIds.every((id) => respondedTopics.includes(id));
+            return (
             <button
               className={styles.finishEarlyBtn}
               onClick={() => {
                 setIsComplete(true);
               }}
-              disabled={false}
-              title="Click here whenever you feel ready to see your story"
+              disabled={!allTopicsResponded}
+              title={allTopicsResponded ? "Click here whenever you feel ready to see your story" : "Complete all topics before generating your story"}
+              style={!allTopicsResponded ? { opacity: 0.5, cursor: "not-allowed" } : {}}
             >
               <span>Ready to see your story?</span>
               <strong>Finish & Generate →</strong>
             </button>
-          )}
+            );
+          })()}
         </aside>
 
         {/* Chat Area */}

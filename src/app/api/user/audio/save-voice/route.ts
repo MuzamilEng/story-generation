@@ -92,6 +92,15 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: true, voice: voiceSample });
     } catch (e: any) {
         console.error('[save-voice] Error:', e);
+
+        // Handle transient DNS / network errors to R2
+        if (e?.code === 'ENOTFOUND' || e?.errno === -3008 || e?.syscall === 'getaddrinfo') {
+            return NextResponse.json(
+                { error: 'Our storage service is temporarily unreachable. Please try again in a moment.' },
+                { status: 503 }
+            );
+        }
+
         return NextResponse.json({ error: e.message || 'Internal Server Error' }, { status: 500 });
     }
 }

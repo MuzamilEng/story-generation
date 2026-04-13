@@ -400,8 +400,8 @@ const Subscription: React.FC = () => {
             />
           )}
 
-          {/* Cancel Section */}
-          {currentPlanId !== "free" && (
+          {/* Cancel Section — hidden for beta trial users */}
+          {currentPlanId !== "free" && !isActuallyBeta && (
             <CancelSection
               nextRenewal={currentPlan.nextRenewal}
               onCancel={handleCancel}

@@ -88,21 +88,22 @@ export async function PATCH(req: NextRequest) {
         if (soundscape !== undefined || binaural_enabled !== undefined) {
             const currentUser = await prisma.user.findUnique({
                 where: { id: session.user.id },
-                select: { plan: true },
+                select: { plan: true, is_beta: true, stripeSubscriptionId: true },
             })
             const plan = currentUser?.plan ?? 'free'
+            const isBetaUser = currentUser?.is_beta && !currentUser?.stripeSubscriptionId;
 
             const SOUNDSCAPE_PLANS = ['manifester', 'amplifier']
             const BINAURAL_PLANS = ['amplifier']
 
-            if (soundscape !== undefined && !SOUNDSCAPE_PLANS.includes(plan)) {
+            if (soundscape !== undefined && !isBetaUser && !SOUNDSCAPE_PLANS.includes(plan)) {
                 return NextResponse.json(
                     { error: 'Background soundscapes require the Manifester or Amplifier plan.' },
                     { status: 403 }
                 )
             }
 
-            if (binaural_enabled !== undefined && !BINAURAL_PLANS.includes(plan)) {
+            if (binaural_enabled !== undefined && !isBetaUser && !BINAURAL_PLANS.includes(plan)) {
                 return NextResponse.json(
                     { error: 'Binaural beats require the Amplifier plan.' },
                     { status: 403 }
