@@ -14,6 +14,7 @@ export const model = isAnthropic
         modelName: "claude-sonnet-4-20250514",
         temperature: 0.88,
         maxTokens: 16384,
+        maxRetries: 3,
     })
     : isAzure
     ? new AzureChatOpenAI({

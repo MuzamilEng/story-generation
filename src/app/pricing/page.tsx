@@ -140,49 +140,9 @@ const PricingContent: React.FC = () => {
             </p>
           </div>
 
-          <div className={styles.foundingWrap}>
-            <div className={styles.foundingInner}>
-              <div className={styles.fLeft}>
-                <div className={styles.fTitle}>
-                  Founding member pricing — 50% off
-                </div>
-                <div className={styles.fSub}>
-                  We're offering this rate to our first members only. Once we
-                  reach capacity, this pricing closes permanently.
-                </div>
-              </div>
-              <div className={styles.fBadge}>Limited spots</div>
-            </div>
-          </div>
+          {/* Founding member banner hidden — pricing not yet public */}
 
-          <div className={styles.toggleRow}>
-            <div className={styles.toggleWrap}>
-              <span
-                className={`${styles.tl} ${!isAnnual ? styles.on : ""}`}
-                onClick={() => setBillingCycle("monthly")}
-              >
-                Monthly
-              </span>
-              <div
-                className={`${styles.tpill} ${isAnnual ? styles.annual : ""}`}
-                onClick={() => setBillingCycle(isAnnual ? "monthly" : "yearly")}
-              >
-                <div className={styles.tdot}></div>
-              </div>
-              <span
-                className={`${styles.tl} ${isAnnual ? styles.on : ""}`}
-                onClick={() => setBillingCycle("yearly")}
-              >
-                Annual
-              </span>
-              <span
-                className={styles.saveTag}
-                style={{ opacity: isAnnual ? 1 : 0.4 }}
-              >
-                Save 30%
-              </span>
-            </div>
-          </div>
+          {/* Billing toggle hidden — pricing not yet public */}
         </section>
 
         <section className={styles.cardsSection}>
@@ -294,19 +254,11 @@ const PricingContent: React.FC = () => {
                 starts here.
               </div>
               <div className={styles.priceBlock}>
-                <div className={styles.pwas}>
-                  Was ${prices.monthly.act[1]}/mo
-                </div>
+                <div className={styles.pwas}>&nbsp;</div>
                 <div className={styles.prow}>
-                  <span className={styles.pamt}>${p.act[0]}</span>
-                  <span className={styles.pper}>/mo</span>
                   <span className={styles.ftag}>Founding rate</span>
                 </div>
-                <div className={styles.pnote}>
-                  {isAnnual
-                    ? `($${prices.yearly.act[0]}/mo billed annually)`
-                    : "\u00a0"}
-                </div>
+                <div className={styles.pnote}>&nbsp;</div>
               </div>
               <button
                 onClick={() => handlePlanSelect("activator")}
@@ -371,19 +323,11 @@ const PricingContent: React.FC = () => {
                 in theta.
               </div>
               <div className={styles.priceBlock}>
-                <div className={styles.pwas}>
-                  Was ${prices.monthly.man[1]}/mo
-                </div>
+                <div className={styles.pwas}>&nbsp;</div>
                 <div className={styles.prow}>
-                  <span className={styles.pamt}>${p.man[0]}</span>
-                  <span className={styles.pper}>/mo</span>
                   <span className={styles.ftag}>Founding rate</span>
                 </div>
-                <div className={styles.pnote}>
-                  {isAnnual
-                    ? `($${prices.yearly.man[0]}/mo billed annually)`
-                    : "\u00a0"}
-                </div>
+                <div className={styles.pnote}>&nbsp;</div>
               </div>
               <button
                 onClick={() => handlePlanSelect("manifester")}
@@ -453,19 +397,11 @@ const PricingContent: React.FC = () => {
                 available.
               </div>
               <div className={styles.priceBlock}>
-                <div className={styles.pwas}>
-                  Was ${prices.monthly.amp[1]}/mo
-                </div>
+                <div className={styles.pwas}>&nbsp;</div>
                 <div className={styles.prow}>
-                  <span className={styles.pamt}>${p.amp[0]}</span>
-                  <span className={styles.pper}>/mo</span>
                   <span className={styles.ftag}>Founding rate</span>
                 </div>
-                <div className={styles.pnote}>
-                  {isAnnual
-                    ? `($${prices.yearly.amp[0]}/mo billed annually)`
-                    : "\u00a0"}
-                </div>
+                <div className={styles.pnote}>&nbsp;</div>
               </div>
               <button
                 onClick={() => handlePlanSelect("amplifier")}

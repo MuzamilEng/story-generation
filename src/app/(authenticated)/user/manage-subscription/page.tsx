@@ -263,12 +263,8 @@ const Subscription: React.FC = () => {
     price: isActuallyBeta
       ? `${subStatus.betaPlanName || planNamesMap[currentPlanId] || "Beta"} (Beta — 2 month trial)`
       : currentPlanId === "free"
-        ? "$0 forever"
-        : currentPlanId === "activator"
-          ? "$9.99/month"
-          : currentPlanId === "manifester"
-            ? "$19.99/month"
-            : "$39.99/month",
+        ? "Free"
+        : planNamesMap[currentPlanId] || "Active",
     nextRenewal: isActuallyBeta
       ? subStatus.betaExpiresAt
         ? new Date(subStatus.betaExpiresAt)

@@ -66,9 +66,26 @@ Do NOT skip to Phase 4 (Story Anchors/Tone). Do NOT move past Proof Actions unti
             )
         ];
 
-        const response = await model.invoke(langchainMessages);
+        let response;
+        const maxRetries = 3;
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                response = await model.invoke(langchainMessages);
+                break;
+            } catch (err: any) {
+                const status = err?.status || err?.response?.status;
+                const isRetryable = status === 529 || status === 503 || status === 429;
+                if (isRetryable && attempt < maxRetries) {
+                    const delay = Math.min(1000 * Math.pow(2, attempt - 1), 10000) + Math.random() * 500;
+                    console.warn(`[CHAT] Attempt ${attempt}/${maxRetries} failed (status ${status}). Retrying in ${Math.round(delay)}ms...`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                } else {
+                    throw err;
+                }
+            }
+        }
 
-        return NextResponse.json({ text: response.content });
+        return NextResponse.json({ text: response!.content });
     } catch (error: any) {
         console.error('Error in LangChain chat API:', error);
         return NextResponse.json({ error: error.message || 'Error occurred' }, { status: 500 });

@@ -54,14 +54,33 @@ Luxuriate in the scenes. Expand the textures, the scents, and the unhurried inte
 }
 
 async function generateStory(prompt: string, systemMessage: string): Promise<string> {
-    const chatModel = model as any; 
-    const response = await chatModel.invoke([
-        new SystemMessage(systemMessage),
-        new HumanMessage(prompt)
-    ], {
-        max_tokens: 16384 // Full capacity for Amplifier/Epic stories
-    });
-    return response.content as string;
+    const chatModel = model as any;
+    const maxRetries = 4;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            const response = await chatModel.invoke([
+                new SystemMessage(systemMessage),
+                new HumanMessage(prompt)
+            ], {
+                max_tokens: 16384
+            });
+            return response.content as string;
+        } catch (err: any) {
+            const status = err?.status || err?.response?.status;
+            const isRetryable = status === 529 || status === 503 || status === 429;
+
+            if (isRetryable && attempt < maxRetries) {
+                const delay = Math.min(1000 * Math.pow(2, attempt - 1), 15000) + Math.random() * 1000;
+                console.warn(`[STORY_GENERATE] Attempt ${attempt}/${maxRetries} failed (status ${status}). Retrying in ${Math.round(delay)}ms...`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+            } else {
+                throw err;
+            }
+        }
+    }
+
+    throw new Error('Story generation failed after all retries');
 }
 
 export async function POST(

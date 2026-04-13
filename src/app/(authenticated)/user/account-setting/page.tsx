@@ -610,7 +610,9 @@ const SavedVoices: React.FC<SavedVoicesProps> = ({
           </div>
           <div className={styles.savedVoiceItemInfo}>
             {editingId === v.id ? (
-              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <div
+                style={{ display: "flex", alignItems: "center", gap: "6px" }}
+              >
                 <input
                   className={styles.formInput}
                   value={editLabel}
@@ -620,10 +622,26 @@ const SavedVoices: React.FC<SavedVoicesProps> = ({
                     if (e.key === "Escape") cancelEditing();
                   }}
                   autoFocus
-                  style={{ fontSize: "0.85rem", padding: "4px 8px", maxWidth: "180px" }}
+                  style={{
+                    fontSize: "0.85rem",
+                    padding: "4px 8px",
+                    maxWidth: "180px",
+                  }}
                 />
-                <button className={styles.saveBtn} onClick={confirmRename} style={{ padding: "4px 10px", fontSize: "0.78rem" }}>Save</button>
-                <button className={styles.cancelBtn} onClick={cancelEditing} style={{ padding: "4px 10px", fontSize: "0.78rem" }}>Cancel</button>
+                <button
+                  className={styles.saveBtn}
+                  onClick={confirmRename}
+                  style={{ padding: "4px 10px", fontSize: "0.78rem" }}
+                >
+                  Save
+                </button>
+                <button
+                  className={styles.cancelBtn}
+                  onClick={cancelEditing}
+                  style={{ padding: "4px 10px", fontSize: "0.78rem" }}
+                >
+                  Cancel
+                </button>
               </div>
             ) : (
               <>
@@ -1480,7 +1498,7 @@ const AccountSettings: React.FC = () => {
               subtitle={
                 isActuallyBeta
                   ? `${betaDisplayName} (Beta — 2 month trial)${userData.betaExpiresAt ? ` · Expires ${format(new Date(userData.betaExpiresAt), "MMMM d, yyyy")}` : ""}`
-                  : `${userData.plan === "free" ? "Free Plan" : userData.plan === "activator" ? "$9.99 one-time" : userData.plan === "manifester" ? "$19.99/month" : "$39.99/month"} · Active since ${format(new Date(userData.createdAt), "MMMM d, yyyy")}`
+                  : `${userData.plan === "free" ? "Free Plan" : planDisplayName} · Active since ${format(new Date(userData.createdAt), "MMMM d, yyyy")}`
               }
               iconColor="gold"
             />
