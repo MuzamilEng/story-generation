@@ -9,21 +9,38 @@ import s from "./styles/SplashV6.module.css";
 const WaitlistForm: React.FC<{
   variant?: "hero" | "invite";
 }> = ({ variant = "hero" }) => {
+  const [firstName, setFirstName] = useState("");
   const [email, setEmail] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [submittedName, setSubmittedName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [nameError, setNameError] = useState("");
+  const [emailError, setEmailError] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.includes("@")) return;
+    setNameError("");
+    setEmailError("");
+    let hasError = false;
+    if (!firstName.trim()) { setNameError("First name is required."); hasError = true; }
+    if (!email.includes("@")) { setEmailError("Please enter a valid email."); hasError = true; }
+    if (hasError) return;
     setIsLoading(true);
     try {
+      // Extract UTM source from URL if available
+      const params = new URLSearchParams(window.location.search);
+      const source = params.get("utm_source") || "direct";
+
       const res = await fetch("/api/waitlist", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ firstName: "Founding Member", email: email.trim() }),
+        body: JSON.stringify({ firstName: firstName.trim(), email: email.trim(), source }),
       });
-      if (res.ok) setSubmitted(true);
+      if (res.ok) {
+        const data = await res.json();
+        setSubmittedName(data.firstName || firstName.trim());
+        setSubmitted(true);
+      }
     } catch {
       // silent
     } finally {
@@ -34,30 +51,54 @@ const WaitlistForm: React.FC<{
   const formClass = variant === "hero" ? s.emailForm : s.inviteForm;
   const inputClass = variant === "hero" ? s.emailInput : s.inviteInput;
   const btnClass = variant === "hero" ? s.emailBtn : s.inviteBtn;
-  const successClass = variant === "hero" ? s.emailBtnSuccess : s.inviteBtnSuccess;
+
+  if (submitted) {
+    return (
+      <div className={s.formSuccess}>
+        You&rsquo;re in, {submittedName}. Check your inbox — we just sent you something.
+      </div>
+    );
+  }
+
+  const fieldsClass = variant === "hero" ? s.emailFields : s.inviteFields;
 
   return (
     <form className={formClass} onSubmit={handleSubmit}>
-      <input
-        type="email"
-        className={inputClass}
-        placeholder="Your email address"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        required
-        disabled={submitted}
-      />
+      <div className={fieldsClass}>
+        <input
+          type="text"
+          className={inputClass}
+          placeholder="First name"
+          value={firstName}
+          onChange={(e) => { setFirstName(e.target.value); setNameError(""); }}
+          required
+          autoComplete="given-name"
+        />
+        <input
+          type="email"
+          className={inputClass}
+          placeholder="Your email"
+          value={email}
+          onChange={(e) => { setEmail(e.target.value); setEmailError(""); }}
+          required
+          autoComplete="email"
+        />
+      </div>
+      {(nameError || emailError) && (
+        <div style={{ padding: '0 4px' }}>
+          {nameError && <div className={s.fieldError}>{nameError}</div>}
+          {emailError && <div className={s.fieldError}>{emailError}</div>}
+        </div>
+      )}
       <button
         type="submit"
-        className={`${btnClass} ${submitted ? successClass : ""}`}
-        disabled={!email.includes("@") || isLoading || submitted}
+        className={btnClass}
+        disabled={!email.includes("@") || !firstName.trim() || isLoading}
       >
         {isLoading ? (
           <span className={s.spinner} />
-        ) : submitted ? (
-          variant === "hero" ? "Invitation requested" : "Spot claimed"
         ) : variant === "hero" ? (
-          "Request my invitation"
+          "Join the waitlist"
         ) : (
           "Claim my spot"
         )}
