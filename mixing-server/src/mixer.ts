@@ -166,11 +166,14 @@ export async function mixAudio(opts: MixOptions): Promise<Buffer> {
     let binIdx     = -1;
 
     if (bgPath) {
-      cmd.input(bgPath);
+      // Use -stream_loop instead of aloop filter to loop the background.
+      // aloop with size=2e+09 buffers ~8GB in RAM and causes OOM on small instances.
+      // -stream_loop re-reads the file from disk with negligible memory overhead.
+      cmd.input(bgPath).inputOptions(['-stream_loop', '-1']);
       bgIdx = nextInput++;
     }
     if (binauralPath) {
-      cmd.input(binauralPath);
+      cmd.input(binauralPath).inputOptions(['-stream_loop', '-1']);
       binIdx = nextInput++;
     }
 
@@ -221,7 +224,7 @@ export async function mixAudio(opts: MixOptions): Promise<Buffer> {
     if (bgIdx >= 0) {
       const totalBgDuration = BG_LEAD_SECS + voiceDuration + BG_TAIL_SECS;
       const fadeOutStart    = totalBgDuration - BG_FADE_OUT_SECS;
-      
+
 
       // Clamp fade-out start so it never goes negative (short narrations)
       const safeFadeStart = Math.max(0, fadeOutStart);
@@ -230,12 +233,12 @@ export async function mixAudio(opts: MixOptions): Promise<Buffer> {
       const compensatedBgVolume = backgroundVolume * totalInputs;
 
       filters.push(
-        // aloop=-1: loop indefinitely until atrim cuts it
+        // -stream_loop on input handles looping at demuxer level (no RAM buffering)
+        // atrim: cut to exact duration needed
         // afade in: subtle 1 s fade-in at the very beginning (avoids hard start)
         // afade out: BG_FADE_OUT_SECS fade at the end of the tail
         // volume: dim the background relative to the voice (compensated for amix)
         `[${bgIdx}:a]` +
-        `aloop=loop=-1:size=2e+09,` +
         `atrim=0:${totalBgDuration},` +
         `afade=t=in:st=0:d=1,` +
         `afade=t=out:st=${safeFadeStart}:d=${BG_FADE_OUT_SECS},` +
@@ -254,7 +257,6 @@ export async function mixAudio(opts: MixOptions): Promise<Buffer> {
 
       filters.push(
         `[${binIdx}:a]` +
-        `aloop=loop=-1:size=2e+09,` +
         `atrim=0:${binDuration}` +
         `[binaural]`
       );
