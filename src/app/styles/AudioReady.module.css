@@ -273,6 +273,9 @@
     justify-content: center;
     margin-bottom: 0.5rem;
     flex-wrap: wrap;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    max-height: 60vh;
 }
 
 .layerBtn {

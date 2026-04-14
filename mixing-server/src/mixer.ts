@@ -13,7 +13,7 @@ interface MixOptions {
   voiceBuffer: Buffer;
   /** Buffer of the background soundscape MP3 (optional — skip if not selected) */
   backgroundBuffer?: Buffer | null;
-  /** 0 – 1, how loud the background should be relative to voice (default 0.15) */
+  /** 0 – 1, background volume multiplier (ignored — spec dB levels are used) */
   backgroundVolume?: number;
   /** Whether to layer binaural theta beats (4–8 Hz) under the audio */
   binauralEnabled?: boolean;
@@ -46,7 +46,7 @@ function getAudioDuration(filePath: string): Promise<number> {
 function generateBinauralWav(filePath: string, durationSecs: number): void {
   const sampleRate = 44100;
   const numSamples = Math.ceil(sampleRate * durationSecs);
-  const amplitude = 0.03; // very quiet
+  const amplitude = 1.0; // Full scale — volume is controlled by FFmpeg filter
 
   // 16-bit stereo PCM WAV
   const dataSize = numSamples * 2 * 2; // 2 channels × 2 bytes per sample
@@ -99,15 +99,17 @@ function generateBinauralWav(filePath: string, durationSecs: number): void {
  *   t=5+voiceDuration
  *   │  [BG only, 15 s tail]
  *   t=5+voiceDuration+15
- *   │  (last 8 s of tail is a fade-out)
+ *   │  (last 5 s of tail is a fade-out)
  *   ── end ────────────────────────────────────────────────────────────────
  *
  * Total BG duration = 5 + voiceDuration + 15
  *
- * Volume design (normalize=0 keeps levels absolute):
- *   - Voice:      1.0  (full level — prominent and clear)
- *   - Background: backgroundVolume (default 0.15 — clearly dimmed)
- *   - Binaural:   baked-in at 0.03 amplitude (barely perceptible)
+ * Volume design (dB levels from spec):
+ *   - Voice:              -3 dB  (0.708 linear — clean and present)
+ *   - Background (under):  -18 dB (0.126 linear — subtle, ambient)
+ *   - Background (solo):   -12 dB (0.25 linear — slightly louder, no voice)
+ *   - Background (fade):   -12 dB → -60 dB over last 5 s of outro
+ *   - Binaural:            -22 dB (0.079 linear — felt more than heard)
  *
  * Returns the mixed result as an MP3 Buffer.
  */
@@ -121,9 +123,9 @@ export async function mixAudio(opts: MixOptions): Promise<Buffer> {
 
   const hasBackground = !!(backgroundBuffer && backgroundBuffer.length > 0);
 
-  const BG_LEAD_SECS     = 10;  // background plays solo for 10 s before voice
+  const BG_LEAD_SECS     = 5;   // background plays solo for 5 s before voice
   const BG_TAIL_SECS     = 15;  // background continues 15 s after voice
-  const BG_FADE_OUT_SECS = 8;   // fade-out duration at the end of the tail
+  const BG_FADE_OUT_SECS = 5;   // fade-out duration at the end of the tail
 
   // ── Write inputs to temp files ──────────────────────────────────────────
   const tmpDir = path.join(os.tmpdir(), `mix-${randomUUID()}`);
@@ -166,77 +168,85 @@ export async function mixAudio(opts: MixOptions): Promise<Buffer> {
     let binIdx     = -1;
 
     if (bgPath) {
-      cmd.input(bgPath);
+      // Use -stream_loop instead of aloop filter to loop the background.
+      // aloop with size=2e+09 buffers ~8GB in RAM and causes OOM on small instances.
+      // -stream_loop re-reads the file from disk with negligible memory overhead.
+      cmd.input(bgPath).inputOptions(['-stream_loop', '-1']);
       bgIdx = nextInput++;
     }
     if (binauralPath) {
-      cmd.input(binauralPath);
+      cmd.input(binauralPath).inputOptions(['-stream_loop', '-1']);
       binIdx = nextInput++;
     }
 
     // ── Complex filter ────────────────────────────────────────────────────
     //
-    // Key design decisions:
+    // Volume levels from the developer brief (dB → linear):
+    //   Voice:                -3 dB  → 0.708
+    //   BG under narration:  -18 dB  → 0.126
+    //   BG solo (intro/outro):-12 dB → 0.251
+    //   BG fade-out:         -12 dB → -60 dB over last 5 s
+    //   Binaural:            -22 dB  → 0.079
     //
-    //  1. normalize=0  — disables amix's automatic loudness normalization so
-    //                    every stream's volume stays exactly as set. This is
-    //                    the main reason the old code needed the `volume=2.0`
-    //                    hack, which we no longer need.
-    //
-    //  2. Voice delay  — adelay shifts the voice by BG_LEAD_SECS (5 s) so
-    //                    the background gets its solo intro.
-    //
-    //  3. BG trim      — atrim cuts the background loop at exactly
-    //                    (BG_LEAD + voiceDuration + BG_TAIL) seconds, so
-    //                    there is never excess silence or premature cutoff.
-    //
-    //  4. duration=longest — amix runs until the longest input ends.
-    //                        Because the background is the longest, this
-    //                        ensures the full tail plays out.
+    // amix divides each input by N, so we pre-boost by N to keep absolute levels.
     //
     const filters: string[] = [];
     const mixLabels: string[] = [];
     let mixCount = 0;
 
-    // Voice — delayed by 10 s pre-roll (or passthrough if no background)
+    const totalInputs = 1 + (bgIdx >= 0 ? 1 : 0) + (binIdx >= 0 ? 1 : 0);
+
+    // dB-to-linear conversion targets (pre-compensated for amix N-division)
+    const VOICE_LINEAR      = 0.708 * totalInputs;  // -3 dB
+    const BG_SOLO_LINEAR    = 0.251 * totalInputs;   // -12 dB (intro & outro)
+    const BG_UNDER_LINEAR   = 0.126 * totalInputs;   // -18 dB (under narration)
+    const BINAURAL_LINEAR   = 0.079 * totalInputs;   // -22 dB
+
+    // Voice — delayed by 5 s pre-roll (or passthrough if no background)
     if (hasBackground) {
       const delayMs = BG_LEAD_SECS * 1000;
       filters.push(
-        `[0:a]adelay=${delayMs}|${delayMs}[voice_delayed]`
+        `[0:a]adelay=${delayMs}|${delayMs},volume=${VOICE_LINEAR}[voice_delayed]`
       );
       mixLabels.push('[voice_delayed]');
     } else {
-      filters.push(`[0:a]aresample=44100[voice_out]`);
+      filters.push(`[0:a]aresample=44100,volume=${VOICE_LINEAR}[voice_out]`);
       mixLabels.push('[voice_out]');
     }
     mixCount++;
 
-    // Background — loop → trim → fade-in over pre-roll → fade-out in tail → dim volume
+    // Background — loop → trim → volume automation → fade-out
+    //
+    // Volume automation approach:
+    //   Use FFmpeg's volume filter with a time-based expression to switch
+    //   between solo level (-12 dB) during intro/outro and ducked level
+    //   (-18 dB) while narration plays. The fade-out is handled by afade.
+    //
+    //   Expression: if(lt(t, LEAD), SOLO, if(lt(t, LEAD+voice), UNDER, SOLO))
+    //
     if (bgIdx >= 0) {
       const totalBgDuration = BG_LEAD_SECS + voiceDuration + BG_TAIL_SECS;
       const fadeOutStart    = totalBgDuration - BG_FADE_OUT_SECS;
+      const safeFadeStart   = Math.max(0, fadeOutStart);
+      const narrationEnd    = BG_LEAD_SECS + voiceDuration;
 
-      // Clamp fade-out start so it never goes negative (short narrations)
-      const safeFadeStart = Math.max(0, fadeOutStart);
+      // Volume expression: solo level during intro (0 to LEAD) and outro (LEAD+voice to end),
+      // ducked level during narration (LEAD to LEAD+voice)
+      const volExpr = `if(lt(t\\,${BG_LEAD_SECS})\\,${BG_SOLO_LINEAR}\\,if(lt(t\\,${narrationEnd})\\,${BG_UNDER_LINEAR}\\,${BG_SOLO_LINEAR}))`;
 
       filters.push(
-        // aloop=-1: loop indefinitely until atrim cuts it
-        // afade in: subtle 1 s fade-in at the very beginning (avoids hard start)
-        // afade out: BG_FADE_OUT_SECS fade at the end of the tail
-        // volume: dim the background relative to the voice
         `[${bgIdx}:a]` +
-        `aloop=loop=-1:size=2e+09,` +
         `atrim=0:${totalBgDuration},` +
         `afade=t=in:st=0:d=1,` +
         `afade=t=out:st=${safeFadeStart}:d=${BG_FADE_OUT_SECS},` +
-        `volume=${backgroundVolume}` +
+        `volume='${volExpr}':eval=frame` +
         `[bg]`
       );
       mixLabels.push('[bg]');
       mixCount++;
     }
 
-    // Binaural — loop → trim to full output duration
+    // Binaural — loop → trim → volume at -22 dB
     if (binIdx >= 0) {
       const binDuration = hasBackground
         ? BG_LEAD_SECS + voiceDuration + BG_TAIL_SECS
@@ -244,8 +254,8 @@ export async function mixAudio(opts: MixOptions): Promise<Buffer> {
 
       filters.push(
         `[${binIdx}:a]` +
-        `aloop=loop=-1:size=2e+09,` +
-        `atrim=0:${binDuration}` +
+        `atrim=0:${binDuration},` +
+        `volume=${BINAURAL_LINEAR}` +
         `[binaural]`
       );
       mixLabels.push('[binaural]');
@@ -253,13 +263,14 @@ export async function mixAudio(opts: MixOptions): Promise<Buffer> {
     }
 
     // Final mix
-    //   normalize=0  → preserve absolute volumes (no auto-levelling)
     //   duration=longest → run until the background tail finishes
     //   dropout_transition=0 → don't ramp down a stream when it ends early
+    //   Note: amix normalizes by dividing each input by N — we compensate
+    //   by pre-boosting volumes above instead of using normalize=0 (FFmpeg 5.1+)
     const durationMode = hasBackground ? 'longest' : 'first';
     filters.push(
       `${mixLabels.join('')}` +
-      `amix=inputs=${mixCount}:duration=${durationMode}:normalize=0:dropout_transition=0` +
+      `amix=inputs=${mixCount}:duration=${durationMode}:dropout_transition=0` +
       `[out]`
     );
 

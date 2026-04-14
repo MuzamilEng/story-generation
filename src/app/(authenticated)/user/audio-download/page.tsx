@@ -117,11 +117,6 @@ const StepItem: React.FC<StepItemProps> = ({ number, label, status }) => (
   </div>
 );
 
-interface WaveformBar {
-  height: number;
-  played: boolean;
-}
-
 const AudioReadyContent: React.FC = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -130,23 +125,15 @@ const AudioReadyContent: React.FC = () => {
 
   const [story, setStory] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isMixing, setIsMixing] = useState(false);
-  const [mixProgress, setMixProgress] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(85);
   const [showDownloadPrompt, setShowDownloadPrompt] = useState(false);
-  const [waveformBars, setWaveformBars] = useState<WaveformBar[]>([]);
 
   const audioRef = useRef<HTMLAudioElement>(null);
-  const soundscapeRef = useRef<HTMLAudioElement>(null);
-  const binauralRef = useRef<HTMLAudioElement>(null);
   const pendingAutoplay = useRef(false);
-  const waveformCount = 80;
 
-  const [soundscapeOn, setSoundscapeOn] = useState(false);
-  const [binauralOn, setBinauralOn] = useState(false);
   const [isServerMixing, setIsServerMixing] = useState(false);
   const [mixingTrackId, setMixingTrackId] = useState<string | null>(null);
   const [availableSoundscapes, setAvailableSoundscapes] = useState<any[]>([]);
@@ -154,6 +141,7 @@ const AudioReadyContent: React.FC = () => {
     string | null
   >(null);
   const [previewingId, setPreviewingId] = useState<string | null>(null);
+  const [showBgPicker, setShowBgPicker] = useState(false);
   const previewAudioRef = useRef<HTMLAudioElement>(null);
 
   const { clearStore } = useStoryStore();
@@ -244,13 +232,6 @@ const AudioReadyContent: React.FC = () => {
         if (res.ok) {
           const data = await res.json();
           setStory(data);
-          // Default toggles based on user preference
-          if (data.user?.soundscape && data.user.soundscape !== "none") {
-            setSoundscapeOn(true);
-          }
-          if (data.user?.binaural_enabled && data.user?.plan === "amplifier") {
-            setBinauralOn(true);
-          }
         }
       } catch (err) {
         console.error("Failed to fetch story", err);
@@ -278,12 +259,6 @@ const AudioReadyContent: React.FC = () => {
             if (matched) {
               setSelectedSoundscapeId(matched.id);
             }
-          } else if (!selectedSoundscapeId && !story?.combined_audio_key) {
-            // No soundscape applied yet — pre-select the default track
-            const defaultTrack = assets.find((sc: any) => sc.isDefault);
-            if (defaultTrack) {
-              setSelectedSoundscapeId(defaultTrack.id);
-            }
           }
         }
       } catch (err) {
@@ -310,7 +285,6 @@ const AudioReadyContent: React.FC = () => {
         body: JSON.stringify({
           storyId: story.id,
           soundscapeId,
-          backgroundVolume: 0.08,
         }),
       });
       let data;
@@ -331,12 +305,12 @@ const AudioReadyContent: React.FC = () => {
         combined_audio_key: data.combined_audio_key,
         soundscape_audio_key: data.soundscape_audio_key ?? prev.soundscape_audio_key,
       }));
-      setSoundscapeOn(true);
       setSelectedSoundscapeId(soundscapeId);
       // Reset player state for the new audio and request autoplay
       setIsPlaying(false);
       setCurrentTime(0);
       pendingAutoplay.current = true;
+      setShowBgPicker(false);
       showToast("Background music applied ✓", "success");
     } catch (err) {
       console.error("Server mix failed:", err);
@@ -379,12 +353,12 @@ const AudioReadyContent: React.FC = () => {
         audio_url: data.audio_url,
         combined_audio_key: null,
       }));
-      setSoundscapeOn(false);
       setSelectedSoundscapeId(null);
       // Reset player state for the new audio and request autoplay
       setIsPlaying(false);
       setCurrentTime(0);
       pendingAutoplay.current = true;
+      setShowBgPicker(false);
       showToast("Background music removed", "success");
     } catch (err) {
       console.error("Server unmix failed:", err);
@@ -443,15 +417,6 @@ const AudioReadyContent: React.FC = () => {
     }
   }, [isServerMixing]);
 
-  useEffect(() => {
-    // Generate random-ish waveform heights
-    const heights = Array.from(
-      { length: waveformCount },
-      () => Math.random() * 32 + 4,
-    );
-    setWaveformBars(heights.map((height) => ({ height, played: false })));
-  }, []);
-
   // Use DB-stored duration as authoritative source.
   // Only override with live browser value if it's plausible (within 20% of DB
   // value, or DB has no value). This prevents a stale VBR header in a cached
@@ -466,26 +431,9 @@ const AudioReadyContent: React.FC = () => {
     return dbDuration;
   })();
 
-  useEffect(() => {
-    if (!displayDuration) return;
-    const playedBars = Math.floor(
-      (currentTime / displayDuration) * waveformCount,
-    );
-    setWaveformBars((prev) =>
-      prev.map((bar, index) => ({
-        ...bar,
-        played: index < playedBars,
-      })),
-    );
-  }, [currentTime, displayDuration]);
-
-  // Ensure audio element volumes are synced
+  // Ensure audio element volume is synced
   useEffect(() => {
     if (audioRef.current) audioRef.current.volume = volume / 100;
-    // Background tracks are mixed at ~ -18dB relative to voice (approx 0.13 volume)
-    if (soundscapeRef.current)
-      soundscapeRef.current.volume = (volume / 100) * 0.13;
-    if (binauralRef.current) binauralRef.current.volume = (volume / 100) * 0.13;
   }, [volume]);
 
   const formatTime = (seconds: number): string => {
@@ -511,29 +459,11 @@ const AudioReadyContent: React.FC = () => {
 
   const handlePlay = () => {
     setIsPlaying(true);
-    if (soundscapeOn && soundscapeRef.current && audioRef.current) {
-      const bgDuration = soundscapeRef.current.duration || 300;
-      soundscapeRef.current.currentTime =
-        audioRef.current.currentTime % bgDuration;
-      soundscapeRef.current
-        .play()
-        .catch((e) => console.warn("Soundscape play failed", e));
-    }
-    if (binauralOn && binauralRef.current && audioRef.current) {
-      const binDuration = binauralRef.current.duration || 300;
-      binauralRef.current.currentTime =
-        audioRef.current.currentTime % binDuration;
-      binauralRef.current
-        .play()
-        .catch((e) => console.warn("Binaural play failed", e));
-    }
     if (currentTime < 1) recordEvent("play");
   };
 
   const handlePause = () => {
     setIsPlaying(false);
-    if (soundscapeRef.current) soundscapeRef.current.pause();
-    if (binauralRef.current) binauralRef.current.pause();
   };
 
   const togglePlay = () => {
@@ -558,34 +488,6 @@ const AudioReadyContent: React.FC = () => {
       return () => clearTimeout(timer);
     }
   }, [story, audioRef.current]);
-
-  // Keep background tracks sync'd on seek
-  useEffect(() => {
-    if (isPlaying) {
-      if (soundscapeOn && soundscapeRef.current && audioRef.current) {
-        const diff = Math.abs(
-          soundscapeRef.current.currentTime -
-            (audioRef.current.currentTime %
-              (soundscapeRef.current.duration || 300)),
-        );
-        if (diff > 0.5)
-          soundscapeRef.current.currentTime =
-            audioRef.current.currentTime %
-            (soundscapeRef.current.duration || 300);
-      }
-      if (binauralOn && binauralRef.current && audioRef.current) {
-        const diff = Math.abs(
-          binauralRef.current.currentTime -
-            (audioRef.current.currentTime %
-              (binauralRef.current.duration || 300)),
-        );
-        if (diff > 0.5)
-          binauralRef.current.currentTime =
-            audioRef.current.currentTime %
-            (binauralRef.current.duration || 300);
-      }
-    }
-  }, [currentTime]);
 
   const skip = (seconds: number) => {
     if (!audioRef.current) return;
@@ -639,222 +541,15 @@ const AudioReadyContent: React.FC = () => {
     }
   };
 
-  /**
-   * Client-side Mixing Engine
-   * Bypasses server-side FFmpeg limits (like Vercel) by mixing tracks in the browser context.
-   */
-  const mixAndDownloadInBrowser = async () => {
-    if (!story || !audioRef.current) return;
-
-    setIsMixing(true);
-    setMixProgress(10);
-
-    try {
-      const voiceUrl = story.audio_url;
-      const soundscapeUrl = soundscapeOn
-        ? `/api/user/audio/stream?key=${encodeURIComponent(story.soundscape_audio_key)}`
-        : null;
-      const binauralUrl = binauralOn
-        ? `/api/user/audio/stream?key=${encodeURIComponent(story.binaural_audio_key)}`
-        : null;
-
-      // 1. Fetch all required audio files as ArrayBuffers
-      const fetchAudio = async (url: string) => {
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`Failed to fetch ${url}`);
-        return res.arrayBuffer();
-      };
-
-      setMixProgress(20);
-      const [voiceTask, soundscapeTask, binauralTask] = await Promise.all([
-        fetchAudio(voiceUrl),
-        soundscapeUrl ? fetchAudio(soundscapeUrl) : Promise.resolve(null),
-        binauralUrl ? fetchAudio(binauralUrl) : Promise.resolve(null),
-      ]);
-
-      setMixProgress(40);
-      const audioCtx = new (
-        window.AudioContext || (window as any).webkitAudioContext
-      )();
-
-      // 2. Decode all buffers
-      const decode = (buffer: ArrayBuffer) => audioCtx.decodeAudioData(buffer);
-      const [voiceBuffer, soundscapeBuffer, binauralBuffer] = await Promise.all(
-        [
-          decode(voiceTask),
-          soundscapeTask ? decode(soundscapeTask) : Promise.resolve(null),
-          binauralTask ? decode(binauralTask) : Promise.resolve(null),
-        ],
-      );
-
-      setMixProgress(60);
-
-      // 3. Setup OfflineAudioContext
-      // Background: 5s pre-roll + voice + 15s post-roll with fade-out
-      const BG_LEAD = soundscapeBuffer ? 5 : 0;
-      const BG_TAIL = soundscapeBuffer ? 15 : 0;
-      const BG_FADE = 8;
-      const voiceDuration = voiceBuffer.duration;
-      const totalDuration = BG_LEAD + voiceDuration + BG_TAIL;
-      const sampleRate = voiceBuffer.sampleRate;
-      const offlineCtx = new OfflineAudioContext(
-        2,
-        totalDuration * sampleRate,
-        sampleRate,
-      );
-
-      // 4. Create source nodes & Gain nodes
-      const voiceSource = offlineCtx.createBufferSource();
-      voiceSource.buffer = voiceBuffer;
-      const voiceGain = offlineCtx.createGain();
-      voiceGain.gain.value = 1.0; // Primary voice
-      voiceSource.connect(voiceGain).connect(offlineCtx.destination);
-
-      if (soundscapeBuffer) {
-        const bgSource = offlineCtx.createBufferSource();
-        bgSource.buffer = soundscapeBuffer;
-        bgSource.loop = true;
-        const bgGain = offlineCtx.createGain();
-        bgGain.gain.value = 0.15; // Dim background
-        // Fade out over the last 8s of the post-roll
-        const fadeStart = totalDuration - BG_FADE;
-        bgGain.gain.setValueAtTime(0.15, fadeStart);
-        bgGain.gain.linearRampToValueAtTime(0, totalDuration);
-        bgSource.connect(bgGain).connect(offlineCtx.destination);
-        bgSource.start(0); // Background starts at t=0
-      }
-
-      if (binauralBuffer) {
-        const binSource = offlineCtx.createBufferSource();
-        binSource.buffer = binauralBuffer;
-        binSource.loop = true;
-        const binGain = offlineCtx.createGain();
-        binGain.gain.value = 0.12; // Binaural subtle effect
-        binSource.connect(binGain).connect(offlineCtx.destination);
-        binSource.start(0);
-      }
-
-      voiceSource.start(BG_LEAD); // Voice starts after background pre-roll
-
-      setMixProgress(80);
-
-      // 5. Render
-      const renderedBuffer = await offlineCtx.startRendering();
-
-      setMixProgress(95);
-
-      // 6. Convert to WAV (simple helper)
-      const wavBlob = audioBufferToWav(renderedBuffer);
-      const downloadUrl = URL.createObjectURL(wavBlob);
-
-      // 7. Trigger download
-      const link = document.createElement("a");
-      link.href = downloadUrl;
-      link.download = `${story.title || "My_Manifestation_Story"}_HD_Mix.wav`;
-      link.click();
-
-      URL.revokeObjectURL(downloadUrl);
-      setMixProgress(100);
-      setShowDownloadPrompt(true);
-
-      setTimeout(() => {
-        document
-          .getElementById("postDownload")
-          ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-      }, 500);
-    } catch (err) {
-      console.error("Browser mixing failed:", err);
-      showToast(
-        "High-fidelity mixing failed in this browser. Falling back to voice-only download.",
-        "error",
-      );
-      handleDownload("voice"); // Fallback to simple download
-    } finally {
-      setIsMixing(false);
-      setMixProgress(0);
-    }
-  };
-
-  /** Simple WAV helper for browser-side output */
-  const audioBufferToWav = (buffer: AudioBuffer) => {
-    const numChannels = buffer.numberOfChannels;
-    const length = buffer.length * numChannels * 2 + 44;
-    const out = new ArrayBuffer(length);
-    const view = new DataView(out);
-    const channels = [];
-    let i,
-      sample,
-      offset = 0;
-
-    // RIFF chunk descriptor
-    const writeString = (s: string) => {
-      for (i = 0; i < s.length; i++) view.setUint8(offset++, s.charCodeAt(i));
-    };
-    writeString("RIFF");
-    view.setUint32(offset, length - 8, true);
-    offset += 4;
-    writeString("WAVE");
-    writeString("fmt ");
-    view.setUint32(offset, 16, true);
-    offset += 4;
-    view.setUint16(offset, 1, true);
-    offset += 2;
-    view.setUint16(offset, numChannels, true);
-    offset += 2;
-    view.setUint32(offset, buffer.sampleRate, true);
-    offset += 4;
-    view.setUint32(offset, buffer.sampleRate * 2 * numChannels, true);
-    offset += 4;
-    view.setUint16(offset, numChannels * 2, true);
-    offset += 2;
-    view.setUint16(offset, 16, true);
-    offset += 2;
-    writeString("data");
-    view.setUint32(offset, length - offset - 4, true);
-    offset += 4;
-
-    for (i = 0; i < numChannels; i++) channels.push(buffer.getChannelData(i));
-
-    let pos = 0;
-    while (pos < buffer.length) {
-      for (i = 0; i < numChannels; i++) {
-        sample = Math.max(-1, Math.min(1, channels[i][pos]));
-        view.setInt16(
-          offset,
-          sample < 0 ? sample * 0x8000 : sample * 0x7fff,
-          true,
-        );
-        offset += 2;
-      }
-      pos++;
-    }
-    return new Blob([out], { type: "audio/wav" });
-  };
-
   const handleDownload = (type: "mixed" | "voice" = "mixed") => {
     if (!story?.audio_url) return;
-
-    // If user wants mixed and has backgrounds ON, try browser mixing first
-    // to bypass FFmpeg limits on serverless production (Vercel)
-    if (type === "mixed" && (soundscapeOn || binauralOn)) {
-      showConfirm({
-        title: "High Fidelity Master",
-        message:
-          "I will now mix your narration with your chosen background sounds directly in your browser. This creates a lossless (WAV) file for the best quality.\n\nContinue?",
-        confirmText: "Continue",
-        onConfirm: () => {
-          mixAndDownloadInBrowser();
-        },
-      });
-      return;
-    }
 
     showConfirm({
       title: "Download Audio",
       message:
-        type === "mixed"
-          ? "Downloading the standard MP3 version.\n\nNote: If background mixing wasn't completed during generation, this file may only contain voice."
-          : "Downloading the clean voice version (no background sounds).",
+        type === "voice"
+          ? "Downloading the clean voice version (no background sounds)."
+          : "Downloading your story audio.",
       confirmText: "Download",
       onConfirm: () => {
         // Record download event
@@ -885,9 +580,6 @@ const AudioReadyContent: React.FC = () => {
       },
     });
   };
-
-  const progressPercentage =
-    displayDuration > 0 ? (currentTime / displayDuration) * 100 : 0;
 
   if (isLoading) {
     return (
@@ -949,38 +641,6 @@ const AudioReadyContent: React.FC = () => {
               : "Applying your background music — please wait…"}
           </span>
         </div>
-      )}
-
-      {/* Background audio elements kept hidden but active */}
-      {story?.soundscape_audio_key && (
-        <audio
-          ref={soundscapeRef}
-          src={`/api/user/audio/stream?key=${encodeURIComponent(story.soundscape_audio_key)}`}
-          loop
-          preload="auto"
-          onError={() => {
-            console.warn(
-              `[audio] Failed to load soundscape: ${story.soundscape_audio_key}`,
-            );
-            setSoundscapeOn(false);
-            showToast("Unable to load background soundscape. Please try again later.", "error");
-          }}
-        />
-      )}
-      {story?.binaural_audio_key && (
-        <audio
-          ref={binauralRef}
-          src={`/api/user/audio/stream?key=${encodeURIComponent(story.binaural_audio_key)}`}
-          loop
-          preload="auto"
-          onError={() => {
-            console.warn(
-              `[audio] Failed to load binaural: ${story.binaural_audio_key}`,
-            );
-            setBinauralOn(false);
-            showToast("Unable to load binaural audio. Please try again later.", "error");
-          }}
-        />
       )}
 
       <div className={styles.page}>
@@ -1077,8 +737,6 @@ const AudioReadyContent: React.FC = () => {
                     onTimeUpdate={handleTimeUpdate}
                     onEnded={() => {
                       setIsPlaying(false);
-                      if (soundscapeRef.current) soundscapeRef.current.pause();
-                      if (binauralRef.current) binauralRef.current.pause();
                     }}
                     onError={(e) => {
                       console.error("Main audio error:", e);
@@ -1167,53 +825,141 @@ const AudioReadyContent: React.FC = () => {
             className={styles.playerControls}
             style={{ paddingTop: "0.5rem" }}
           >
-            <div className={styles.layerControls}>
-              {/* Hidden audio element for previewing soundscapes */}
-              <audio ref={previewAudioRef} preload="none" />
+            {/* Hidden audio element for previewing soundscapes */}
+            <audio ref={previewAudioRef} preload="none" />
 
-              {/* Soundscape selection with preview */}
-              {availableSoundscapes.length > 0 && (
-                <div style={{ width: "100%" }}>
-                  {/* Theta statement — shown once at top */}
+            {availableSoundscapes.length > 0 && (() => {
+              const selectedTrack = availableSoundscapes.find(
+                (sc: any) => sc.id === selectedSoundscapeId
+              );
+              const hasBackground = !!story?.combined_audio_key;
+
+              // ── Background IS applied: show selected track + Change/Remove ──
+              if (hasBackground && selectedTrack) {
+                return (
                   <div
                     style={{
-                      fontSize: "0.72rem",
-                      color: "rgba(255,255,255,0.55)",
-                      marginBottom: "10px",
-                      textAlign: "center",
-                      lineHeight: "1.5",
-                      maxWidth: "520px",
-                      margin: "0 auto 10px",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "10px",
+                      padding: "0.1rem 0",
                     }}
                   >
-                    Every track below is layered with Theta binaural beats (4–8
-                    Hz) — frequencies clinically associated with deep relaxation
-                    and subconscious receptivity. Simply choose the sound that
-                    feels right, put on headphones, and let your story do the
-                    rest.
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div
+                        style={{
+                          fontSize: "0.62rem",
+                          color: "rgba(255,255,255,0.4)",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.1em",
+                          marginBottom: "3px",
+                        }}
+                      >
+                        Background Music
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "0.82rem",
+                          fontWeight: 500,
+                          color: "var(--accent)",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "6px",
+                        }}
+                      >
+                        🎵 {selectedTrack.title}
+                        {selectedTrack.mood && (
+                          <span
+                            style={{
+                              fontSize: "0.62rem",
+                              color: "rgba(255,255,255,0.4)",
+                              fontWeight: 400,
+                            }}
+                          >
+                            · {selectedTrack.mood}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
+                      <button
+                        onClick={() => setShowBgPicker(true)}
+                        disabled={isServerMixing}
+                        style={{
+                          background: "rgba(255,255,255,0.06)",
+                          border: "1px solid var(--border)",
+                          borderRadius: "8px",
+                          padding: "0.45rem 0.9rem",
+                          fontSize: "0.72rem",
+                          color: "var(--accent)",
+                          cursor: isServerMixing ? "default" : "pointer",
+                          opacity: isServerMixing ? 0.5 : 1,
+                          fontFamily: "var(--sans)",
+                          fontWeight: 500,
+                          whiteSpace: "nowrap",
+                          transition: "all 0.2s",
+                        }}
+                      >
+                        Change
+                      </button>
+                      <button
+                        onClick={() => handleServerUnmix()}
+                        disabled={isServerMixing}
+                        style={{
+                          background: "rgba(255,255,255,0.06)",
+                          border: "1px solid var(--border)",
+                          borderRadius: "8px",
+                          padding: "0.45rem 0.9rem",
+                          fontSize: "0.72rem",
+                          color: "rgba(255,255,255,0.5)",
+                          cursor: isServerMixing ? "default" : "pointer",
+                          opacity: isServerMixing ? 0.5 : 1,
+                          fontFamily: "var(--sans)",
+                          fontWeight: 500,
+                          whiteSpace: "nowrap",
+                          transition: "all 0.2s",
+                        }}
+                      >
+                        Remove
+                      </button>
+                    </div>
                   </div>
-                  {/* Headphones nudge */}
+                );
+              }
+
+              // ── No background set: show all tracks inline ──
+              return (
+                <div style={{ width: "100%" }}>
+                  <div
+                    style={{
+                      fontSize: "0.62rem",
+                      color: "rgba(255,255,255,0.4)",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.1em",
+                      marginBottom: "8px",
+                    }}
+                  >
+                    Select Background Music
+                  </div>
                   <div
                     style={{
                       fontSize: "0.68rem",
-                      color: "rgba(255,255,255,0.4)",
-                      textAlign: "center",
-                      marginBottom: "12px",
+                      color: "rgba(255,255,255,0.45)",
+                      marginBottom: "10px",
+                      lineHeight: "1.5",
                     }}
                   >
-                    🎧 Best with headphones
+                    Every track is layered with Theta binaural beats (4–8 Hz).
+                    🎧 Best with headphones.
                   </div>
-                  {/* Track cards grid */}
                   <div
                     style={{
                       display: "flex",
                       flexDirection: "column",
-                      gap: "8px",
-                      marginBottom: "8px",
+                      gap: "6px",
                     }}
                   >
                     {availableSoundscapes.map((sc: any) => {
-                      const isSelected = selectedSoundscapeId === sc.id;
                       const isPreviewing = previewingId === sc.id;
                       const isMixingThis = mixingTrackId === sc.id;
                       return (
@@ -1222,43 +968,36 @@ const AudioReadyContent: React.FC = () => {
                           style={{
                             display: "flex",
                             alignItems: "flex-start",
-                            gap: "0",
                             borderRadius: "10px",
                             overflow: "hidden",
-                            border: `1px solid ${isSelected ? "var(--accent)" : "var(--border)"}`,
-                            background: isSelected
-                              ? "var(--accent-light)"
-                              : "rgba(255,255,255,0.04)",
+                            border: "1px solid var(--border)",
+                            background: "rgba(255,255,255,0.04)",
                             transition: "all 0.2s",
                           }}
                         >
-                          {/* Preview button */}
+                          {/* Preview */}
                           <button
                             onClick={() => togglePreview(sc)}
                             style={{
                               background: "none",
                               border: "none",
-                              borderRight: `1px solid ${isSelected ? "var(--accent)" : "var(--border)"}`,
-                              padding: "12px 10px",
+                              borderRight: "1px solid var(--border)",
+                              padding: "10px 10px",
                               cursor: "pointer",
                               color: isPreviewing
                                 ? "var(--accent)"
                                 : "rgba(255,255,255,0.5)",
-                              fontSize: "0.9rem",
+                              fontSize: "0.85rem",
                               display: "flex",
                               alignItems: "center",
                               transition: "color 0.2s",
                               flexShrink: 0,
                             }}
-                            title={
-                              isPreviewing
-                                ? "Stop preview"
-                                : "Preview track (45s)"
-                            }
+                            title={isPreviewing ? "Stop preview" : "Preview"}
                           >
                             {isPreviewing ? "⏸" : "▶"}
                           </button>
-                          {/* Track info + select */}
+                          {/* Track info + apply */}
                           <button
                             onClick={() => {
                               if (isServerMixing) return;
@@ -1266,11 +1005,7 @@ const AudioReadyContent: React.FC = () => {
                                 previewAudioRef.current.pause();
                                 setPreviewingId(null);
                               }
-                              if (isSelected && story?.combined_audio_key) {
-                                handleServerUnmix();
-                              } else {
-                                handleServerMix(sc.id);
-                              }
+                              handleServerMix(sc.id);
                             }}
                             disabled={isServerMixing}
                             style={{
@@ -1294,11 +1029,9 @@ const AudioReadyContent: React.FC = () => {
                             >
                               <span
                                 style={{
-                                  fontSize: "0.78rem",
+                                  fontSize: "0.76rem",
                                   fontWeight: 500,
-                                  color: isSelected
-                                    ? "var(--accent)"
-                                    : "var(--ink)",
+                                  color: "var(--ink)",
                                   display: "inline-flex",
                                   alignItems: "center",
                                   gap: "6px",
@@ -1319,52 +1052,196 @@ const AudioReadyContent: React.FC = () => {
                                     }}
                                   />
                                 )}
-                                {isSelected && !isMixingThis && " ✓"}
-
                               </span>
                             </div>
                             {sc.mood && (
                               <div
                                 style={{
-                                  fontSize: "0.65rem",
-                                  color: isSelected
-                                    ? "var(--accent)"
-                                    : "rgba(255,255,255,0.45)",
+                                  fontSize: "0.62rem",
+                                  color: "rgba(255,255,255,0.4)",
                                   marginBottom: "2px",
                                 }}
                               >
                                 {sc.mood}
                               </div>
                             )}
-                            {sc.bestFor && (
+                            {sc.description && (
                               <div
                                 style={{
-                                  fontSize: "0.62rem",
-                                  color: "rgba(255,255,255,0.3)",
+                                  fontSize: "0.6rem",
+                                  color: "rgba(255,255,255,0.28)",
                                 }}
                               >
-                                Best for: {sc.bestFor}
+                                {sc.description}
                               </div>
                             )}
                           </button>
                         </div>
                       );
                     })}
-                    {/* No Music option */}
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+
+        {/* BACKGROUND MUSIC PICKER POPUP */}
+        {showBgPicker && (
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(0,0,0,0.75)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 9998,
+              padding: "1rem",
+            }}
+            onClick={(e) => {
+              if (e.target === e.currentTarget && !isServerMixing) {
+                if (previewAudioRef.current) {
+                  previewAudioRef.current.pause();
+                  setPreviewingId(null);
+                }
+                setShowBgPicker(false);
+              }
+            }}
+          >
+            <div
+              style={{
+                background: "var(--surface)",
+                border: "1px solid var(--border)",
+                borderRadius: "16px",
+                width: "100%",
+                maxWidth: "480px",
+                maxHeight: "85vh",
+                display: "flex",
+                flexDirection: "column",
+                overflow: "hidden",
+                boxShadow: "0 20px 60px rgba(0,0,0,0.4)",
+              }}
+            >
+              {/* Popup header */}
+              <div
+                style={{
+                  padding: "1.25rem 1.5rem 1rem",
+                  borderBottom: "1px solid var(--border)",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    marginBottom: "8px",
+                  }}
+                >
+                  <h3
+                    style={{
+                      fontFamily: "var(--serif)",
+                      fontSize: "1.1rem",
+                      color: "var(--ink)",
+                      margin: 0,
+                    }}
+                  >
+                    Choose Background Music
+                  </h3>
+                  <button
+                    onClick={() => {
+                      if (previewAudioRef.current) {
+                        previewAudioRef.current.pause();
+                        setPreviewingId(null);
+                      }
+                      setShowBgPicker(false);
+                    }}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: "var(--ink-muted)",
+                      fontSize: "1.3rem",
+                      cursor: "pointer",
+                      padding: "4px 8px",
+                      lineHeight: 1,
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
+                <p
+                  style={{
+                    fontSize: "0.72rem",
+                    color: "rgba(255,255,255,0.55)",
+                    lineHeight: "1.5",
+                    margin: 0,
+                  }}
+                >
+                  Every track is layered with Theta binaural beats (4–8 Hz) for
+                  deep relaxation and subconscious receptivity. 🎧 Best with
+                  headphones.
+                </p>
+              </div>
+
+              {/* Track list — scrollable */}
+              <div
+                style={{
+                  flex: 1,
+                  overflowY: "auto",
+                  WebkitOverflowScrolling: "touch",
+                  padding: "0.75rem 1rem",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "8px",
+                }}
+              >
+                {availableSoundscapes.map((sc: any) => {
+                  const isSelected = selectedSoundscapeId === sc.id;
+                  const isPreviewing = previewingId === sc.id;
+                  const isMixingThis = mixingTrackId === sc.id;
+                  return (
                     <div
+                      key={sc.id}
                       style={{
                         display: "flex",
-                        alignItems: "center",
+                        alignItems: "flex-start",
+                        gap: "0",
                         borderRadius: "10px",
                         overflow: "hidden",
-                        border: `1px solid ${!selectedSoundscapeId && !story?.combined_audio_key ? "var(--accent)" : "var(--border)"}`,
-                        background:
-                          !selectedSoundscapeId && !story?.combined_audio_key
-                            ? "var(--accent-light)"
-                            : "rgba(255,255,255,0.04)",
+                        border: `1px solid ${isSelected ? "var(--accent)" : "var(--border)"}`,
+                        background: isSelected
+                          ? "var(--accent-light)"
+                          : "rgba(255,255,255,0.04)",
                         transition: "all 0.2s",
                       }}
                     >
+                      {/* Preview button */}
+                      <button
+                        onClick={() => togglePreview(sc)}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          borderRight: `1px solid ${isSelected ? "var(--accent)" : "var(--border)"}`,
+                          padding: "12px 10px",
+                          cursor: "pointer",
+                          color: isPreviewing
+                            ? "var(--accent)"
+                            : "rgba(255,255,255,0.5)",
+                          fontSize: "0.9rem",
+                          display: "flex",
+                          alignItems: "center",
+                          transition: "color 0.2s",
+                          flexShrink: 0,
+                        }}
+                        title={
+                          isPreviewing
+                            ? "Stop preview"
+                            : "Preview track (45s)"
+                        }
+                      >
+                        {isPreviewing ? "⏸" : "▶"}
+                      </button>
+                      {/* Track info + select */}
                       <button
                         onClick={() => {
                           if (isServerMixing) return;
@@ -1372,179 +1249,220 @@ const AudioReadyContent: React.FC = () => {
                             previewAudioRef.current.pause();
                             setPreviewingId(null);
                           }
-                          if (story?.combined_audio_key) {
+                          if (isSelected && story?.combined_audio_key) {
                             handleServerUnmix();
                           } else {
-                            setSelectedSoundscapeId(null);
+                            handleServerMix(sc.id);
                           }
                         }}
                         disabled={isServerMixing}
                         style={{
                           background: "none",
                           border: "none",
-                          padding: "10px 14px",
+                          padding: "8px 12px",
                           cursor: isServerMixing ? "default" : "pointer",
                           opacity: isServerMixing ? 0.6 : 1,
                           textAlign: "left",
                           flex: 1,
-                          color:
-                            !selectedSoundscapeId && !story?.combined_audio_key
-                              ? "var(--accent)"
-                              : "var(--ink-muted)",
-                          fontSize: "0.75rem",
+                          minWidth: 0,
                         }}
                       >
-                        🔇 No Music — voice only
-                        {!selectedSoundscapeId &&
-                          !story?.combined_audio_key &&
-                          " ✓"}
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "6px",
+                            marginBottom: "2px",
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontSize: "0.78rem",
+                              fontWeight: 500,
+                              color: isSelected
+                                ? "var(--accent)"
+                                : "var(--ink)",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "6px",
+                            }}
+                          >
+                            {sc.title}
+                            {isMixingThis && (
+                              <span
+                                style={{
+                                  display: "inline-block",
+                                  width: 12,
+                                  height: 12,
+                                  border: "2px solid rgba(255,255,255,0.15)",
+                                  borderTop: "2px solid var(--accent)",
+                                  borderRadius: "50%",
+                                  animation: "spin 0.8s linear infinite",
+                                  flexShrink: 0,
+                                }}
+                              />
+                            )}
+                            {isSelected && !isMixingThis && " ✓"}
+                          </span>
+                        </div>
+                        {sc.mood && (
+                          <div
+                            style={{
+                              fontSize: "0.65rem",
+                              color: isSelected
+                                ? "var(--accent)"
+                                : "rgba(255,255,255,0.45)",
+                              marginBottom: "2px",
+                            }}
+                          >
+                            {sc.mood}
+                          </div>
+                        )}
+                        {sc.description && (
+                          <div
+                            style={{
+                              fontSize: "0.62rem",
+                              color: "rgba(255,255,255,0.3)",
+                            }}
+                          >
+                            {sc.description}
+                          </div>
+                        )}
                       </button>
                     </div>
-                  </div>
-                  {isServerMixing && (
-                    <div
-                      style={{
-                        fontSize: "0.78rem",
-                        color: "rgba(255,255,255,0.5)",
-                        textAlign: "center",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: "8px",
-                      }}
-                    >
-                      <span
-                        style={{
-                          display: "inline-block",
-                          width: 14,
-                          height: 14,
-                          border: "2px solid rgba(255,255,255,0.2)",
-                          borderTop: "2px solid var(--accent)",
-                          borderRadius: "50%",
-                          animation: "spin 0.8s linear infinite",
-                        }}
-                      />
-                      {mixingTrackId === "unmix"
-                        ? "Removing background music…"
-                        : "Applying background music…"}
-                    </div>
-                  )}
-                </div>
-              )}
+                  );
+                })}
 
-              {/* Fallback: original soundscape toggle when no server mixing available */}
-              {availableSoundscapes.length === 0 &&
-                story?.soundscape_audio_key && (
-                  <button
-                    className={`${styles.layerBtn} ${soundscapeOn ? styles.active : ""}`}
-                    onClick={() => {
-                      setSoundscapeOn(!soundscapeOn);
-                      if (!soundscapeOn && isPlaying) {
-                        soundscapeRef.current?.play();
-                      } else {
-                        soundscapeRef.current?.pause();
-                      }
-                    }}
-                  >
-                    🌊 {soundscapeOn ? "Soundscape: ON" : "Soundscape: OFF"}
-                  </button>
-                )}
-
-              {/* Binaural toggle */}
-              {story?.binaural_audio_key && (
-                <button
-                  className={`${styles.layerBtn} ${binauralOn ? styles.active : ""}`}
-                  onClick={() => {
-                    setBinauralOn(!binauralOn);
-                    if (!binauralOn && isPlaying) {
-                      binauralRef.current?.play();
-                    } else {
-                      binauralRef.current?.pause();
-                    }
+                {/* No Music option */}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    borderRadius: "10px",
+                    overflow: "hidden",
+                    border: `1px solid ${!selectedSoundscapeId && !story?.combined_audio_key ? "var(--accent)" : "var(--border)"}`,
+                    background:
+                      !selectedSoundscapeId && !story?.combined_audio_key
+                        ? "var(--accent-light)"
+                        : "rgba(255,255,255,0.04)",
+                    transition: "all 0.2s",
                   }}
                 >
-                  🎧 {binauralOn ? "Binaural: ON" : "Binaural: OFF"}
-                </button>
+                  <button
+                    onClick={() => {
+                      if (isServerMixing) return;
+                      if (previewAudioRef.current) {
+                        previewAudioRef.current.pause();
+                        setPreviewingId(null);
+                      }
+                      if (story?.combined_audio_key) {
+                        handleServerUnmix();
+                      } else {
+                        setSelectedSoundscapeId(null);
+                      }
+                    }}
+                    disabled={isServerMixing}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      padding: "10px 14px",
+                      cursor: isServerMixing ? "default" : "pointer",
+                      opacity: isServerMixing ? 0.6 : 1,
+                      textAlign: "left",
+                      flex: 1,
+                      color:
+                        !selectedSoundscapeId && !story?.combined_audio_key
+                          ? "var(--accent)"
+                          : "var(--ink-muted)",
+                      fontSize: "0.75rem",
+                    }}
+                  >
+                    🔇 No Music — voice only
+                    {!selectedSoundscapeId &&
+                      !story?.combined_audio_key &&
+                      " ✓"}
+                  </button>
+                </div>
+              </div>
+
+              {/* Popup footer — mixing indicator */}
+              {isServerMixing && (
+                <div
+                  style={{
+                    padding: "0.75rem 1rem",
+                    borderTop: "1px solid var(--border)",
+                    textAlign: "center",
+                    fontSize: "0.78rem",
+                    color: "rgba(255,255,255,0.5)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "8px",
+                  }}
+                >
+                  <span
+                    style={{
+                      display: "inline-block",
+                      width: 14,
+                      height: 14,
+                      border: "2px solid rgba(255,255,255,0.2)",
+                      borderTop: "2px solid var(--accent)",
+                      borderRadius: "50%",
+                      animation: "spin 0.8s linear infinite",
+                    }}
+                  />
+                  {mixingTrackId === "unmix"
+                    ? "Removing background music…"
+                    : "Applying background music…"}
+                </div>
               )}
             </div>
-
-            {/* Headphones reminder */}
-            {story?.binaural_audio_key && binauralOn && (
-              <div
-                style={{
-                  fontSize: "0.7rem",
-                  color: "rgba(255,255,255,0.4)",
-                  textAlign: "center",
-                  marginTop: "-0.2rem",
-                }}
-              >
-                🎧 Best with headphones for theta effects
-              </div>
-            )}
           </div>
-        </div>
+        )}
 
         {/* DOWNLOADS */}
         <div className={styles.downloadSection}>
+          {/* Voice Only download — always available */}
           <div className={styles.downloadCard}>
             <div className={`${styles.dlIcon} ${styles.mp3}`}>
               <DownloadIcon />
             </div>
             <div className={styles.dlInfo}>
-              <div className={styles.dlTitle}>Download MP3</div>
+              <div className={styles.dlTitle}>Original Voice</div>
               <div className={styles.dlSub}>
-                Listen online first — download is final & non-refundable
+                Your narration — no background music
               </div>
             </div>
-            <div
-              style={{ display: "flex", flexDirection: "column", gap: "8px" }}
+            <button
+              className={styles.dlBtn}
+              onClick={() => handleDownload("voice")}
             >
+              <DownloadIcon />
+              Download
+            </button>
+          </div>
+
+          {/* With Music download — only when background is applied */}
+          {story?.combined_audio_key && (
+            <div className={styles.downloadCard}>
+              <div className={`${styles.dlIcon} ${styles.mp3}`}>
+                <DownloadIcon />
+              </div>
+              <div className={styles.dlInfo}>
+                <div className={styles.dlTitle}>With Background Music</div>
+                <div className={styles.dlSub}>
+                  Your narration mixed with background music
+                </div>
+              </div>
               <button
                 className={styles.dlBtn}
                 onClick={() => handleDownload("mixed")}
-                style={{ width: "100%", position: "relative" }}
-                disabled={isMixing}
               >
-                {isMixing ? (
-                  <>
-                    <div
-                      style={{
-                        position: "absolute",
-                        left: 0,
-                        top: 0,
-                        bottom: 0,
-                        width: `${mixProgress}%`,
-                        background: "rgba(255,255,255,0.1)",
-                        transition: "width 0.3s ease",
-                      }}
-                    />
-                    Mixing High-Fidelity... {mixProgress}%
-                  </>
-                ) : (
-                  <>
-                    <DownloadIcon />
-                    Download HD Mix
-                  </>
-                )}
+                <DownloadIcon />
+                Download
               </button>
-
-              {story?.voice_only_url && (
-                <button
-                  className={styles.dlBtn}
-                  onClick={() => handleDownload("voice")}
-                  style={{
-                    width: "100%",
-                    background: "rgba(255,255,255,0.05)",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    color: "var(--ink-faint)",
-                    marginTop: "4px",
-                  }}
-                >
-                  Clean Voice Only
-                </button>
-              )}
             </div>
-          </div>
+          )}
 
           <div className={styles.downloadCard}>
             <div className={`${styles.dlIcon} ${styles.alarm}`}>

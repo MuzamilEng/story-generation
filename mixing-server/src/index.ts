@@ -92,6 +92,24 @@ app.post('/mix', requireAuth, async (req, res) => {
       }
     }
 
+    // Cache check: if the story is already mixed with the same soundscape,
+    // return the existing URL immediately — no need to re-mix.
+    if (
+      story.combined_audio_key &&
+      soundscape &&
+      story.soundscape_audio_key === soundscape.r2_key
+    ) {
+      console.log(`[mix] Cache hit — story=${storyId} already mixed with ${soundscape.r2_key}`);
+      res.json({
+        success: true,
+        combined_audio_key: story.combined_audio_key,
+        soundscape_audio_key: story.soundscape_audio_key,
+        audio_url: story.audio_url,
+        cached: true,
+      });
+      return;
+    }
+
     console.log(
       `[mix] Starting: story=${storyId} voice=${voiceKey} bg=${soundscape?.r2_key ?? 'none'} binaural=${!!binauralEnabled}`
     );

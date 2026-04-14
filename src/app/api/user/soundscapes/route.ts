@@ -79,7 +79,6 @@ export async function GET(req: NextRequest) {
                     is_dynamic: true,
                     mood: meta?.mood || null,
                     description: meta?.description || null,
-                    bestFor: meta?.bestFor || null,
                     isDefault: meta?.isDefault || false,
                 };
             }),
