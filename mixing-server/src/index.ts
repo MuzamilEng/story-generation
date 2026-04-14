@@ -20,8 +20,13 @@ function requireAuth(
   res: express.Response,
   next: express.NextFunction
 ) {
+  // If no secret is configured, skip auth (dev mode)
+  if (!API_SECRET) {
+    next();
+    return;
+  }
   const token = req.headers['x-api-secret'] as string | undefined;
-  if (!API_SECRET || token !== API_SECRET) {
+  if (token !== API_SECRET) {
     res.status(401).json({ error: 'Unauthorized' });
     return;
   }
