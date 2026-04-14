@@ -69,6 +69,8 @@ const UserHeader: React.FC = () => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
+  const [exploreOpen, setExploreOpen] = useState(false);
+  const exploreTimeout = useRef<NodeJS.Timeout | null>(null);
   const lastScrollY = useRef(0);
   const scrollTimeout = useRef<NodeJS.Timeout | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -171,12 +173,62 @@ const UserHeader: React.FC = () => {
           >
             My Stories
           </Link>
-          {/* <Link
-            href="/science"
-            className={`${styles.navLink} ${pathname === "/science" ? styles.active : ""}`}
+          <div
+            className={styles.dropdownWrapper}
+            onMouseEnter={() => {
+              if (exploreTimeout.current) clearTimeout(exploreTimeout.current);
+              setExploreOpen(true);
+            }}
+            onMouseLeave={() => {
+              exploreTimeout.current = setTimeout(() => setExploreOpen(false), 150);
+            }}
           >
-            The Science
-          </Link> */}
+            <button
+              className={`${styles.navLink} ${exploreOpen ? styles.active : ""}`}
+              style={{ background: "none", border: "none", cursor: "pointer", font: "inherit", padding: 0 }}
+            >
+              Explore <span style={{ fontSize: "0.6em", marginLeft: "2px" }}>▼</span>
+            </button>
+            <div
+              className={`${styles.dropdownMenu} ${exploreOpen ? styles.open : ""}`}
+            >
+              <Link
+                href="/science"
+                className={styles.dropdownItem}
+                onClick={() => setExploreOpen(false)}
+              >
+                <span className={styles.ddTitle}>The Science</span>
+                <span className={styles.ddSub}>Neuroscience, the RAS & theta waves</span>
+              </Link>
+              <div className={styles.ddDivider} />
+              <Link
+                href="/quantum"
+                className={styles.dropdownItem}
+                onClick={() => setExploreOpen(false)}
+              >
+                <span className={styles.ddTitle}>The Quantum Field</span>
+                <span className={styles.ddSub}>Observer effect & possibility</span>
+              </Link>
+              <div className={styles.ddDivider} />
+              <Link
+                href="/mystical"
+                className={styles.dropdownItem}
+                onClick={() => setExploreOpen(false)}
+              >
+                <span className={styles.ddTitle}>Ancient Wisdom</span>
+                <span className={styles.ddSub}>What every tradition practiced</span>
+              </Link>
+              <div className={styles.ddDivider} />
+              <Link
+                href="/why-it-works"
+                className={styles.dropdownItem}
+                onClick={() => setExploreOpen(false)}
+              >
+                <span className={styles.ddTitle}>Your Voice</span>
+                <span className={styles.ddSub}>Why hearing yourself changes everything</span>
+              </Link>
+            </div>
+          </div>
           <Link
             href="/user/account-setting"
             className={`${styles.navLink} ${pathname === "/user/account-setting" ? styles.active : ""}`}
@@ -189,12 +241,6 @@ const UserHeader: React.FC = () => {
           >
             Manage Subscription
           </Link>
-          {/* <Link
-            href="/pricing"
-            className={`${styles.navLink} ${pathname === "/pricing" ? styles.active : ""}`}
-          >
-            Pricing
-          </Link> */}
         </nav>
 
         <div className={styles.topbarRight}>

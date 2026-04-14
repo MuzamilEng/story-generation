@@ -107,7 +107,11 @@ const Header: React.FC = () => {
     "/user/audio-download",
   ].some((r) => pathname.startsWith(r));
 
-  const isPublicHeader = !pathname.startsWith("/user/");
+  const isPublicHeader = !session && !pathname.startsWith("/user/");
+
+  // When authenticated user is on a public content page (science, quantum, etc.)
+  // the header needs position:fixed since it's outside the authenticated flex layout
+  const isExplorePage = !!session && !pathname.startsWith("/user/");
 
   const getFlowSteps = (path: string) => {
     const isLoggedIn = !!session;
@@ -172,6 +176,7 @@ const Header: React.FC = () => {
   return (
     <header
       className={`${styles.topbar} ${isFlowPage ? styles.hasSteps : ""} ${scrolled ? styles.scrolled : ""} ${isPublicHeader ? styles.public : ""} ${!isVisible ? styles.hidden : ""}`}
+      style={isExplorePage ? { position: 'fixed', top: 0, left: 0, right: 0, zIndex: 1000 } : undefined}
     >
       {/* Top Row: Main Nav & Logo */}
       <div className={styles.topbarContent}>

@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, formatDistanceToNow } from "date-fns";
 import styles from "../../../styles/Dashboard.module.css";
 import Header from "../../../components/Header";
@@ -153,6 +153,13 @@ const ArrowIcon = () => (
   </svg>
 );
 
+const MicIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+    <path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8" />
+  </svg>
+);
+
 // Types
 interface Story {
   id: string;
@@ -203,6 +210,7 @@ interface StoryCardProps {
   onPlay: (story: Story) => void;
   onDownload: (story: Story) => void;
   onRead: (story: Story) => void;
+  onEnhance: (story: Story) => void;
 }
 
 const StoryCard: React.FC<StoryCardProps> = ({
@@ -210,6 +218,7 @@ const StoryCard: React.FC<StoryCardProps> = ({
   onPlay,
   onDownload,
   onRead,
+  onEnhance,
 }) => {
   // A story is a draft if it's not explicitly 'audio_ready'
   const isDraft = story.status !== "audio_ready" || !story.audio_url;
@@ -311,6 +320,17 @@ const StoryCard: React.FC<StoryCardProps> = ({
                 <DownloadIcon />
                 Download
               </button>
+              <button
+                className={styles.storyBtn}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEnhance(story);
+                }}
+                title="Add background music & binaural beats to your story"
+              >
+                <MusicIcon />
+                Enhance
+              </button>
               <div className={styles.storyBtnSpacer} />
               <button
                 className={styles.storyBtn}
@@ -387,7 +407,7 @@ const ActivityRow: React.FC<ActivityRowProps> = ({ activity }) => {
 
 const Dashboard: React.FC = () => {
   const router = useRouter();
-  const { showToast } = useGlobalUI();
+  const { showToast, showConfirm } = useGlobalUI();
   const { data: session, update } = useSession();
   const { clearStore } = useStoryStore();
 
@@ -456,6 +476,117 @@ const Dashboard: React.FC = () => {
     },
     enabled: !!session,
   });
+
+  // Fetch saved voice samples for "My Voice" section
+  const { data: savedVoices = [] } = useQuery<{ id: string; label: string; duration_s: number | null; is_default: boolean; created_at: string; sample_url: string }[]>({
+    queryKey: ["saved-voices"],
+    queryFn: async () => {
+      const res = await fetch("/api/user/audio/save-voice");
+      if (!res.ok) return [];
+      const data = await res.json();
+      return data.voices || [];
+    },
+    enabled: !!session,
+  });
+
+  // Voice playback state
+  const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
+  const voiceAudioRef = useRef<HTMLAudioElement | null>(null);
+  const queryClient = useQueryClient();
+
+  const handleSelectVoice = async (voiceId: string) => {
+    // Optimistic update
+    queryClient.setQueryData<typeof savedVoices>(["saved-voices"], (old) =>
+      (old || []).map((v) => ({ ...v, is_default: v.id === voiceId }))
+    );
+    try {
+      await fetch("/api/user/audio/save-voice", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: voiceId, setDefault: true }),
+      });
+    } catch (e) {
+      console.error("Failed to set active voice:", e);
+      queryClient.invalidateQueries({ queryKey: ["saved-voices"] });
+    }
+  };
+
+  // Voice editing state
+  const [editingVoiceId, setEditingVoiceId] = useState<string | null>(null);
+  const [editVoiceLabel, setEditVoiceLabel] = useState("");
+
+  const handleRenameVoice = async (id: string, newLabel: string) => {
+    queryClient.setQueryData<typeof savedVoices>(["saved-voices"], (old) =>
+      (old || []).map((v) => (v.id === id ? { ...v, label: newLabel } : v))
+    );
+    setEditingVoiceId(null);
+    try {
+      await fetch("/api/user/audio/save-voice", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, label: newLabel }),
+      });
+    } catch {
+      queryClient.invalidateQueries({ queryKey: ["saved-voices"] });
+      showToast("Failed to rename voice", "error");
+    }
+  };
+
+  const handleDeleteVoice = (voiceId: string) => {
+    showConfirm({
+      title: "Remove Voice Sample",
+      message: "Are you sure you want to remove this voice sample?",
+      confirmText: "Remove",
+      danger: true,
+      onConfirm: async () => {
+        queryClient.setQueryData<typeof savedVoices>(["saved-voices"], (old) =>
+          (old || []).filter((v) => v.id !== voiceId)
+        );
+        try {
+          await fetch("/api/user/audio/save-voice", {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: voiceId }),
+          });
+        } catch {
+          queryClient.invalidateQueries({ queryKey: ["saved-voices"] });
+          showToast("Failed to remove voice", "error");
+        }
+      },
+    });
+  };
+
+  const handlePlayVoice = (voice: { id: string; sample_url: string }) => {
+    // If same voice is playing, pause it
+    if (playingVoiceId === voice.id && voiceAudioRef.current) {
+      voiceAudioRef.current.pause();
+      setPlayingVoiceId(null);
+      return;
+    }
+    // Stop any currently playing voice
+    if (voiceAudioRef.current) {
+      voiceAudioRef.current.pause();
+    }
+    const audio = new Audio(voice.sample_url);
+    audio.onended = () => setPlayingVoiceId(null);
+    audio.onerror = () => {
+      setPlayingVoiceId(null);
+      showToast("Failed to play voice sample", "error");
+    };
+    audio.play();
+    voiceAudioRef.current = audio;
+    setPlayingVoiceId(voice.id);
+  };
+
+  // Cleanup audio on unmount
+  useEffect(() => {
+    return () => {
+      if (voiceAudioRef.current) {
+        voiceAudioRef.current.pause();
+        voiceAudioRef.current = null;
+      }
+    };
+  }, []);
 
   // Automatic beta code redemption from URL
   useEffect(() => {
@@ -547,6 +678,10 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const handleEnhance = (story: Story) => {
+    router.push(`/user/audio-download?storyId=${story.id}`);
+  };
+
   return (
     <div className={styles.container}>
       <main className={styles.page}>
@@ -632,6 +767,330 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
 
+        {/* MY VOICE */}
+        <div className={styles.sectionHeader}>
+          <div>
+            <div className={styles.sectionTitle}>My Voice</div>
+            <div className={styles.sectionSub}>
+              Your saved voice samples for story narration
+            </div>
+          </div>
+        </div>
+
+        <div style={{
+          display: "flex",
+          gap: "14px",
+          flexWrap: "wrap",
+          marginBottom: "2rem",
+        }}>
+          {savedVoices.length > 0 ? (
+            savedVoices.map((voice) => {
+              const isPlaying = playingVoiceId === voice.id;
+              return (
+                <div
+                  key={voice.id}
+                  onClick={() => handlePlayVoice(voice)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "14px",
+                    background: isPlaying
+                      ? "linear-gradient(135deg, rgba(168,139,97,0.18) 0%, rgba(168,139,97,0.08) 100%)"
+                      : voice.is_default
+                        ? "linear-gradient(135deg, rgba(168,139,97,0.10) 0%, rgba(168,139,97,0.04) 100%)"
+                        : "rgba(255,255,255,0.03)",
+                    border: `1.5px solid ${isPlaying ? "var(--accent)" : voice.is_default ? "rgba(168,139,97,0.35)" : "rgba(255,255,255,0.08)"}`,
+                    borderRadius: "14px",
+                    padding: "16px 20px",
+                    minWidth: "240px",
+                    flex: "0 1 auto",
+                    cursor: "pointer",
+                    transition: "all 0.25s cubic-bezier(0.4,0,0.2,1)",
+                    ...(isPlaying
+                      ? { boxShadow: "0 0 20px rgba(168,139,97,0.15), 0 0 0 1px rgba(168,139,97,0.3)" }
+                      : {}),
+                  }}
+                >
+                  <div style={{
+                    width: "44px",
+                    height: "44px",
+                    borderRadius: "50%",
+                    background: isPlaying
+                      ? "var(--accent)"
+                      : voice.is_default
+                        ? "var(--accent)"
+                        : "rgba(255,255,255,0.06)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                    transition: "all 0.25s cubic-bezier(0.4,0,0.2,1)",
+                    boxShadow: isPlaying
+                      ? "0 4px 12px rgba(168,139,97,0.4)"
+                      : voice.is_default
+                        ? "0 2px 8px rgba(168,139,97,0.25)"
+                        : "none",
+                  }}>
+                    <span style={{
+                      width: "18px",
+                      height: "18px",
+                      color: isPlaying || voice.is_default ? "#fff" : "var(--ink-muted)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}>
+                      {isPlaying ? <PauseIcon /> : <PlayIcon />}
+                    </span>
+                  </div>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    {editingVoiceId === voice.id ? (
+                      <div
+                        style={{ display: "flex", alignItems: "center", gap: "6px" }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <input
+                          value={editVoiceLabel}
+                          onChange={(e) => setEditVoiceLabel(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && editVoiceLabel.trim()) handleRenameVoice(voice.id, editVoiceLabel.trim());
+                            if (e.key === "Escape") setEditingVoiceId(null);
+                          }}
+                          autoFocus
+                          style={{
+                            fontSize: "0.85rem",
+                            padding: "4px 8px",
+                            maxWidth: "140px",
+                            background: "rgba(0,0,0,0.3)",
+                            color: "#fff",
+                            border: "1px solid var(--accent)",
+                            borderRadius: "6px",
+                            outline: "none",
+                          }}
+                        />
+                        <button
+                          onClick={() => editVoiceLabel.trim() && handleRenameVoice(voice.id, editVoiceLabel.trim())}
+                          style={{
+                            background: "var(--accent)",
+                            border: "none",
+                            borderRadius: "6px",
+                            padding: "4px 10px",
+                            fontSize: "0.7rem",
+                            fontWeight: 600,
+                            color: "#fff",
+                            cursor: "pointer",
+                          }}
+                        >
+                          Save
+                        </button>
+                        <button
+                          onClick={() => setEditingVoiceId(null)}
+                          style={{
+                            background: "rgba(255,255,255,0.06)",
+                            border: "1px solid rgba(255,255,255,0.12)",
+                            borderRadius: "6px",
+                            padding: "4px 8px",
+                            fontSize: "0.7rem",
+                            color: "var(--ink-muted)",
+                            cursor: "pointer",
+                          }}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <div style={{
+                          fontSize: "0.88rem",
+                          fontWeight: 600,
+                          color: "var(--ink)",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "8px",
+                          letterSpacing: "-0.01em",
+                        }}>
+                          {voice.label}
+                          {voice.is_default && (
+                            <span style={{
+                              fontSize: "0.58rem",
+                              color: "#fff",
+                              textTransform: "uppercase",
+                              letterSpacing: "0.06em",
+                              fontWeight: 700,
+                              background: "var(--accent)",
+                              padding: "2px 7px",
+                              borderRadius: "4px",
+                            }}>
+                              Active
+                            </span>
+                          )}
+                        </div>
+                        <div style={{
+                          fontSize: "0.74rem",
+                          color: isPlaying ? "var(--accent)" : "rgba(255,255,255,0.4)",
+                          marginTop: "3px",
+                          transition: "color 0.2s ease",
+                          fontWeight: isPlaying ? 500 : 400,
+                        }}>
+                          {isPlaying
+                            ? "▸ Playing now..."
+                            : voice.duration_s
+                              ? `${Math.floor(voice.duration_s / 60)}:${String(voice.duration_s % 60).padStart(2, "0")} recorded`
+                              : "Tap to play"}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
+                    {editingVoiceId !== voice.id && (
+                      <>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingVoiceId(voice.id);
+                            setEditVoiceLabel(voice.label);
+                          }}
+                          title="Rename"
+                          style={{
+                            background: "rgba(255,255,255,0.06)",
+                            border: "1px solid rgba(255,255,255,0.10)",
+                            borderRadius: "7px",
+                            width: "30px",
+                            height: "30px",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            cursor: "pointer",
+                            transition: "all 0.2s ease",
+                            color: "var(--ink-muted)",
+                            padding: 0,
+                          }}
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: "13px", height: "13px" }}>
+                            <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+                            <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteVoice(voice.id);
+                          }}
+                          title="Delete"
+                          style={{
+                            background: "rgba(255,255,255,0.06)",
+                            border: "1px solid rgba(255,255,255,0.10)",
+                            borderRadius: "7px",
+                            width: "30px",
+                            height: "30px",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            cursor: "pointer",
+                            transition: "all 0.2s ease",
+                            color: "rgba(255,100,100,0.7)",
+                            padding: 0,
+                          }}
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: "13px", height: "13px" }}>
+                            <polyline points="3 6 5 6 21 6" />
+                            <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
+                          </svg>
+                        </button>
+                        {!voice.is_default && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSelectVoice(voice.id);
+                            }}
+                            style={{
+                              background: "rgba(255,255,255,0.06)",
+                              border: "1px solid rgba(255,255,255,0.12)",
+                              borderRadius: "8px",
+                              padding: "6px 12px",
+                              fontSize: "0.7rem",
+                              fontWeight: 600,
+                              color: "var(--accent)",
+                              cursor: "pointer",
+                              transition: "all 0.2s ease",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            Set Active
+                          </button>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <div
+              onClick={() => router.push("/user/voice-recording")}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "14px",
+                background: "rgba(255,255,255,0.03)",
+                border: "1.5px dashed rgba(168,139,97,0.3)",
+                borderRadius: "14px",
+                padding: "18px 22px",
+                cursor: "pointer",
+                transition: "all 0.25s cubic-bezier(0.4,0,0.2,1)",
+                minWidth: "260px",
+              }}
+            >
+              <div style={{
+                width: "44px",
+                height: "44px",
+                borderRadius: "50%",
+                background: "linear-gradient(135deg, rgba(168,139,97,0.15) 0%, rgba(168,139,97,0.06) 100%)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}>
+                <span style={{ width: "18px", height: "18px", color: "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <MicIcon />
+                </span>
+              </div>
+              <div>
+                <div style={{ fontSize: "0.88rem", fontWeight: 600, color: "var(--ink)", letterSpacing: "-0.01em" }}>
+                  Record your voice
+                </div>
+                <div style={{ fontSize: "0.74rem", color: "rgba(255,255,255,0.4)", marginTop: "3px" }}>
+                  60 seconds is all we need to clone your voice
+                </div>
+              </div>
+            </div>
+          )}
+          {savedVoices.length > 0 && (
+            <div
+              onClick={() => router.push("/user/voice-recording")}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "8px",
+                background: "rgba(255,255,255,0.03)",
+                border: "1.5px dashed rgba(168,139,97,0.3)",
+                borderRadius: "14px",
+                padding: "16px 22px",
+                cursor: "pointer",
+                minWidth: "160px",
+                transition: "all 0.25s cubic-bezier(0.4,0,0.2,1)",
+              }}
+            >
+              <span style={{ width: "14px", height: "14px", color: "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <PlusIcon />
+              </span>
+              <span style={{ fontSize: "0.8rem", color: "var(--accent)", fontWeight: 600, letterSpacing: "-0.01em" }}>
+                Record New
+              </span>
+            </div>
+          )}
+        </div>
+
         {/* STORY LIBRARY */}
         <div className={styles.sectionHeader}>
           <div>
@@ -663,6 +1122,7 @@ const Dashboard: React.FC = () => {
                   onPlay={handlePlayStory}
                   onDownload={handleDownload}
                   onRead={handleRead}
+                  onEnhance={handleEnhance}
                 />
               ))
           )}

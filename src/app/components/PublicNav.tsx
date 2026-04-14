@@ -2,21 +2,32 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useSession } from "next-auth/react";
 import s from "../styles/SplashV6.module.css";
+import Header from "./Header";
 
 /**
  * Shared public navigation bar used on unauthenticated content pages
  * (science, quantum, mystical). Mirrors the home page nav style with
  * the "Why it works" dropdown.
+ *
+ * When the user is logged in, renders the authenticated Header instead.
  */
 const PublicNav: React.FC = () => {
+  const { data: session } = useSession();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const pathname = usePathname();
+
+  // Logged-in users get the full authenticated header
+  if (session) {
+    return <Header />;
+  }
 
   const isWhyActive = ["/why-it-works", "/science", "/quantum", "/mystical"].includes(pathname);
 
   return (
     <>
+      {/* DESKTOP NAV */}
       <nav className={s.nav}>
         <Link href="/" className={s.navLogo}>Manifest My Story</Link>
         <ul className={s.navTabs}>
@@ -24,12 +35,7 @@ const PublicNav: React.FC = () => {
             <Link href="/#how" className={s.navTabLink}>How it works</Link>
           </li>
           <li className={s.navDropdown}>
-            <Link
-              href="/why-it-works"
-              className={`${s.navDropdownTrigger} ${isWhyActive ? s.navDropdownTriggerActive : ""}`}
-            >
-              Why it works ▾
-            </Link>
+            <Link href="/why-it-works" className={`${s.navDropdownTrigger} ${isWhyActive ? s.navTabLinkActive : ""}`}>Why it works ▾</Link>
             <div className={s.navDropdownMenu}>
               <Link href="/why-it-works" className={s.navDropdownItem}>Overview</Link>
               <Link href="/science" className={s.navDropdownItem}>The Science</Link>
@@ -38,7 +44,7 @@ const PublicNav: React.FC = () => {
             </div>
           </li>
           <li>
-            <Link href="/our-story" className={`${s.navTabLink} ${pathname === "/our-story" ? s.navTabLinkActive : ""}`}>Our story</Link>
+            <Link href="/our-story" className={s.navTabLink}>Our story</Link>
           </li>
         </ul>
         <div className={s.navRight}>
@@ -53,9 +59,9 @@ const PublicNav: React.FC = () => {
           aria-label="Toggle menu"
         >
           {isMenuOpen ? (
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
           ) : (
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 12h18M3 6h18M3 18h18" /></svg>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
           )}
         </button>
       </nav>

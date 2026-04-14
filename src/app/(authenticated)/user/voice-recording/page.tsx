@@ -390,7 +390,7 @@ const SavedVoicesList: React.FC<SavedVoicesListProps> = ({
                     <div className={styles.voiceItemLabel}>
                       {voice.label}
                       {voice.is_default && (
-                        <span className={styles.defaultTag}>Default</span>
+                        <span className={styles.defaultTag}>Active</span>
                       )}
                     </div>
                     <div className={styles.voiceItemMeta}>
@@ -491,6 +491,22 @@ const VoiceRecordingContent: React.FC = () => {
   const [isLoadingSaved, setIsLoadingSaved] = useState(true);
   const [deletingVoiceId, setDeletingVoiceId] = useState<string | null>(null);
   const [selectedVoiceId, setSelectedVoiceId] = useState<string | null>(null);
+
+  const handleSelectVoice = async (voiceId: string) => {
+    setSelectedVoiceId(voiceId);
+    setSavedVoices((prev) =>
+      prev.map((v) => ({ ...v, is_default: v.id === voiceId }))
+    );
+    try {
+      await fetch("/api/user/audio/save-voice", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: voiceId, setDefault: true }),
+      });
+    } catch (e) {
+      console.error("Failed to save default voice:", e);
+    }
+  };
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -814,11 +830,17 @@ const VoiceRecordingContent: React.FC = () => {
     setIsSubmitting(true);
     try {
       // Set this voice as default first so clone-voice picks it up
-      await fetch("/api/user/audio/save-voice", {
+      const patchRes = await fetch("/api/user/audio/save-voice", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: voice.id, setDefault: true }),
       });
+      if (patchRes.ok) {
+        setSavedVoices((prev) =>
+          prev.map((v) => ({ ...v, is_default: v.id === voice.id }))
+        );
+        setSelectedVoiceId(voice.id);
+      }
 
       // Clone using saved voice (clone-voice falls back to existing R2 sample)
       const cloneRes = await fetch("/api/user/audio/clone-voice", {
@@ -883,11 +905,35 @@ const VoiceRecordingContent: React.FC = () => {
 
     setIsSubmitting(true);
     try {
+      // ── Step 0: Save the voice sample so the user doesn't lose it ─────
+      // This ensures the recording persists in the Voice Library for reuse
+      // even when the user clicks "Generate" instead of "Save for Later".
+      const extension =
+        mimeType.includes("mp4") || mimeType.includes("aac") ? "m4a" : "webm";
+
+      if (!savedVoices.some((v) => v.is_default) || savedVoices.length === 0) {
+        try {
+          const saveFormData = new FormData();
+          saveFormData.append("audio", audioBlob, `sample.${extension}`);
+          saveFormData.append("duration", String(recordedDuration));
+          const saveRes = await fetch("/api/user/audio/save-voice", {
+            method: "POST",
+            body: saveFormData,
+          });
+          const saveData = await saveRes.json();
+          if (saveData.success) {
+            setSavedVoices((prev) => [saveData.voice, ...prev]);
+            if (!selectedVoiceId) setSelectedVoiceId(saveData.voice.id);
+          }
+        } catch (e) {
+          // Non-fatal — we can still proceed with cloning
+          console.warn("Voice sample save failed (non-fatal):", e);
+        }
+      }
+
       // ── Step 1: Clone voice ONLY — no TTS generated here ──────────────
       // Uses the dedicated clone-voice endpoint so we don't waste an
       // ElevenLabs TTS credit before assembly runs.
-      const extension =
-        mimeType.includes("mp4") || mimeType.includes("aac") ? "m4a" : "webm";
       const cloneFormData = new FormData();
       cloneFormData.append("audio", audioBlob, `sample.${extension}`);
 
@@ -990,7 +1036,7 @@ const VoiceRecordingContent: React.FC = () => {
             <SavedVoicesList
               voices={savedVoices}
               selectedId={selectedVoiceId}
-              onSelect={setSelectedVoiceId}
+              onSelect={handleSelectVoice}
               onDelete={handleDeleteVoice}
               onRename={handleRenameVoice}
               onUse={handleUseSavedVoice}

@@ -2,7 +2,7 @@
 import React from "react";
 import Link from "next/link";
 import s from "../styles/WhyItWorks.module.css";
-import splash from "../styles/SplashV6.module.css";
+import PublicNav from "../components/PublicNav";
 
 // Local hook for scroll reveal
 function useLocalScrollReveal() {
@@ -26,142 +26,11 @@ function useLocalScrollReveal() {
 
 export default function WhyItWorks() {
   useLocalScrollReveal();
-  const [isMenuOpen, setIsMenuOpen] = React.useState(false);
-
-  const tabLink = (href: string, label: string, isMobile = false) => {
-    const isCurrent = label === "Why it works";
-    const baseClass = isMobile ? splash.mobileNavTabLink : splash.navTabLink;
-    const activeClass = isMobile
-      ? splash.mobileNavTabLinkActive
-      : splash.navTabLinkActive;
-
-    return (
-      <li key={label}>
-        {href.startsWith("/") ? (
-          <Link
-            href={href}
-            className={`${baseClass} ${isCurrent ? activeClass : ""}`}
-            onClick={() => isMobile && setIsMenuOpen(false)}
-          >
-            {label}
-          </Link>
-        ) : (
-          <a
-            href={href}
-            className={`${baseClass} ${isCurrent ? activeClass : ""}`}
-            onClick={() => isMobile && setIsMenuOpen(false)}
-          >
-            {label}
-          </a>
-        )}
-      </li>
-    );
-  };
 
   return (
     <div className={s.container}>
-      {/* NAV — SHARED WITH HOME */}
-      <nav className={splash.nav}>
-        <Link href="/" className={splash.navLogo}>
-          Manifest My Story
-        </Link>
-        <ul className={splash.navTabs}>
-          {tabLink("/#how", "How it works")}
-          <li className={splash.navDropdown}>
-            <Link href="/why-it-works" className={`${splash.navDropdownTrigger} ${splash.navDropdownTriggerActive}`}>Why it works ▾</Link>
-            <div className={splash.navDropdownMenu}>
-              <Link href="/why-it-works" className={splash.navDropdownItem}>Overview</Link>
-              <Link href="/science" className={splash.navDropdownItem}>The Science</Link>
-              <Link href="/quantum" className={splash.navDropdownItem}>The Quantum Field</Link>
-              <Link href="/mystical" className={splash.navDropdownItem}>Ancient Wisdom</Link>
-            </div>
-          </li>
-          {tabLink("/our-story", "Our story")}
-        </ul>
-        <div className={splash.navRight}>
-          <Link href="/auth/signin" className={splash.navSignIn}>
-            Sign In
-          </Link>
-          <Link href="/#invite" className={splash.navInvite}>
-            Request invitation
-          </Link>
-        </div>
-
-        {/* Hamburger */}
-        <button
-          className={splash.navMobileBtn}
-          onClick={() => setIsMenuOpen(!isMenuOpen)}
-          aria-label="Toggle menu"
-        >
-          {isMenuOpen ? (
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <path d="M18 6L6 18M6 6l12 12" />
-            </svg>
-          ) : (
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <path d="M3 12h18M3 6h18M3 18h18" />
-            </svg>
-          )}
-        </button>
-      </nav>
-
-      {/* MOBILE SIDEBAR */}
-      <div
-        className={`${splash.mobileMenuOverlay} ${isMenuOpen ? splash.mobileMenuOverlayOpen : ""}`}
-        onClick={() => setIsMenuOpen(false)}
-      />
-      <div
-        className={`${splash.mobileMenu} ${isMenuOpen ? splash.mobileMenuOpen : ""}`}
-      >
-        <ul className={splash.mobileNavTabs}>
-          {tabLink("/#how", "How it works", true)}
-          <li>
-            <Link
-              href="/why-it-works"
-              className={`${splash.mobileNavTabLink} ${splash.mobileNavTabLinkActive}`}
-              onClick={() => setIsMenuOpen(false)}
-            >
-              Why it works
-            </Link>
-            <ul className={splash.mobileNavDropdownItems}>
-              <li><Link href="/science" className={splash.mobileNavDropdownItem} onClick={() => setIsMenuOpen(false)}>The Science</Link></li>
-              <li><Link href="/quantum" className={splash.mobileNavDropdownItem} onClick={() => setIsMenuOpen(false)}>The Quantum Field</Link></li>
-              <li><Link href="/mystical" className={splash.mobileNavDropdownItem} onClick={() => setIsMenuOpen(false)}>Ancient Wisdom</Link></li>
-            </ul>
-          </li>
-          {tabLink("/our-story", "Our story", true)}
-        </ul>
-        <div className={splash.mobileNavRight}>
-          <Link
-            href="/auth/signin"
-            className={splash.mobileNavSignIn}
-            onClick={() => setIsMenuOpen(false)}
-          >
-            Sign In
-          </Link>
-          <Link
-            href="/#invite"
-            className={splash.mobileNavInvite}
-            onClick={() => setIsMenuOpen(false)}
-          >
-            Request invitation
-          </Link>
-        </div>
-      </div>
+      {/* NAV — PublicNav handles public vs authenticated header */}
+      <PublicNav />
 
       {/* HERO */}
       <div className={s.hero}>

@@ -393,6 +393,8 @@ Plant the user's selected identity statements VERBATIM.
 Do not rephrase, soften, or NLP-restructure them.
 If the user selected 'Everything I touch turns to gold' — plant that exact phrase. The rawness and directness is the point.
 
+⚠️ SELECTION-ONLY RULE: Use ONLY statements from identityStatements[] and areaAffirmations{} that the user explicitly SELECTED or WROTE during intake. These arrays contain only confirmed user selections. Never use statements the user did not select — even if they were generated as chip options.
+
 These must be:
 - Present-tense, first person — EXACTLY as the user selected them
 - VERBATIM from identityStatements[] and areaAffirmations{} — do not rewrite
@@ -682,8 +684,34 @@ Plant the user's selected identity statements VERBATIM.
 Do not rephrase, soften, or NLP-restructure them.
 If the user selected 'Everything I touch turns to gold' — plant that exact phrase. The rawness and directness is the point.
 
+⚠️ SELECTION-ONLY RULE: Use ONLY affirmations from identityStatements[] and areaAffirmations{} that the user explicitly SELECTED or WROTE. These arrays contain only confirmed user selections. Never add statements the user did not select — even if they were generated as options during intake.
+
 Use remaining statements from identityStatements[] and areaAffirmations{} that were NOT already used in Position 1 (opening affirmations). Do not repeat the same statements used at the opening.
 Do not rewrite or paraphrase — these are the user's own claimed identity. Use their EXACT words.
+
+⚠️ CLOSING AFFIRMATION ARCHITECTURE — MANDATORY:
+The closing affirmation sequence must contain ONLY BEING-level identity declarations. Follow this three-tier structure:
+
+• HAVING level (1-2 statements): What this person POSSESSES — possessions, outcomes, results that are theirs.
+  Example: 'I have $100 million. This is simply who I am.'
+  Example: 'I have a body that moves with power and ease.'
+
+• DOING level (1-2 statements): What this person consistently DOES — actions, habits, ways of showing up.
+  Example: 'Everything I touch turns to gold.'
+  Example: 'I show up fully for my family every single day.'
+
+• BEING level (1-2 statements, LANDS LAST): Who this person IS at their deepest core — identity, not description.
+  Example: 'I am enough. I always was.'
+  Example: 'I am the person I once dreamed of becoming.'
+
+The final statement before sleep seeding must ALWAYS be the deepest BEING-level claim.
+
+⚠️ BIOLOGICAL/HEALTH STATEMENTS PROHIBITION:
+Scene-level health descriptions do NOT belong in the closing affirmation sequence. The following types of statements are FORBIDDEN here:
+- 'Each night, my body heals itself completely.'
+- 'All my cells communicate perfectly — zero inflammation, full mobility.'
+- 'I have perfect vitality and energy at all moments of every day.'
+These are vision-scene content (Block B health scene) — NOT identity declarations. If the user selected health-related identity statements, use only bold BEING-level versions (e.g., 'I am vitality itself' or 'My body is my temple and it serves me perfectly').
 
 Structure:
 - Organize: Having → Doing → Being (most powerful lands last)
