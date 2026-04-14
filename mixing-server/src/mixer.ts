@@ -198,15 +198,21 @@ export async function mixAudio(opts: MixOptions): Promise<Buffer> {
     const mixLabels: string[] = [];
     let mixCount = 0;
 
+    // Calculate total number of amix inputs upfront for volume compensation.
+    // amix divides each input by N, so we pre-boost by N to keep absolute levels.
+    const totalInputs = 1 + (bgIdx >= 0 ? 1 : 0) + (binIdx >= 0 ? 1 : 0);
+
     // Voice — delayed by 10 s pre-roll (or passthrough if no background)
     if (hasBackground) {
       const delayMs = BG_LEAD_SECS * 1000;
+      // Boost voice by totalInputs to compensate for amix normalization (divides by N)
       filters.push(
-        `[0:a]adelay=${delayMs}|${delayMs}[voice_delayed]`
+        `[0:a]adelay=${delayMs}|${delayMs},volume=${totalInputs}[voice_delayed]`
       );
       mixLabels.push('[voice_delayed]');
     } else {
-      filters.push(`[0:a]aresample=44100[voice_out]`);
+      // Boost voice by totalInputs to compensate for amix normalization
+      filters.push(`[0:a]aresample=44100,volume=${totalInputs}[voice_out]`);
       mixLabels.push('[voice_out]');
     }
     mixCount++;
@@ -215,21 +221,25 @@ export async function mixAudio(opts: MixOptions): Promise<Buffer> {
     if (bgIdx >= 0) {
       const totalBgDuration = BG_LEAD_SECS + voiceDuration + BG_TAIL_SECS;
       const fadeOutStart    = totalBgDuration - BG_FADE_OUT_SECS;
+      
 
       // Clamp fade-out start so it never goes negative (short narrations)
       const safeFadeStart = Math.max(0, fadeOutStart);
+
+      // Boost by totalInputs to compensate for amix normalization, then apply user volume
+      const compensatedBgVolume = backgroundVolume * totalInputs;
 
       filters.push(
         // aloop=-1: loop indefinitely until atrim cuts it
         // afade in: subtle 1 s fade-in at the very beginning (avoids hard start)
         // afade out: BG_FADE_OUT_SECS fade at the end of the tail
-        // volume: dim the background relative to the voice
+        // volume: dim the background relative to the voice (compensated for amix)
         `[${bgIdx}:a]` +
         `aloop=loop=-1:size=2e+09,` +
         `atrim=0:${totalBgDuration},` +
         `afade=t=in:st=0:d=1,` +
         `afade=t=out:st=${safeFadeStart}:d=${BG_FADE_OUT_SECS},` +
-        `volume=${backgroundVolume}` +
+        `volume=${compensatedBgVolume}` +
         `[bg]`
       );
       mixLabels.push('[bg]');
@@ -253,13 +263,14 @@ export async function mixAudio(opts: MixOptions): Promise<Buffer> {
     }
 
     // Final mix
-    //   normalize=0  → preserve absolute volumes (no auto-levelling)
     //   duration=longest → run until the background tail finishes
     //   dropout_transition=0 → don't ramp down a stream when it ends early
+    //   Note: amix normalizes by dividing each input by N — we compensate
+    //   by pre-boosting volumes above instead of using normalize=0 (FFmpeg 5.1+)
     const durationMode = hasBackground ? 'longest' : 'first';
     filters.push(
       `${mixLabels.join('')}` +
-      `amix=inputs=${mixCount}:duration=${durationMode}:normalize=0:dropout_transition=0` +
+      `amix=inputs=${mixCount}:duration=${durationMode}:dropout_transition=0` +
       `[out]`
     );
 
