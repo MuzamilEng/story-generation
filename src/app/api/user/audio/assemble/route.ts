@@ -335,10 +335,11 @@ export async function POST(req: NextRequest) {
         let close: Buffer | null = null;
 
         // Always fetch induction for intro
-        induction = await fetchAdminAudio('induction');
+        // induction = await fetchAdminAudio('induction'); // TEMP DISABLED BY AI AGENT
 
         // Only fetch guide close for users without cloned voice
         if (!userHasClonedVoice) {
+            induction = await fetchAdminAudio('induction');
             close = await fetchAdminAudio('guide_close');
         }
 
