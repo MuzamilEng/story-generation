@@ -73,6 +73,7 @@ model User {
   is_beta                 Boolean        @default(false) @map("is_beta")
   beta_source             String?        @map("beta_source")
   has_completed_survey    Boolean        @default(false) @map("has_completed_survey")
+  feedback_state          String         @default("pending_early") @map("feedback_state") @db.VarChar(30)
   accounts                Account[]
   voiceSamples            VoiceSample[]
 
@@ -81,6 +82,7 @@ model User {
   stories                 Story[]
   betaCodes               UserBetaCode[]
   betaFeedback            BetaFeedback?
+  betaSignup              BetaSignup?
 
   @@index([email])
   @@map("users")
@@ -245,6 +247,45 @@ model BetaFeedback {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("beta_feedback")
+}
+
+model BetaSignup {
+  id                   String    @id @default(cuid())
+  access_code          String    @unique @db.VarChar(14)
+  first_name           String    @db.VarChar(100)
+  email                String    @unique @db.VarChar(255)
+  referral             String?   @db.VarChar(50)
+  referral_detail      String?   @db.VarChar(255)
+  status               String    @default("signed_up") @db.VarChar(30)
+  user_id              String?   @unique @map("user_id")
+  email_day1_sent_at   DateTime? @map("email_day1_sent_at")
+  email_day2_sent_at   DateTime? @map("email_day2_sent_at")
+  email_day7_sent_at   DateTime? @map("email_day7_sent_at")
+  activated_at         DateTime? @map("activated_at")
+  survey1_completed_at DateTime? @map("survey1_completed_at")
+  survey2_completed_at DateTime? @map("survey2_completed_at")
+  created_at           DateTime  @default(now()) @map("created_at")
+  user                 User?     @relation(fields: [user_id], references: [id], onDelete: SetNull)
+
+  @@index([email])
+  @@index([access_code])
+  @@index([status])
+  @@map("beta_signups")
+}
+
+model BetaSurveyResponse {
+  id             String   @id @default(cuid())
+  beta_signup_id String?  @map("beta_signup_id")
+  user_id        String?  @map("user_id")
+  survey_type    String   @db.VarChar(20) // "day2" or "day7"
+  responses      Json     @map("responses")
+  source         String?  @db.VarChar(30) // "email" | "dashboard"
+  created_at     DateTime @default(now()) @map("created_at")
+
+  @@index([beta_signup_id])
+  @@index([user_id])
+  @@index([survey_type])
+  @@map("beta_survey_responses")
 }
 
 model SystemAudio {

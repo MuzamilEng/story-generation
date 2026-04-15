@@ -40,6 +40,9 @@ export default async function AdminLayout({
           <Link href="/admin/beta-codes" className={styles.navItem}>
             <span>🎟️</span> Beta Access
           </Link>
+          <Link href="/admin/beta" className={styles.navItem}>
+            <span>📋</span> Beta Signups
+          </Link>
           <Link href="/admin/system-audio" className={styles.navItem}>
             <span>🔊</span> System Audio
           </Link>

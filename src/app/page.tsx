@@ -251,6 +251,9 @@ export default function Home() {
           <li>
             <Link href="/our-story" className={s.navTabLink}>Our story</Link>
           </li>
+          <li>
+            <Link href="/beta/signup" className={s.navTabLink}>Beta signup</Link>
+          </li>
         </ul>
         <div className={s.navRight}>
           <Link href="/auth/signin" className={s.navSignIn}>Sign In</Link>
@@ -302,6 +305,15 @@ export default function Home() {
               onClick={() => setIsMenuOpen(false)}
             >
               Our story
+            </Link>
+          </li>
+          <li>
+            <Link 
+              href="/beta/signup" 
+              className={s.mobileNavTabLink} 
+              onClick={() => setIsMenuOpen(false)}
+            >
+              Beta signup
             </Link>
           </li>
         </ul>

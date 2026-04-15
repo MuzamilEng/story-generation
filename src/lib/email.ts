@@ -297,3 +297,251 @@ export async function sendFeedbackNotification(
     requestBody: { raw },
   });
 }
+
+/* ── Beta welcome email (Day 1) — sends access code ─────── */
+export async function sendBetaWelcomeEmail(to: string, firstName: string, accessCode: string) {
+  const gmail = getGmailClient();
+  const siteUrl = process.env.NEXTAUTH_URL || "https://manifestmystory.com";
+  const displayName = firstName || "Beta Tester";
+  const unsubUrl = `${siteUrl}/api/waitlist/unsubscribe?email=${encodeURIComponent(to)}`;
+
+  const html = `<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Welcome to ManifestMyStory</title></head>
+<body style="margin:0;padding:0;background-color:#0d0d0d;font-family:'Inter',Arial,sans-serif;-webkit-font-smoothing:antialiased;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#0d0d0d;min-height:100vh;">
+<tr><td align="center" style="padding:40px 20px;">
+<table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;">
+<tr><td style="padding-bottom:32px;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+    <td style="font-family:'Inter',Arial,sans-serif;font-size:13px;font-weight:500;letter-spacing:0.12em;color:#8DBF7A;text-transform:uppercase;">Manifest My Story</td>
+    <td align="right" style="font-family:'Inter',Arial,sans-serif;font-size:12px;color:#3a3a3a;letter-spacing:0.06em;text-transform:uppercase;">Beta Access</td>
+  </tr></table>
+  <div style="height:1px;background:linear-gradient(to right,#8DBF7A,transparent);margin-top:12px;"></div>
+</td></tr>
+<tr><td style="padding-bottom:40px;">
+  <p style="margin:0 0 8px 0;font-family:'Inter',Arial,sans-serif;font-size:11px;font-weight:500;letter-spacing:0.16em;color:#8DBF7A;text-transform:uppercase;">You are in.</p>
+  <h1 style="margin:0 0 24px 0;font-family:'Fraunces',Georgia,serif;font-size:42px;font-weight:300;line-height:1.15;color:#f0ede8;">Your story is<br>waiting to be built.</h1>
+  <p style="margin:0;font-family:'Inter',Arial,sans-serif;font-size:16px;font-weight:300;line-height:1.75;color:#8a8a8a;">You are one of fewer than 500 people with access to ManifestMyStory before public launch. What you experience over the next few weeks is not a demo. It is the full tool — built to reprogram your subconscious while you sleep, in the one voice it cannot dismiss.</p>
+</td></tr>
+<tr><td style="padding-bottom:40px;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #1f2e1f;border-radius:4px;background-color:#0f1a0f;">
+  <tr><td style="padding:32px;">
+    <p style="margin:0 0 6px 0;font-family:'Inter',Arial,sans-serif;font-size:11px;font-weight:500;letter-spacing:0.16em;color:#8DBF7A;text-transform:uppercase;">Your beta access code</p>
+    <p style="margin:0 0 24px 0;font-family:'Courier New',Courier,monospace;font-size:32px;font-weight:700;letter-spacing:0.22em;color:#f0ede8;">${accessCode}</p>
+    <p style="margin:0 0 28px 0;font-family:'Inter',Arial,sans-serif;font-size:14px;font-weight:300;line-height:1.7;color:#6a6a6a;">Enter this code on the platform to activate your founding member access. Your code is personal — it grants you full Amplifier-tier access for the duration of the beta period.</p>
+    <table cellpadding="0" cellspacing="0" border="0"><tr>
+      <td style="background-color:#8DBF7A;border-radius:3px;">
+        <a href="${siteUrl}/beta" style="display:inline-block;padding:14px 32px;font-family:'Inter',Arial,sans-serif;font-size:13px;font-weight:500;letter-spacing:0.1em;color:#0d1a0d;text-decoration:none;text-transform:uppercase;">Enter My Code &rarr;</a>
+      </td>
+    </tr></table>
+  </td></tr></table>
+</td></tr>
+<tr><td style="padding-bottom:40px;">
+  <p style="margin:0 0 20px 0;font-family:'Inter',Arial,sans-serif;font-size:11px;font-weight:500;letter-spacing:0.16em;color:#8DBF7A;text-transform:uppercase;">What happens next</p>
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:20px;"><tr>
+    <td width="40" valign="top" style="padding-top:2px;"><div style="width:28px;height:28px;border:1px solid #8DBF7A;border-radius:50%;text-align:center;line-height:28px;font-family:'Inter',Arial,sans-serif;font-size:12px;font-weight:500;color:#8DBF7A;">01</div></td>
+    <td valign="top" style="padding-left:16px;">
+      <p style="margin:0 0 4px 0;font-family:'Inter',Arial,sans-serif;font-size:15px;font-weight:500;color:#e8e5e0;">Define your goals and proof actions</p>
+      <p style="margin:0;font-family:'Inter',Arial,sans-serif;font-size:14px;font-weight:300;line-height:1.65;color:#6a6a6a;">Go deeper than a goal list. You will define what you want — and the sensory evidence that it has already arrived.</p>
+    </td>
+  </tr></table>
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:20px;"><tr>
+    <td width="40" valign="top" style="padding-top:2px;"><div style="width:28px;height:28px;border:1px solid #8DBF7A;border-radius:50%;text-align:center;line-height:28px;font-family:'Inter',Arial,sans-serif;font-size:12px;font-weight:500;color:#8DBF7A;">02</div></td>
+    <td valign="top" style="padding-left:16px;">
+      <p style="margin:0 0 4px 0;font-family:'Inter',Arial,sans-serif;font-size:15px;font-weight:500;color:#e8e5e0;">Clone your voice in under a minute</p>
+      <p style="margin:0;font-family:'Inter',Arial,sans-serif;font-size:14px;font-weight:300;line-height:1.65;color:#6a6a6a;">Record a short sample. The AI captures your vocal signature and recreates it with the emotional inflection your story deserves.</p>
+    </td>
+  </tr></table>
+  <table width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+    <td width="40" valign="top" style="padding-top:2px;"><div style="width:28px;height:28px;border:1px solid #8DBF7A;border-radius:50%;text-align:center;line-height:28px;font-family:'Inter',Arial,sans-serif;font-size:12px;font-weight:500;color:#8DBF7A;">03</div></td>
+    <td valign="top" style="padding-left:16px;">
+      <p style="margin:0 0 4px 0;font-family:'Inter',Arial,sans-serif;font-size:15px;font-weight:500;color:#e8e5e0;">Listen tonight</p>
+      <p style="margin:0;font-family:'Inter',Arial,sans-serif;font-size:14px;font-weight:300;line-height:1.65;color:#6a6a6a;">Put on headphones as you drift toward sleep. Six layers of carefully engineered audio deliver your story at the moment the subconscious is most open.</p>
+    </td>
+  </tr></table>
+</td></tr>
+<tr><td style="padding-bottom:36px;"><div style="height:1px;background-color:#1e1e1e;"></div></td></tr>
+<tr><td style="padding-bottom:40px;">
+  <p style="margin:0 0 16px 0;font-family:'Fraunces',Georgia,serif;font-size:22px;font-weight:300;font-style:italic;line-height:1.4;color:#c8c4be;">&ldquo;The method I am asking you to trust is the same method I used to build this platform. I am a living demonstration of the practice.&rdquo;</p>
+  <p style="margin:0;font-family:'Inter',Arial,sans-serif;font-size:13px;font-weight:400;color:#4a4a4a;letter-spacing:0.04em;">— Michael, Founder</p>
+</td></tr>
+<tr><td style="padding-bottom:40px;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-left:2px solid #8DBF7A;"><tr><td style="padding:4px 0 4px 20px;">
+    <p style="margin:0 0 10px 0;font-family:'Inter',Arial,sans-serif;font-size:13px;font-weight:500;color:#e8e5e0;letter-spacing:0.04em;">As a founding beta tester, you receive:</p>
+    <p style="margin:0 0 6px 0;font-family:'Inter',Arial,sans-serif;font-size:14px;font-weight:300;color:#6a6a6a;">&rarr;&nbsp; Full Amplifier-tier access during the beta period</p>
+    <p style="margin:0 0 6px 0;font-family:'Inter',Arial,sans-serif;font-size:14px;font-weight:300;color:#6a6a6a;">&rarr;&nbsp; Founding member pricing locked in at launch</p>
+    <p style="margin:0 0 6px 0;font-family:'Inter',Arial,sans-serif;font-size:14px;font-weight:300;color:#6a6a6a;">&rarr;&nbsp; A direct line to the founding team</p>
+    <p style="margin:0;font-family:'Inter',Arial,sans-serif;font-size:14px;font-weight:300;color:#6a6a6a;">&rarr;&nbsp; Your feedback shapes what gets built next</p>
+  </td></tr></table>
+</td></tr>
+<tr><td style="padding-bottom:40px;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#111;border-radius:4px;border:1px solid #222;"><tr><td style="padding:24px;">
+    <p style="margin:0 0 8px 0;font-family:'Inter',Arial,sans-serif;font-size:11px;font-weight:500;letter-spacing:0.14em;color:#5a5a5a;text-transform:uppercase;">Heads up</p>
+    <p style="margin:0;font-family:'Inter',Arial,sans-serif;font-size:14px;font-weight:300;line-height:1.7;color:#6a6a6a;">In 48 hours we will send you a short feedback survey — about 4 minutes. Your honest response, including what doesn&apos;t work, is the most valuable thing you can give us right now. We read every single one.</p>
+  </td></tr></table>
+</td></tr>
+<tr><td style="padding-bottom:32px;"><div style="height:1px;background-color:#1e1e1e;"></div></td></tr>
+<tr><td>
+  <table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="font-family:'Inter',Arial,sans-serif;font-size:12px;font-weight:300;color:#3a3a3a;line-height:1.7;">
+    <p style="margin:0 0 8px 0;">ManifestMyStory &middot; <a href="${siteUrl}" style="color:#8DBF7A;text-decoration:none;">manifestmystory.com</a></p>
+    <p style="margin:0 0 8px 0;">Questions? Reply to this email — the founding team reads every message.</p>
+    <p style="margin:0;color:#2a2a2a;">You received this because you signed up for ManifestMyStory beta access. <a href="${unsubUrl}" style="color:#3a3a3a;text-decoration:underline;">Unsubscribe</a></p>
+  </td></tr></table>
+</td></tr>
+</table>
+</td></tr></table>
+</body></html>`;
+
+  const raw = buildRawEmail(to, `${displayName}, you're in. Your access code is inside.`, html);
+  await gmail.users.messages.send({ userId: "me", requestBody: { raw } });
+}
+
+/* ── Beta Day 2 email — first impressions survey ─────────── */
+export async function sendBetaDay2Email(to: string, firstName: string, surveyUrl: string) {
+  const gmail = getGmailClient();
+  const siteUrl = process.env.NEXTAUTH_URL || "https://manifestmystory.com";
+  const displayName = firstName || "Beta Tester";
+  const unsubUrl = `${siteUrl}/api/waitlist/unsubscribe?email=${encodeURIComponent(to)}`;
+
+  const html = `<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>We want to hear what happened</title></head>
+<body style="margin:0;padding:0;background-color:#0d0d0d;font-family:'Inter',Arial,sans-serif;-webkit-font-smoothing:antialiased;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#0d0d0d;min-height:100vh;">
+<tr><td align="center" style="padding:40px 20px;">
+<table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;">
+<tr><td style="padding-bottom:32px;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+    <td style="font-family:'Inter',Arial,sans-serif;font-size:13px;font-weight:500;letter-spacing:0.12em;color:#8DBF7A;text-transform:uppercase;">Manifest My Story</td>
+    <td align="right" style="font-family:'Inter',Arial,sans-serif;font-size:12px;color:#3a3a3a;letter-spacing:0.06em;text-transform:uppercase;">Beta &mdash; Day 2</td>
+  </tr></table>
+  <div style="height:1px;background:linear-gradient(to right,#8DBF7A,transparent);margin-top:12px;"></div>
+</td></tr>
+<tr><td style="padding-bottom:36px;">
+  <p style="margin:0 0 8px 0;font-family:'Inter',Arial,sans-serif;font-size:11px;font-weight:500;letter-spacing:0.16em;color:#8DBF7A;text-transform:uppercase;">First impressions</p>
+  <h1 style="margin:0 0 24px 0;font-family:'Fraunces',Georgia,serif;font-size:40px;font-weight:300;line-height:1.2;color:#f0ede8;">You have heard<br>your own voice.<br><span style="font-style:italic;color:#8DBF7A;">Now tell us what happened.</span></h1>
+  <p style="margin:0;font-family:'Inter',Arial,sans-serif;font-size:16px;font-weight:300;line-height:1.75;color:#8a8a8a;">You are 48 hours into something most people never experience. We have four minutes of questions for you — honest answers only. No right answers. No wrong ones. Just what actually happened when you heard your future in your own voice.</p>
+</td></tr>
+<tr><td style="padding-bottom:36px;">
+  <p style="margin:0 0 18px 0;font-family:'Inter',Arial,sans-serif;font-size:11px;font-weight:500;letter-spacing:0.16em;color:#4a4a4a;text-transform:uppercase;">What we&apos;re asking about</p>
+  <table width="100%" cellpadding="0" cellspacing="0" border="0">
+    <tr>
+      <td width="50%" valign="top" style="padding-right:12px;padding-bottom:14px;"><p style="margin:0 0 3px 0;font-family:'Inter',Arial,sans-serif;font-size:13px;font-weight:500;color:#c8c4be;">&rarr;&nbsp; Getting started</p><p style="margin:0;font-family:'Inter',Arial,sans-serif;font-size:13px;font-weight:300;color:#4a4a4a;">Was the setup clear? What confused you?</p></td>
+      <td width="50%" valign="top" style="padding-left:12px;padding-bottom:14px;"><p style="margin:0 0 3px 0;font-family:'Inter',Arial,sans-serif;font-size:13px;font-weight:500;color:#c8c4be;">&rarr;&nbsp; Your voice clone</p><p style="margin:0;font-family:'Inter',Arial,sans-serif;font-size:13px;font-weight:300;color:#4a4a4a;">How did it sound? How did it feel?</p></td>
+    </tr>
+    <tr>
+      <td width="50%" valign="top" style="padding-right:12px;padding-bottom:14px;"><p style="margin:0 0 3px 0;font-family:'Inter',Arial,sans-serif;font-size:13px;font-weight:500;color:#c8c4be;">&rarr;&nbsp; Your story</p><p style="margin:0;font-family:'Inter',Arial,sans-serif;font-size:13px;font-weight:300;color:#4a4a4a;">Did it feel personal? Did it include your goals?</p></td>
+      <td width="50%" valign="top" style="padding-left:12px;padding-bottom:14px;"><p style="margin:0 0 3px 0;font-family:'Inter',Arial,sans-serif;font-size:13px;font-weight:500;color:#c8c4be;">&rarr;&nbsp; The audio</p><p style="margin:0;font-family:'Inter',Arial,sans-serif;font-size:13px;font-weight:300;color:#4a4a4a;">Quality, pacing, the binaural layer.</p></td>
+    </tr>
+    <tr>
+      <td width="50%" valign="top" style="padding-right:12px;"><p style="margin:0 0 3px 0;font-family:'Inter',Arial,sans-serif;font-size:13px;font-weight:500;color:#c8c4be;">&rarr;&nbsp; What you&apos;d pay</p><p style="margin:0;font-family:'Inter',Arial,sans-serif;font-size:13px;font-weight:300;color:#4a4a4a;">Your gut reaction to pricing.</p></td>
+      <td width="50%" valign="top" style="padding-left:12px;"><p style="margin:0 0 3px 0;font-family:'Inter',Arial,sans-serif;font-size:13px;font-weight:500;color:#c8c4be;">&rarr;&nbsp; Overall</p><p style="margin:0;font-family:'Inter',Arial,sans-serif;font-size:13px;font-weight:300;color:#4a4a4a;">NPS, top improvement, what to never change.</p></td>
+    </tr>
+  </table>
+</td></tr>
+<tr><td style="padding-bottom:40px;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#0f1a0f;border:1px solid #1f2e1f;border-radius:4px;"><tr><td style="padding:32px;text-align:center;">
+    <p style="margin:0 0 6px 0;font-family:'Inter',Arial,sans-serif;font-size:11px;font-weight:500;letter-spacing:0.16em;color:#8DBF7A;text-transform:uppercase;">Takes about 4 minutes</p>
+    <p style="margin:0 0 28px 0;font-family:'Fraunces',Georgia,serif;font-size:22px;font-weight:300;font-style:italic;color:#c8c4be;line-height:1.4;">Your honest feedback is the most valuable thing<br>you can give us right now.</p>
+    <table cellpadding="0" cellspacing="0" border="0" style="margin:0 auto;"><tr>
+      <td style="background-color:#8DBF7A;border-radius:3px;">
+        <a href="${surveyUrl}" style="display:inline-block;padding:16px 40px;font-family:'Inter',Arial,sans-serif;font-size:13px;font-weight:500;letter-spacing:0.1em;color:#0d1a0d;text-decoration:none;text-transform:uppercase;">Share My Feedback &rarr;</a>
+      </td>
+    </tr></table>
+  </td></tr></table>
+</td></tr>
+<tr><td style="padding-bottom:40px;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-left:2px solid #8DBF7A;"><tr><td style="padding:4px 0 4px 20px;">
+    <p style="margin:0;font-family:'Inter',Arial,sans-serif;font-size:14px;font-weight:300;line-height:1.75;color:#6a6a6a;">If something didn&apos;t work — the voice clone sounded off, the story felt generic, the setup confused you — we need to know. That feedback is worth ten times more to us than a perfect rating.</p>
+  </td></tr></table>
+</td></tr>
+<tr><td style="padding-bottom:40px;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#111;border-radius:4px;border:1px solid #222;"><tr><td style="padding:24px;">
+    <p style="margin:0 0 8px 0;font-family:'Inter',Arial,sans-serif;font-size:11px;font-weight:500;letter-spacing:0.14em;color:#C9A84C;text-transform:uppercase;">One week from now</p>
+    <p style="margin:0;font-family:'Inter',Arial,sans-serif;font-size:14px;font-weight:300;line-height:1.7;color:#6a6a6a;">We will follow up with five pricing questions — 90 seconds. By then you will have a real sense of what the practice is worth to you.</p>
+  </td></tr></table>
+</td></tr>
+<tr><td style="padding-bottom:32px;"><div style="height:1px;background-color:#1e1e1e;"></div></td></tr>
+<tr><td>
+  <table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="font-family:'Inter',Arial,sans-serif;font-size:12px;font-weight:300;color:#3a3a3a;line-height:1.7;">
+    <p style="margin:0 0 8px 0;">ManifestMyStory &middot; <a href="${siteUrl}" style="color:#8DBF7A;text-decoration:none;">manifestmystory.com</a></p>
+    <p style="margin:0 0 8px 0;">Questions or issues? Reply directly — we read everything.</p>
+    <p style="margin:0;color:#2a2a2a;">You received this as a ManifestMyStory beta tester. <a href="${unsubUrl}" style="color:#3a3a3a;text-decoration:underline;">Unsubscribe</a></p>
+  </td></tr></table>
+</td></tr>
+</table>
+</td></tr></table>
+</body></html>`;
+
+  const raw = buildRawEmail(to, `${displayName}, we want to hear what happened.`, html);
+  await gmail.users.messages.send({ userId: "me", requestBody: { raw } });
+}
+
+/* ── Beta Day 7 email — pricing pulse survey ─────────────── */
+export async function sendBetaDay7Email(to: string, firstName: string, surveyUrl: string) {
+  const gmail = getGmailClient();
+  const siteUrl = process.env.NEXTAUTH_URL || "https://manifestmystory.com";
+  const displayName = firstName || "Beta Tester";
+  const unsubUrl = `${siteUrl}/api/waitlist/unsubscribe?email=${encodeURIComponent(to)}`;
+
+  const html = `<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>90 seconds. One question set.</title></head>
+<body style="margin:0;padding:0;background-color:#0d0d0d;font-family:'Inter',Arial,sans-serif;-webkit-font-smoothing:antialiased;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#0d0d0d;min-height:100vh;">
+<tr><td align="center" style="padding:40px 20px;">
+<table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;">
+<tr><td style="padding-bottom:32px;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+    <td style="font-family:'Inter',Arial,sans-serif;font-size:13px;font-weight:500;letter-spacing:0.12em;color:#C9A84C;text-transform:uppercase;">Manifest My Story</td>
+    <td align="right" style="font-family:'Inter',Arial,sans-serif;font-size:12px;color:#3a3a3a;letter-spacing:0.06em;text-transform:uppercase;">Beta &mdash; Day 7</td>
+  </tr></table>
+  <div style="height:1px;background:linear-gradient(to right,#C9A84C,transparent);margin-top:12px;"></div>
+</td></tr>
+<tr><td style="padding-bottom:36px;">
+  <p style="margin:0 0 8px 0;font-family:'Inter',Arial,sans-serif;font-size:11px;font-weight:500;letter-spacing:0.16em;color:#C9A84C;text-transform:uppercase;">One week in</p>
+  <h1 style="margin:0 0 24px 0;font-family:'Fraunces',Georgia,serif;font-size:40px;font-weight:300;line-height:1.2;color:#f0ede8;">Seven nights.<br><span style="font-style:italic;color:#C9A84C;">What is it worth to you?</span></h1>
+  <p style="margin:0;font-family:'Inter',Arial,sans-serif;font-size:16px;font-weight:300;line-height:1.75;color:#8a8a8a;">You have had a week with ManifestMyStory. Not a demo. The real thing. Now we have four pricing questions — the most important data we will collect during this entire beta. It takes 90 seconds. Your honest numbers set the price at launch.</p>
+</td></tr>
+<tr><td style="padding-bottom:36px;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-left:2px solid #C9A84C;"><tr><td style="padding:4px 0 4px 20px;">
+    <p style="margin:0 0 12px 0;font-family:'Inter',Arial,sans-serif;font-size:14px;font-weight:500;color:#e8e5e0;">Why we&apos;re asking now and not earlier</p>
+    <p style="margin:0;font-family:'Inter',Arial,sans-serif;font-size:14px;font-weight:300;line-height:1.75;color:#6a6a6a;">Day 1 gut reactions and week-one considered opinions are two very different things. You have now listened multiple times. You know what it actually does. That experience is what makes your pricing response meaningful.</p>
+  </td></tr></table>
+</td></tr>
+<tr><td style="padding-bottom:36px;">
+  <p style="margin:0 0 18px 0;font-family:'Inter',Arial,sans-serif;font-size:11px;font-weight:500;letter-spacing:0.16em;color:#4a4a4a;text-transform:uppercase;">Four questions — four price points</p>
+  <table width="100%" cellpadding="0" cellspacing="0" border="0">
+    <tr><td style="padding-bottom:14px;"><table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td width="28" valign="top"><div style="width:6px;height:6px;background-color:#8DBF7A;border-radius:50%;margin-top:7px;"></div></td><td valign="top"><p style="margin:0 0 2px 0;font-family:'Inter',Arial,sans-serif;font-size:14px;font-weight:500;color:#c8c4be;">Too cheap to trust</p><p style="margin:0;font-family:'Inter',Arial,sans-serif;font-size:13px;font-weight:300;color:#4a4a4a;">Where you&apos;d question the quality.</p></td></tr></table></td></tr>
+    <tr><td style="padding-bottom:14px;"><table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td width="28" valign="top"><div style="width:6px;height:6px;background-color:#8DBF7A;border-radius:50%;margin-top:7px;"></div></td><td valign="top"><p style="margin:0 0 2px 0;font-family:'Inter',Arial,sans-serif;font-size:14px;font-weight:500;color:#c8c4be;">Feels like good value</p><p style="margin:0;font-family:'Inter',Arial,sans-serif;font-size:13px;font-weight:300;color:#4a4a4a;">The price where the exchange feels genuinely fair.</p></td></tr></table></td></tr>
+    <tr><td style="padding-bottom:14px;"><table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td width="28" valign="top"><div style="width:6px;height:6px;background-color:#C9A84C;border-radius:50%;margin-top:7px;"></div></td><td valign="top"><p style="margin:0 0 2px 0;font-family:'Inter',Arial,sans-serif;font-size:14px;font-weight:500;color:#c8c4be;">Getting expensive — but possible</p><p style="margin:0;font-family:'Inter',Arial,sans-serif;font-size:13px;font-weight:300;color:#4a4a4a;">Where you&apos;d pause, but might still subscribe.</p></td></tr></table></td></tr>
+    <tr><td><table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td width="28" valign="top"><div style="width:6px;height:6px;background-color:#8a3a3a;border-radius:50%;margin-top:7px;"></div></td><td valign="top"><p style="margin:0 0 2px 0;font-family:'Inter',Arial,sans-serif;font-size:14px;font-weight:500;color:#c8c4be;">Too expensive — I&apos;m out</p><p style="margin:0;font-family:'Inter',Arial,sans-serif;font-size:13px;font-weight:300;color:#4a4a4a;">The price where you walk away, regardless of quality.</p></td></tr></table></td></tr>
+  </table>
+</td></tr>
+<tr><td style="padding-bottom:40px;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#12100a;border:1px solid #2a2210;border-radius:4px;"><tr><td style="padding:32px;text-align:center;">
+    <p style="margin:0 0 6px 0;font-family:'Inter',Arial,sans-serif;font-size:11px;font-weight:500;letter-spacing:0.16em;color:#C9A84C;text-transform:uppercase;">90 seconds</p>
+    <p style="margin:0 0 28px 0;font-family:'Fraunces',Georgia,serif;font-size:22px;font-weight:300;font-style:italic;color:#c8c4be;line-height:1.4;">Your numbers are the ones that set the price<br>for everyone who comes after you.</p>
+    <table cellpadding="0" cellspacing="0" border="0" style="margin:0 auto;"><tr>
+      <td style="background-color:#C9A84C;border-radius:3px;">
+        <a href="${surveyUrl}" style="display:inline-block;padding:16px 40px;font-family:'Inter',Arial,sans-serif;font-size:13px;font-weight:500;letter-spacing:0.1em;color:#12100a;text-decoration:none;text-transform:uppercase;">Answer 4 Questions &rarr;</a>
+      </td>
+    </tr></table>
+  </td></tr></table>
+</td></tr>
+<tr><td style="padding-bottom:40px;">
+  <p style="margin:0;font-family:'Inter',Arial,sans-serif;font-size:14px;font-weight:300;line-height:1.75;color:#4a4a4a;">This is the last survey we will send during the beta. After this, your access continues as normal. We are deeply grateful for the time you have given us — and for the honesty that will make this product worth building.</p>
+</td></tr>
+<tr><td style="padding-bottom:32px;"><div style="height:1px;background-color:#1e1e1e;"></div></td></tr>
+<tr><td>
+  <table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="font-family:'Inter',Arial,sans-serif;font-size:12px;font-weight:300;color:#3a3a3a;line-height:1.7;">
+    <p style="margin:0 0 8px 0;">ManifestMyStory &middot; <a href="${siteUrl}" style="color:#C9A84C;text-decoration:none;">manifestmystory.com</a></p>
+    <p style="margin:0 0 8px 0;">Questions or issues? Reply directly — we read everything.</p>
+    <p style="margin:0;color:#2a2a2a;">You received this as a ManifestMyStory beta tester. <a href="${unsubUrl}" style="color:#3a3a3a;text-decoration:underline;">Unsubscribe</a></p>
+  </td></tr></table>
+</td></tr>
+</table>
+</td></tr></table>
+</body></html>`;
+
+  const raw = buildRawEmail(to, `${displayName}, seven nights in — what is it worth to you?`, html);
+  await gmail.users.messages.send({ userId: "me", requestBody: { raw } });
+}

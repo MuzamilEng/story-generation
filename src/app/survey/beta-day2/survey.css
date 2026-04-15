@@ -1,0 +1,292 @@
+/* Survey page styles — shared by Day 2 & Day 7 */
+.survey-page {
+  min-height: 100vh;
+  background: #080c09;
+  color: #f0ede8;
+  font-family: 'Inter', sans-serif;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 20px 60px;
+}
+
+.survey-header {
+  width: 100%;
+  max-width: 640px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 24px 0 16px;
+}
+.survey-logo {
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  color: #8DBF7A;
+  text-transform: uppercase;
+}
+.survey-badge {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  color: #8DBF7A;
+  text-transform: uppercase;
+  border: 1px solid rgba(141,191,122,0.3);
+  padding: 4px 12px;
+  border-radius: 2px;
+}
+
+.survey-progress-wrap {
+  width: 100%;
+  max-width: 640px;
+  height: 2px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 2px;
+  margin-bottom: 32px;
+  overflow: hidden;
+}
+.survey-progress-bar {
+  height: 100%;
+  background: #8DBF7A;
+  border-radius: 2px;
+  transition: width 0.4s ease;
+}
+
+.survey-card {
+  width: 100%;
+  max-width: 640px;
+  background: #0d120d;
+  border: 1px solid rgba(141,191,122,0.15);
+  border-radius: 6px;
+  padding: 40px;
+}
+@media (max-width: 600px) {
+  .survey-card { padding: 28px 20px; }
+}
+
+.survey-step-label {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  color: #4a4a42;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.survey-step-title {
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: 24px;
+  font-weight: 300;
+  color: #f0ede8;
+  margin-bottom: 32px;
+  line-height: 1.3;
+}
+
+.survey-question {
+  margin-bottom: 28px;
+}
+.survey-q-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 400;
+  color: #c8c4be;
+  margin-bottom: 14px;
+  line-height: 1.5;
+}
+
+/* Scale */
+.scale-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.scale-end {
+  font-size: 11px;
+  color: #4a4a42;
+  min-width: 60px;
+  text-align: center;
+}
+.scale-options {
+  display: flex;
+  gap: 6px;
+  flex: 1;
+  justify-content: center;
+}
+.scale-btn {
+  width: 40px;
+  height: 40px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 4px;
+  color: #9a9a8e;
+  font-size: 14px;
+  font-weight: 400;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: 'Inter', sans-serif;
+}
+.scale-btn:hover { border-color: rgba(141,191,122,0.3); color: #f0ede8; }
+.scale-btn.active { background: rgba(141,191,122,0.15); border-color: #8DBF7A; color: #8DBF7A; }
+
+/* Choice */
+.choice-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.choice-btn {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 3px;
+  color: #9a9a8e;
+  font-size: 13px;
+  font-weight: 400;
+  padding: 10px 18px;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: 'Inter', sans-serif;
+}
+.choice-btn:hover { border-color: rgba(141,191,122,0.3); color: #f0ede8; }
+.choice-btn.active { background: rgba(141,191,122,0.15); border-color: #8DBF7A; color: #8DBF7A; }
+.choice-btn.active.gold { background: rgba(201,168,76,0.15); border-color: #C9A84C; color: #C9A84C; }
+
+/* NPS */
+.nps-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.nps-end {
+  font-size: 10px;
+  color: #4a4a42;
+  min-width: 50px;
+  text-align: center;
+}
+.nps-options {
+  display: flex;
+  gap: 4px;
+  flex: 1;
+  justify-content: center;
+}
+.nps-btn {
+  width: 34px;
+  height: 34px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 3px;
+  color: #9a9a8e;
+  font-size: 13px;
+  font-weight: 400;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: 'Inter', sans-serif;
+}
+.nps-btn:hover { border-color: rgba(141,191,122,0.3); color: #f0ede8; }
+.nps-btn.active { background: rgba(141,191,122,0.15); border-color: #8DBF7A; color: #8DBF7A; }
+
+/* Textarea */
+.survey-textarea {
+  width: 100%;
+  background: #0a0f0a;
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 3px;
+  padding: 12px 14px;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  font-weight: 300;
+  color: #f0ede8;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.2s;
+  line-height: 1.6;
+}
+.survey-textarea::placeholder { color: #4a4a42; }
+.survey-textarea:focus { border-color: rgba(141,191,122,0.3); }
+
+/* Nav */
+.survey-nav {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 32px;
+  justify-content: flex-end;
+}
+.survey-back {
+  background: none;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 3px;
+  color: #9a9a8e;
+  font-size: 13px;
+  font-weight: 400;
+  padding: 12px 20px;
+  cursor: pointer;
+  font-family: 'Inter', sans-serif;
+  transition: border-color 0.2s, color 0.2s;
+}
+.survey-back:hover { border-color: rgba(255,255,255,0.15); color: #f0ede8; }
+.survey-next {
+  background: #8DBF7A;
+  border: none;
+  border-radius: 3px;
+  color: #06100a;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  padding: 12px 28px;
+  cursor: pointer;
+  font-family: 'Inter', sans-serif;
+  transition: opacity 0.2s;
+}
+.survey-next:hover { opacity: 0.9; }
+.survey-next:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Error */
+.survey-error {
+  font-size: 14px;
+  color: #C9A84C;
+  margin-top: 16px;
+}
+
+/* Done */
+.survey-done {
+  text-align: center;
+  padding: 60px 40px;
+}
+.done-icon {
+  width: 56px;
+  height: 56px;
+  border: 1px solid rgba(141,191,122,0.3);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 20px;
+}
+.done-title {
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: 32px;
+  font-weight: 300;
+  font-style: italic;
+  color: #f0ede8;
+  margin-bottom: 16px;
+}
+.done-body {
+  font-size: 15px;
+  font-weight: 300;
+  color: #9a9a8e;
+  line-height: 1.7;
+  max-width: 420px;
+  margin: 0 auto 12px;
+}
+.done-sub {
+  font-size: 13px;
+  color: #4a4a42;
+}
+
+@media (max-width: 500px) {
+  .scale-row { flex-wrap: wrap; justify-content: center; }
+  .scale-end { min-width: auto; }
+  .nps-row { flex-wrap: wrap; justify-content: center; }
+  .nps-end { min-width: auto; }
+  .nps-btn { width: 28px; height: 28px; font-size: 11px; }
+  .scale-btn { width: 36px; height: 36px; }
+}

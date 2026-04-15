@@ -22,13 +22,28 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Validate beta code
+    // Validate beta code — check BetaSignup table first, then legacy BetaCode table
+    const upperCode = betaCode.toUpperCase().trim();
     let validBetaCode: any = null;
-    validBetaCode = await prisma.betaCode.findUnique({
-      where: { code: betaCode.toUpperCase() }
+    let betaSignup: any = null;
+
+    // Check BetaSignup access codes (MFST-XXXX-XXXX)
+    betaSignup = await prisma.betaSignup.findUnique({
+      where: { access_code: upperCode }
     });
-    if (!validBetaCode || !validBetaCode.isActive || validBetaCode.current_uses >= validBetaCode.max_uses) {
-      return NextResponse.json({ error: "Invalid or expired beta code." }, { status: 400 });
+
+    if (betaSignup) {
+      if (betaSignup.user_id) {
+        return NextResponse.json({ error: "This beta code has already been used." }, { status: 400 });
+      }
+    } else {
+      // Fall back to legacy BetaCode table
+      validBetaCode = await prisma.betaCode.findUnique({
+        where: { code: upperCode }
+      });
+      if (!validBetaCode || !validBetaCode.isActive || validBetaCode.current_uses >= validBetaCode.max_uses) {
+        return NextResponse.json({ error: "Invalid or expired beta code." }, { status: 400 });
+      }
     }
 
     // Check if user already exists
@@ -50,34 +65,83 @@ export async function POST(request: NextRequest) {
     const user = await prisma.$transaction(async (tx) => {
       const twoMonthsFromNow = new Date();
       twoMonthsFromNow.setMonth(twoMonthsFromNow.getMonth() + 2);
-      const betaPlan = betaTypeToPlan(validBetaCode.type);
 
-      const newUser = await tx.user.create({
-        data: {
-          name: name,
-          email,
-          password_hash: hashedPassword,
-          role: (role === "ADMIN" ? "ADMIN" : "USER") as any,
-          is_beta: true,
-          beta_source: betaCode.toUpperCase(),
-          plan: betaPlan,
+      if (betaSignup) {
+        // BetaSignup code path — grant manifester plan (beta, not paid)
+        // Find the matching BetaCode record created during beta signup
+        const matchingBetaCode = await tx.betaCode.findUnique({
+          where: { code: upperCode },
+        });
+
+        const newUser = await tx.user.create({
+          data: {
+            name: name,
+            email,
+            password_hash: hashedPassword,
+            role: (role === "ADMIN" ? "ADMIN" : "USER") as any,
+            is_beta: true,
+            beta_source: "signup",
+            plan: "manifester",
+          }
+        });
+
+        await tx.betaSignup.update({
+          where: { id: betaSignup.id },
+          data: {
+            user_id: newUser.id,
+            status: "activated",
+            activated_at: new Date(),
+          }
+        });
+
+        // Link user to BetaCode so dashboard/subscription pages detect beta status
+        if (matchingBetaCode) {
+          await tx.userBetaCode.create({
+            data: {
+              userId: newUser.id,
+              codeId: matchingBetaCode.id,
+              expiresAt: twoMonthsFromNow,
+            }
+          });
+
+          await tx.betaCode.update({
+            where: { id: matchingBetaCode.id },
+            data: { current_uses: { increment: 1 } },
+          });
         }
-      });
 
-      await tx.userBetaCode.create({
-        data: {
-          userId: newUser.id,
-          codeId: validBetaCode.id,
-          expiresAt: twoMonthsFromNow
-        }
-      });
+        return newUser;
+      } else {
+        // Legacy BetaCode path
+        const betaPlan = betaTypeToPlan(validBetaCode.type);
 
-      await tx.betaCode.update({
-        where: { id: validBetaCode.id },
-        data: { current_uses: { increment: 1 } }
-      });
+        const newUser = await tx.user.create({
+          data: {
+            name: name,
+            email,
+            password_hash: hashedPassword,
+            role: (role === "ADMIN" ? "ADMIN" : "USER") as any,
+            is_beta: true,
+            beta_source: upperCode,
+            plan: betaPlan,
+          }
+        });
 
-      return newUser;
+        await tx.userBetaCode.create({
+          data: {
+            userId: newUser.id,
+            codeId: validBetaCode.id,
+            expiresAt: twoMonthsFromNow
+          }
+        });
+
+        await tx.betaCode.update({
+          where: { id: validBetaCode.id },
+          data: { current_uses: { increment: 1 } }
+        });
+
+        return newUser;
+      }
     });
 
     // Return user without password

@@ -29,9 +29,56 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Beta codes can only be used on free accounts." }, { status: 400 });
         }
 
-        // 1. Validate Beta Code
+        const upper = code.toUpperCase().trim();
+
+        // 1a. Check BetaSignup access codes (MFST-XXXX-XXXX)
+        const betaSignup = await prisma.betaSignup.findUnique({
+            where: { access_code: upper }
+        });
+
+        if (betaSignup) {
+            // Already activated by another user
+            if (betaSignup.user_id) {
+                return NextResponse.json({ error: "This code has already been used." }, { status: 400 });
+            }
+
+            // Check if user already redeemed any code
+            const existingRedemption = await prisma.userBetaCode.findFirst({
+                where: { userId }
+            });
+            if (existingRedemption) {
+                return NextResponse.json({ error: "You have already redeemed a beta code." }, { status: 400 });
+            }
+
+            // Grant manifester plan (beta, not paid) for beta signup codes
+            const twoMonthsFromNow = new Date();
+            twoMonthsFromNow.setMonth(twoMonthsFromNow.getMonth() + 2);
+
+            await prisma.$transaction([
+                prisma.user.update({
+                    where: { id: userId },
+                    data: {
+                        plan: "manifester",
+                        is_beta: true,
+                        beta_source: "signup",
+                    }
+                }),
+                prisma.betaSignup.update({
+                    where: { id: betaSignup.id },
+                    data: {
+                        user_id: userId,
+                        status: "activated",
+                        activated_at: new Date(),
+                    }
+                }),
+            ]);
+
+            return NextResponse.json({ success: true, expiresAt: twoMonthsFromNow });
+        }
+
+        // 1b. Check legacy BetaCode table
         const betaCode = await prisma.betaCode.findUnique({
-            where: { code: code.toUpperCase() }
+            where: { code: upper }
         });
 
         if (!betaCode) {
@@ -50,7 +97,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "You have already redeemed a beta code." }, { status: 400 });
         }
 
-        // 3. Redeem the code
+        // 3. Redeem the legacy code
         const twoMonthsFromNow = new Date();
         twoMonthsFromNow.setMonth(twoMonthsFromNow.getMonth() + 2);
 
