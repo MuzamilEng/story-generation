@@ -50,34 +50,16 @@ export async function GET(req: NextRequest) {
         else if (key.endsWith('.webm')) contentType = 'audio/webm';
         else if (key.endsWith('.ogg')) contentType = 'audio/ogg';
 
-        const params: any = {
-            Bucket: bucketName,
-            Key: key,
-        };
-
-        if (rangeHeader) {
-            params.Range = rangeHeader;
-        }
-
-        const command = new GetObjectCommand(params);
-        const response = await s3Client.send(command);
-
-        if (!response.Body) {
-            return NextResponse.json({ error: 'File not found' }, { status: 404 });
-        }
+        // Always fetch total file size first via HEAD so we can return
+        // correct Content-Length / Content-Range headers. Without this the
+        // browser cannot determine audio duration from the response alone.
+        const headCommand = new HeadObjectCommand({ Bucket: bucketName, Key: key });
+        const headResponse = await s3Client.send(headCommand);
+        const totalSize = headResponse.ContentLength ?? 0;
 
         const headers = new Headers();
         headers.set('Content-Type', contentType);
         headers.set('Accept-Ranges', 'bytes');
-        
-        if (response.ContentLength) {
-            headers.set('Content-Length', response.ContentLength.toString());
-        }
-
-        if (response.ContentRange) {
-            headers.set('Content-Range', response.ContentRange);
-        }
-
         // Allow browser to cache stable audio assets for smoother playback
         headers.set('Cache-Control', 'public, max-age=31536000, immutable');
 
@@ -86,10 +68,45 @@ export async function GET(req: NextRequest) {
             headers.set('Content-Disposition', `attachment; filename="${fileName}"`);
         }
 
-        // Return a standard Response with the S3 stream directly
-        // Safari handles this much better than buffered ArrayBuffers for 206 responses
+        if (rangeHeader) {
+            // Parse range header: "bytes=START-END"
+            const match = rangeHeader.match(/bytes=(\d+)-(\d*)/);
+            const start = match ? parseInt(match[1], 10) : 0;
+            const end = match && match[2] ? parseInt(match[2], 10) : totalSize - 1;
+            const chunkSize = end - start + 1;
+
+            const command = new GetObjectCommand({
+                Bucket: bucketName,
+                Key: key,
+                Range: `bytes=${start}-${end}`,
+            });
+            const response = await s3Client.send(command);
+
+            if (!response.Body) {
+                return NextResponse.json({ error: 'File not found' }, { status: 404 });
+            }
+
+            headers.set('Content-Length', chunkSize.toString());
+            headers.set('Content-Range', `bytes ${start}-${end}/${totalSize}`);
+
+            return new Response(response.Body as any, {
+                status: 206,
+                headers,
+            });
+        }
+
+        // Full file request (no Range header)
+        const command = new GetObjectCommand({ Bucket: bucketName, Key: key });
+        const response = await s3Client.send(command);
+
+        if (!response.Body) {
+            return NextResponse.json({ error: 'File not found' }, { status: 404 });
+        }
+
+        headers.set('Content-Length', totalSize.toString());
+
         return new Response(response.Body as any, {
-            status: rangeHeader ? 206 : 200,
+            status: 200,
             headers,
         });
 

@@ -268,6 +268,16 @@ button {
   }
 }
 
+/* Buffer loading bar animation used by audio player */
+@keyframes bufferSlide {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(350%);
+  }
+}
+
 .atm-layer,
 .stars-container,
 .star {

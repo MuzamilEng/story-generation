@@ -130,9 +130,14 @@ const AudioReadyContent: React.FC = () => {
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(85);
   const [showDownloadPrompt, setShowDownloadPrompt] = useState(false);
+  const [isBuffering, setIsBuffering] = useState(false);
+  const [bufferedPct, setBufferedPct] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement>(null);
   const pendingAutoplay = useRef(false);
+  const progressBarRef = useRef<HTMLDivElement>(null);
+  const seekTarget = useRef<number | null>(null);
 
   const [isServerMixing, setIsServerMixing] = useState(false);
   const [mixingTrackId, setMixingTrackId] = useState<string | null>(null);
@@ -309,6 +314,8 @@ const AudioReadyContent: React.FC = () => {
       // Reset player state for the new audio and request autoplay
       setIsPlaying(false);
       setCurrentTime(0);
+      setIsBuffering(true);
+      setBufferedPct(0);
       pendingAutoplay.current = true;
       setShowBgPicker(false);
       showToast("Background music applied ✓", "success");
@@ -357,6 +364,8 @@ const AudioReadyContent: React.FC = () => {
       // Reset player state for the new audio and request autoplay
       setIsPlaying(false);
       setCurrentTime(0);
+      setIsBuffering(true);
+      setBufferedPct(0);
       pendingAutoplay.current = true;
       setShowBgPicker(false);
       showToast("Background music removed", "success");
@@ -417,19 +426,12 @@ const AudioReadyContent: React.FC = () => {
     }
   }, [isServerMixing]);
 
-  // Use DB-stored duration as authoritative source.
-  // Only override with live browser value if it's plausible (within 20% of DB
-  // value, or DB has no value). This prevents a stale VBR header in a cached
-  // audio file from overriding with a bogus short duration (e.g. 3 seconds).
+  // Always use DB-stored duration as the authoritative source.
+  // Browser-reported duration from VBR MP3s is unreliable (often too short
+  // until the entire file is buffered). The DB value was calculated server-side
+  // and matches what OS players show.
   const dbDuration = story?.audio_duration_secs ?? 0;
-  const displayDuration = (() => {
-    if (duration > 0 && isFinite(duration)) {
-      // Reject the live value if it looks like VBR-truncated nonsense
-      if (dbDuration > 0 && duration < dbDuration * 0.5) return dbDuration;
-      return duration;
-    }
-    return dbDuration;
-  })();
+  const displayDuration = dbDuration > 0 ? dbDuration : (duration > 0 && isFinite(duration) ? duration : 0);
 
   // Ensure audio element volume is synced
   useEffect(() => {
@@ -471,8 +473,10 @@ const AudioReadyContent: React.FC = () => {
     if (isPlaying) {
       audioRef.current.pause();
     } else {
+      setIsBuffering(true);
       audioRef.current.play().catch((err) => {
         console.error("Playback failed:", err);
+        setIsBuffering(false);
       });
     }
   };
@@ -489,21 +493,95 @@ const AudioReadyContent: React.FC = () => {
     }
   }, [story, audioRef.current]);
 
+  // When user was playing before a skip/seek, auto-resume once buffered
+  const wasPlayingBeforeSeek = useRef(false);
+
   const skip = (seconds: number) => {
     if (!audioRef.current) return;
     const total = displayDuration;
     if (!total || total <= 0) return;
-    audioRef.current.currentTime = Math.max(
+    wasPlayingBeforeSeek.current = isPlaying;
+    // Stop all current playback immediately
+    audioRef.current.pause();
+    setIsPlaying(false);
+    setIsBuffering(true);
+    // Calculate new target position
+    const newTime = Math.max(
       0,
       Math.min(total, audioRef.current.currentTime + seconds),
     );
+    setCurrentTime(newTime);
+    seekTarget.current = newTime;
+    // Force reload from new position by resetting src
+    audioRef.current.src = story?.audio_url || "";
+    audioRef.current.load();
   };
 
   const seekTo = (pct: number) => {
     if (!audioRef.current) return;
     const total = displayDuration;
     if (!total || total <= 0) return;
-    audioRef.current.currentTime = pct * total;
+    if (!isDragging) {
+      wasPlayingBeforeSeek.current = isPlaying;
+      // Stop all current playback immediately
+      audioRef.current.pause();
+      setIsPlaying(false);
+      setIsBuffering(true);
+    }
+    const newTime = Math.max(0, Math.min(total, pct * total));
+    setCurrentTime(newTime);
+    if (!isDragging) {
+      seekTarget.current = newTime;
+      // Force reload from new position by resetting src
+      audioRef.current.src = story?.audio_url || "";
+      audioRef.current.load();
+    }
+  };
+
+  // ── Pointer drag handlers for progress bar scrubbing ──
+  const handleProgressPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!progressBarRef.current) return;
+    e.preventDefault();
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    setIsDragging(true);
+    wasPlayingBeforeSeek.current = isPlaying;
+    // Pause immediately so old audio stops
+    if (audioRef.current) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+    }
+    const rect = progressBarRef.current.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const total = displayDuration;
+    if (total > 0 && audioRef.current) {
+      const newTime = pct * total;
+      setCurrentTime(newTime);
+      audioRef.current.currentTime = newTime;
+    }
+  };
+
+  const handleProgressPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDragging || !progressBarRef.current) return;
+    const rect = progressBarRef.current.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const total = displayDuration;
+    if (total > 0 && audioRef.current) {
+      const newTime = pct * total;
+      setCurrentTime(newTime);
+      audioRef.current.currentTime = newTime;
+    }
+  };
+
+  const handleProgressPointerUp = () => {
+    if (!isDragging) return;
+    setIsDragging(false);
+    setIsBuffering(true);
+    // Now force reload from the final drag position
+    if (audioRef.current && story?.audio_url) {
+      seekTarget.current = currentTime;
+      audioRef.current.src = story.audio_url;
+      audioRef.current.load();
+    }
   };
 
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -514,30 +592,53 @@ const AudioReadyContent: React.FC = () => {
     }
   };
 
+  const updateBuffered = () => {
+    if (!audioRef.current) return;
+    const buf = audioRef.current.buffered;
+    if (buf.length > 0 && displayDuration > 0) {
+      const end = buf.end(buf.length - 1);
+      setBufferedPct(Math.min(100, (end / displayDuration) * 100));
+    }
+  };
+
   const handleMetadata = () => {
     if (audioRef.current) {
       const d = audioRef.current.duration;
       if (d && isFinite(d) && d > 0) {
         setDuration(d);
       }
-      // Auto-play after mix/unmix swapped the audio source
-      if (pendingAutoplay.current) {
+      updateBuffered();
+
+      // If we have a pending seek target (from skip/drag/click), seek to it now
+      if (seekTarget.current !== null) {
+        const target = seekTarget.current;
+        seekTarget.current = null;
+        audioRef.current.currentTime = target;
+        // onSeeked will handle resume
+      } else if (pendingAutoplay.current) {
+        // Auto-play after mix/unmix swapped the audio source
         pendingAutoplay.current = false;
         audioRef.current.play().catch(() => {});
         setIsPlaying(true);
+        setIsBuffering(false);
+      } else {
+        setIsBuffering(false);
       }
     }
   };
 
   const handleTimeUpdate = () => {
     if (audioRef.current) {
-      setCurrentTime(audioRef.current.currentTime);
-      // Browser progressively refines duration as it buffers more data.
-      // Keep updating so we always have the most accurate value.
+      // Use displayDuration (from DB) to clamp currentTime so the
+      // progress bar never exceeds 100% even if the browser's internal
+      // duration is shorter than reality.
+      const raw = audioRef.current.currentTime;
+      setCurrentTime(displayDuration > 0 ? Math.min(raw, displayDuration) : raw);
       const d = audioRef.current.duration;
       if (d && isFinite(d) && d > 0 && d !== duration) {
         setDuration(d);
       }
+      updateBuffered();
     }
   };
 
@@ -729,17 +830,38 @@ const AudioReadyContent: React.FC = () => {
                     key={story.audio_url}
                     ref={audioRef}
                     src={story.audio_url}
-                    preload="auto"
+                    preload="none"
                     onPlay={handlePlay}
                     onPause={handlePause}
                     onLoadedMetadata={handleMetadata}
                     onDurationChange={handleMetadata}
                     onTimeUpdate={handleTimeUpdate}
+                    onProgress={updateBuffered}
+                    onCanPlay={() => {
+                      setIsBuffering(false);
+                    }}
+                    onWaiting={() => setIsBuffering(true)}
+                    onSeeking={() => setIsBuffering(true)}
+                    onSeeked={() => {
+                      setIsBuffering(false);
+                      // Resume playback if user was playing before skip/seek
+                      if (wasPlayingBeforeSeek.current && audioRef.current) {
+                        wasPlayingBeforeSeek.current = false;
+                        setIsBuffering(true);
+                        audioRef.current.play().catch(() => {
+                          setIsBuffering(false);
+                        });
+                      }
+                    }}
+                    onPlaying={() => setIsBuffering(false)}
                     onEnded={() => {
                       setIsPlaying(false);
+                      setIsBuffering(false);
+                      wasPlayingBeforeSeek.current = false;
                     }}
                     onError={(e) => {
                       console.error("Main audio error:", e);
+                      setIsBuffering(false);
                       showToast(
                         "Failed to load audio. Please refresh or try another browser.",
                         "error",
@@ -754,51 +876,172 @@ const AudioReadyContent: React.FC = () => {
                     className={styles.playerControls}
                     style={{ padding: 0, position: "relative" }}
                   >
+                    {/* Full-width buffering bar at top of player controls */}
+                    {isBuffering && (
+                      <div
+                        style={{
+                          position: "absolute",
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          height: "2px",
+                          background: "rgba(255,255,255,0.06)",
+                          overflow: "hidden",
+                          zIndex: 5,
+                          borderRadius: "1px",
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: "40%",
+                            height: "100%",
+                            background: "linear-gradient(90deg, #6ECF7A, #A8E6A1)",
+                            borderRadius: "1px",
+                            animation: "bufferSlide 1.2s ease-in-out infinite",
+                          }}
+                        />
+                      </div>
+                    )}
 
                     <div className={styles.ctrlRow}>
                       <button
                         className={styles.ctrlSkip}
                         onClick={() => skip(-15)}
                         aria-label="Rewind 15 seconds"
+                        style={{
+                          opacity: isBuffering ? 0.5 : 1,
+                          pointerEvents: isBuffering ? "none" : "auto",
+                          transition: "opacity 0.2s",
+                        }}
                       >
                         <SkipBackIcon />
                       </button>
                       <button
                         className={styles.ctrlPlay}
                         onClick={togglePlay}
-                        aria-label={isPlaying ? "Pause" : "Play"}
+                        aria-label={isBuffering ? "Loading" : isPlaying ? "Pause" : "Play"}
+                        style={{
+                          position: "relative",
+                        }}
                       >
                         <div className={styles.playPauseIcon}>
-                          {isPlaying ? <PauseIcon /> : <PlayIcon />}
+                          {isBuffering ? (
+                            <span
+                              style={{
+                                display: "inline-block",
+                                width: 22,
+                                height: 22,
+                                border: "2.5px solid rgba(0,0,0,0.1)",
+                                borderTop: "2.5px solid #111614",
+                                borderRadius: "50%",
+                                animation: "spin 0.7s linear infinite",
+                              }}
+                            />
+                          ) : isPlaying ? (
+                            <PauseIcon />
+                          ) : (
+                            <PlayIcon />
+                          )}
                         </div>
                       </button>
                       <button
                         className={styles.ctrlSkip}
                         onClick={() => skip(15)}
                         aria-label="Forward 15 seconds"
+                        style={{
+                          opacity: isBuffering ? 0.5 : 1,
+                          pointerEvents: isBuffering ? "none" : "auto",
+                          transition: "opacity 0.2s",
+                        }}
                       >
                         <SkipForwardIcon />
                       </button>
                     </div>
                     <div className={styles.progressRow}>
                       <div
+                        ref={progressBarRef}
                         className={styles.progressBar}
-                        onClick={(e) => {
-                          const rect = e.currentTarget.getBoundingClientRect();
-                          const pct = (e.clientX - rect.left) / rect.width;
-                          seekTo(Math.max(0, Math.min(1, pct)));
+                        onPointerDown={handleProgressPointerDown}
+                        onPointerMove={handleProgressPointerMove}
+                        onPointerUp={handleProgressPointerUp}
+                        onPointerCancel={handleProgressPointerUp}
+                        style={{
+                          position: "relative",
+                          cursor: isDragging ? "grabbing" : "pointer",
+                          touchAction: "none",
                         }}
                       >
+                        {/* Buffered range indicator */}
+                        <div
+                          style={{
+                            position: "absolute",
+                            top: 0,
+                            left: 0,
+                            height: "100%",
+                            width: `${bufferedPct}%`,
+                            background: "rgba(255,255,255,0.08)",
+                            borderRadius: "inherit",
+                            transition: isDragging ? "none" : "width 0.3s ease",
+                          }}
+                        />
+                        {/* Played fill */}
                         <div
                           className={styles.progressBarFill}
                           style={{
                             width: `${displayDuration > 0 ? (currentTime / displayDuration) * 100 : 0}%`,
+                            position: "relative",
+                            zIndex: 1,
+                            transition: isDragging ? "none" : "width 0.5s linear",
+                          }}
+                        />
+                        {/* Scrub thumb */}
+                        <div
+                          style={{
+                            position: "absolute",
+                            top: "50%",
+                            left: `${displayDuration > 0 ? (currentTime / displayDuration) * 100 : 0}%`,
+                            transform: "translate(-50%, -50%)",
+                            width: isDragging ? 14 : 10,
+                            height: isDragging ? 14 : 10,
+                            borderRadius: "50%",
+                            background: "#fff",
+                            boxShadow: "0 1px 4px rgba(0,0,0,0.4)",
+                            zIndex: 2,
+                            transition: isDragging ? "none" : "left 0.5s linear, width 0.15s, height 0.15s",
+                            opacity: isDragging || currentTime > 0 ? 1 : 0,
                           }}
                         />
                       </div>
                       <div className={styles.timeRow}>
                         <span>{formatTime(currentTime)}</span>
-                        <span>{formatTime(displayDuration || 0)}</span>
+                        <span>
+                          {isBuffering && (
+                            <span
+                              style={{
+                                fontSize: "0.65rem",
+                                color: "#A8E6A1",
+                                marginRight: "6px",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "4px",
+                              }}
+                            >
+                              <span
+                                style={{
+                                  display: "inline-block",
+                                  width: 8,
+                                  height: 8,
+                                  border: "1.5px solid rgba(255,255,255,0.15)",
+                                  borderTop: "1.5px solid #A8E6A1",
+                                  borderRadius: "50%",
+                                  animation: "spin 0.7s linear infinite",
+                                }}
+                              />
+                              Loading…
+                            </span>
+                          )}
+                          {formatTime(displayDuration || 0)}
+                        </span>
                       </div>
                     </div>
                     <div className={styles.volumeRow}>
