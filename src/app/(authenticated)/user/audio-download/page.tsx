@@ -132,7 +132,6 @@ const AudioReadyContent: React.FC = () => {
   const [showDownloadPrompt, setShowDownloadPrompt] = useState(false);
   const [isBuffering, setIsBuffering] = useState(false);
   const [bufferedPct, setBufferedPct] = useState(0);
-  const [isDragging, setIsDragging] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement>(null);
   const pendingAutoplay = useRef(false);
@@ -199,6 +198,9 @@ const AudioReadyContent: React.FC = () => {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't intercept Space when user is typing in an input/textarea
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement)?.isContentEditable) return;
       if (e.code === "Space") {
         e.preventDefault();
         togglePlay();
@@ -495,93 +497,42 @@ const AudioReadyContent: React.FC = () => {
 
   // When user was playing before a skip/seek, auto-resume once buffered
   const wasPlayingBeforeSeek = useRef(false);
+  const skipTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingSkip = useRef<number>(0);
 
   const skip = (seconds: number) => {
     if (!audioRef.current) return;
     const total = displayDuration;
     if (!total || total <= 0) return;
-    wasPlayingBeforeSeek.current = isPlaying;
-    // Stop all current playback immediately
-    audioRef.current.pause();
-    setIsPlaying(false);
-    setIsBuffering(true);
-    // Calculate new target position
-    const newTime = Math.max(
-      0,
-      Math.min(total, audioRef.current.currentTime + seconds),
-    );
-    setCurrentTime(newTime);
-    seekTarget.current = newTime;
-    // Force reload from new position by resetting src
-    audioRef.current.src = story?.audio_url || "";
-    audioRef.current.load();
-  };
 
-  const seekTo = (pct: number) => {
-    if (!audioRef.current) return;
-    const total = displayDuration;
-    if (!total || total <= 0) return;
-    if (!isDragging) {
+    // On first skip in a burst, save play state and pause
+    if (skipTimer.current === null) {
       wasPlayingBeforeSeek.current = isPlaying;
-      // Stop all current playback immediately
-      audioRef.current.pause();
+      if (isPlaying) {
+        audioRef.current.pause();
+      }
       setIsPlaying(false);
-      setIsBuffering(true);
+      pendingSkip.current = 0;
+    } else {
+      clearTimeout(skipTimer.current);
     }
-    const newTime = Math.max(0, Math.min(total, pct * total));
+
+    // Accumulate skip amount and update UI immediately
+    pendingSkip.current += seconds;
+    const baseTime = seekTarget.current !== null ? seekTarget.current : audioRef.current.currentTime;
+    const newTime = Math.max(0, Math.min(total, baseTime + pendingSkip.current));
     setCurrentTime(newTime);
-    if (!isDragging) {
-      seekTarget.current = newTime;
-      // Force reload from new position by resetting src
-      audioRef.current.src = story?.audio_url || "";
-      audioRef.current.load();
-    }
-  };
-
-  // ── Pointer drag handlers for progress bar scrubbing ──
-  const handleProgressPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!progressBarRef.current) return;
-    e.preventDefault();
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
-    setIsDragging(true);
-    wasPlayingBeforeSeek.current = isPlaying;
-    // Pause immediately so old audio stops
-    if (audioRef.current) {
-      audioRef.current.pause();
-      setIsPlaying(false);
-    }
-    const rect = progressBarRef.current.getBoundingClientRect();
-    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    const total = displayDuration;
-    if (total > 0 && audioRef.current) {
-      const newTime = pct * total;
-      setCurrentTime(newTime);
-      audioRef.current.currentTime = newTime;
-    }
-  };
-
-  const handleProgressPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isDragging || !progressBarRef.current) return;
-    const rect = progressBarRef.current.getBoundingClientRect();
-    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    const total = displayDuration;
-    if (total > 0 && audioRef.current) {
-      const newTime = pct * total;
-      setCurrentTime(newTime);
-      audioRef.current.currentTime = newTime;
-    }
-  };
-
-  const handleProgressPointerUp = () => {
-    if (!isDragging) return;
-    setIsDragging(false);
     setIsBuffering(true);
-    // Now force reload from the final drag position
-    if (audioRef.current && story?.audio_url) {
-      seekTarget.current = currentTime;
-      audioRef.current.src = story.audio_url;
+
+    // Debounce: wait 300ms for rapid clicks to settle, then fire one API call
+    skipTimer.current = setTimeout(() => {
+      skipTimer.current = null;
+      pendingSkip.current = 0;
+      if (!audioRef.current) return;
+      seekTarget.current = newTime;
+      audioRef.current.src = story?.audio_url || '';
       audioRef.current.load();
-    }
+    }, 300);
   };
 
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -830,7 +781,7 @@ const AudioReadyContent: React.FC = () => {
                     key={story.audio_url}
                     ref={audioRef}
                     src={story.audio_url}
-                    preload="none"
+                    preload="auto"
                     onPlay={handlePlay}
                     onPause={handlePause}
                     onLoadedMetadata={handleMetadata}
@@ -838,7 +789,10 @@ const AudioReadyContent: React.FC = () => {
                     onTimeUpdate={handleTimeUpdate}
                     onProgress={updateBuffered}
                     onCanPlay={() => {
-                      setIsBuffering(false);
+                      // Only clear buffering if we're not waiting for a seek
+                      if (seekTarget.current === null) {
+                        setIsBuffering(false);
+                      }
                     }}
                     onWaiting={() => setIsBuffering(true)}
                     onSeeking={() => setIsBuffering(true)}
@@ -961,13 +915,9 @@ const AudioReadyContent: React.FC = () => {
                       <div
                         ref={progressBarRef}
                         className={styles.progressBar}
-                        onPointerDown={handleProgressPointerDown}
-                        onPointerMove={handleProgressPointerMove}
-                        onPointerUp={handleProgressPointerUp}
-                        onPointerCancel={handleProgressPointerUp}
                         style={{
                           position: "relative",
-                          cursor: isDragging ? "grabbing" : "pointer",
+                          cursor: "default",
                           touchAction: "none",
                         }}
                       >
@@ -981,7 +931,7 @@ const AudioReadyContent: React.FC = () => {
                             width: `${bufferedPct}%`,
                             background: "rgba(255,255,255,0.08)",
                             borderRadius: "inherit",
-                            transition: isDragging ? "none" : "width 0.3s ease",
+                            transition: "width 0.3s ease",
                           }}
                         />
                         {/* Played fill */}
@@ -991,7 +941,7 @@ const AudioReadyContent: React.FC = () => {
                             width: `${displayDuration > 0 ? (currentTime / displayDuration) * 100 : 0}%`,
                             position: "relative",
                             zIndex: 1,
-                            transition: isDragging ? "none" : "width 0.5s linear",
+                            transition: "width 0.5s linear",
                           }}
                         />
                         {/* Scrub thumb */}
@@ -1001,14 +951,14 @@ const AudioReadyContent: React.FC = () => {
                             top: "50%",
                             left: `${displayDuration > 0 ? (currentTime / displayDuration) * 100 : 0}%`,
                             transform: "translate(-50%, -50%)",
-                            width: isDragging ? 14 : 10,
-                            height: isDragging ? 14 : 10,
+                            width: 10,
+                            height: 10,
                             borderRadius: "50%",
                             background: "#fff",
                             boxShadow: "0 1px 4px rgba(0,0,0,0.4)",
                             zIndex: 2,
-                            transition: isDragging ? "none" : "left 0.5s linear, width 0.15s, height 0.15s",
-                            opacity: isDragging || currentTime > 0 ? 1 : 0,
+                            transition: "left 0.5s linear, width 0.15s, height 0.15s",
+                            opacity: currentTime > 0 ? 1 : 0,
                           }}
                         />
                       </div>
