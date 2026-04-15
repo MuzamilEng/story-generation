@@ -91,7 +91,7 @@ export default function UserManagement() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "32px", color: "#fff" }}>
       <div>
-        <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: "2.5rem", fontWeight: 700, marginBottom: "8px" }}>
+        <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: "clamp(1.4rem, 5vw, 2.5rem)", fontWeight: 700, marginBottom: "8px" }}>
           User <em>Management</em>
         </h2>
         <p style={{ fontSize: "0.95rem", color: "rgba(255, 255, 255, 0.55)" }}>
@@ -119,6 +119,7 @@ export default function UserManagement() {
           <table
             style={{
               width: "100%",
+              minWidth: "700px",
               borderCollapse: "collapse",
               fontSize: "0.9rem",
             }}

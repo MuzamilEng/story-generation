@@ -82,7 +82,7 @@ export default async function AdminBetaPage() {
       </div>
 
       <div style={{ overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.82rem", color: "rgba(255,255,255,0.75)" }}>
+        <table style={{ width: "100%", minWidth: "700px", borderCollapse: "collapse", fontSize: "0.82rem", color: "rgba(255,255,255,0.75)" }}>
           <thead>
             <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)", textAlign: "left" }}>
               <th style={{ padding: "10px 12px", fontWeight: 500, color: "rgba(255,255,255,0.45)", fontSize: "0.7rem", textTransform: "uppercase", letterSpacing: "0.06em" }}>Name</th>

@@ -172,7 +172,7 @@ const SystemAudioPage: React.FC = () => {
                 </div>
             </div>
 
-            <div className={styles.card} style={{ maxWidth: '600px' }}>
+            <div className={styles.card}>
                 <div className={styles.tabs}>
                     <button
                         onClick={() => setMode('upload')}
@@ -198,7 +198,7 @@ const SystemAudioPage: React.FC = () => {
                         className={styles.select}
                     >
                         {KEYS.map((k) => (
-                            <option key={k.key} value={k.key} style={{ background: '#1c1a16' }}>{k.label}</option>
+                            <option key={k.key} value={k.key} style={{ background: 'var(--bg)' }}>{k.label}</option>
                         ))}
                     </select>
                 </div>
@@ -228,7 +228,7 @@ const SystemAudioPage: React.FC = () => {
                         </button>
                     </div>
                 ) : (
-                    <div style={{ marginBottom: "16px" }}>
+                    <div>
                         <div className={styles.recordBox}>
                             {!audioBlob ? (
                                 <>
@@ -255,7 +255,7 @@ const SystemAudioPage: React.FC = () => {
                                     <div className={styles.previewBox}>
                                         <div style={{ textAlign: 'left' }}>
                                             <div className={styles.label} style={{ marginBottom: 0 }}>Duration</div>
-                                            <div style={{ fontSize: '1.2rem', fontWeight: 600, color: '#fff' }}>{formatTime(seconds)}</div>
+                                            <div style={{ fontSize: '1.2rem', fontWeight: 600, color: 'var(--ink)', fontVariantNumeric: 'tabular-nums' }}>{formatTime(seconds)}</div>
                                         </div>
                                         <audio src={recordedUrl!} controls style={{ height: "36px" }} />
                                     </div>
@@ -289,13 +289,13 @@ const SystemAudioPage: React.FC = () => {
             </div>
 
             <div className={styles.card}>
-                <h2 style={{ fontSize: "1.4rem", fontWeight: 600, marginBottom: "24px", fontFamily: "'Fraunces', serif" }}>
-                    Active <em>Registry</em>
+                <h2 style={{ fontSize: "1.4rem", fontWeight: 500, marginBottom: "24px", fontFamily: "var(--serif)", letterSpacing: "-0.01em" }}>
+                    Active <em style={{ fontStyle: 'italic', color: 'var(--accent)' }}>Registry</em>
                 </h2>
                 {isLoading ? (
-                    <p style={{ color: "rgba(255, 255, 255, 0.3)", fontSize: "0.9rem" }}>Fetching registry data...</p>
+                    <p style={{ color: "var(--ink-faint)", fontSize: "0.85rem" }}>Fetching registry data...</p>
                 ) : assets.length === 0 ? (
-                    <p style={{ color: "rgba(255, 255, 255, 0.3)", fontSize: "0.9rem" }}>Registry is currently empty.</p>
+                    <p style={{ color: "var(--ink-faint)", fontSize: "0.85rem" }}>Registry is currently empty.</p>
                 ) : (
                     <div className={styles.tableContainer}>
                         <table className={styles.table}>

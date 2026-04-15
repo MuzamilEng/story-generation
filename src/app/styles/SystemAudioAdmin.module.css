@@ -1,91 +1,122 @@
+/* ── SystemAudioAdmin ── */
+
 .container {
     display: flex;
     flex-direction: column;
     gap: 32px;
-    color: #fff;
+    color: var(--ink);
+    font-family: var(--sans);
+    padding: 2.5rem;
+    max-width: 960px;
 }
 
+/* Header */
 .header {
     display: flex;
     justify-content: space-between;
     align-items: flex-end;
+    margin-bottom: 8px;
 }
 
 .title {
-    font-family: 'Fraunces', serif;
+    font-family: var(--serif);
     font-size: 2.4rem;
-    font-weight: 700;
-    color: #fff;
+    font-weight: 500;
+    color: var(--ink);
     margin-bottom: 8px;
+    letter-spacing: -0.01em;
 }
 
 .title em {
     font-style: italic;
-    color: #52b788;
+    color: var(--accent);
 }
 
 .subtitle {
-    font-size: 0.95rem;
-    color: rgba(255, 255, 255, 0.55);
-    max-width: 600px;
+    font-size: 0.92rem;
+    color: var(--ink-muted);
+    max-width: 540px;
+    line-height: 1.55;
+    font-weight: 300;
 }
 
+/* Card */
 .card {
-    background-color: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
     padding: 32px;
+    transition: border-color 0.2s;
 }
 
+.card:hover {
+    border-color: var(--border2);
+}
+
+/* Tabs */
 .tabs {
     display: flex;
-    gap: 24px;
+    gap: 0;
     margin-bottom: 28px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-    padding-bottom: 4px;
+    border-bottom: 1px solid var(--border);
 }
 
 .tabBtn {
     background: none;
     border: none;
-    color: rgba(255, 255, 255, 0.4);
-    font-weight: 600;
+    color: var(--ink-muted);
+    font-family: var(--sans);
+    font-weight: 500;
     cursor: pointer;
-    font-size: 0.9rem;
-    padding: 12px 0;
+    font-size: 0.82rem;
+    padding: 12px 20px;
     border-bottom: 2px solid transparent;
     transition: all 0.2s;
+    letter-spacing: 0.01em;
+}
+
+.tabBtn:hover {
+    color: var(--ink);
 }
 
 .tabBtnActive {
-    color: #52b788;
-    border-bottom: 2px solid #52b788;
+    color: var(--accent);
+    border-bottom-color: var(--accent);
 }
 
+/* Input Group */
 .inputGroup {
-    margin-bottom: 20px;
+    margin-bottom: 24px;
 }
 
 .label {
-    font-size: 0.75rem;
-    color: rgba(255, 255, 255, 0.4);
+    font-size: 0.7rem;
+    color: var(--ink-faint);
     display: block;
     margin-bottom: 8px;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.08em;
+    font-weight: 500;
 }
 
 .select {
     width: 100%;
     padding: 12px 16px;
     border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    background: rgba(255, 255, 255, 0.05);
-    color: #fff;
-    font-size: 0.9rem;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 0.88rem;
     outline: none;
+    transition: border-color 0.2s;
 }
 
+.select:focus {
+    border-color: var(--accent);
+}
+
+/* Upload */
 .uploadArea {
     display: flex;
     flex-direction: column;
@@ -106,141 +137,196 @@
     align-items: center;
     justify-content: center;
     gap: 10px;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px dashed rgba(255, 255, 255, 0.15);
+    background: var(--bg);
+    border: 1px dashed var(--border2);
     border-radius: 12px;
-    padding: 24px;
+    padding: 28px 24px;
     cursor: pointer;
-    transition: all 0.2s;
-    color: rgba(255, 255, 255, 0.6);
-    font-size: 0.9rem;
+    transition: all 0.25s;
+    color: var(--ink-muted);
+    font-size: 0.88rem;
 }
 
 .fileLabel:hover {
-    background: rgba(255, 255, 255, 0.06);
-    border-color: #52b788;
-    color: #fff;
+    background: var(--accent-light);
+    border-color: var(--accent);
+    color: var(--ink);
 }
 
+/* Primary Button */
 .primaryButton {
     width: 100%;
-    background: #52b788;
-    color: #fff;
+    background: var(--accent);
+    color: var(--bg);
     border: none;
-    border-radius: 12px;
-    padding: 16px 24px;
-    font-weight: 700;
+    border-radius: 10px;
+    padding: 14px 24px;
+    font-family: var(--sans);
+    font-weight: 600;
     cursor: pointer;
-    font-size: 0.95rem;
+    font-size: 0.88rem;
     letter-spacing: 0.01em;
     transition: all 0.2s;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
-    box-shadow: 0 4px 15px rgba(82, 183, 136, 0.2);
+}
+
+.primaryButton svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
 }
 
 .primaryButton:hover {
-    background: #40916c;
+    filter: brightness(1.1);
+    box-shadow: 0 4px 20px var(--accent-glow);
 }
 
 .primaryButton:disabled {
-    background: rgba(82, 183, 136, 0.2);
+    opacity: 0.35;
     cursor: not-allowed;
+    filter: none;
+    box-shadow: none;
 }
 
+/* Recording */
 .recordBox {
-    background: rgba(255, 255, 255, 0.02);
-    border-radius: 16px;
-    padding: 32px;
+    background: var(--bg);
+    border-radius: 14px;
+    padding: 36px 32px;
     text-align: center;
-    border: 1px dashed rgba(255, 255, 255, 0.12);
+    border: 1px solid var(--border);
     margin-bottom: 16px;
+    position: relative;
+    overflow: hidden;
+}
+
+.recordBox::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: radial-gradient(circle at 50% 80%, var(--accent-glow), transparent 70%);
+    opacity: 0;
+    transition: opacity 0.4s;
+    pointer-events: none;
+}
+
+.recordBox:has(.timerRecording)::before {
+    opacity: 1;
+    background: radial-gradient(circle at 50% 80%, rgba(255, 100, 100, 0.06), transparent 70%);
 }
 
 .timer {
-    font-size: 2.5rem;
-    font-weight: 700;
-    font-family: 'DM Mono', monospace;
-    color: #fff;
-    margin-bottom: 16px;
+    font-size: 2.8rem;
+    font-weight: 600;
+    font-family: var(--sans);
+    color: var(--ink);
+    margin-bottom: 20px;
+    letter-spacing: 0.04em;
+    font-variant-numeric: tabular-nums;
 }
 
 .timerRecording {
-    color: #ff6b6b;
+    color: #ef6461;
 }
 
 .controlRow {
     display: flex;
     justify-content: center;
-    gap: 20px;
+    gap: 24px;
     align-items: center;
 }
 
 .micBtn {
-    background: #52b788;
-    color: #fff;
+    background: var(--accent);
+    color: var(--bg);
     border: none;
     border-radius: 50%;
-    width: 56px;
-    height: 56px;
+    width: 60px;
+    height: 60px;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    box-shadow: 0 0 20px rgba(82, 183, 136, 0.3);
-    transition: all 0.2s;
+    box-shadow: 0 0 0 8px var(--accent-light);
+    transition: all 0.25s;
+    position: relative;
+}
+
+.micBtn:hover {
+    box-shadow: 0 0 0 12px var(--accent-glow);
+    transform: scale(1.04);
 }
 
 .micBtnRecording {
-    background: #ff6b6b;
-    box-shadow: 0 0 20px rgba(255, 107, 107, 0.3);
+    background: #ef6461;
+    box-shadow: 0 0 0 8px rgba(239, 100, 97, 0.12);
+    animation: pulse-ring 1.8s ease-out infinite;
 }
 
+.micBtnRecording:hover {
+    box-shadow: 0 0 0 12px rgba(239, 100, 97, 0.18);
+}
+
+@keyframes pulse-ring {
+    0% { box-shadow: 0 0 0 8px rgba(239, 100, 97, 0.12); }
+    50% { box-shadow: 0 0 0 14px rgba(239, 100, 97, 0.06); }
+    100% { box-shadow: 0 0 0 8px rgba(239, 100, 97, 0.12); }
+}
+
+/* Visualizer */
 .visualizer {
-    width: 120px;
+    width: 140px;
     height: 4px;
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--border);
     overflow: hidden;
     border-radius: 2px;
 }
 
 .visualizerBar {
     height: 100%;
-    background: #52b788;
-    transition: width 0.1s;
+    background: var(--accent);
+    border-radius: 2px;
+    transition: width 0.08s ease-out;
 }
 
 .recordStatus {
-    font-size: 0.8rem;
-    color: rgba(255, 255, 255, 0.4);
-    margin-top: 20px;
+    font-size: 0.78rem;
+    color: var(--ink-faint);
+    margin-top: 24px;
+    letter-spacing: 0.02em;
 }
 
+/* Preview */
 .previewBox {
     display: flex;
     align-items: center;
     justify-content: space-between;
     margin-bottom: 20px;
-    background: rgba(255, 255, 255, 0.04);
-    padding: 16px;
+    background: var(--bg);
+    padding: 18px 20px;
     border-radius: 12px;
+    border: 1px solid var(--border);
 }
 
 .btnGroup {
     display: flex;
-    gap: 16px;
+    gap: 12px;
 }
 
 .secondaryBtn {
     flex: 1;
-    background: rgba(255, 255, 255, 0.05);
-    color: #fff;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: transparent;
+    color: var(--ink-muted);
+    border: 1px solid var(--border);
     border-radius: 10px;
-    padding: 12px;
-    font-size: 0.9rem;
+    padding: 12px 16px;
+    font-family: var(--sans);
+    font-size: 0.85rem;
+    font-weight: 500;
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -249,24 +335,35 @@
     transition: all 0.2s;
 }
 
+.secondaryBtn:hover {
+    color: var(--ink);
+    border-color: var(--border2);
+    background: var(--bg);
+}
+
+/* Messages */
 .message {
-    margin-top: 12px;
-    font-size: 0.9rem;
+    margin-top: 16px;
+    font-size: 0.85rem;
     text-align: center;
-    padding: 12px;
+    padding: 12px 16px;
     border-radius: 10px;
+    font-weight: 500;
 }
 
 .messageSuccess {
-    color: #52b788;
-    background: rgba(82, 183, 136, 0.1);
+    color: var(--accent);
+    background: var(--accent-light);
+    border: 1px solid var(--border-accent);
 }
 
 .messageError {
-    color: #ff6b6b;
-    background: rgba(255, 107, 107, 0.1);
+    color: #ef6461;
+    background: rgba(239, 100, 97, 0.08);
+    border: 1px solid rgba(239, 100, 97, 0.15);
 }
 
+/* Registry Table */
 .tableContainer {
     overflow-x: auto;
 }
@@ -274,35 +371,85 @@
 .table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.9rem;
+    font-size: 0.88rem;
 }
 
 .table th {
-    padding: 16px 12px;
-    background: rgba(255, 255, 255, 0.02);
-    color: rgba(255, 255, 255, 0.3);
-    font-size: 0.7rem;
+    padding: 14px 16px;
+    background: var(--bg);
+    color: var(--ink-faint);
+    font-size: 0.68rem;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.08em;
     font-weight: 600;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    border-bottom: 1px solid var(--border);
+    text-align: left;
 }
 
 .table td {
-    padding: 16px 12px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    padding: 16px;
+    border-bottom: 1px solid var(--border);
+}
+
+.table tr:last-child td {
+    border-bottom: none;
+}
+
+.table tr:hover td {
+    background: var(--accent-light);
 }
 
 .assetKey {
-    color: #52b788;
-    font-family: 'DM Mono', monospace;
-    font-size: 0.85rem;
+    color: var(--accent);
+    font-family: 'DM Mono', 'SF Mono', monospace;
+    font-size: 0.82rem;
+    font-weight: 500;
 }
 
 .assetLabel {
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--ink);
+    font-weight: 400;
 }
 
 .assetMeta {
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--ink-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+/* Audio controls */
+.previewBox audio {
+    height: 36px;
+    border-radius: 8px;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+    .container {
+        padding: 1.5rem;
+        gap: 24px;
+    }
+
+    .title {
+        font-size: 1.8rem;
+    }
+
+    .card {
+        padding: 20px;
+        border-radius: 12px;
+    }
+
+    .previewBox {
+        flex-direction: column;
+        gap: 12px;
+        align-items: flex-start;
+    }
+
+    .btnGroup {
+        flex-direction: column;
+        width: 100%;
+    }
+
+    .secondaryBtn {
+        width: 100%;
+    }
 }
