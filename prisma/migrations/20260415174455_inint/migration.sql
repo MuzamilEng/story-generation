@@ -1,19 +1,5 @@
-/*
-  Warnings:
-
-  - You are about to drop the column `member_number` on the `waitlist_entries` table. All the data in the column will be lost.
-  - You are about to drop the column `source` on the `waitlist_entries` table. All the data in the column will be lost.
-
-*/
--- DropIndex
-DROP INDEX "waitlist_entries_member_number_key";
-
 -- AlterTable
 ALTER TABLE "users" ADD COLUMN     "feedback_state" VARCHAR(30) NOT NULL DEFAULT 'pending_early';
-
--- AlterTable
-ALTER TABLE "waitlist_entries" DROP COLUMN "member_number",
-DROP COLUMN "source";
 
 -- CreateTable
 CREATE TABLE "beta_signups" (
