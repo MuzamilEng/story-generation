@@ -72,7 +72,8 @@ const SoundscapesPage: React.FC = () => {
             if (audioRef.current) {
                 audioRef.current.pause();
             }
-            const audio = new Audio(asset.audio_url);
+            const audioUrl = `/api/user/audio/stream?key=${encodeURIComponent(asset.r2_key)}`;
+            const audio = new Audio(audioUrl);
             audioRef.current = audio;
             audio.play();
             audio.onended = () => setPlayingId(null);

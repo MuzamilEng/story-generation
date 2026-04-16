@@ -17,17 +17,24 @@ interface User {
 export default function UserManagement() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
+  const limit = 5;
 
   useEffect(() => {
-    fetchUsers();
-  }, []);
+    fetchUsers(page);
+  }, [page]);
 
-  const fetchUsers = async () => {
+  const fetchUsers = async (p: number) => {
+    setLoading(true);
     try {
-      const response = await fetch("/api/admin/users");
+      const response = await fetch(`/api/admin/users?page=${p}&limit=${limit}`);
       if (response.ok) {
         const data = await response.json();
         setUsers(data.users);
+        setTotalPages(data.totalPages);
+        setTotal(data.total);
       }
     } catch (error) {
       console.error("Failed to fetch users:", error);
@@ -210,6 +217,74 @@ export default function UserManagement() {
               ))}
             </tbody>
           </table>
+        </div>
+
+        {/* Pagination */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "16px 24px",
+            borderTop: "1px solid rgba(255, 255, 255, 0.06)",
+            fontSize: "0.85rem",
+            color: "rgba(255, 255, 255, 0.45)",
+          }}
+        >
+          <span>
+            Showing {(page - 1) * limit + 1}–{Math.min(page * limit, total)} of {total} users
+          </span>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <button
+              disabled={page <= 1}
+              onClick={() => setPage(page - 1)}
+              style={{
+                padding: "6px 14px",
+                borderRadius: "8px",
+                border: "1px solid rgba(255, 255, 255, 0.1)",
+                backgroundColor: "rgba(255, 255, 255, 0.05)",
+                color: page <= 1 ? "rgba(255,255,255,0.2)" : "#fff",
+                cursor: page <= 1 ? "not-allowed" : "pointer",
+                fontSize: "0.8rem",
+              }}
+            >
+              Previous
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+              <button
+                key={p}
+                onClick={() => setPage(p)}
+                style={{
+                  padding: "6px 12px",
+                  borderRadius: "8px",
+                  border: "1px solid",
+                  borderColor: p === page ? "#52b788" : "rgba(255, 255, 255, 0.1)",
+                  backgroundColor: p === page ? "rgba(82, 183, 136, 0.15)" : "rgba(255, 255, 255, 0.05)",
+                  color: p === page ? "#52b788" : "rgba(255, 255, 255, 0.6)",
+                  cursor: "pointer",
+                  fontSize: "0.8rem",
+                  fontWeight: p === page ? 600 : 400,
+                }}
+              >
+                {p}
+              </button>
+            ))}
+            <button
+              disabled={page >= totalPages}
+              onClick={() => setPage(page + 1)}
+              style={{
+                padding: "6px 14px",
+                borderRadius: "8px",
+                border: "1px solid rgba(255, 255, 255, 0.1)",
+                backgroundColor: "rgba(255, 255, 255, 0.05)",
+                color: page >= totalPages ? "rgba(255,255,255,0.2)" : "#fff",
+                cursor: page >= totalPages ? "not-allowed" : "pointer",
+                fontSize: "0.8rem",
+              }}
+            >
+              Next
+            </button>
+          </div>
         </div>
       </div>
     </div>
