@@ -335,6 +335,8 @@ const StoryContent: React.FC = () => {
   const [isInitializing, setIsInitializing] = useState(true);
   const [genError, setGenError] = useState<string | null>(null);
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
+  const [storyType, setStoryType] = useState<"night" | "morning">("night");
+  const [assembleStep, setAssembleStep] = useState<number>(-1); // -1 = not assembling
 
   const {
     capturedGoals,
@@ -350,19 +352,28 @@ const StoryContent: React.FC = () => {
   const [showChecklistMobile, setShowChecklistMobile] = useState(false);
 
   // Dynamic steps based on logic
+  const storyLabel = storyType === "morning" ? "Morning Story" : "Night Story";
   const getSteps = () => {
     if (!isLoggedIn) {
       return [
         { label: "Goals", status: "done" as const },
-        { label: "Your Story", status: "active" as const },
+        { label: storyLabel, status: "active" as const },
         { label: "Account", status: "pending" as const },
         { label: "Voice Recording", status: "pending" as const },
         { label: "Your Audio", status: "pending" as const },
       ];
     }
+    // Morning stories skip voice recording (uses existing voice clone)
+    if (storyType === "morning") {
+      return [
+        { label: "Goals", status: "done" as const },
+        { label: storyLabel, status: "active" as const },
+        { label: "Your Audio", status: "pending" as const },
+      ];
+    }
     return [
       { label: "Goals", status: "done" as const },
-      { label: "Your Story", status: "active" as const },
+      { label: storyLabel, status: "active" as const },
       { label: "Voice Recording", status: "pending" as const },
       { label: "Your Audio", status: "pending" as const },
     ];
@@ -373,7 +384,7 @@ const StoryContent: React.FC = () => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    document.title = "ManifestMyStory — Your Story";
+    document.title = `ManifestMyStory — ${storyType === "morning" ? "Morning Story" : "Night Story"}`;
 
     const fontLink = document.createElement("link");
     fontLink.href =
@@ -440,6 +451,7 @@ const StoryContent: React.FC = () => {
           body: JSON.stringify({
             goals,
             length: length,
+            storyType: "night",
           }),
         });
 
@@ -507,6 +519,9 @@ const StoryContent: React.FC = () => {
 
             if (data.title) {
               setStoryTitle(data.title);
+            }
+            if (data.story_type) {
+              setStoryType(data.story_type === "morning" ? "morning" : "night");
             }
 
             if (data.story_text_draft) {
@@ -576,17 +591,61 @@ const StoryContent: React.FC = () => {
     }
   };
 
-  const handleApprove = () => {
+  const handleApprove = async () => {
     setIsApproved(true);
     if (isEditing) {
       setIsEditing(false);
     }
 
-    // Go directly to voice recording — affirmations are planted inside the story
     if (!isLoggedIn) {
       router.push("/auth/signup?next=/user/story");
-    } else {
+      return;
+    }
+
+    if (storyType === "night") {
+      // Night stories always go through voice recording per spec
       router.push(`/user/voice-recording?storyId=${storyId}`);
+      return;
+    }
+
+    // Morning stories — use saved voice clone, no recording needed
+    setAssembleStep(0); // Step 0: Approving story
+    try {
+      // Approve the story text
+      await fetch(`/api/user/stories/${storyId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: storyText }),
+      });
+      setAssembleStep(1); // Step 1: Loading voice clone
+
+      // Short delay so the user sees the step transition
+      await new Promise((r) => setTimeout(r, 800));
+      setAssembleStep(2); // Step 2: Generating audio
+
+      // Assemble audio using existing voice clone
+      const assembleRes = await fetch("/api/user/audio/assemble", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ storyId }),
+      });
+      const assembleData = await assembleRes.json();
+
+      if (assembleData.success) {
+        setAssembleStep(3); // Step 3: Complete
+        await new Promise((r) => setTimeout(r, 600));
+        router.push(`/user/audio-download?storyId=${storyId}`);
+      } else {
+        showToast(
+          "Audio generation failed: " + (assembleData.error || "Unknown error"),
+          "error",
+        );
+        setAssembleStep(-1);
+      }
+    } catch (e) {
+      console.error("Audio assembly failed:", e);
+      showToast("Failed to generate audio. Please try again.", "error");
+      setAssembleStep(-1);
     }
   };
 
@@ -664,6 +723,115 @@ const StoryContent: React.FC = () => {
 
   return (
     <div className={styles.container}>
+      {/* Audio Assembly Overlay — Morning stories only */}
+      {assembleStep >= 0 && (
+        <div style={{
+          position: "fixed",
+          inset: 0,
+          zIndex: 9999,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          backdropFilter: "blur(8px)",
+          WebkitBackdropFilter: "blur(8px)",
+          backgroundColor: "rgba(0, 0, 0, 0.45)",
+        }}>
+          <div style={{
+            background: "var(--surface, #1a1a2e)",
+            border: "1px solid var(--border, rgba(255,255,255,0.1))",
+            borderRadius: "16px",
+            padding: "36px 40px",
+            maxWidth: "400px",
+            width: "90%",
+            boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
+          }}>
+            <h3 style={{
+              fontSize: "1.15rem",
+              fontWeight: 600,
+              marginBottom: "24px",
+              color: "var(--ink, #fff)",
+              textAlign: "center",
+            }}>
+              Creating Your Morning Story
+            </h3>
+            {[
+              "Approving your story",
+              "Loading your voice clone",
+              "Generating audio",
+              "Finalizing",
+            ].map((label, i) => {
+              const done = assembleStep > i;
+              const active = assembleStep === i;
+              return (
+                <div key={i} style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "12px",
+                  padding: "10px 0",
+                  opacity: done || active ? 1 : 0.35,
+                  transition: "opacity 0.3s ease",
+                }}>
+                  <div style={{
+                    width: "26px",
+                    height: "26px",
+                    borderRadius: "50%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                    background: done
+                      ? "linear-gradient(135deg, #e8a838, #f0c060)"
+                      : active
+                        ? "rgba(232, 168, 56, 0.2)"
+                        : "rgba(255,255,255,0.06)",
+                    border: active ? "2px solid #e8a838" : "2px solid transparent",
+                    transition: "all 0.3s ease",
+                  }}>
+                    {done ? (
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1a1a2e" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    ) : active ? (
+                      <div style={{
+                        width: "8px",
+                        height: "8px",
+                        borderRadius: "50%",
+                        background: "#e8a838",
+                        animation: "pulse 1.2s ease-in-out infinite",
+                      }} />
+                    ) : null}
+                  </div>
+                  <span style={{
+                    fontSize: "0.95rem",
+                    color: done ? "var(--ink, #fff)" : active ? "#e8a838" : "var(--ink-muted, #888)",
+                    fontWeight: active ? 600 : 400,
+                    transition: "all 0.3s ease",
+                  }}>
+                    {label}
+                  </span>
+                </div>
+              );
+            })}
+            {assembleStep < 3 && (
+              <p style={{
+                fontSize: "0.8rem",
+                color: "var(--ink-muted, #888)",
+                textAlign: "center",
+                marginTop: "20px",
+                lineHeight: 1.5,
+              }}>
+                Using your saved voice clone. This may take a minute.
+              </p>
+            )}
+          </div>
+          <style>{`
+            @keyframes pulse {
+              0%, 100% { opacity: 0.4; transform: scale(0.8); }
+              50% { opacity: 1; transform: scale(1.2); }
+            }
+          `}</style>
+        </div>
+      )}
       {/* Mobile Overlay — sits outside pageBody so it covers everything */}
       {(showVisionMobile || showChecklistMobile) && (
         <div

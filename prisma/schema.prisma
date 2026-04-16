@@ -83,6 +83,7 @@ model User {
   betaCodes               UserBetaCode[]
   betaFeedback            BetaFeedback?
   betaSignup              BetaSignup?
+  intakeSnapshot          IntakeSnapshot?
 
   @@index([email])
   @@map("users")
@@ -92,6 +93,8 @@ model Story {
   id                    String              @id @default(cuid())
   userId                String              @map("user_id")
   title                 String              @db.VarChar(200)
+  story_type            StoryType           @default(night) @map("story_type")
+  story_number          Int                 @default(1) @map("story_number")
   status                StoryStatus
   goal_intake_json      Json                @map("goal_intake_json")
   story_text_draft      String?             @map("story_text_draft")
@@ -124,7 +127,20 @@ model Story {
   @@index([userId])
   @@index([status])
   @@index([createdAt])
+  @@index([userId, story_type])
   @@map("stories")
+}
+
+model IntakeSnapshot {
+  id              String   @id @default(cuid())
+  userId          String   @unique @map("user_id")
+  answers_json    Json     @map("answers_json")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("intake_snapshots")
 }
 
 model StoryVersion {
@@ -361,6 +377,11 @@ enum StoryStatus {
   draft
   approved
   audio_ready
+}
+
+enum StoryType {
+  night
+  morning
 }
 
 enum VersionSource {

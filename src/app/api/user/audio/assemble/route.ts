@@ -187,14 +187,19 @@ async function generateFishAudioTTS(voiceId: string, text: string): Promise<Buff
 
 /**
  * Normalise text before sending to TTS.
+ * Converts ellipsis and scene breaks into natural pauses that
+ * ElevenLabs interprets as silence (periods + newlines).
  */
 function normaliseForTTS(text: string): string {
     return text
         .replace(/\r\n/g, '\n')
-        .replace(/·\s*·\s*·/g, '')
-        .replace(/^[·•\-–—*_~#\s]+$/gm, '')
-        .replace(/\.\.\./g, ',')
-        .replace(/\u2026/g, ',')
+        // Scene breaks (· · ·) → long breathing pause
+        .replace(/·\s*·\s*·/g, '. . . . . ')
+        // Ellipsis → natural speaking pause (period + comma creates a beat)
+        .replace(/\.{3,}/g, '... ')
+        .replace(/\u2026/g, '... ')
+        // Collapse blank-line separators but preserve as a pause
+        .replace(/^[·•\-–—*_~#\s]+$/gm, '. ')
         .replace(/\n+/g, ' ')
         .replace(/\s{2,}/g, ' ')
         .trim();
@@ -330,17 +335,18 @@ export async function POST(req: NextRequest) {
 
         console.log(`[assemble] Selection Finalized — Provider: ${ttsProvider}, Voice ID: ${selectedVoiceId ?? 'none'}`);
 
-        // ── Fetch admin audio (always for intro) ───────────────────────────────
+        // ── Fetch admin audio (only for night stories) ─────────────────────
+        const storyType = (story as any).story_type || 'night';
         let induction: Buffer | null = null;
         let close: Buffer | null = null;
 
-        // Always fetch induction for intro
-        // induction = await fetchAdminAudio('induction'); // TEMP DISABLED BY AI AGENT
-
-        // Only fetch guide close for users without cloned voice
-        if (!userHasClonedVoice) {
-            induction = await fetchAdminAudio('induction');
-            close = await fetchAdminAudio('guide_close');
+        // Morning stories have no induction — skip admin audio entirely
+        if (storyType === 'night') {
+            // Only fetch guide close for users without cloned voice
+            if (!userHasClonedVoice) {
+                induction = await fetchAdminAudio('induction');
+                close = await fetchAdminAudio('guide_close');
+            }
         }
 
         console.log(`[assemble] Admin induction: ${induction ? `${induction.length} bytes` : 'not available'}`);

@@ -4,13 +4,13 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { invokeWithFallback } from '@/lib/langchain'
 import { HumanMessage, SystemMessage } from "@langchain/core/messages"
-import { buildStoryPrompt, normalizeGoals } from '@/lib/story-utils'
+import { buildStoryPrompt, buildMorningStoryPrompt, normalizeGoals, getStoryTitle } from '@/lib/story-utils'
 import { betaTypeToPlan } from '@/lib/beta-utils'
 
 import { Tier } from '@/lib/story-utils'
 
 // Section 2 of STORY_PROMPTS_v4_FINAL: Story Generation System Message
-const BASE_SYSTEM_MESSAGE = `You are a master manifestation story writer, NLP practitioner, and hypnotic language specialist. Your sole purpose is to write a deeply personal, sensory-rich, first-person night story for ManifestMyStory.com.
+const BASE_SYSTEM_MESSAGE_NIGHT = `You are a master manifestation story writer, NLP practitioner, and hypnotic language specialist. Your sole purpose is to write a deeply personal, sensory-rich, first-person night story for ManifestMyStory.com.
 
 This story will be narrated in the user's own voice. Its goal is to rewrite the subconscious mind by making the desired future feel already present.
 
@@ -19,11 +19,28 @@ This story will be narrated in the user's own voice. Its goal is to rewrite the 
 2. VERBATIM RULE: Use the user's exact words for goals and proof actions.
 3. NLP PATTERNS: Weave in embedded commands, presuppositions, and identity statements.
 4. FLOW: Write for the ear. No bullets. No headers. Pure, unhurried literary prose.
+5. NO TITLE: Do not generate a title. The system names stories automatically.
 
 ━━━ SAFETY ━━━
 ManifestMyStory is for positive creation only. Harmful intent = "ManifestMyStory is built for positive creation only. I'm not able to write this story as requested."`;
 
-function getSystemMessage(tier: Tier, targetLength?: string | null): string {
+const BASE_SYSTEM_MESSAGE_MORNING = `You are a master manifestation story writer, NLP practitioner, and morning activation specialist. Your sole purpose is to write a deeply personal, sensory-rich, first-person MORNING story for ManifestMyStory.com.
+
+This story will be narrated in the user's own voice and listened to upon waking. Its goal is to prime the subconscious mind for the day — making the desired future feel like the life they are stepping into right now.
+
+THIS IS A MORNING STORY. No sleep language. No hypnotic induction. No theta / staircase / descent. Energy is rising and activating.
+
+━━━ CORE QUALITY RULES ━━━
+1. CINEMATIC SENSORY DEPTH: Use all five senses in every scene.
+2. VERBATIM RULE: Use the user's exact words for goals and proof actions.
+3. NLP PATTERNS: Weave in embedded commands, presuppositions, and identity statements.
+4. FLOW: Write for the ear. No bullets. No headers. Pure, unhurried literary prose.
+5. NO TITLE: Do not generate a title. The system names stories automatically.
+
+━━━ SAFETY ━━━
+ManifestMyStory is for positive creation only. Harmful intent = "ManifestMyStory is built for positive creation only. I'm not able to write this story as requested."`;
+
+function getSystemMessage(tier: Tier, targetLength?: string | null, storyType: string = 'night'): string {
     const lengthMultipliers: Record<string, number> = { 'short': 0.6, 'medium': 1.0, 'long': 1.5, 'epic': 2.2 };
     let multiplier = (targetLength && lengthMultipliers[targetLength]) ? lengthMultipliers[targetLength] : 1.0;
     
@@ -41,8 +58,9 @@ function getSystemMessage(tier: Tier, targetLength?: string | null): string {
     };
 
     const targetWc = Math.min(targets[tier], MAX_WORDS);
+    const baseMessage = storyType === 'morning' ? BASE_SYSTEM_MESSAGE_MORNING : BASE_SYSTEM_MESSAGE_NIGHT;
 
-    return `${BASE_SYSTEM_MESSAGE}
+    return `${baseMessage}
 
 ━━━ CRITICAL LENGTH INSTRUCTION — HIGH PRIORITY ━━━
 This user is on the ${tier.toUpperCase()} tier. 
@@ -135,30 +153,41 @@ export async function POST(
         console.log(`[STORY_GENERATE] answers for story ${storyId}:`, JSON.stringify(answers, null, 2));
         console.log(`[STORY_GENERATE] user tier: ${userTier} (Beta: ${!!hasActiveBeta})`);
 
-        const prompt = buildStoryPrompt(answers, userTier, instruction, story.story_length_option, new Date().toISOString())
-        const systemMessage = getSystemMessage(userTier, story.story_length_option);
+        // Determine story type and use appropriate prompt builder
+        const storyType = (story as any).story_type || 'night';
+        let nightStoryText: string | undefined;
+        if (storyType === 'morning') {
+            const latestNight = await prisma.story.findFirst({
+                where: { userId, story_type: 'night', story_text_draft: { not: null } },
+                orderBy: { createdAt: 'desc' },
+                select: { story_text_draft: true },
+            });
+            nightStoryText = (latestNight?.story_text_draft as string) || undefined;
+        }
+        const prompt = storyType === 'morning'
+            ? buildMorningStoryPrompt(answers, userTier, instruction, story.story_length_option, new Date().toISOString(), nightStoryText)
+            : buildStoryPrompt(answers, userTier, instruction, story.story_length_option, new Date().toISOString());
+        const systemMessage = getSystemMessage(userTier, story.story_length_option, storyType);
 
-        console.log(`[STORY_GENERATE] Using LangChain GPT-4o-2024-08-06 for story ${storyId}`);
+        console.log(`[STORY_GENERATE] Using LangChain GPT-4o-2024-08-06 for ${storyType} story ${storyId}`);
         const rawResponse = await generateStory(prompt, systemMessage);
 
         if (!rawResponse) {
             throw new Error('Failed to generate story text')
         }
 
-        let title = story.title;
+        // System-generated title — no AI title parsing
+        const title = story.title;
         let storyText = rawResponse;
 
-        // Try to parse out the title if format "TITLE: [Title]\n---\n[Story]" was followed
+        // Strip the --- separator if the model still outputs one
         if (rawResponse.includes('---')) {
             const parts = rawResponse.split('---');
             const headerContent = parts[0].trim();
-            const headerLines = headerContent.split('\n');
-            
-            // First line is the title with "TITLE: " prefix
-            title = headerLines[0].trim().replace(/^TITLE:\s*/i, '').replace(/\*\*/g, '').replace(/\*/g, '').trim();
-            
-            // The story body is everything after the first '---'
-            storyText = parts.slice(1).join('---').trim();
+            // If what's before --- looks like a title line (short, single line), skip it
+            if (headerContent.split('\n').length <= 2 && headerContent.length < 200) {
+                storyText = parts.slice(1).join('---').trim();
+            }
         }
 
         // Strip any technical or artifact headings that the model may output

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { S3Client, GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
+import { prisma } from '@/lib/prisma';
+import { getStoryFilename } from '@/lib/story-utils';
 
 const s3Client = new S3Client({
     region: 'us-east-1',
@@ -64,7 +66,26 @@ export async function GET(req: NextRequest) {
         headers.set('Cache-Control', 'public, max-age=31536000, immutable');
 
         if (download) {
-            const fileName = key.split('/').pop() || 'story.mp3';
+            // Derive proper filename from story data
+            let fileName = key.split('/').pop() || 'story.mp3';
+            try {
+                // Extract storyId from key pattern: user_XXX/story_YYY_final_ZZZ.mp3
+                const storyKeyMatch = key.match(/story_([^_]+)_/);
+                if (storyKeyMatch) {
+                    const story = await prisma.story.findUnique({
+                        where: { id: storyKeyMatch[1] },
+                        select: { story_type: true, story_number: true },
+                    });
+                    if (story) {
+                        fileName = getStoryFilename(
+                            ((story as any).story_type || 'night') as 'night' | 'morning',
+                            (story as any).story_number || 1
+                        );
+                    }
+                }
+            } catch {
+                // Fallback to default filename
+            }
             headers.set('Content-Disposition', `attachment; filename="${fileName}"`);
         }
 

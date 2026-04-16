@@ -117,7 +117,7 @@ const Header: React.FC = () => {
     const isLoggedIn = !!session;
     const steps = [
       { id: "goals", label: "Goals", href: "/user/goal-intake-ai" },
-      { id: "story", label: "Your Story", href: "/user/story" },
+      { id: "story", label: "Night Story", href: "/user/story" },
       ...(isLoggedIn
         ? []
         : [{ id: "account", label: "Account", href: "/auth/signup" }]),

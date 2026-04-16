@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { getStoryTitle } from '@/lib/story-utils'
+import type { StoryType } from '@/lib/story-utils'
 
 export async function POST(req: NextRequest) {
     try {
@@ -11,7 +13,8 @@ export async function POST(req: NextRequest) {
         }
 
         const body = await req.json()
-        const { goals, title, length } = body
+        const { goals, title, length, storyType } = body
+        const type: StoryType = storyType === 'morning' ? 'morning' : 'night';
 
         if (!goals || Object.keys(goals).length === 0) {
             return NextResponse.json({ error: 'Goals are required and cannot be empty' }, { status: 400 })
@@ -37,10 +40,19 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: gating.message }, { status: 403 });
         }
 
+        // Calculate the next story number for this type
+        const existingCount = await prisma.story.count({
+            where: { userId: session.user.id, story_type: type },
+        });
+        const storyNumber = existingCount + 1;
+        const systemTitle = title || getStoryTitle(type, storyNumber);
+
         const story = await prisma.story.create({
             data: {
                 userId: session.user.id,
-                title: title || 'My Manifestation Story',
+                title: systemTitle,
+                story_type: type,
+                story_number: storyNumber,
                 status: 'draft',
                 goal_intake_json: goals,
                 story_length_option: length || 'medium',
@@ -82,7 +94,9 @@ export async function GET(req: NextRequest) {
         const serializedStories = stories.map((story: any) => ({
             ...story,
             audio_file_size_bytes: story.audio_file_size_bytes != null ? Number(story.audio_file_size_bytes) : null,
-            voice_only_url: story.voice_only_r2_key ? `/api/user/audio/stream?key=${encodeURIComponent(story.voice_only_r2_key)}` : null
+            voice_only_url: story.voice_only_r2_key ? `/api/user/audio/stream?key=${encodeURIComponent(story.voice_only_r2_key)}` : null,
+            story_type: story.story_type || 'night',
+            story_number: story.story_number || 1,
         }))
 
         return NextResponse.json(serializedStories)

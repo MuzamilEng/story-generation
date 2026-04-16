@@ -160,6 +160,26 @@ const MicIcon = () => (
   </svg>
 );
 
+const MoonIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+  </svg>
+);
+
+const SunIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <circle cx="12" cy="12" r="5" />
+    <line x1="12" y1="1" x2="12" y2="3" />
+    <line x1="12" y1="21" x2="12" y2="23" />
+    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+    <line x1="1" y1="12" x2="3" y2="12" />
+    <line x1="21" y1="12" x2="23" y2="12" />
+    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+  </svg>
+);
+
 // Types
 interface Story {
   id: string;
@@ -174,6 +194,8 @@ interface Story {
   status: "draft" | "approved" | "audio_ready";
   story_text_approved?: string;
   story_text_draft?: string;
+  story_type: "night" | "morning";
+  story_number: number;
 }
 
 interface Activity {
@@ -256,10 +278,15 @@ const StoryCard: React.FC<StoryCardProps> = ({
       <div className={styles.storyCardTop}>
         {isDraft && <div className={styles.draftBadge}>{getDraftReason()}</div>}
         <div className={styles.storyCardEyebrow}>
-          Created{" "}
-          {story.createdAt instanceof Date && !isNaN(story.createdAt.getTime())
-            ? format(story.createdAt, "MMM d, yyyy")
-            : "Recently"}
+          <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+            <span style={{ width: "14px", height: "14px", display: "inline-flex", color: story.story_type === "morning" ? "#e8a838" : "#8b9dc3" }}>
+              {story.story_type === "morning" ? <SunIcon /> : <MoonIcon />}
+            </span>
+            Generated{" "}
+            {story.createdAt instanceof Date && !isNaN(story.createdAt.getTime())
+              ? format(story.createdAt, "MMM d, yyyy")
+              : "Recently"}
+          </span>
         </div>
         <div className={styles.storyCardTitle}>{story.title}</div>
         <div className={styles.storyCardMeta}>
@@ -461,6 +488,8 @@ const Dashboard: React.FC = () => {
           audio_url: s.audio_url,
           voice_only_url: s.voice_only_url,
           status: s.status,
+          story_type: s.story_type || "night",
+          story_number: s.story_number || 1,
         }));
       },
       enabled: !!session,
@@ -514,6 +543,36 @@ const Dashboard: React.FC = () => {
   // Voice editing state
   const [editingVoiceId, setEditingVoiceId] = useState<string | null>(null);
   const [editVoiceLabel, setEditVoiceLabel] = useState("");
+
+  // Morning story generation state
+  const [isGeneratingMorning, setIsGeneratingMorning] = useState(false);
+
+  const hasNightStory = stories.some((s) => (s.story_type || "night") === "night");
+  const hasMorningStory = stories.some((s) => s.story_type === "morning");
+  const showMorningPrompt = hasNightStory && !hasMorningStory && !isGeneratingMorning;
+
+  const handleGenerateMorningStory = async () => {
+    setIsGeneratingMorning(true);
+    try {
+      const res = await fetch("/api/user/stories/morning", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        showToast(data.error || "Failed to generate morning story", "error");
+        setIsGeneratingMorning(false);
+        return;
+      }
+      const data = await res.json();
+      // Navigate to the morning story review page
+      router.push(`/user/story?id=${data.storyId}`);
+    } catch (err) {
+      console.error("Morning story generation failed:", err);
+      showToast("Failed to generate morning story. Please try again.", "error");
+      setIsGeneratingMorning(false);
+    }
+  };
 
   const handleRenameVoice = async (id: string, newLabel: string) => {
     queryClient.setQueryData<typeof savedVoices>(["saved-voices"], (old) =>
@@ -710,7 +769,7 @@ const Dashboard: React.FC = () => {
             )}
           </h1>
           <p className={styles.greetingSub}>
-            Your story is waiting. Take a few minutes to listen — your future
+            Your Night Story is waiting. Take a few minutes to listen — your future
             self is already living this.
           </p>
         </div>
@@ -1099,12 +1158,42 @@ const Dashboard: React.FC = () => {
               Recent captures and sessions
             </div>
           </div>
-          {stories.length > 10 && (
-            <Link href="/user/stories" className={styles.viewAllLink}>
-              View All Stories
-              <ArrowIcon />
-            </Link>
-          )}
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            {hasMorningStory && (
+              <button
+                onClick={handleGenerateMorningStory}
+                disabled={isGeneratingMorning}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  background: "linear-gradient(135deg, rgba(232,168,56,0.12) 0%, rgba(232,168,56,0.04) 100%)",
+                  border: "1px solid rgba(232,168,56,0.25)",
+                  borderRadius: "8px",
+                  padding: "8px 14px",
+                  fontSize: "0.78rem",
+                  fontWeight: 600,
+                  color: "#e8a838",
+                  cursor: isGeneratingMorning ? "wait" : "pointer",
+                  opacity: isGeneratingMorning ? 0.6 : 1,
+                  whiteSpace: "nowrap",
+                  transition: "all 0.2s ease",
+                  letterSpacing: "-0.01em",
+                }}
+              >
+                <span style={{ width: "13px", height: "13px", display: "inline-flex" }}>
+                  <SunIcon />
+                </span>
+                {isGeneratingMorning ? "Generating..." : "+ New Morning Story"}
+              </button>
+            )}
+            {stories.length > 10 && (
+              <Link href="/user/stories" className={styles.viewAllLink}>
+                View All Stories
+                <ArrowIcon />
+              </Link>
+            )}
+          </div>
         </div>
 
         <div className={styles.storyGrid}>
@@ -1150,6 +1239,96 @@ const Dashboard: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* MORNING STORY PROMPT — shown when user has night story but no morning story */}
+        {showMorningPrompt && (
+          <div
+            style={{
+              background: "linear-gradient(135deg, rgba(232,168,56,0.08) 0%, rgba(232,168,56,0.03) 100%)",
+              border: "1.5px solid rgba(232,168,56,0.2)",
+              borderRadius: "16px",
+              padding: "28px 32px",
+              marginBottom: "2rem",
+              display: "flex",
+              alignItems: "center",
+              gap: "20px",
+              flexWrap: "wrap",
+            }}
+          >
+            <div style={{
+              width: "48px",
+              height: "48px",
+              borderRadius: "50%",
+              background: "linear-gradient(135deg, rgba(232,168,56,0.2) 0%, rgba(232,168,56,0.08) 100%)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            }}>
+              <span style={{ width: "22px", height: "22px", color: "#e8a838", display: "flex" }}>
+                <SunIcon />
+              </span>
+            </div>
+            <div style={{ flex: 1, minWidth: "200px" }}>
+              <div style={{ fontSize: "1.05rem", fontWeight: 600, color: "var(--ink)", marginBottom: "4px", letterSpacing: "-0.01em" }}>
+                Start your mornings the same way
+              </div>
+              <div style={{ fontSize: "0.85rem", color: "var(--ink-muted)", lineHeight: 1.5 }}>
+                Your vision is already captured. Generate your Morning Story — same goals, same life, written for how you wake up.
+              </div>
+            </div>
+            <button
+              onClick={handleGenerateMorningStory}
+              disabled={isGeneratingMorning}
+              style={{
+                background: "linear-gradient(135deg, #e8a838 0%, #d4942e 100%)",
+                color: "#fff",
+                border: "none",
+                borderRadius: "10px",
+                padding: "12px 24px",
+                fontSize: "0.88rem",
+                fontWeight: 600,
+                cursor: isGeneratingMorning ? "wait" : "pointer",
+                opacity: isGeneratingMorning ? 0.7 : 1,
+                whiteSpace: "nowrap",
+                transition: "all 0.2s ease",
+                letterSpacing: "-0.01em",
+              }}
+            >
+              {isGeneratingMorning ? "Generating..." : "Generate Morning Story →"}
+            </button>
+          </div>
+        )}
+
+        {/* Generating morning story indicator */}
+        {isGeneratingMorning && (
+          <div
+            style={{
+              background: "rgba(232,168,56,0.06)",
+              border: "1px solid rgba(232,168,56,0.15)",
+              borderRadius: "12px",
+              padding: "20px 24px",
+              marginBottom: "2rem",
+              display: "flex",
+              alignItems: "center",
+              gap: "14px",
+            }}
+          >
+            <div
+              style={{
+                width: "20px",
+                height: "20px",
+                border: "2px solid rgba(232,168,56,0.3)",
+                borderTop: "2px solid #e8a838",
+                borderRadius: "50%",
+                animation: "spin 1s linear infinite",
+              }}
+            />
+            <span style={{ fontSize: "0.88rem", color: "var(--ink-muted)" }}>
+              Generating your Morning Story — same vision, built for how you wake up...
+            </span>
+          </div>
+        )}
 
         <div className={styles.sectionHeader}>
           <div>

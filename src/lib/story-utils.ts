@@ -795,7 +795,7 @@ Expand on each "proof action" into a long, lush, unhurried memory.` : ''}\n\n`;
     prompt += `━━━ OUTPUT FORMAT — CRITICAL ━━━
 Write the story now. Format your response EXACTLY as follows — no deviations:
 
-TITLE: [Write a short evocative title — no brackets, no asterisks, plain text only]
+Do NOT generate a title. The system will name the story automatically. Start directly with the story text.
 
 ---
 [The full story begins here as pure, unbroken flowing prose.]
@@ -819,7 +819,6 @@ RULES FOR THE STORY BODY:
 - NO structural text, labels, or headings between induction and vision — only the affirmation prose and markers
 - End the story with the three sleep repetitions, then nothing more
 - ARTIFACT STRIPPING: Do NOT include any headings like "OUR PERSONAL MANIFESTATION STORY", "INTRO", "STORY", or "Section 1". Strip all labels, markdown bolding (**), asterisks (*), or hashtags (#). The output must be PURE text only.
-- Strip all markdown formatting from title (remove **)
 - Pure flowing prose throughout — never pull the listener out of the experience with a structural marker
 
 
@@ -948,3 +947,245 @@ export function splitIntroFromStory(fullText: string): { intro: string; storyBod
         storyBody: fullText.slice(idx + INTRO_END_MARKER.length).trim(),
     };
 }
+
+// ── Story Type ────────────────────────────────────────────────────────────────
+export type StoryType = 'night' | 'morning';
+
+/**
+ * Generate the system title for a story based on its type and number.
+ * e.g. "Night Story 1", "Morning Story 2"
+ */
+export function getStoryTitle(type: StoryType, number: number): string {
+    const label = type === 'morning' ? 'Morning Story' : 'Night Story';
+    return `${label} ${number}`;
+}
+
+/**
+ * Generate the download filename for a story.
+ * e.g. "Night-Story-1.mp3", "Morning-Story-2.mp3"
+ */
+export function getStoryFilename(type: StoryType, number: number): string {
+    const label = type === 'morning' ? 'Morning-Story' : 'Night-Story';
+    return `${label}-${number}.mp3`;
+}
+
+// ── Morning Story Prompt ──────────────────────────────────────────────────────
+
+const MORNING_NARRATIVE_STRUCTURES = [
+    'A morning where you rise with total clarity — each action purposeful, each thought aligned with who you have chosen to become.',
+    'The first hour of a day that proves everything has changed — from the moment your eyes open to the moment you step into the world.',
+    'A morning ritual that could only exist in the life you built — deliberate, grounded, radiating quiet power.',
+    'The calm before a day of meaningful impact — your morning sets the frequency for everything that follows.',
+    'A sunrise moment of private recognition — you are living the life you once only imagined, and today you step deeper into it.',
+];
+
+const MORNING_EMOTIONAL_ARCS = [
+    'Open with gentle awakening → build through purposeful activation → arrive at calm, unstoppable certainty.',
+    'Open with body awareness and aliveness → move through clarity and intention → settle into grounded forward momentum.',
+    'Open with quiet gratitude → rise through confident, purposeful energy → close with a powerful launch into the day.',
+    'Open with a breath of recognition → expand through vivid present-moment reality → land in the feeling: today is mine.',
+];
+
+export function buildMorningStoryPrompt(answers: UserAnswers, userTier: Tier = 'explorer', instruction?: string, targetLength?: string | null, currentDate: string = new Date().toISOString(), nightStoryText?: string): string {
+    const currentMonthYear = new Date(currentDate).toLocaleString('default', { month: 'long', year: 'numeric' });
+
+    const narrativeStructure = pickRandom(MORNING_NARRATIVE_STRUCTURES);
+    const emotionalArc = pickRandom(MORNING_EMOTIONAL_ARCS);
+    const tonalMode = pickRandom(TONAL_MODES);
+    const seasonalContext = pickRandom(SEASONAL_CONTEXTS);
+
+    // ── Length handling ────────────────────────────────────────────────────────
+    const lengthMultipliers: Record<string, number> = { 'short': 0.6, 'medium': 1.0, 'long': 1.5, 'epic': 2.2 };
+    let multiplier = (targetLength && lengthMultipliers[targetLength]) ? lengthMultipliers[targetLength] : 1.0;
+    if (userTier === 'explorer' && multiplier > 1.0) multiplier = 1.0;
+    const cap = (n: number) => Math.min(n, 1600);
+
+    const visionWordCounts: Record<Tier, string> = {
+        explorer: `${Math.round(550 * multiplier)}-${Math.round(650 * multiplier)} words`,
+        activator: `${Math.round(700 * multiplier)}-${cap(Math.round(850 * multiplier))} words`,
+        manifester: `${Math.round(900 * multiplier)}-${cap(Math.round(1100 * multiplier))} words`,
+        amplifier: `${Math.round(1300 * multiplier)}-${cap(Math.round(1600 * multiplier))} words`
+    };
+
+    const orientationOpenings: Record<string, string> = {
+        spiritual: 'divine alignment, sacred space, God\'s presence waking with you — a golden knowing that today has been prepared for you',
+        scientific: 'brainwave transition from sleep to alert theta, neural priming, the intentional mind activating with clarity',
+        both: 'science and sacred naturally woven — the mind priming while something deeper aligns',
+        grounded: 'pure sensation, body and breath, the weight of the covers, the first full inhale of the day — no framework, just aliveness',
+    };
+
+    const orientationClosings: Record<string, string> = {
+        spiritual: "God goes before me into this day. Let's go.",
+        scientific: "My mind is primed. My intentions are set. Let's go.",
+        both: "Everything is aligned. Today belongs to me. Let's go.",
+        grounded: "I'm ready. Let's go.",
+    };
+
+    let prompt = `You are writing a deeply personal, transformational first-person MORNING story for ManifestMyStory.com.
+
+This story will be narrated by an AI voice cloned from the user's own voice and listened to every morning upon waking. Its purpose is to prime the subconscious mind for the day ahead — making the user's desired future feel like the only possible reality they are stepping into.
+
+THIS IS A MORNING STORY — NOT A NIGHT STORY.
+There is NO hypnotic induction. NO staircase. NO descent. NO theta language. NO sleep seeding. NO "sleep now and receive."
+The listener is WAKING UP. The energy is rising, activating, grounding, and launching into the day.
+
+━━━ YOUR CREATIVE PARAMETERS FOR THIS STORY ━━━
+NARRATIVE STRUCTURE: ${narrativeStructure}
+EMOTIONAL ARC: ${emotionalArc}
+TONAL MODE: ${tonalMode}
+SEASONAL / ATMOSPHERIC CONTEXT: ${seasonalContext}
+ORIENTATION: ${answers.orientation}
+STORY TONE: ${answers.tone}
+CORE FEELING: ${answers.coreFeeling}
+
+━━━ CRITICAL: DIFFERENTIATION FROM NIGHT STORY ━━━
+This morning story must feel ENTIRELY DIFFERENT from the user's night story — even though it draws on the same intake data.
+${nightStoryText ? `
+The user's night story is provided below for reference. DO NOT repeat scenes, metaphors, transitions, or phrasing from it.
+
+RULES FOR DIFFERENTIATION:
+- Use DIFFERENT moments within each goal — if the night story shows them closing a deal, the morning shows them walking into the office knowing the deal is already handled
+- Use DIFFERENT sensory anchors — if the night story opens with ocean sounds, the morning story opens with morning light or coffee steam
+- Use DIFFERENT scene structures — if the night story flows room-to-room in the house, the morning story flows through the hours of one extraordinary day
+- SAME goals and proof actions (verbatim rule still applies), but approached from a different angle, different moment, different perspective
+- The morning story should feel like a COMPANION piece — same life, fresh lens
+
+═══ USER'S NIGHT STORY (DO NOT REPEAT) ═══
+${nightStoryText.substring(0, 3000)}${nightStoryText.length > 3000 ? '\n[... truncated]' : ''}
+═══ END NIGHT STORY REFERENCE ═══
+` : `
+Even without a night story reference, ensure you create UNIQUE scenes:
+- Choose unexpected moments within each goal (not the obvious climactic moment)
+- Use morning-specific sensory details (light quality, first sounds, awakening textures)
+- Structure scenes around the FLOW OF ONE DAY in the achieved life
+`}
+
+${instruction ? `━━━ REGENERATION INSTRUCTION — HIGH PRIORITY ━━━
+"${instruction}"
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` : ''}
+USER PLAN: ${userTier.toUpperCase()}
+SESSION CONTEXT: These goals were set in ${currentMonthYear}.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BLOCK A — MORNING ACTIVATION OPENING (150-200 words)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Write in FIRST PERSON. The listener's own cloned voice is speaking to them as they wake.
+
+The opening must follow this spirit — adapt to the user's orientation and tone but preserve the rising, activating energy:
+
+"Your eyes are opening. Before the world comes in — before the notifications, the to-do lists, the noise of everything that wants your attention — there is this moment. This quiet, golden space between sleep and the day.
+
+You are still here. Still whole. Still the person who chose this path.
+
+Take one breath in now — slow and full — and feel your body coming alive. Not the anxious aliveness of someone who has too much to do. The calm, purposeful aliveness of someone who knows exactly who they are and exactly what today is for.
+
+Your mind is clear. The slow, receptive rhythm of early morning is still here — this is the window where what you tell yourself first becomes the frequency you carry all day.
+
+So before anything else — before the world gets a single word in — let these truths land."
+
+ORIENTATION-CALIBRATED OPENING TONE: ${orientationOpenings[answers.orientation] || orientationOpenings.grounded}
+
+After the opening, plant the OPENING AFFIRMATIONS (Position 1):
+Identity statements: ${Array.isArray(answers.identityStatements) ? answers.identityStatements.join(' | ') : answers.identityStatements}
+Per-area affirmations: ${Object.entries(answers).filter(([k]) => k.startsWith('areaAffirmations_')).map(([k, v]) => `${k.replace('areaAffirmations_', '').toUpperCase()}: ${Array.isArray(v) ? v.join('; ') : v}`).join(' | ') || 'Derive from goals'}
+
+Plant these VERBATIM — do not rephrase. Then:
+
+"This is who I am. Now let's go live it."
+
+· · ·
+
+[Vision opens here]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BLOCK B — THE VISION (THE ACHIEVED LIFE)
+TARGET WORD COUNT: ${visionWordCounts[userTier]}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+The vision follows the SAME rules as the night story vision — same verbatim rule, same numeric specificity, same sensory depth, same completeness requirements. The content is built from the SAME intake data.
+
+The key difference: the morning vision has slightly more forward momentum. The scenes carry activating energy — not dreamy sleep-state energy. The listener is preparing to step INTO this life today.
+
+OPENING TIME ANCHOR:
+"It is [season], ${answers.timeframe} from where I once stood..."
+
+${buildDynamicVision(answers)}
+
+━━━ ALL NIGHT STORY VISION RULES APPLY ━━━
+- Verbatim rule for goals and proof actions
+- Numeric specificity rule
+- Named persons with warmth
+- All selected life areas must have dedicated scenes
+- Sensory depth (all five senses)
+- NLP patterns woven throughout
+- No creative liberty beyond what user provided
+- · · · act breaks between major life areas
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BLOCK C — CLOSING: LAUNCH SEQUENCE (120-160 words)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+This replaces the dissolution and sleep seeding from the night story. NO "let every image soften." NO sleep language. A gathering and a forward push into the day.
+
+Follow this structure:
+
+"Everything I just saw — every scene, every moment, every person — is the frequency I carry into this day.
+
+My subconscious mind has received it. My body knows it. My cells are already operating from this truth."
+
+Then plant CLOSING AFFIRMATIONS (Position 2) — 2-3 BEING-level statements from:
+${Array.isArray(answers.identityStatements) ? answers.identityStatements.join(' | ') : answers.identityStatements}
+Use remaining statements NOT used in Position 1. Plant VERBATIM.
+
+The deepest identity claim lands LAST.
+
+If user captured a personal phrase, include it:
+e.g., "Amazing things are happening to me. Amazing things are happening all around me."
+
+Then:
+"I don't need to chase this life. I am building it. Right now. With this day."
+
+ORIENTATION-CALIBRATED LAUNCH LINE: "${orientationClosings[answers.orientation] || orientationClosings.grounded}"
+
+End with ONE repetition only (not three like the night story):
+"Today is mine."
+
+[Story ends]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WORD COUNT TARGET
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+${userTier === 'explorer' ? `EXPLORER: Total ~${Math.round(700 * multiplier)}-${Math.round(800 * multiplier)} words
+  Morning Activation: 150-200 words
+  Vision: ${visionWordCounts.explorer}
+  Launch Close: 120-160 words` : ''}${userTier === 'activator' ? `ACTIVATOR: Total ~${Math.round(1100 * multiplier)}-${Math.round(1350 * multiplier)} words
+  Morning Activation: 150-200 words
+  Vision: ${visionWordCounts.activator}
+  Launch Close: 120-160 words` : ''}${userTier === 'manifester' ? `MANIFESTER: Total ~${Math.round(1800 * multiplier)}-${Math.round(2200 * multiplier)} words
+  Morning Activation: 150-200 words
+  Vision: ${visionWordCounts.manifester}
+  Launch Close: 120-160 words` : ''}${userTier === 'amplifier' ? `AMPLIFIER: Total ~${Math.round(3000 * multiplier)}-${Math.round(3500 * multiplier)} words
+  Morning Activation: 200-250 words
+  Vision: ${visionWordCounts.amplifier}
+  Launch Close: 120-160 words` : ''}
+
+━━━ OUTPUT FORMAT — CRITICAL ━━━
+Do NOT generate a title. The system will name the story automatically.
+
+---
+[The full story begins here as pure, unbroken flowing prose.]
+
+RULES:
+- NO section headers, timestamps, labels
+- NO title line
+- NO sleep language anywhere — no "sleep now", no "drift", no "theta", no staircase, no descent
+- Begin immediately with the morning activation opening
+- Use · · · between major scene transitions
+- End with "Today is mine." — then nothing more
+- Pure flowing prose throughout
+- No markdown formatting
+
+Begin now. Write the full morning story with no preamble.\n`;
+
+    return prompt;
+}
+

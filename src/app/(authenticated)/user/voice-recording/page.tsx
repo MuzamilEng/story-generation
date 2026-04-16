@@ -465,6 +465,7 @@ const VoiceRecordingContent: React.FC = () => {
   const searchParams = useSearchParams();
   const { showToast, showConfirm } = useGlobalUI();
   const storyId = searchParams.get("storyId");
+  const autoAssemble = searchParams.get("autoAssemble") === "true";
 
   useEffect(() => {
     document.title = "ManifestMyStory — Record Your Voice";
@@ -476,6 +477,53 @@ const VoiceRecordingContent: React.FC = () => {
     fontLink.rel = "stylesheet";
     document.head.appendChild(fontLink);
   }, []);
+
+  // Auto-assemble for morning stories — skip recording, use existing voice clone
+  useEffect(() => {
+    if (!autoAssemble || !storyId) return;
+
+    const doAutoAssemble = async () => {
+      try {
+        // First approve the story text
+        const storyRes = await fetch(`/api/user/stories/${storyId}`);
+        if (storyRes.ok) {
+          const storyData = await storyRes.json();
+          const textToApprove = storyData.story_text_draft || storyData.story_text_approved;
+          if (textToApprove) {
+            await fetch(`/api/user/stories/${storyId}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ content: textToApprove }),
+            });
+          }
+        }
+
+        // Then assemble audio
+        const assembleRes = await fetch("/api/user/audio/assemble", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ storyId }),
+        });
+        const assembleData = await assembleRes.json();
+
+        if (assembleData.success) {
+          router.push(`/user/audio-download?storyId=${storyId}`);
+        } else {
+          showToast(
+            "Audio generation failed: " + (assembleData.error || "Unknown error"),
+            "error",
+          );
+          router.push(`/user/dashboard`);
+        }
+      } catch (e) {
+        console.error("Auto-assembly failed:", e);
+        showToast("Failed to generate audio. Please try again.", "error");
+        router.push(`/user/dashboard`);
+      }
+    };
+
+    doAutoAssemble();
+  }, [autoAssemble, storyId, router, showToast]);
   const [recState, setRecState] = useState<RecordingState>("idle");
   const [seconds, setSeconds] = useState(0);
   const [quality, setQuality] = useState({

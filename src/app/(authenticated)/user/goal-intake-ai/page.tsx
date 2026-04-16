@@ -1587,8 +1587,8 @@ const GoalDiscovery: React.FC = () => {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             goals: normalized,
-            title: "My Manifestation Story",
             length: length,
+            storyType: "night",
           }),
         });
 

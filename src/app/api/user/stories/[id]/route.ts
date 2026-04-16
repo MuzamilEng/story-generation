@@ -41,7 +41,9 @@ export async function GET(
         const serializedStory = {
             ...story,
             audio_file_size_bytes: story.audio_file_size_bytes != null ? Number(story.audio_file_size_bytes) : null,
-            voice_only_url: (story as any).voice_only_r2_key ? `/api/user/audio/stream?key=${encodeURIComponent((story as any).voice_only_r2_key)}` : null
+            voice_only_url: (story as any).voice_only_r2_key ? `/api/user/audio/stream?key=${encodeURIComponent((story as any).voice_only_r2_key)}` : null,
+            story_type: (story as any).story_type || 'night',
+            story_number: (story as any).story_number || 1,
         }
 
         return NextResponse.json(serializedStory)
@@ -109,6 +111,25 @@ export async function PATCH(
                 word_count: content !== undefined ? content.split(/\s+/).filter(Boolean).length : undefined,
             },
         });
+
+        // Save intake snapshot when story text is approved (enables morning story generation later)
+        if (content !== undefined) {
+            try {
+                const storyData = await prisma.story.findUnique({
+                    where: { id: storyId },
+                    select: { goal_intake_json: true, userId: true },
+                });
+                if (storyData?.goal_intake_json) {
+                    await (prisma as any).intakeSnapshot.upsert({
+                        where: { userId: session.user.id },
+                        update: { answers_json: storyData.goal_intake_json },
+                        create: { userId: session.user.id, answers_json: storyData.goal_intake_json },
+                    });
+                }
+            } catch (e) {
+                console.error('[STORY_PATCH] Failed to save intake snapshot:', e);
+            }
+        }
 
         const serializedStory = {
             ...updatedStory,
