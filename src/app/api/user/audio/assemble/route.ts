@@ -7,9 +7,8 @@ import { betaTypeToPlan } from '@/lib/beta-utils';
 import { splitIntroFromStory } from '@/lib/story-utils';
 import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 
-// Allow up to 300s for audio assembly (TTS generation)
 export const maxDuration = 300;
-export const runtime = 'nodejs'; // Ensure Node.js runtime
+export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 // ── R2 client ────────────────────────────────────────────────────────────────
@@ -24,12 +23,15 @@ const s3 = new S3Client({
 });
 const BUCKET = process.env.R2_BUCKET_NAME || 'manifestmystory-audio';
 
-/**
- * ElevenLabs eleven_multilingual_v2 frequently truncates / drops the tail
- * of long chunks.  Keep chunks short (~800 chars) so every word is spoken.
- * At average narration speed this is roughly 25-30 seconds of audio per chunk.
- */
-const CHUNK_CHARS = 800;
+// ── Chunk target size ────────────────────────────────────────────────────────
+// 1400 chars = fewer API calls while still keeping chunks short enough
+// to preserve stable prosody and timbre.
+// We never split mid-sentence regardless of this limit.
+const CHUNK_CHARS = 1400;
+
+// Small bounded parallelism significantly reduces total TTS time without
+// overwhelming provider limits or changing chunk ordering in final assembly.
+const MAX_TTS_CONCURRENCY = 2;
 
 // ── R2 helpers ────────────────────────────────────────────────────────────────
 async function fetchR2Buffer(key: string): Promise<Buffer | null> {
@@ -43,14 +45,12 @@ async function fetchR2Buffer(key: string): Promise<Buffer | null> {
     }
 }
 
-
 async function fetchAdminAudio(segmentKey: 'induction' | 'guide_close'): Promise<Buffer | null> {
     try {
         const asset = await (prisma as any).systemAudio.findUnique({ where: { key: segmentKey } });
         if (!asset?.r2_key) return null;
         const raw = await fetchR2Buffer(asset.r2_key);
         if (!raw) return null;
-
         console.log(`[assemble] Fetched admin audio '${segmentKey}' (${raw.length} bytes)`);
         return raw;
     } catch (e) {
@@ -78,83 +78,11 @@ async function generateFreeTTS(text: string): Promise<Buffer | null> {
             return buf.length > 500 ? buf : null;
         },
     ];
-
     for (const fetchAudio of providers) {
         try {
             const buf = await fetchAudio();
             if (buf) return buf;
         } catch { }
-    }
-    return null;
-}
-
-// ── ElevenLabs TTS ────────────────────────────────────────────────────────────
-async function generateElevenLabsTTS(voiceId: string, text: string): Promise<Buffer | null> {
-    const key = process.env.ELEVEN_LABS_API;
-    if (!key || !voiceId) return null;
-
-    const MAX_RETRIES = 3;
-    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-        try {
-            // ⚠️ IMPORTANT: Do NOT include `voice_settings` here.
-            // ElevenLabs overrides the per-voice saved settings whenever voice_settings
-            // is sent in the request body. The clone-voice route already PATCHed the voice
-            // with professional narration settings (stability:0.75, similarity_boost:0.90).
-            // Omitting voice_settings forces ElevenLabs to use those saved values, which
-            // gives the highest fidelity to the user's recorded voice.
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 60_000); // 60s per chunk
-            const res = await fetch(
-                `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`,
-                {
-                    method: 'POST',
-                    headers: { 'xi-api-key': key, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        text,
-                        model_id: 'eleven_multilingual_v2',
-                        // No voice_settings — use per-voice saved settings for max clone fidelity
-                    }),
-                    signal: controller.signal,
-                },
-            );
-            clearTimeout(timeoutId);
-
-            // Log ElevenLabs diagnostic headers
-            const warning = res.headers.get('warning');
-            const historyItemId = res.headers.get('history-item-id');
-            if (warning) {
-                console.warn(`[assemble] ⚠️ ElevenLabs Warning: ${warning}`);
-            }
-            console.log(
-                `[assemble] ElevenLabs response — status: ${res.status} | ` +
-                `voice: ${voiceId} | history-item-id: ${historyItemId ?? 'none'} | ` +
-                `attempt: ${attempt}/${MAX_RETRIES}`
-            );
-
-            if (res.ok) {
-                const buf = Buffer.from(await res.arrayBuffer());
-                console.log(`[assemble] ✅ ElevenLabs TTS success — ${buf.length} bytes for voice ${voiceId}`);
-                return buf;
-            }
-
-            const errText = await res.text().catch(() => '');
-            console.error(
-                `[assemble] ElevenLabs TTS error ${res.status} (attempt ${attempt}/${MAX_RETRIES}):`,
-                errText,
-            );
-
-            if (res.status === 429 && attempt < MAX_RETRIES) {
-                await new Promise(r => setTimeout(r, 2000 * attempt));
-                continue;
-            }
-        } catch (e) {
-            console.error(
-                `[assemble] ElevenLabs TTS exception (attempt ${attempt}/${MAX_RETRIES}):`,
-                e,
-            );
-        }
-
-        if (attempt < MAX_RETRIES) await new Promise(r => setTimeout(r, 1000));
     }
     return null;
 }
@@ -173,73 +101,167 @@ async function generateFishAudioTTS(voiceId: string, text: string): Promise<Buff
                 reference_id: voiceId.startsWith('mock_')
                     ? '7ef4660e505a41d9966d58546de54201'
                     : voiceId,
+
+                // wav = lossless. No mp3 codec artefacts on consonants.
+                // MP3 keeps quality high enough for narration while reducing
+                // payload size and upload/mixing latency dramatically.
                 format: 'mp3',
                 normalize: true,
+                latency: 'normal',
+
+                // 0.88 = ElevenLabs "Narration" preset equivalent.
+                // This is the single biggest quality lever after the voice
+                // clone itself. Too fast (1.0) = robotic. Too slow (<0.85)
+                // = unnatural drag. 0.88 hits the audiobook sweet spot.
+                prosody: {
+                    speed: 0.88,
+                    volume: 0,
+                },
             }),
         });
-        if (!res.ok) return null;
-        const buf = Buffer.from(await res.arrayBuffer());
-        return buf;
-    } catch {
+
+        if (!res.ok) {
+            const errBody = await res.text().catch(() => '');
+            console.error(`[TTS] Fish Audio ${res.status}: ${errBody}`);
+            return null;
+        }
+
+        return Buffer.from(await res.arrayBuffer());
+    } catch (e) {
+        console.error('[TTS] generateFishAudioTTS threw:', e);
         return null;
     }
 }
 
+// ── Narration text preparation ────────────────────────────────────────────────
 /**
- * Normalise text before sending to TTS.
- * Converts ellipsis and scene breaks into natural pauses that
- * ElevenLabs interprets as silence (periods + newlines).
+ * Prepares raw story text for high-quality narration TTS.
+ *
+ * WHY THIS MATTERS:
+ * Fish Audio (like ElevenLabs) uses punctuation as prosody signals.
+ * A comma = short breath. A period = full breath. An ellipsis = dramatic
+ * pause. If you strip these or turn decorative dividers into ". " (ghost
+ * pauses), the voice either rushes or sounds broken.
+ *
+ * RULES:
+ * - Scene breaks  → "..." so Fish Audio holds a dramatic 0.8s pause
+ * - Paragraph gap → ". " so Fish Audio takes a full breath between sections
+ * - Decorative dividers → stripped cleanly, no ". " ghost padding
+ * - Commas/periods get correct spacing so the model breathes on them
+ * - Dialogue em-dashes preserved — they signal a speaker change pause
  */
-function normaliseForTTS(text: string): string {
+function prepareNarrationText(text: string): string {
     return text
         .replace(/\r\n/g, '\n')
-        // Scene breaks (· · ·) → long breathing pause
-        .replace(/·\s*·\s*·/g, '. . . . . ')
-        // Ellipsis → natural speaking pause (period + comma creates a beat)
-        .replace(/\.{3,}/g, '... ')
-        .replace(/\u2026/g, '... ')
-        // Collapse blank-line separators but preserve as a pause
-        .replace(/^[·•\-–—*_~#\s]+$/gm, '. ')
-        .replace(/\n+/g, ' ')
+
+        // Scene breaks → dramatic ellipsis pause (Fish Audio reads ~0.8s)
+        .replace(/·\s*·\s*·/g, '...')
+        .replace(/\*\s*\*\s*\*/g, '...')
+        .replace(/[-–—]{3,}/g, '...')
+
+        // Decorative divider lines → just remove (no ghost pauses)
+        .replace(/^[·•\-–—*_~#=\s]{3,}$/gm, '')
+
+        // Ellipsis normalisation
+        .replace(/\.{4,}/g, '...')
+        .replace(/\u2026/g, '...')
+
+        // Paragraph breaks (2+ newlines) → period + space so Fish Audio
+        // knows to take a full breath between sections
+        .replace(/\n{2,}/g, '. ')
+
+        // Single newlines within a paragraph → space
+        .replace(/\n/g, ' ')
+
+        // Ensure comma always has a space after it (breathing cue)
+        .replace(/,([^\s\d])/g, ', $1')
+
+        // Ensure period has a space after it unless followed by a digit
+        // (avoid breaking "3.14" or "e.g.")
+        .replace(/([.!?])([A-Z])/g, '$1 $2')
+
+        // Collapse any double periods we may have introduced
+        .replace(/\.\s*\./g, '.')
+
+        // Final whitespace cleanup
         .replace(/\s{2,}/g, ' ')
         .trim();
 }
 
-// ── Text Chunker ──────────────────────────────────────────────────────────────
-function splitTextIntoChunks(rawText: string, maxChars: number = CHUNK_CHARS): string[] {
-    const text = normaliseForTTS(rawText);
-    if (!text) return [];
-    if (text.length <= maxChars) return [text];
+// ── Sentence-aware chunker ────────────────────────────────────────────────────
+/**
+ * Splits prepared narration text into chunks.
+ *
+ * THE CORE QUALITY RULE: never split mid-sentence.
+ *
+ * The old character-count chunker could split:
+ *   "She walked to the door, her heart [CHUNK BREAK] pounding as she turned
+ *    the handle."
+ *
+ * Fish Audio starts each chunk with a fresh prosody prediction, so the
+ * second chunk "pounding as she turned the handle." sounds flat and robotic
+ * because the model has no emotional context from the first half.
+ *
+ * This chunker accumulates complete sentences until it would exceed maxChars,
+ * then flushes. A single oversized sentence is kept whole — a seam inside a
+ * sentence is always worse than a slightly long chunk.
+ */
+function splitIntoNarrationChunks(preparedText: string, maxChars: number = CHUNK_CHARS): string[] {
+    if (!preparedText) return [];
+    if (preparedText.length <= maxChars) return [preparedText];
 
-    const sentenceMatches = text.match(/[^.!?]+[.!?]+[\s]*/g) || [];
-    const matchedLen = sentenceMatches.reduce((n, s) => n + s.length, 0);
-    const remainder = text.slice(matchedLen).trim();
-    const sentences =
-        remainder
-            ? [...sentenceMatches, remainder]
-            : sentenceMatches.length
-                ? sentenceMatches
-                : [text];
+    // Match complete sentences: text ending in . ! ? or ...
+    const sentenceRegex = /[^.!?]+(?:[.!?]+(?:\s|$)|\.\.\.\s*)+/g;
+    const sentences: string[] = [];
+    let match: RegExpExecArray | null;
+    let lastIndex = 0;
 
-    const chunks: string[] = [];
-    let current = '';
-    for (const s of sentences) {
-        if (current.length + s.length <= maxChars) {
-            current += s;
-        } else {
-            if (current) chunks.push(current.trim());
-            if (s.length > maxChars) {
-                chunks.push(s.trim());
-                current = '';
+    while ((match = sentenceRegex.exec(preparedText)) !== null) {
+        sentences.push(match[0]);
+        lastIndex = match.index + match[0].length;
+    }
+
+    // Any tail that didn't end with punctuation
+    const tail = preparedText.slice(lastIndex).trim();
+    if (tail) sentences.push(tail);
+
+    // If no sentences found, fall back to word-boundary split
+    if (sentences.length === 0) {
+        const words = preparedText.split(' ');
+        const chunks: string[] = [];
+        let cur = '';
+        for (const word of words) {
+            if ((cur + ' ' + word).trim().length > maxChars) {
+                if (cur) chunks.push(cur.trim());
+                cur = word;
             } else {
-                current = s;
+                cur = cur ? cur + ' ' + word : word;
             }
         }
+        if (cur.trim()) chunks.push(cur.trim());
+        return chunks;
     }
+
+    // Greedy pack: accumulate sentences until adding the next would exceed limit
+    const chunks: string[] = [];
+    let current = '';
+
+    for (const sentence of sentences) {
+        const s = sentence.trim();
+        const candidate = current ? current + ' ' + s : s;
+
+        if (candidate.length <= maxChars) {
+            current = candidate;
+        } else {
+            if (current) chunks.push(current.trim());
+            // Keep oversized single sentence whole — mid-sentence split is worse
+            current = s;
+        }
+    }
+
     if (current.trim()) chunks.push(current.trim());
     return chunks;
 }
-
 
 // ── API HANDLER ───────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
@@ -253,9 +275,8 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: planCheck.message }, { status: 403 });
 
         const { storyId } = await req.json();
+
         // ── Fetch user + story ─────────────────────────────────────────────────
-        // NOTE: Use explicit `select` to guarantee voice fields are included in
-        // the Prisma result even if the generated client type lags behind the schema.
         const [userRaw, story] = await Promise.all([
             prisma.user.findUnique({
                 where: { id: session.user.id },
@@ -264,7 +285,6 @@ export async function POST(req: NextRequest) {
                     name: true,
                     plan: true,
                     voice_model_id: true,
-                    elevenlabs_voice_id: true,
                     voice_sample_url: true,
                     soundscape: true,
                     binaural_enabled: true,
@@ -272,7 +292,7 @@ export async function POST(req: NextRequest) {
             }),
             prisma.story.findUnique({ where: { id: storyId } }),
         ]);
-        // Keep a fully-typed alias for non-voice fields
+
         const user = userRaw as NonNullable<typeof userRaw>;
         if (!user || !story || story.userId !== user.id)
             return NextResponse.json({ error: 'Not found' }, { status: 404 });
@@ -289,207 +309,185 @@ export async function POST(req: NextRequest) {
             : ((user as any).plan || 'free').toLowerCase();
 
         // ── Determine TTS provider ─────────────────────────────────────────────
-        // Read both voice ID fields directly (explicit select guarantees they are present)
-        const elevenLabsVoiceId = (user.elevenlabs_voice_id ?? '') as string;
-        const fishAudioVoiceId  = (user.voice_model_id ?? '') as string;
+        const fishAudioVoiceId = (user.voice_model_id ?? '') as string;
 
-        console.log(`[assemble] 🎤 Voice IDs from DB — elevenlabs_voice_id: "${elevenLabsVoiceId || 'EMPTY'}" | voice_model_id: "${fishAudioVoiceId || 'EMPTY'}"`); 
+        console.log(`[assemble] 🎤 Voice ID: "${fishAudioVoiceId || 'EMPTY'}"`);
 
         let selectedVoiceId: string | null = null;
-        let ttsProvider: 'elevenlabs' | 'fishaudio' | 'free' = 'free';
+        let ttsProvider: 'fishaudio' | 'free' = 'free';
 
-        // ── Priority 1: ElevenLabs with the dedicated elevenlabs_voice_id field ──
-        if (process.env.ELEVEN_LABS_API && elevenLabsVoiceId.length > 5) {
-            selectedVoiceId = elevenLabsVoiceId;
-            ttsProvider = 'elevenlabs';
-            console.log(`[assemble] ✅ Using cloned voice — elevenlabs_voice_id: ${selectedVoiceId}`);
-        }
-        // ── Priority 2: EL fallback — voice_model_id looks like an ElevenLabs ID ─
-        //    EL IDs are alphanumeric, 15-40 chars, no UUID-style hyphens
-        else if (
-            process.env.ELEVEN_LABS_API &&
-            fishAudioVoiceId.length >= 15 &&
-            fishAudioVoiceId.length <= 40 &&
-            !fishAudioVoiceId.includes('-')
-        ) {
-            selectedVoiceId = fishAudioVoiceId;
-            ttsProvider = 'elevenlabs';
-            console.log(`[assemble] ✅ Using cloned voice (EL) from voice_model_id fallback: ${selectedVoiceId}`);
-        }
-        // ── Priority 3: Fish Audio ────────────────────────────────────────────────
-        else if (process.env.FISH_AUDIO_API && fishAudioVoiceId) {
+        if (process.env.FISH_AUDIO_API && fishAudioVoiceId) {
             selectedVoiceId = fishAudioVoiceId;
             ttsProvider = 'fishaudio';
-            console.log(`[assemble] ✅ Using cloned voice — Fish Audio voice_model_id: ${selectedVoiceId}`);
+            console.log(`[assemble] ✅ Using cloned voice — ${selectedVoiceId}`);
         }
 
         const userHasClonedVoice = ttsProvider !== 'free' && !!selectedVoiceId;
 
         if (!userHasClonedVoice) {
-            console.warn(
-                `[assemble] ⚠️ No cloned voice found for user ${user.id}. ` +
-                `elevenlabs_voice_id=${elevenLabsVoiceId || 'null'}, voice_model_id=${fishAudioVoiceId || 'null'}. ` +
-                `Falling back to free TTS. User must record a voice sample first.`
-            );
+            console.warn(`[assemble] ⚠️ No cloned voice for user ${user.id}. Falling back to free TTS.`);
         }
 
-        console.log(`[assemble] Selection Finalized — Provider: ${ttsProvider}, Voice ID: ${selectedVoiceId ?? 'none'}`);
-
-        // ── Fetch admin audio (only for night stories) ─────────────────────
+        // ── Fetch admin audio (night stories only) ─────────────────────────────
         const storyType = (story as any).story_type || 'night';
         let induction: Buffer | null = null;
         let close: Buffer | null = null;
 
-        // Morning stories have no induction — skip admin audio entirely
-        if (storyType === 'night') {
-            // Only fetch guide close for users without cloned voice
-            if (!userHasClonedVoice) {
-                induction = await fetchAdminAudio('induction');
-                close = await fetchAdminAudio('guide_close');
-            }
+        if (storyType === 'night' && !userHasClonedVoice) {
+            induction = await fetchAdminAudio('induction');
+            close = await fetchAdminAudio('guide_close');
         }
 
         console.log(`[assemble] Admin induction: ${induction ? `${induction.length} bytes` : 'not available'}`);
 
-        // ── Core TTS function ─────────────────────────────────────────────────
+        // ── Core TTS generator ────────────────────────────────────────────────
         async function generateTTSForText(text: string, label: string): Promise<Buffer[]> {
-            const chunks = splitTextIntoChunks(text);
-            const totalInputChars = normaliseForTTS(text).length;
-            console.log(
-                `[assemble] ${label}: ${totalInputChars} chars → ${chunks.length} chunks`,
-            );
+            const prepared = prepareNarrationText(text);
+            const chunks = splitIntoNarrationChunks(prepared);
 
-            const buffers: Buffer[] = [];
-            for (let i = 0; i < chunks.length; i++) {
-                let buf: Buffer | null = null;
+            console.log(`[assemble] ${label}: ${prepared.length} chars → ${chunks.length} sentence-aware chunks`);
 
-                if (ttsProvider === 'elevenlabs') {
-                    buf = await generateElevenLabsTTS(selectedVoiceId!, chunks[i]);
-                    if (!buf) {
-                        console.error(`[assemble] ✗ ElevenLabs chunk ${i + 1}/${chunks.length} failed`);
-                        throw new Error(
-                            `Voice generation failed on ${label} chunk ${i + 1}/${chunks.length}. ` +
-                            `Please try again.`
-                        );
+            const buffers: Buffer[] = new Array(chunks.length);
+            const workerCount = Math.min(MAX_TTS_CONCURRENCY, chunks.length);
+            let nextIndex = 0;
+
+            async function worker(workerId: number): Promise<void> {
+                while (true) {
+                    const idx = nextIndex;
+                    nextIndex += 1;
+                    if (idx >= chunks.length) return;
+
+                    const chunk = chunks[idx];
+                    let buf: Buffer | null = null;
+
+                    console.log(
+                        `[assemble] ${label} chunk ${idx + 1}/${chunks.length} ` +
+                        `(worker ${workerId}, ${chunk.length} chars): "${chunk.substring(0, 60)}..."`
+                    );
+
+                    if (ttsProvider === 'fishaudio') {
+                        buf = await generateFishAudioTTS(selectedVoiceId!, chunk);
+                        if (!buf) {
+                            throw new Error(
+                                `Voice generation failed on ${label} chunk ${idx + 1}/${chunks.length}. Please try again.`
+                            );
+                        }
+                    } else {
+                        buf = await generateFreeTTS(chunk);
+                        if (!buf) {
+                            throw new Error(
+                                `Free TTS failed on ${label} chunk ${idx + 1}/${chunks.length}. Please try again.`
+                            );
+                        }
                     }
-                } else if (ttsProvider === 'fishaudio') {
-                    buf = await generateFishAudioTTS(selectedVoiceId!, chunks[i]);
-                    if (!buf) {
-                        console.error(`[assemble] ✗ Fish Audio chunk ${i + 1}/${chunks.length} failed`);
-                        throw new Error(
-                            `Voice generation failed on ${label} chunk ${i + 1}/${chunks.length}. ` +
-                            `Please try again.`
-                        );
-                    }
-                } else {
-                    buf = await generateFreeTTS(chunks[i]);
-                    if (!buf) {
-                        throw new Error(
-                            `Free TTS failed on ${label} chunk ${i + 1}/${chunks.length}. ` +
-                            `Please try again.`
-                        );
-                    }
+
+                    buffers[idx] = buf;
+                    console.log(
+                        `[assemble] ✓ chunk ${idx + 1}/${chunks.length} — ${chunk.length} chars → ${buf.length} bytes`
+                    );
                 }
-
-                buffers.push(buf);
-                console.log(
-                    `[assemble] ✓ ${label} chunk ${i + 1}/${chunks.length} — ` +
-                    `${chunks[i].length} chars → ${buf.length} bytes`
-                );
             }
+
+            await Promise.all(Array.from({ length: workerCount }, (_, i) => worker(i + 1)));
             return buffers;
         }
 
-
         // ── Text segmentation ─────────────────────────────────────────────────
-        const rawText =
-            (story as any).story_text_approved || (story as any).story_text_draft || '';
-        let { intro: introText, storyBody: storyBodyText } = splitIntroFromStory(rawText);
+        const rawText = (story as any).story_text_approved || (story as any).story_text_draft || '';
+        const limitedText = String(rawText).slice(0, 500);
+        const { intro: introText, storyBody: storyBodyText } = splitIntroFromStory(limitedText);
 
         console.log(
-            `[assemble] Final Text — Intro: ${introText.length} chars | Story body: ${storyBodyText.length} chars`,
+            `[assemble] Source limited to ${limitedText.length} chars | Intro: ${introText.length} chars | Body: ${storyBodyText.length} chars`
         );
 
-        // ── 1. Intro TTS (user cloned voice — only when no admin induction) ───
+        // ── 1. Intro TTS ───────────────────────────────────────────────────────
         let introBuffers: Buffer[] = [];
         if (introText && introText.trim().length > 0) {
             if (!induction) {
-                // No admin induction uploaded — generate TTS for the full intro text
-                console.log(`[assemble] Generating intro TTS — Content: "${introText.substring(0, 50)}..."`);
                 introBuffers = await generateTTSForText(introText, 'intro');
-                console.log(`[assemble] ✅ Intro TTS complete — ${introBuffers.length} chunks`);
+                console.log(`[assemble] ✅ Intro TTS — ${introBuffers.length} chunks`);
             } else {
-                console.log(`[assemble] ⚠️ Admin induction exists — skipping intro TTS (admin clip used instead)`);
+                console.log(`[assemble] Admin induction exists — skipping intro TTS`);
             }
-        } else {
-            console.log(`[assemble] ℹ️ No intro text found in story (explorer tier or no [INTRO_END] marker)`);
         }
 
-        // ── 2. Story body TTS (user cloned voice) ─────────────────────────────
-        console.log(`[assemble] Generating story body — Content: "${storyBodyText.substring(0, 50)}..."`);
-
+        // ── 2. Story body TTS ─────────────────────────────────────────────────
         const storyBuffers = await generateTTSForText(storyBodyText, 'story');
-        console.log(`[assemble] 🎙️ Narration using ${ttsProvider} Voice (ID: ${selectedVoiceId ?? 'none'})`);
 
         if (storyBuffers.length === 0) {
             return NextResponse.json({ error: 'Failed to generate any audio' }, { status: 500 });
         }
 
-        // ── Final assembly ─────────────────────────────────────────────────────
-        // Order: [Admin Intro Clip (if uploaded by admin)] → [User Cloned Voice Story]
+        // ── Assembly ──────────────────────────────────────────────────────────
         const parts: Buffer[] = [];
         const segmentLog: string[] = [];
 
-        // 1. Admin intro clip OR TTS-generated intro
         if (induction) {
             parts.push(induction);
             segmentLog.push(`Admin Intro (${Math.round(induction.length / 1024)}KB)`);
-            console.log(`[assemble] ✅ Admin intro clip included — ${induction.length} bytes`);
         } else if (introBuffers.length > 0) {
             parts.push(...introBuffers);
             segmentLog.push(`TTS Intro (${introBuffers.length} chunks)`);
-            console.log(`[assemble] ✅ TTS intro included — ${introBuffers.length} chunks`);
-        } else {
-            console.log(`[assemble] ⚠️ No intro audio — starting directly with story narration`);
         }
 
-        // 2. User cloned voice story narration
         parts.push(...storyBuffers);
-        segmentLog.push(userHasClonedVoice ? `User Cloned Voice Story` : `Free TTS Story`);
+        segmentLog.push(userHasClonedVoice ? 'User Cloned Voice' : 'Free TTS');
 
-        console.log(`[assemble] 🎬 Assembly order: ${segmentLog.join(' → ')}`);
+        console.log(`[assemble] 🎬 ${segmentLog.join(' → ')}`);
 
-        // ── Concatenate buffers directly (No FFmpeg) ──────────────────────────
         const finalAudio = Buffer.concat(parts);
-        console.log(`[assemble] ✅ Buffer concatenation complete — ${finalAudio.byteLength} bytes`);
+        console.log(`[assemble] ✅ Assembled — ${finalAudio.byteLength} bytes`);
 
-        // Estimate duration
-        const duration = Math.round(finalAudio.byteLength / 16000);
+        // Approx for narration MP3 at ~128kbps.
+        const bytesPerSecond = 16000;
+        const duration = Math.round(finalAudio.byteLength / bytesPerSecond);
 
         // ── Upload to R2 ──────────────────────────────────────────────────────
-        const finalKey = `user_${user.id}/story_${story.id}_final_${ts}.mp3`;
+        let finalKey = `user_${user.id}/story_${story.id}_final_${ts}.mp3`;
+        let voiceOnlyKey = finalKey;
+
         await s3.send(
-            new PutObjectCommand({
-                Bucket: BUCKET,
-                Key: finalKey,
-                Body: finalAudio,
-                ContentType: 'audio/mpeg',
-            }),
+            new PutObjectCommand({ Bucket: BUCKET, Key: finalKey, Body: finalAudio, ContentType: 'audio/mpeg' }),
         );
 
-        // Save voice-only key so the mixing server can use it later
-        const voiceOnlyKey = `user_${user.id}/story_${story.id}_voice_${ts}.mp3`;
-        await s3.send(
-            new PutObjectCommand({
-                Bucket: BUCKET,
-                Key: voiceOnlyKey,
-                Body: finalAudio,
-                ContentType: 'audio/mpeg',
-            }),
-        );
-        console.log(`[assemble] ✅ Voice-only uploaded — ${voiceOnlyKey}`);
+        console.log(`[assemble] ✅ Uploaded — ${finalKey}`);
 
         let finalUrl = `/api/user/audio/stream?key=${encodeURIComponent(finalKey)}`;
+
+        // ── Professional narration enhancement (Fish cloned voice only) ────
+        if (userHasClonedVoice) {
+            try {
+                const MIXING_SERVER = process.env.MIXING_SERVER_URL || 'http://localhost:4000';
+                const enhanceRes = await fetch(`${MIXING_SERVER}/enhance-voice`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-api-secret': process.env.MIXING_API_SECRET || '',
+                    },
+                    body: JSON.stringify({
+                        storyId: story.id,
+                        voiceKey: finalKey,
+                    }),
+                });
+
+                if (enhanceRes.ok) {
+                    const enhanceData = await enhanceRes.json();
+                    if (enhanceData?.enhanced_key) {
+                        finalKey = enhanceData.enhanced_key;
+                        voiceOnlyKey = enhanceData.enhanced_key;
+                        finalUrl = enhanceData.audio_url || `/api/user/audio/stream?key=${encodeURIComponent(finalKey)}`;
+                        console.log(`[assemble] ✅ Voice enhanced — ${finalKey}`);
+                    }
+                } else {
+                    const errBody = await enhanceRes.text().catch(() => '');
+                    console.error(`[assemble] ⚠️ Enhance server ${enhanceRes.status}: ${errBody}`);
+                }
+            } catch (enhanceErr: any) {
+                console.error(`[assemble] ⚠️ Enhancement failed (non-fatal):`, enhanceErr.message);
+            }
+        }
+
         await prisma.story.update({
             where: { id: story.id },
             data: {
@@ -501,25 +499,19 @@ export async function POST(req: NextRequest) {
             },
         });
 
-        console.log(`[assemble] ✅ Complete — ${finalAudio.byteLength} bytes, ${duration}s`);
-        console.log(`[assemble] 🎙️ Voice composition: ${induction ? 'Admin intro + ' : ''}${userHasClonedVoice ? 'User cloned voice' : 'TTS'}`);
-
-        // ── Auto-mix with soundscape / binaural if user has them enabled ─────
-        // Only call mixing server if user explicitly selected a soundscape or enabled binaural
+        // ── Auto-mix ──────────────────────────────────────────────────────────
         const userSoundscape = user.soundscape;
         const userBinaural = !!(user as any).binaural_enabled;
         const hasSoundscapeSelected = userSoundscape && userSoundscape !== 'none';
-
         let mixedWithSoundscape = false;
+
         if (hasSoundscapeSelected || userBinaural) {
             try {
-                // Find soundscape asset if user selected one
                 let soundscapeAsset: any = null;
                 if (hasSoundscapeSelected) {
                     soundscapeAsset = await prisma.soundscapeAsset.findFirst({
                         where: { isActive: true, title: { contains: userSoundscape, mode: 'insensitive' } },
                     });
-                    // Fallback: try by id
                     if (!soundscapeAsset) {
                         soundscapeAsset = await prisma.soundscapeAsset.findFirst({
                             where: { isActive: true, id: userSoundscape },
@@ -527,18 +519,12 @@ export async function POST(req: NextRequest) {
                     }
                 }
 
-                console.log(
-                    `[assemble] 🎵 Mix requested — soundscape: ${soundscapeAsset ? `"${soundscapeAsset.title}" (${soundscapeAsset.id})` : 'none'}, binaural: ${userBinaural}`
-                );
-
                 const MIXING_SERVER = process.env.MIXING_SERVER_URL || 'http://localhost:4000';
-                const MIXING_SECRET = process.env.MIXING_API_SECRET || '';
-
                 const mixRes = await fetch(`${MIXING_SERVER}/mix`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'x-api-secret': MIXING_SECRET,
+                        'x-api-secret': process.env.MIXING_API_SECRET || '',
                     },
                     body: JSON.stringify({
                         storyId: story.id,
@@ -552,16 +538,13 @@ export async function POST(req: NextRequest) {
                     const mixData = await mixRes.json();
                     finalUrl = mixData.audio_url || finalUrl;
                     mixedWithSoundscape = true;
-                    console.log(`[assemble] ✅ Mixing server succeeded — combined key: ${mixData.combined_audio_key}`);
+                    console.log(`[assemble] ✅ Mix complete — ${mixData.combined_audio_key}`);
                 } else {
-                    const errText = await mixRes.text().catch(() => '');
-                    console.error(`[assemble] ⚠️ Mixing server returned ${mixRes.status}: ${errText}`);
+                    console.error(`[assemble] ⚠️ Mix server ${mixRes.status}`);
                 }
             } catch (mixErr: any) {
-                console.error(`[assemble] ⚠️ Mixing server call failed (non-fatal):`, mixErr.message);
+                console.error(`[assemble] ⚠️ Mix failed (non-fatal):`, mixErr.message);
             }
-        } else {
-            console.log(`[assemble] ℹ️ No soundscape selected and binaural disabled — skipping mixing`);
         }
 
         return NextResponse.json({

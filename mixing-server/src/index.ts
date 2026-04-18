@@ -3,7 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import { prisma } from './prisma';
 import { downloadFromR2, uploadToR2, deleteFromR2 } from './r2';
-import { mixAudio } from './mixer';
+import { mixAudio, enhanceNarrationVoice } from './mixer';
 
 const app = express();
 const PORT = process.env.MIXING_PORT || 4000;
@@ -170,6 +170,57 @@ app.post('/mix', requireAuth, async (req, res) => {
   } catch (err: any) {
     console.error('[mix] Error:', err);
     res.status(500).json({ error: err.message || 'Mixing failed' });
+  }
+});
+
+// ── POST /enhance-voice ───────────────────────────────────────────────────
+// Apply narration mastering to voice-only audio.
+// Body: { storyId, voiceKey? }
+app.post('/enhance-voice', requireAuth, async (req, res) => {
+  const { storyId, voiceKey } = req.body;
+
+  if (!storyId) {
+    res.status(400).json({ error: 'storyId is required' });
+    return;
+  }
+
+  try {
+    const story = await prisma.story.findUnique({ where: { id: storyId } });
+    if (!story) {
+      res.status(404).json({ error: 'Story not found' });
+      return;
+    }
+
+    const sourceKey = voiceKey || story.voice_only_r2_key || story.audio_r2_key;
+    if (!sourceKey) {
+      res.status(400).json({ error: 'No source voice audio key found' });
+      return;
+    }
+
+    console.log(`[enhance] Starting: story=${storyId} source=${sourceKey}`);
+
+    const sourceBuffer = await downloadFromR2(sourceKey);
+    console.log(`[enhance] Downloaded source=${sourceBuffer.length}B`);
+
+    const enhancedBuffer = await enhanceNarrationVoice(sourceBuffer);
+    console.log(`[enhance] Enhanced result=${enhancedBuffer.length}B`);
+
+    const enhancedKey = `user_${story.userId}/stories/${storyId}/voice_enhanced_${Date.now()}.mp3`;
+    await uploadToR2(enhancedKey, enhancedBuffer, 'audio/mpeg');
+
+    const audioUrl = `/api/user/audio/stream?key=${encodeURIComponent(enhancedKey)}`;
+
+    res.json({
+      success: true,
+      source_key: sourceKey,
+      enhanced_key: enhancedKey,
+      audio_url: audioUrl,
+      bytes_in: sourceBuffer.length,
+      bytes_out: enhancedBuffer.length,
+    });
+  } catch (err: any) {
+    console.error('[enhance] Error:', err);
+    res.status(500).json({ error: err.message || 'Voice enhancement failed' });
   }
 });
 

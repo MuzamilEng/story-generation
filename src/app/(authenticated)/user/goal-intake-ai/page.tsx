@@ -14,6 +14,8 @@ import {
   SendIcon,
   UserIcon,
   ArrowIcon,
+  MicIcon,
+  MicOffIcon,
 } from "../../../components/icons/ChatIcons";
 import {
   Message,
@@ -1126,6 +1128,57 @@ const GoalDiscovery: React.FC = () => {
   // Set when user sends a message in Evening & Close; triggers isComplete after AI replies
   const triggerCompleteAfterResponseRef = useRef(false);
 
+  // ── Voice input (Web Speech API) ──
+  // TODO: Upgrade to Whisper or another professional STT model later
+  const [isListening, setIsListening] = useState(false);
+  const [voiceSupported, setVoiceSupported] = useState(false);
+  const recognitionRef = useRef<any>(null);
+
+  useEffect(() => {
+    const SR =
+      typeof window !== "undefined" &&
+      ((window as any).SpeechRecognition ||
+        (window as any).webkitSpeechRecognition);
+    if (SR) {
+      setVoiceSupported(true);
+      const recognition = new SR();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = "en-US";
+
+      recognition.onresult = (event: any) => {
+        let transcript = "";
+        for (let i = 0; i < event.results.length; i++) {
+          transcript += event.results[i][0].transcript;
+        }
+        setInputValue(transcript);
+      };
+
+      recognition.onerror = (event: any) => {
+        console.error("Speech recognition error:", event.error);
+        setIsListening(false);
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+      };
+
+      recognitionRef.current = recognition;
+    }
+  }, []);
+
+  const toggleVoice = useCallback(() => {
+    if (!recognitionRef.current) return;
+    if (isListening) {
+      recognitionRef.current.stop();
+      setIsListening(false);
+    } else {
+      setInputValue("");
+      recognitionRef.current.start();
+      setIsListening(true);
+    }
+  }, [isListening]);
+
   // ── Persist session state to localStorage whenever key state changes ──
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1837,10 +1890,20 @@ const GoalDiscovery: React.FC = () => {
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Share your answer here…"
+              placeholder={isListening ? "Listening… speak now" : "Share your answer here…"}
               rows={1}
               disabled={isWaiting || isComplete}
             />
+            {voiceSupported && (
+              <button
+                className={`${styles.micBtn} ${isListening ? styles.micBtnActive : ""}`}
+                onClick={toggleVoice}
+                disabled={isWaiting || isComplete}
+                title={isListening ? "Stop listening" : "Use voice input"}
+              >
+                {isListening ? <MicOffIcon /> : <MicIcon />}
+              </button>
+            )}
             <button
               className={styles.sendBtn}
               onClick={handleSend}

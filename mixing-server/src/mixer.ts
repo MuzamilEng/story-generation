@@ -8,6 +8,11 @@ import { randomUUID } from 'crypto';
 // Point fluent-ffmpeg to the installed binary
 ffmpeg.setFfmpegPath(ffmpegPath.path);
 
+// Speech-focused encoding settings to keep narration files compact.
+// Formula: fileSizeBytes ≈ durationSeconds * (bitrateKbps / 8) * 1024.
+const MIX_MP3_BITRATE = '96k';
+const ENHANCE_MP3_BITRATE = '56k';
+
 interface MixOptions {
   /** Buffer of the primary voice / narration MP3 */
   voiceBuffer: Buffer;
@@ -279,8 +284,9 @@ export async function mixAudio(opts: MixOptions): Promise<Buffer> {
       .outputOptions([
         '-map', '[out]',
         '-ac',  '2',          // stereo
-        '-ar',  '44100',      // sample rate
-        '-b:a', '128k',       // bitrate
+        '-ar',  '32000',      // lower sample rate is enough for ambient + speech
+        '-b:a', MIX_MP3_BITRATE,
+        '-codec:a', 'libmp3lame',
       ])
       .output(outPath)
       .on('start', (cmdLine) => {
@@ -289,6 +295,68 @@ export async function mixAudio(opts: MixOptions): Promise<Buffer> {
       .on('end', () => {
         try {
           const result = fs.readFileSync(outPath);
+          fs.rmSync(tmpDir, { recursive: true, force: true });
+          resolve(result);
+        } catch (e) {
+          reject(e);
+        }
+      })
+      .on('error', (err) => {
+        try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+        reject(err);
+      })
+      .run();
+  });
+}
+
+/**
+ * Enhance a narration track for a more polished, professional spoken-voice sound.
+ *
+ * Processing chain:
+ * - highpass/lowpass: remove rumble + overly harsh top-end
+ * - afftdn: light broadband denoise
+ * - acompressor: smooth dynamics for stable narration level
+ * - loudnorm: podcast-style integrated loudness target
+ * - alimiter: protect peaks and prevent clipping
+ */
+export async function enhanceNarrationVoice(voiceBuffer: Buffer): Promise<Buffer> {
+  const tmpDir = path.join(os.tmpdir(), `enhance-${randomUUID()}`);
+  fs.mkdirSync(tmpDir, { recursive: true });
+
+  const inPath = path.join(tmpDir, 'voice-in.mp3');
+  const outPath = path.join(tmpDir, 'voice-enhanced.mp3');
+  fs.writeFileSync(inPath, voiceBuffer);
+
+  return new Promise<Buffer>((resolve, reject) => {
+    const inputBytes = voiceBuffer.length;
+    ffmpeg()
+      .input(inPath)
+      .audioFilters([
+        'highpass=f=70',
+        'lowpass=f=14500',
+        'afftdn=nf=-24',
+        'acompressor=threshold=-18dB:ratio=2.8:attack=20:release=220:makeup=3',
+        'loudnorm=I=-16:LRA=8:TP=-1.5',
+        'alimiter=limit=0.95',
+      ])
+      .outputOptions([
+        '-ac', '1',
+        '-ar', '24000',
+        '-b:a', ENHANCE_MP3_BITRATE,
+        '-codec:a', 'libmp3lame',
+      ])
+      .output(outPath)
+      .on('start', (cmdLine) => {
+        console.log('[enhance] FFmpeg command:', cmdLine);
+      })
+      .on('end', () => {
+        try {
+          const result = fs.readFileSync(outPath);
+          const ratio = inputBytes > 0 ? (result.length / inputBytes) : 0;
+          console.log(
+            `[enhance] Compression: ${Math.round(inputBytes / 1024)}KB -> ` +
+            `${Math.round(result.length / 1024)}KB (${(ratio * 100).toFixed(1)}%)`
+          );
           fs.rmSync(tmpDir, { recursive: true, force: true });
           resolve(result);
         } catch (e) {

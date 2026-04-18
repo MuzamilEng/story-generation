@@ -1,4 +1,4 @@
-import { AzureChatOpenAI, ChatOpenAI } from "@langchain/openai";
+import { AzureChatOpenAI } from "@langchain/openai";
 import { ChatAnthropic } from "@langchain/anthropic";
 import { BaseLanguageModel } from "@langchain/core/language_models/base";
 
@@ -6,9 +6,8 @@ import { BaseLanguageModel } from "@langchain/core/language_models/base";
 const anthropicKey = process.env.ANTHROPIC_API_KEY || process.env.Anthropic_API;
 const isAnthropic = !!anthropicKey;
 const isAzure = !!process.env.AZURE_OPENAI_API_KEY && !!process.env.AZURE_OPENAI_ENDPOINT;
-const isOpenAI = !!process.env.OPENAI_API_KEY;
 
-console.log(`[LangChain] Model selection: Anthropic=${isAnthropic}, Azure=${isAzure}, OpenAI=${isOpenAI}`);
+console.log(`[LangChain] Model selection: Anthropic=${isAnthropic}, Azure=${isAzure}`);
 
 // Primary model
 export const model = isAnthropic
@@ -19,20 +18,12 @@ export const model = isAnthropic
         maxTokens: 16384,
         maxRetries: 0, // We handle retries + fallback ourselves
     })
-    : isAzure
-    ? new AzureChatOpenAI({
+    : new AzureChatOpenAI({
         azureOpenAIApiKey: process.env.AZURE_OPENAI_API_KEY,
         azureOpenAIEndpoint: process.env.AZURE_OPENAI_ENDPOINT,
         azureOpenAIApiDeploymentName: process.env.AZURE_OPENAI_DEPLOYMENT_NAME || 'gpt-4o',
         azureOpenAIApiVersion: process.env.AZURE_OPENAI_API_VERSION || '2024-12-01-preview',
         temperature: 0.88,
-        maxRetries: 0,
-    })
-    : new ChatOpenAI({
-        apiKey: process.env.OPENAI_API_KEY,
-        model: "gpt-4o-2024-08-06",
-        temperature: 0.88,
-        maxTokens: 16384,
         maxRetries: 0,
     });
 
@@ -62,15 +53,7 @@ if (isAnthropic && isAzure) {
     }));
 }
 
-if (isAnthropic && isOpenAI && !isAzure) {
-    fallbackModels.push(new ChatOpenAI({
-        apiKey: process.env.OPENAI_API_KEY,
-        model: "gpt-4o-2024-08-06",
-        temperature: 0.88,
-        maxTokens: 16384,
-        maxRetries: 0,
-    }));
-}
+
 
 /**
  * Invoke the primary model with automatic retry + fallback to secondary models.
