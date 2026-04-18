@@ -13,7 +13,7 @@ console.log(`[LangChain] Model selection: Anthropic=${isAnthropic}, Azure=${isAz
 export const model = isAnthropic
     ? new ChatAnthropic({
         anthropicApiKey: anthropicKey,
-        modelName: "claude-sonnet-4-20250514",
+        modelName: "claude-sonnet-4-6",
         temperature: 0.88,
         maxTokens: 16384,
         maxRetries: 0, // We handle retries + fallback ourselves
