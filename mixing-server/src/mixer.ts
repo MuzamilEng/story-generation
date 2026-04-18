@@ -11,7 +11,9 @@ ffmpeg.setFfmpegPath(ffmpegPath.path);
 // Speech-focused encoding settings to keep narration files compact.
 // Formula: fileSizeBytes ≈ durationSeconds * (bitrateKbps / 8) * 1024.
 const MIX_MP3_BITRATE = '96k';
-const ENHANCE_MP3_BITRATE = '56k';
+// 80k provides a good balance between quality and size for enhanced voice.
+// Previous 56k caused audible artefacts on consonants and sibilants.
+const ENHANCE_MP3_BITRATE = '80k';
 
 interface MixOptions {
   /** Buffer of the primary voice / narration MP3 */
@@ -312,12 +314,23 @@ export async function mixAudio(opts: MixOptions): Promise<Buffer> {
 /**
  * Enhance a narration track for a more polished, professional spoken-voice sound.
  *
- * Processing chain:
- * - highpass/lowpass: remove rumble + overly harsh top-end
- * - afftdn: light broadband denoise
- * - acompressor: smooth dynamics for stable narration level
- * - loudnorm: podcast-style integrated loudness target
- * - alimiter: protect peaks and prevent clipping
+ * Processing chain (optimised for warm, human narration):
+ * - highpass: remove rumble below 80Hz (room noise, handling noise)
+ * - lowpass: remove harsh sibilance above 14kHz
+ * - afftdn: light broadband denoise (-20dB noise floor for cleaner audio)
+ * - agate: noise gate to eliminate low-level hiss between phrases
+ * - acompressor: gentle compression for stable narration dynamics
+ *     - threshold -20dB, ratio 2.5:1 — smooths loud/soft variation
+ *     - attack 25ms — preserves transients (consonant clarity)
+ *     - release 250ms — natural-sounding release between phrases
+ *     - makeup 2dB — compensates for gain reduction
+ * - equalizer: subtle warmth boost at 200Hz, presence at 3kHz
+ *     - Adds warmth and clarity without sounding processed
+ * - loudnorm: podcast-standard -16 LUFS integrated loudness
+ * - alimiter: hard limiter at -1dB true peak to prevent clipping
+ *
+ * Output: mono 32kHz MP3 — higher quality than previous 24kHz for better
+ * consonant reproduction and natural sibilance.
  */
 export async function enhanceNarrationVoice(voiceBuffer: Buffer): Promise<Buffer> {
   const tmpDir = path.join(os.tmpdir(), `enhance-${randomUUID()}`);
@@ -332,16 +345,28 @@ export async function enhanceNarrationVoice(voiceBuffer: Buffer): Promise<Buffer
     ffmpeg()
       .input(inPath)
       .audioFilters([
-        'highpass=f=70',
-        'lowpass=f=14500',
-        'afftdn=nf=-24',
-        'acompressor=threshold=-18dB:ratio=2.8:attack=20:release=220:makeup=3',
-        'loudnorm=I=-16:LRA=8:TP=-1.5',
-        'alimiter=limit=0.95',
+        // Remove low-frequency rumble (room noise, handling, HVAC)
+        'highpass=f=80',
+        // Remove harsh top-end sibilance
+        'lowpass=f=14000',
+        // Broadband denoise — slightly more aggressive for cleaner narration
+        'afftdn=nf=-20',
+        // Noise gate — eliminate hiss during pauses between phrases
+        'agate=threshold=-35dB:range=-30dB:attack=10:release=100',
+        // Gentle compression for consistent narration dynamics
+        'acompressor=threshold=-20dB:ratio=2.5:attack=25:release=250:makeup=2',
+        // Warmth + presence EQ for human-like narration quality:
+        //   +2dB at 200Hz (body/warmth), +1.5dB at 3kHz (clarity/presence)
+        'equalizer=f=200:t=q:w=1.5:g=2',
+        'equalizer=f=3000:t=q:w=1.5:g=1.5',
+        // Podcast-standard loudness normalisation
+        'loudnorm=I=-16:LRA=7:TP=-1.5',
+        // Hard limiter to prevent any clipping
+        'alimiter=limit=0.95:attack=1:release=50',
       ])
       .outputOptions([
         '-ac', '1',
-        '-ar', '24000',
+        '-ar', '32000',
         '-b:a', ENHANCE_MP3_BITRATE,
         '-codec:a', 'libmp3lame',
       ])

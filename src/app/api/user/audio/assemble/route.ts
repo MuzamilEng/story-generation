@@ -27,11 +27,14 @@ const BUCKET = process.env.R2_BUCKET_NAME || 'manifestmystory-audio';
 // 1400 chars = fewer API calls while still keeping chunks short enough
 // to preserve stable prosody and timbre.
 // We never split mid-sentence regardless of this limit.
-const CHUNK_CHARS = 1400;
+// 1200 chars ≈ 3–5 sentences. Slightly smaller chunks give S2-Pro more room
+// to apply emotion cues per segment while keeping prosody stable.
+const CHUNK_CHARS = 1200;
 
-// Small bounded parallelism significantly reduces total TTS time without
-// overwhelming provider limits or changing chunk ordering in final assembly.
-const MAX_TTS_CONCURRENCY = 2;
+// Bounded parallelism — 3 workers significantly reduce total TTS time for
+// long-form content without overwhelming provider rate limits.
+// The buffers array preserves ordering regardless of completion order.
+const MAX_TTS_CONCURRENCY = 3;
 
 // ── R2 helpers ────────────────────────────────────────────────────────────────
 async function fetchR2Buffer(key: string): Promise<Buffer | null> {
@@ -88,6 +91,20 @@ async function generateFreeTTS(text: string): Promise<Buffer | null> {
 }
 
 // ── Fish Audio TTS ────────────────────────────────────────────────────────────
+//
+// Quality settings tuned for audiobook-grade narration using S2-Pro model.
+//
+// Key differences vs previous implementation:
+//   - model: s2-pro (latest, best naturalness and emotion control)
+//   - temperature: 0.7 (controls expressiveness — higher = more varied)
+//   - top_p: 0.8 (nucleus sampling for natural prosody variation)
+//   - chunk_length: 250 (optimal for narration stability per Fish docs)
+//   - mp3_bitrate: 192 (maximum quality for narration source material)
+//   - repetition_penalty: 1.2 (prevents audio looping / stuck patterns)
+//   - condition_on_previous_chunks: true (maintains voice consistency)
+//   - prosody speed: 0.9 (natural narration pacing)
+//   - normalize_loudness: true (consistent volume across chunks)
+//
 async function generateFishAudioTTS(voiceId: string, text: string): Promise<Buffer | null> {
     const key = process.env.FISH_AUDIO_API;
     if (!key || !voiceId) return null;
@@ -95,27 +112,55 @@ async function generateFishAudioTTS(voiceId: string, text: string): Promise<Buff
     try {
         const res = await fetch('https://api.fish.audio/v1/tts', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${key}`,
+                model: 's2-pro',
+            },
             body: JSON.stringify({
                 text,
                 reference_id: voiceId.startsWith('mock_')
                     ? '7ef4660e505a41d9966d58546de54201'
                     : voiceId,
 
-                // wav = lossless. No mp3 codec artefacts on consonants.
-                // MP3 keeps quality high enough for narration while reducing
-                // payload size and upload/mixing latency dramatically.
+                // MP3 at 192kbps for high-quality narration source.
+                // The mixing server will re-encode to a smaller bitrate.
                 format: 'mp3',
+                mp3_bitrate: 192,
+
+                // Text normalisation — handles numbers, dates, URLs.
                 normalize: true,
+
+                // 'normal' = best quality. 'balanced' trades quality for speed.
                 latency: 'normal',
 
-                // 0.88 = ElevenLabs "Narration" preset equivalent.
-                // This is the single biggest quality lever after the voice
-                // clone itself. Too fast (1.0) = robotic. Too slow (<0.85)
-                // = unnatural drag. 0.88 hits the audiobook sweet spot.
+                // Expressiveness controls (S2-Pro).
+                // 0.7 = sweet spot for narration: varied enough to sound human,
+                // stable enough not to produce artefacts.
+                temperature: 0.7,
+                top_p: 0.8,
+
+                // Chunk processing — 250 chars hits the stability sweet-spot
+                // per Fish Audio docs (range: 100–300).
+                chunk_length: 250,
+                min_chunk_length: 50,
+
+                // Prevents the model from looping on repeated audio patterns.
+                repetition_penalty: 1.2,
+                max_new_tokens: 2048,
+
+                // Uses the previous chunk's audio as context for the next,
+                // keeping voice timbre and emotion consistent across a long
+                // narration.
+                condition_on_previous_chunks: true,
+
+                // Prosody — 0.9 is a natural storytelling pace. 0.88 was
+                // slightly slow and could drag on long-form content.
+                // normalize_loudness ensures consistent volume across chunks.
                 prosody: {
-                    speed: 0.88,
+                    speed: 0.9,
                     volume: 0,
+                    normalize_loudness: true,
                 },
             }),
         });
@@ -135,29 +180,30 @@ async function generateFishAudioTTS(voiceId: string, text: string): Promise<Buff
 
 // ── Narration text preparation ────────────────────────────────────────────────
 /**
- * Prepares raw story text for high-quality narration TTS.
+ * Prepares raw story text for high-quality narration TTS on Fish Audio S2-Pro.
  *
  * WHY THIS MATTERS:
- * Fish Audio (like ElevenLabs) uses punctuation as prosody signals.
+ * Fish Audio S2-Pro uses punctuation as prosody signals AND supports
+ * natural-language [bracket] emotion cues placed at the start of sentences.
  * A comma = short breath. A period = full breath. An ellipsis = dramatic
- * pause. If you strip these or turn decorative dividers into ". " (ghost
- * pauses), the voice either rushes or sounds broken.
+ * pause. Emotion cues like [soft] or [calm] control warmth and expression.
  *
  * RULES:
- * - Scene breaks  → "..." so Fish Audio holds a dramatic 0.8s pause
- * - Paragraph gap → ". " so Fish Audio takes a full breath between sections
- * - Decorative dividers → stripped cleanly, no ". " ghost padding
+ * - Scene breaks  → "[pause] ..." so S2-Pro holds a dramatic pause
+ * - Paragraph gap → ". " so S2-Pro takes a full breath between sections
+ * - Decorative dividers → stripped cleanly, no ghost padding
  * - Commas/periods get correct spacing so the model breathes on them
  * - Dialogue em-dashes preserved — they signal a speaker change pause
+ * - Emotion cues injected at natural points for warm, expressive narration
  */
 function prepareNarrationText(text: string): string {
-    return text
+    let prepared = text
         .replace(/\r\n/g, '\n')
 
-        // Scene breaks → dramatic ellipsis pause (Fish Audio reads ~0.8s)
-        .replace(/·\s*·\s*·/g, '...')
-        .replace(/\*\s*\*\s*\*/g, '...')
-        .replace(/[-–—]{3,}/g, '...')
+        // Scene breaks → pause cue + ellipsis for dramatic pause
+        .replace(/·\s*·\s*·/g, '[pause] ...')
+        .replace(/\*\s*\*\s*\*/g, '[pause] ...')
+        .replace(/[-–—]{3,}/g, '[pause] ...')
 
         // Decorative divider lines → just remove (no ghost pauses)
         .replace(/^[·•\-–—*_~#=\s]{3,}$/gm, '')
@@ -166,7 +212,7 @@ function prepareNarrationText(text: string): string {
         .replace(/\.{4,}/g, '...')
         .replace(/\u2026/g, '...')
 
-        // Paragraph breaks (2+ newlines) → period + space so Fish Audio
+        // Paragraph breaks (2+ newlines) → period + space so S2-Pro
         // knows to take a full breath between sections
         .replace(/\n{2,}/g, '. ')
 
@@ -186,6 +232,21 @@ function prepareNarrationText(text: string): string {
         // Final whitespace cleanup
         .replace(/\s{2,}/g, ' ')
         .trim();
+
+    // ── Inject S2-Pro emotion cues for storytelling narration ──────────────
+    // S2-Pro uses [bracket] syntax with natural language descriptions.
+    // We add a [soft, warm narration] cue at the very start so the model
+    // adopts a storytelling tone from the first chunk.
+    // Additional cues are added at scene breaks for emotional variation.
+    prepared = '[soft, warm narration] ' + prepared;
+
+    // Enhance scene-break pauses with a gentle emotional reset
+    prepared = prepared.replace(
+        /\[pause\] \.\.\./g,
+        '[pause] ... [gentle, reflective] '
+    );
+
+    return prepared;
 }
 
 // ── Sentence-aware chunker ────────────────────────────────────────────────────
@@ -198,13 +259,18 @@ function prepareNarrationText(text: string): string {
  *   "She walked to the door, her heart [CHUNK BREAK] pounding as she turned
  *    the handle."
  *
- * Fish Audio starts each chunk with a fresh prosody prediction, so the
+ * Fish Audio S2-Pro starts each chunk with a fresh prosody prediction, so the
  * second chunk "pounding as she turned the handle." sounds flat and robotic
  * because the model has no emotional context from the first half.
  *
  * This chunker accumulates complete sentences until it would exceed maxChars,
  * then flushes. A single oversized sentence is kept whole — a seam inside a
  * sentence is always worse than a slightly long chunk.
+ *
+ * EMOTION CONTINUITY:
+ * For chunks after the first, we prepend a [soft narration] cue so S2-Pro
+ * maintains the storytelling tone even though it starts a fresh prosody
+ * prediction per chunk. This prevents the "goes flat after chunk 1" problem.
  */
 function splitIntoNarrationChunks(preparedText: string, maxChars: number = CHUNK_CHARS): string[] {
     if (!preparedText) return [];
@@ -239,7 +305,7 @@ function splitIntoNarrationChunks(preparedText: string, maxChars: number = CHUNK
             }
         }
         if (cur.trim()) chunks.push(cur.trim());
-        return chunks;
+        return ensureEmotionContinuity(chunks);
     }
 
     // Greedy pack: accumulate sentences until adding the next would exceed limit
@@ -260,7 +326,20 @@ function splitIntoNarrationChunks(preparedText: string, maxChars: number = CHUNK
     }
 
     if (current.trim()) chunks.push(current.trim());
-    return chunks;
+    return ensureEmotionContinuity(chunks);
+}
+
+/**
+ * Ensures each chunk after the first carries a S2-Pro emotion cue so the
+ * model doesn't revert to a neutral/flat tone between chunks.
+ * Only adds a cue if the chunk doesn't already start with a [bracket] tag.
+ */
+function ensureEmotionContinuity(chunks: string[]): string[] {
+    return chunks.map((chunk, i) => {
+        if (i === 0) return chunk; // First chunk already has [soft, warm narration]
+        if (chunk.startsWith('[')) return chunk; // Already has an emotion cue
+        return '[soft narration] ' + chunk;
+    });
 }
 
 // ── API HANDLER ───────────────────────────────────────────────────────────────
@@ -393,12 +472,15 @@ export async function POST(req: NextRequest) {
         }
 
         // ── Text segmentation ─────────────────────────────────────────────────
+        // Generate audio for the FULL story text — no truncation.
+        // The sentence-aware chunker + bounded concurrency ensures stable
+        // quality and manageable API load even for long-form narration.
         const rawText = (story as any).story_text_approved || (story as any).story_text_draft || '';
-        const limitedText = String(rawText).slice(0, 500);
-        const { intro: introText, storyBody: storyBodyText } = splitIntroFromStory(limitedText);
+        const fullText = String(rawText);
+        const { intro: introText, storyBody: storyBodyText } = splitIntroFromStory(fullText);
 
         console.log(
-            `[assemble] Source limited to ${limitedText.length} chars | Intro: ${introText.length} chars | Body: ${storyBodyText.length} chars`
+            `[assemble] Full text: ${fullText.length} chars | Intro: ${introText.length} chars | Body: ${storyBodyText.length} chars`
         );
 
         // ── 1. Intro TTS ───────────────────────────────────────────────────────

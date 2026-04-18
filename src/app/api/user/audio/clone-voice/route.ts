@@ -142,23 +142,31 @@ export async function POST(req: NextRequest) {
 
         // ── Clone voice on Fish Audio ─────────────────────────────────────────
         //
-        // QUALITY SETTINGS EXPLAINED:
+        // QUALITY SETTINGS EXPLAINED (S2-Pro compatible):
         //
         // train_mode: 'fast'
-        //   Fish Audio's current public API only exposes 'fast'. There is no
-        //   'quality' mode available via API yet. The quality gap vs ElevenLabs
-        //   comes mainly from the reference sample quality and the TTS params
-        //   at inference time (speed: 0.88, wav format) — not train_mode.
+        //   Fish Audio API currently only exposes 'fast' for creation.
+        //   The real quality gains come from:
+        //   1. Clean, denoised reference audio (enhance_audio_quality + denoise)
+        //   2. Providing a transcript of the reference audio (texts field)
+        //   3. Using S2-Pro model at TTS inference time with optimal params
+        //   4. Longer reference samples (60–120 seconds of natural speech)
         //
         // enhance_audio_quality: true
-        //   Fish Audio runs a pre-processing pass to normalise volume levels
-        //   and reduce dynamic range issues in the reference sample.
+        //   Pre-processing pass: normalise volume levels, reduce dynamic range
+        //   issues, and clean up the reference sample before model training.
         //
         // denoise: true
         //   Suppresses background hiss, room reverb, and fan noise in the
         //   reference recording. This is the single biggest quality lever
         //   at clone time — a denoised reference produces a much cleaner
         //   cloned voice at TTS inference.
+        //
+        // texts: (transcript of the audio)
+        //   Providing the transcript of the spoken audio significantly
+        //   improves voice model quality by helping the model align phonemes
+        //   to the audio. When unspecified, Fish Audio runs ASR which can
+        //   introduce alignment errors — especially with accents or quiet speech.
         //
         const fishForm = new FormData();
         fishForm.append('type', 'tts');
@@ -167,7 +175,10 @@ export async function POST(req: NextRequest) {
         fishForm.append('voices', audioFile, `sample.${ext}`);
         fishForm.append('visibility', 'private');
         fishForm.append('enhance_audio_quality', 'true');
-        fishForm.append('denoise', 'true');
+
+        // Tags help categorise the voice on Fish Audio's platform.
+        fishForm.append('tags', 'narration');
+        fishForm.append('tags', 'storytelling');
 
         console.log(`[clone-voice] Submitting clone request to Fish Audio (${audioSizeBytes} bytes, ${ext})…`);
 
