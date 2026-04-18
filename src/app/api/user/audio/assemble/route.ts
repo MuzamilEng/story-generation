@@ -11,6 +11,172 @@ export const maxDuration = 300;
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+// ── WAV crossfade utility ─────────────────────────────────────────────────────
+// PCM crossfade between WAV chunks to eliminate hard seams.
+// This is what makes ElevenLabs sound "smooth" — their single-call approach
+// has no seams. Our multi-chunk approach needs explicit crossfading.
+
+/** Duration of crossfade overlap in milliseconds */
+const CROSSFADE_MS = 30;
+
+/**
+ * Parse a WAV buffer and extract raw PCM samples + format info.
+ * Handles standard RIFF/WAVE with 'fmt ' and 'data' chunks.
+ */
+function parseWav(buf: Buffer): { sampleRate: number; channels: number; bitsPerSample: number; pcm: Buffer } | null {
+    if (buf.length < 44) return null;
+    const riff = buf.toString('ascii', 0, 4);
+    const wave = buf.toString('ascii', 8, 12);
+    if (riff !== 'RIFF' || wave !== 'WAVE') return null;
+
+    let offset = 12;
+    let sampleRate = 44100;
+    let channels = 1;
+    let bitsPerSample = 16;
+    let pcmStart = 0;
+    let pcmLength = 0;
+
+    while (offset + 8 <= buf.length) {
+        const chunkId = buf.toString('ascii', offset, offset + 4);
+        const chunkSize = buf.readUInt32LE(offset + 4);
+        if (chunkId === 'fmt ') {
+            channels = buf.readUInt16LE(offset + 10);
+            sampleRate = buf.readUInt32LE(offset + 12);
+            bitsPerSample = buf.readUInt16LE(offset + 22);
+        } else if (chunkId === 'data') {
+            pcmStart = offset + 8;
+            pcmLength = chunkSize;
+            break;
+        }
+        offset += 8 + chunkSize;
+        // Pad to even boundary
+        if (chunkSize % 2 !== 0) offset++;
+    }
+
+    if (pcmStart === 0) return null;
+    const pcm = buf.subarray(pcmStart, pcmStart + pcmLength);
+    return { sampleRate, channels, bitsPerSample, pcm };
+}
+
+/**
+ * Build a WAV file from raw PCM data with the given format.
+ */
+function buildWav(pcm: Buffer, sampleRate: number, channels: number, bitsPerSample: number): Buffer {
+    const byteRate = sampleRate * channels * (bitsPerSample / 8);
+    const blockAlign = channels * (bitsPerSample / 8);
+    const header = Buffer.alloc(44);
+
+    header.write('RIFF', 0);
+    header.writeUInt32LE(36 + pcm.length, 4);
+    header.write('WAVE', 8);
+    header.write('fmt ', 12);
+    header.writeUInt32LE(16, 16);
+    header.writeUInt16LE(1, 20); // PCM
+    header.writeUInt16LE(channels, 22);
+    header.writeUInt32LE(sampleRate, 24);
+    header.writeUInt32LE(byteRate, 28);
+    header.writeUInt16LE(blockAlign, 32);
+    header.writeUInt16LE(bitsPerSample, 34);
+    header.write('data', 36);
+    header.writeUInt32LE(pcm.length, 40);
+
+    return Buffer.concat([header, pcm]);
+}
+
+/**
+ * Join multiple WAV buffers with a short PCM crossfade to eliminate
+ * hard seams between TTS chunks. This is the key to matching
+ * ElevenLabs-level smoothness from a multi-chunk pipeline.
+ *
+ * Each transition overlaps by CROSSFADE_MS. The outgoing chunk fades
+ * out while the incoming chunk fades in, producing a seamless join.
+ *
+ * Falls back to simple concatenation for non-WAV (MP3) buffers.
+ */
+function joinWavChunksWithCrossfade(chunks: Buffer[]): Buffer {
+    if (chunks.length === 0) return Buffer.alloc(0);
+    if (chunks.length === 1) return chunks[0];
+
+    // Parse the first chunk to get format info
+    const first = parseWav(chunks[0]);
+    if (!first) {
+        // Not WAV — fall back to simple concat (MP3 from free TTS)
+        return Buffer.concat(chunks);
+    }
+
+    const { sampleRate, channels, bitsPerSample } = first;
+    const bytesPerSample = bitsPerSample / 8;
+    const bytesPerFrame = channels * bytesPerSample;
+    const crossfadeFrames = Math.floor((CROSSFADE_MS / 1000) * sampleRate);
+    const crossfadeBytes = crossfadeFrames * bytesPerFrame;
+
+    // Collect all PCM data
+    const pcmChunks: Buffer[] = [];
+    for (const chunk of chunks) {
+        const parsed = parseWav(chunk);
+        if (parsed) {
+            pcmChunks.push(parsed.pcm);
+        }
+    }
+
+    if (pcmChunks.length === 0) return Buffer.concat(chunks);
+    if (pcmChunks.length === 1) return buildWav(pcmChunks[0], sampleRate, channels, bitsPerSample);
+
+    // Calculate total output size
+    let totalBytes = pcmChunks[0].length;
+    for (let i = 1; i < pcmChunks.length; i++) {
+        // Each subsequent chunk overlaps by crossfadeBytes with the previous
+        const overlap = Math.min(crossfadeBytes, pcmChunks[i - 1].length, pcmChunks[i].length);
+        totalBytes += pcmChunks[i].length - overlap;
+    }
+
+    const output = Buffer.alloc(totalBytes);
+    let writeOffset = 0;
+
+    // Copy first chunk entirely
+    pcmChunks[0].copy(output, 0);
+    writeOffset = pcmChunks[0].length;
+
+    for (let i = 1; i < pcmChunks.length; i++) {
+        const prev = pcmChunks[i - 1];
+        const curr = pcmChunks[i];
+        const overlap = Math.min(crossfadeBytes, prev.length, curr.length);
+        const overlapFrames = Math.floor(overlap / bytesPerFrame);
+
+        // Move write position back by overlap amount
+        writeOffset -= overlap;
+
+        // Crossfade the overlap region
+        for (let f = 0; f < overlapFrames; f++) {
+            const fadeOut = 1 - (f / overlapFrames); // previous chunk fades out
+            const fadeIn = f / overlapFrames;          // current chunk fades in
+            const prevOffset = prev.length - overlap + f * bytesPerFrame;
+            const currOffset = f * bytesPerFrame;
+            const outOffset = writeOffset + f * bytesPerFrame;
+
+            for (let c = 0; c < channels; c++) {
+                const sampleOffset = c * bytesPerSample;
+                const prevSample = prev.readInt16LE(prevOffset + sampleOffset);
+                const currSample = curr.readInt16LE(currOffset + sampleOffset);
+                const mixed = Math.round(prevSample * fadeOut + currSample * fadeIn);
+                // Clamp to 16-bit range
+                const clamped = Math.max(-32768, Math.min(32767, mixed));
+                output.writeInt16LE(clamped, outOffset + sampleOffset);
+            }
+        }
+
+        // Copy the rest of the current chunk (after the overlap region)
+        const remaining = curr.subarray(overlap);
+        writeOffset += overlap;
+        remaining.copy(output, writeOffset);
+        writeOffset += remaining.length;
+    }
+
+    // Trim output to actual used bytes
+    const finalPcm = output.subarray(0, writeOffset);
+    return buildWav(finalPcm, sampleRate, channels, bitsPerSample);
+}
+
 // ── R2 client ────────────────────────────────────────────────────────────────
 const s3 = new S3Client({
     region: 'us-east-1',
@@ -94,16 +260,24 @@ async function generateFreeTTS(text: string): Promise<Buffer | null> {
 //
 // Quality settings tuned for audiobook-grade narration using S2-Pro model.
 //
-// Key differences vs previous implementation:
+// WHY WAV FORMAT:
+//   ElevenLabs sounds smoother partly because their TTS engine outputs
+//   high-quality audio internally. When we request MP3 from Fish Audio,
+//   it goes through their server-side MP3 encoder which introduces
+//   compression artefacts — especially on sibilants ("s", "sh"), breaths,
+//   and low-energy transitions between words. By requesting WAV (lossless),
+//   we get the raw neural output with zero codec degradation. The mixer
+//   handles the final MP3 encoding with our tuned settings.
+//
+// KEY PARAMS (tuned to match ElevenLabs smoothness):
 //   - model: s2-pro (latest, best naturalness and emotion control)
-//   - temperature: 0.7 (controls expressiveness — higher = more varied)
+//   - format: wav at 44.1kHz (lossless — no MP3 artefacts in TTS stage)
+//   - temperature: 0.8 (ElevenLabs stability=0.5 ≈ high expressiveness)
 //   - top_p: 0.8 (nucleus sampling for natural prosody variation)
-//   - chunk_length: 250 (optimal for narration stability per Fish docs)
-//   - mp3_bitrate: 192 (maximum quality for narration source material)
+//   - chunk_length: 300 (max allowed — fewer internal splits = smoother)
 //   - repetition_penalty: 1.2 (prevents audio looping / stuck patterns)
 //   - condition_on_previous_chunks: true (maintains voice consistency)
-//   - prosody speed: 0.9 (natural narration pacing)
-//   - normalize_loudness: true (consistent volume across chunks)
+//   - prosody speed: 0.9 with normalize_loudness for consistency
 //
 async function generateFishAudioTTS(voiceId: string, text: string): Promise<Buffer | null> {
     const key = process.env.FISH_AUDIO_API;
@@ -123,10 +297,14 @@ async function generateFishAudioTTS(voiceId: string, text: string): Promise<Buff
                     ? '7ef4660e505a41d9966d58546de54201'
                     : voiceId,
 
-                // MP3 at 192kbps for high-quality narration source.
-                // The mixing server will re-encode to a smaller bitrate.
-                format: 'mp3',
-                mp3_bitrate: 192,
+                // WAV = lossless output from the TTS neural network.
+                // This is the single biggest quality lever vs MP3:
+                //   - No compression artefacts on sibilants
+                //   - Smooth breath transitions preserved
+                //   - Natural low-frequency warmth retained
+                // The mixing server handles final MP3 encoding.
+                format: 'wav',
+                sample_rate: 44100,
 
                 // Text normalisation — handles numbers, dates, URLs.
                 normalize: true,
@@ -134,16 +312,16 @@ async function generateFishAudioTTS(voiceId: string, text: string): Promise<Buff
                 // 'normal' = best quality. 'balanced' trades quality for speed.
                 latency: 'normal',
 
-                // Expressiveness controls (S2-Pro).
-                // 0.7 = sweet spot for narration: varied enough to sound human,
-                // stable enough not to produce artefacts.
-                temperature: 0.7,
+                // Expressiveness — 0.8 is closer to ElevenLabs' default
+                // (stability=0.5 means high variation). 0.7 was too conservative
+                // and produced monotonous narration on long-form content.
+                temperature: 0.8,
                 top_p: 0.8,
 
-                // Chunk processing — 250 chars hits the stability sweet-spot
-                // per Fish Audio docs (range: 100–300).
-                chunk_length: 250,
-                min_chunk_length: 50,
+                // 300 = maximum allowed. Larger internal chunks = fewer
+                // Fish-Audio-internal seams = smoother continuous speech.
+                chunk_length: 300,
+                min_chunk_length: 80,
 
                 // Prevents the model from looping on repeated audio patterns.
                 repetition_penalty: 1.2,
@@ -151,11 +329,14 @@ async function generateFishAudioTTS(voiceId: string, text: string): Promise<Buff
 
                 // Uses the previous chunk's audio as context for the next,
                 // keeping voice timbre and emotion consistent across a long
-                // narration.
+                // narration. Critical for smoothness.
                 condition_on_previous_chunks: true,
 
-                // Prosody — 0.9 is a natural storytelling pace. 0.88 was
-                // slightly slow and could drag on long-form content.
+                // Early stop threshold — 1.0 = let the model decide when to
+                // stop naturally rather than cutting off early.
+                early_stop_threshold: 1.0,
+
+                // Prosody — 0.9 is a natural storytelling pace.
                 // normalize_loudness ensures consistent volume across chunks.
                 prosody: {
                     speed: 0.9,
@@ -502,6 +683,8 @@ export async function POST(req: NextRequest) {
         }
 
         // ── Assembly ──────────────────────────────────────────────────────────
+        // For Fish Audio WAV output: crossfade chunks for seamless transitions.
+        // For free TTS MP3 output: simple concatenation.
         const parts: Buffer[] = [];
         const segmentLog: string[] = [];
 
@@ -518,19 +701,31 @@ export async function POST(req: NextRequest) {
 
         console.log(`[assemble] 🎬 ${segmentLog.join(' → ')}`);
 
-        const finalAudio = Buffer.concat(parts);
-        console.log(`[assemble] ✅ Assembled — ${finalAudio.byteLength} bytes`);
+        // Crossfade WAV chunks for seamless transitions (Fish Audio),
+        // or simple concat for MP3 chunks (free TTS).
+        const finalAudio = ttsProvider === 'fishaudio'
+            ? joinWavChunksWithCrossfade(parts)
+            : Buffer.concat(parts);
+        console.log(`[assemble] ✅ Assembled — ${finalAudio.byteLength} bytes (${parts.length} segments, crossfade=${ttsProvider === 'fishaudio'})`);
 
-        // Approx for narration MP3 at ~128kbps.
-        const bytesPerSecond = 16000;
+        // Duration estimation depends on format:
+        //   WAV 44.1kHz 16-bit mono: ~88200 bytes/sec
+        //   WAV 44.1kHz 16-bit stereo: ~176400 bytes/sec
+        //   MP3 128kbps: ~16000 bytes/sec
+        // Use WAV mono estimate when Fish Audio is provider, MP3 for free TTS.
+        const bytesPerSecond = ttsProvider === 'fishaudio' ? 88200 : 16000;
         const duration = Math.round(finalAudio.byteLength / bytesPerSecond);
 
+        // Upload as WAV when using Fish Audio (lossless), MP3 for free TTS.
+        const audioExt = ttsProvider === 'fishaudio' ? 'wav' : 'mp3';
+        const audioMime = ttsProvider === 'fishaudio' ? 'audio/wav' : 'audio/mpeg';
+
         // ── Upload to R2 ──────────────────────────────────────────────────────
-        let finalKey = `user_${user.id}/story_${story.id}_final_${ts}.mp3`;
+        let finalKey = `user_${user.id}/story_${story.id}_final_${ts}.${audioExt}`;
         let voiceOnlyKey = finalKey;
 
         await s3.send(
-            new PutObjectCommand({ Bucket: BUCKET, Key: finalKey, Body: finalAudio, ContentType: 'audio/mpeg' }),
+            new PutObjectCommand({ Bucket: BUCKET, Key: finalKey, Body: finalAudio, ContentType: audioMime }),
         );
 
         console.log(`[assemble] ✅ Uploaded — ${finalKey}`);
