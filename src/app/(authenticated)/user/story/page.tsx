@@ -232,26 +232,31 @@ const StorySummaryPanel: React.FC<{ answers: UserAnswers | null }> = ({
   }
 
   if (answers.goals) {
-    const goalText =
-      answers.goals.length > 200
-        ? answers.goals.slice(0, 200) + "…"
-        : answers.goals;
-    summaryItems.push({ label: "Your goals", value: goalText });
+    summaryItems.push({ label: "Your goals", value: answers.goals });
   }
 
   if (answers.actionsAfter) {
-    const actionsText =
-      answers.actionsAfter.length > 200
-        ? answers.actionsAfter.slice(0, 200) + "…"
-        : answers.actionsAfter;
-    summaryItems.push({ label: "Proof actions", value: actionsText });
+    summaryItems.push({ label: "Proof actions", value: answers.actionsAfter });
   }
 
   if (answers.identityStatements?.length > 0) {
     summaryItems.push({
-      label: "Your affirmations",
+      label: "Identity statements",
       value: answers.identityStatements.join(" · "),
     });
+  }
+
+  // Per-area affirmations
+  const areaAffKeys = Object.keys(answers).filter(k => k.startsWith('areaAffirmations_'));
+  for (const key of areaAffKeys) {
+    const area = key.replace('areaAffirmations_', '');
+    const val = (answers as any)[key];
+    if (val) {
+      summaryItems.push({
+        label: `${area.charAt(0).toUpperCase() + area.slice(1)} affirmations`,
+        value: Array.isArray(val) ? val.join(" · ") : String(val),
+      });
+    }
   }
 
   if (answers.tone) {
@@ -843,7 +848,8 @@ const StoryContent: React.FC = () => {
         />
       )}
 
-      {/* Mobile Navigation Bar */}
+      {/* Mobile Navigation Bar — hidden during generation */}
+      {!isGenerating && (
       <div className={styles.mobilePanelNav}>
         <button
           className={`${styles.mobileNavBtn} ${showVisionMobile ? styles.active : ""}`}
@@ -866,8 +872,11 @@ const StoryContent: React.FC = () => {
           Your Story Details
         </button>
       </div>
+      )}
 
       <div className={styles.pageBody}>
+        {/* Left sidebar — hidden during story generation (#27) */}
+        {!isGenerating && (
         <aside
           className={`${styles.leftPanel} ${showVisionMobile ? styles.showMobile : ""}`}
         >
@@ -884,22 +893,39 @@ const StoryContent: React.FC = () => {
             <div>
               <div className={styles.panelSectionTitle}>Your Vision</div>
 
-              <VisionItem
-                label="New Identity"
-                value={
-                  userAnswers.identityStatements?.length
-                    ? userAnswers.identityStatements.join(", ")
-                    : ""
-                }
-              />
-              <VisionItem
-                label="Most Important Goal"
-                value={userAnswers.goals}
-              />
-              <VisionItem
-                label="Proof Action"
-                value={userAnswers.actionsAfter}
-              />
+              {userAnswers.identityStatements?.length > 0 && (
+                <VisionItem
+                  label="Identity Statements"
+                  value={userAnswers.identityStatements.join(" · ")}
+                />
+              )}
+
+              {/* Per-area goals */}
+              {userAnswers.selectedAreas?.length > 0 && userAnswers.selectedAreas.map((area) => {
+                const areaGoals = (userAnswers as any)[area.toLowerCase()];
+                if (!areaGoals || !String(areaGoals).trim()) return null;
+                return (
+                  <VisionItem
+                    key={area}
+                    label={`${area.charAt(0).toUpperCase() + area.slice(1)} Goals`}
+                    value={String(areaGoals)}
+                  />
+                );
+              })}
+
+              {userAnswers.goals && (
+                <VisionItem
+                  label="Goals"
+                  value={userAnswers.goals}
+                />
+              )}
+
+              {userAnswers.actionsAfter && (
+                <VisionItem
+                  label="Proof Actions"
+                  value={userAnswers.actionsAfter}
+                />
+              )}
 
               {userAnswers.namedPersons &&
                 userAnswers.namedPersons.length > 0 && (
@@ -942,6 +968,7 @@ const StoryContent: React.FC = () => {
             Regenerate story
           </button>
         </aside>
+        )}
 
         <main className={styles.centerPanel} id="centerPanel">
           {genError && (
@@ -1292,6 +1319,8 @@ const StoryContent: React.FC = () => {
           )}
         </main>
 
+        {/* Right sidebar — hidden during story generation (#27) */}
+        {!isGenerating && (
         <aside
           className={`${styles.rightPanel} ${showChecklistMobile ? styles.showMobile : ""}`}
         >
@@ -1312,6 +1341,7 @@ const StoryContent: React.FC = () => {
 
           <NextStepCard onNext={handleRecordVoice} disabled={!isApproved} />
         </aside>
+        )}
       </div>
     </div>
   );

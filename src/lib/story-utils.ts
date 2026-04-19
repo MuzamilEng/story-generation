@@ -234,6 +234,19 @@ export function normalizeGoals(raw: any): UserAnswers {
 
     normalized.categories = auxiliaryCategories;
 
+    // Issue #25: Detect workaround phrases like "all of them" stored as literal goal data
+    // and clear them so the story engine doesn't receive empty/garbage goal content.
+    const workaroundPatterns = /^(all of them|all of the above|all|everything|every one|the first \w+|all please|all of them please|yes all|i want all|select all)$/i;
+    const areaGoalKeys = ['wealth', 'health', 'love', 'family', 'purpose', 'spirituality', 'growth', 'goals'];
+    for (const key of areaGoalKeys) {
+        const val = normalized[key];
+        if (typeof val === 'string' && workaroundPatterns.test(val.trim())) {
+            // Clear the workaround string — the per-area affirmations and other
+            // captured data will still carry the real content
+            normalized[key] = '';
+        }
+    }
+
     return normalized as UserAnswers;
 }
 
@@ -642,7 +655,22 @@ This story will be listened to dozens or hundreds of times. Build for that:
 - Each scene must have an internal "emotional shift" where the character recognizes a proof of their growth.
 - DO NOT use markdown symbols (*, **, #, _, etc.) for emphasis or headers. 
 - Use plain text only. The UI will handle the styling.
-- Avoid any "bold" or "italic" formatting patterns.\n\n`;
+- Avoid any "bold" or "italic" formatting patterns.
+
+━━━ TENSE DISCIPLINE — CRITICAL ━━━
+Every scene in the vision section is first-person PRESENT tense. No past-tense verbs inside present-moment scenes.
+- WRONG: "I felt grateful" (past tense inside a present scene)
+- RIGHT: "I am grateful" / "I feel grateful"
+- WRONG: "And I made it. I actually made it." ("actually" implies surprise — undercuts the already-done framing)
+- RIGHT: "And I made it. It is exactly as I knew it would be."
+- No "felt," "was," "had" inside vision scenes unless explicitly referencing a past event relative to the story's timeline
+- Every verb in vision scenes is active and present
+- The word "actually" must never appear in an identity or proof scene — it signals doubt
+
+━━━ REGISTER-MATCH RULE ━━━
+Before using any unusual or literary word (e.g., "fruitfulness," "beneficence," "efflorescence"), check it against the surrounding paragraph's register. If the passage is written in grounded, embodied, first-person language — which this story type always is — use concrete, embodied words instead.
+The test: would the user say this word aloud in their own voice without it sounding performed? If no, rewrite.
+Flag any abstract Latinate noun ending in -ness, -ity, or -ence that does not appear in the user's intake vocabulary. Use concrete alternatives instead.\n\n`;
 
     // BLOCK C — KINESTHETIC ANCHOR INSTALLATION (Manifester+)
     if (['manifester', 'amplifier'].includes(userTier)) {

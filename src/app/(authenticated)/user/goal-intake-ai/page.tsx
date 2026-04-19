@@ -53,9 +53,7 @@ const CapturedItem: React.FC<CapturedItemProps> = ({ label, value }) => {
   return (
     <div className={styles.capturedItem}>
       <strong>{label}</strong>
-      {displayValue.length > 80
-        ? `${displayValue.slice(0, 80)}…`
-        : displayValue}
+      {displayValue}
     </div>
   );
 };
@@ -599,11 +597,10 @@ const CompletionCard: React.FC<CompletionCardProps> = ({
                       fontSize: "0.85rem",
                       color: "rgba(255,255,255,0.8)",
                       lineHeight: 1.5,
+                      whiteSpace: "pre-wrap",
                     }}
                   >
-                    {displayVal.length > 150
-                      ? displayVal.slice(0, 150) + "…"
-                      : displayVal}
+                    {displayVal}
                   </div>
                 )}
               </div>
@@ -648,6 +645,7 @@ interface MessageBubbleProps {
   isIdentityPhase?: boolean;
   isLifeAreasPhase?: boolean;
   isExplorer?: boolean;
+  isAffirmationPhase?: boolean;
 }
 
 const MessageBubble: React.FC<MessageBubbleProps> = ({
@@ -656,6 +654,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
   isIdentityPhase,
   isLifeAreasPhase,
   isExplorer,
+  isAffirmationPhase,
 }) => {
   const isUser = message.role === "user";
   const [selectedChips, setSelectedChips] = useState<string[]>([]);
@@ -720,8 +719,24 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
 
   const chips = useMemo(() => extractBotChips(), [extractBotChips]);
 
+  // Detect if this specific message contains affirmation/confirmation chips
+  // that should be multi-select, even outside the identity/life-areas phases
+  const isMultiSelectMessage = useMemo(() => {
+    if (isUser || chips.length < 2) return false;
+    const lower = message.content.toLowerCase();
+    return (
+      isIdentityPhase ||
+      isLifeAreasPhase ||
+      isAffirmationPhase ||
+      /select every|select all|which of these|claim|choose the ones|pick the ones|check.*(you want|that feel|that resonate)|i['']ve captured the following|here['']s what i captured|affirmation/i.test(lower)
+    );
+  }, [isUser, chips.length, message.content, isIdentityPhase, isLifeAreasPhase, isAffirmationPhase]);
+
+  // Whether to show the custom input field (for identity or affirmation chips)
+  const showCustomInput = isIdentityPhase || isAffirmationPhase || (isMultiSelectMessage && !isLifeAreasPhase);
+
   const toggleChip = (chip: string) => {
-    if (isIdentityPhase || isLifeAreasPhase) {
+    if (isMultiSelectMessage) {
       setSelectedChips((prev) => {
         const isActive = prev.includes(chip);
         let next;
@@ -797,6 +812,14 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
         .join("\n");
     }
 
+    // Safety net: remove any orphaned template/JSON artifacts (#8)
+    // Catches stray braces, brackets, or partial JSON that leaked through
+    cleanText = cleanText
+      .replace(/^\s*[\{\}]\s*$/gm, "")           // Lines that are just { or }
+      .replace(/["']\s*:\s*["']/g, "")            // Key-value fragments like "label": "value"
+      .replace(/^\s*"?\w+"?\s*:\s*$/gm, "")       // Orphaned JSON keys on their own line
+      .trim();
+
     const withBold = cleanText.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
     const withItalic = withBold.replace(/\*(.*?)\*/g, "<em>$1</em>");
     const withParagraphs = withItalic.replace(/\n\n/g, "</p><p>");
@@ -817,7 +840,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
           <div className={styles.chips}>
             {chips.map((chip, i) => {
               const isActive = selectedChips.includes(chip);
-              const isMulti = isIdentityPhase || isLifeAreasPhase;
+              const isMulti = isMultiSelectMessage;
               return (
                 <button
                   key={i}
@@ -828,12 +851,12 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                 </button>
               );
             })}
-            {isIdentityPhase && (
+            {showCustomInput && (
               <div className={styles.customIdentity}>
                 <div style={{ display: "flex", gap: "8px", width: "100%" }}>
                   <input
                     type="text"
-                    placeholder="Write your own identity statement…"
+                    placeholder={isIdentityPhase ? "Write your own identity statement…" : "Write your own…"}
                     value={customIdentity}
                     onChange={(e) => setCustomIdentity(e.target.value)}
                     onKeyDown={(e) => {
@@ -879,7 +902,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                 )}
               </div>
             )}
-            {(isIdentityPhase || isLifeAreasPhase) &&
+            {isMultiSelectMessage &&
               (selectedChips.length > 0 ||
                 addedCustomEntries.length > 0 ||
                 customIdentity.trim()) && (
@@ -1077,6 +1100,7 @@ const GoalDiscovery: React.FC = () => {
       Family: "family",
       Purpose: "purpose",
       Spirituality: "spirituality",
+      Growth: "growth",
       "Proof Actions": "actionsAfter",
       "Story Anchors": "tone",
       "Story Tone": "tone",
@@ -1133,6 +1157,10 @@ const GoalDiscovery: React.FC = () => {
   const [isListening, setIsListening] = useState(false);
   const [voiceSupported, setVoiceSupported] = useState(false);
   const recognitionRef = useRef<any>(null);
+  // Stores text that was finalized before the current recognition session
+  const voiceBaseTextRef = useRef<string>("");
+  // Whether we should auto-restart recognition on session end (timeout/pause)
+  const voiceIntentActiveRef = useRef<boolean>(false);
 
   useEffect(() => {
     const SR =
@@ -1147,19 +1175,67 @@ const GoalDiscovery: React.FC = () => {
       recognition.lang = "en-US";
 
       recognition.onresult = (event: any) => {
-        let transcript = "";
+        // Build transcript from current session results, inserting spaces
+        // between separate recognition segments to prevent merged words
+        let finalizedInSession = "";
+        let interim = "";
         for (let i = 0; i < event.results.length; i++) {
-          transcript += event.results[i][0].transcript;
+          const text = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            // Add a space before appending if needed
+            if (finalizedInSession && !finalizedInSession.endsWith(" ") && !text.startsWith(" ")) {
+              finalizedInSession += " ";
+            }
+            finalizedInSession += text;
+          } else {
+            interim = text;
+          }
         }
-        setInputValue(transcript);
+
+        // Combine: previous base text + finalized in this session + interim
+        let combined = voiceBaseTextRef.current;
+        if (finalizedInSession) {
+          if (combined && !combined.endsWith(" ") && !finalizedInSession.startsWith(" ")) {
+            combined += " ";
+          }
+          combined += finalizedInSession;
+        }
+        if (interim) {
+          if (combined && !combined.endsWith(" ") && !interim.startsWith(" ")) {
+            combined += " ";
+          }
+          combined += interim;
+        }
+
+        // Post-processing safety net: insert space before capital letter
+        // following a lowercase letter with no space (catches "growThe" → "grow The")
+        combined = combined.replace(/([a-z])([A-Z])/g, "$1 $2");
+
+        setInputValue(combined);
       };
 
       recognition.onerror = (event: any) => {
         console.error("Speech recognition error:", event.error);
+        // On non-fatal errors, don't kill the session
+        if (event.error === "no-speech" || event.error === "aborted") return;
+        voiceIntentActiveRef.current = false;
         setIsListening(false);
       };
 
       recognition.onend = () => {
+        // Auto-restart on timeout/pause if user hasn't explicitly stopped
+        if (voiceIntentActiveRef.current) {
+          // Persist everything transcribed so far as base text before restarting
+          voiceBaseTextRef.current = inputValueRef.current;
+          try {
+            recognition.start();
+          } catch {
+            // Already started or other error — just mark as stopped
+            voiceIntentActiveRef.current = false;
+            setIsListening(false);
+          }
+          return;
+        }
         setIsListening(false);
       };
 
@@ -1167,13 +1243,23 @@ const GoalDiscovery: React.FC = () => {
     }
   }, []);
 
+  // Keep a ref to inputValue so onend callback can read current value
+  const inputValueRef = useRef(inputValue);
+  useEffect(() => {
+    inputValueRef.current = inputValue;
+  }, [inputValue]);
+
   const toggleVoice = useCallback(() => {
     if (!recognitionRef.current) return;
     if (isListening) {
+      // User explicitly stops — don't auto-restart
+      voiceIntentActiveRef.current = false;
       recognitionRef.current.stop();
       setIsListening(false);
     } else {
-      setInputValue("");
+      // Append to existing text instead of clearing
+      voiceBaseTextRef.current = inputValueRef.current;
+      voiceIntentActiveRef.current = true;
       recognitionRef.current.start();
       setIsListening(true);
     }
@@ -1490,6 +1576,8 @@ const GoalDiscovery: React.FC = () => {
         setShowTyping(false);
         setIsWaiting(false);
         setInputValue("");
+        // Reset voice state for next turn (#2, #14)
+        voiceBaseTextRef.current = "";
       }
     },
     [isWaiting, parseResponse],
@@ -1497,6 +1585,15 @@ const GoalDiscovery: React.FC = () => {
 
   const handleSend = useCallback(() => {
     if (!inputValue.trim() || isWaiting) return;
+
+    // Stop voice input on send so mic state doesn't persist across turns (#14)
+    if (isListening && recognitionRef.current) {
+      voiceIntentActiveRef.current = false;
+      recognitionRef.current.stop();
+      setIsListening(false);
+    }
+    // Reset voice base text for next turn
+    voiceBaseTextRef.current = "";
 
     // Preemptive local capture for specific topics to ensure the UI feels responsive
     // even if the AI fails to send a CAPTURE tag.
@@ -1532,7 +1629,7 @@ const GoalDiscovery: React.FC = () => {
     }
 
     sendToAI(text);
-  }, [inputValue, isWaiting, sendToAI, progress.phase]);
+  }, [inputValue, isWaiting, isListening, sendToAI, progress.phase]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -1588,8 +1685,18 @@ const GoalDiscovery: React.FC = () => {
         setCapturedGoals((prev) => ({ ...prev, location: text }));
         setRecentGoalKey("location");
       } else if (AREA_TOPIC_IDS.includes(currentTopic)) {
-        setCapturedGoals((prev) => ({ ...prev, [currentTopic]: text }));
-        setRecentGoalKey(currentTopic);
+        // If this looks like a multi-select affirmation submission (comma-separated),
+        // store as per-area affirmations array; otherwise store as area goals
+        const items = text.split(", ").map((s) => s.trim()).filter(Boolean);
+        if (items.length > 1) {
+          // Multiple items = likely affirmation multi-select
+          const affKey = `areaAffirmations_${currentTopic}`;
+          setCapturedGoals((prev) => ({ ...prev, [affKey]: items }));
+          setRecentGoalKey(affKey);
+        } else {
+          setCapturedGoals((prev) => ({ ...prev, [currentTopic]: text }));
+          setRecentGoalKey(currentTopic);
+        }
       } else if (
         progress.phase === "Proof Actions" ||
         currentTopic === "actionsAfter"
@@ -1864,6 +1971,9 @@ const GoalDiscovery: React.FC = () => {
                 isIdentityPhase={progress.phase === "Identity Builder"}
                 isLifeAreasPhase={progress.phase === "Life Areas"}
                 isExplorer={!isPaid}
+                isAffirmationPhase={
+                  ["Wealth", "Health", "Love", "Family", "Purpose", "Spirituality", "Proof Actions"].includes(progress.phase)
+                }
               />
             ))}
 
