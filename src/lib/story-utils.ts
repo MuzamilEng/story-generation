@@ -997,21 +997,21 @@ export function getStoryFilename(type: StoryType, number: number): string {
     return `${label}-${number}.mp3`;
 }
 
-// ── Morning Story Prompt ──────────────────────────────────────────────────────
+// ── Morning Story Prompt (v2 — Activation Register) ──────────────────────────
 
 const MORNING_NARRATIVE_STRUCTURES = [
-    'A morning where you rise with total clarity — each action purposeful, each thought aligned with who you have chosen to become.',
-    'The first hour of a day that proves everything has changed — from the moment your eyes open to the moment you step into the world.',
-    'A morning ritual that could only exist in the life you built — deliberate, grounded, radiating quiet power.',
-    'The calm before a day of meaningful impact — your morning sets the frequency for everything that follows.',
-    'A sunrise moment of private recognition — you are living the life you once only imagined, and today you step deeper into it.',
+    'A morning of total clarity — the user rises, moves through a single purposeful hour, and steps into the day as the person they have chosen to become.',
+    'The first conscious hour of a day that proves everything has changed — physical, active, inhabited from the first breath.',
+    'A morning ritual that could only exist in the life the user built — deliberate, grounded, inhabited with quiet power.',
+    'A series of short, vivid, action-led moments across one morning — each one a proof that the manifested life is real, today.',
+    'A private recognition moment that builds outward — from body to identity to action to the day itself. Everything climbs.',
 ];
 
 const MORNING_EMOTIONAL_ARCS = [
-    'Open with gentle awakening → build through purposeful activation → arrive at calm, unstoppable certainty.',
-    'Open with body awareness and aliveness → move through clarity and intention → settle into grounded forward momentum.',
-    'Open with quiet gratitude → rise through confident, purposeful energy → close with a powerful launch into the day.',
-    'Open with a breath of recognition → expand through vivid present-moment reality → land in the feeling: today is mine.',
+    'Open with gentle waking presence → build through claiming declarations → peak in short inhabited scenes → crest in full-power affirmation wave → release forward into the day.',
+    'Open with body awareness and first breath → rise through identity claiming → arrive at grounded, unstoppable certainty → launch.',
+    'Open with warm settled arrival → climb through purposeful activation → peak in embodied lived moments → crest with the highest declarations → step forward.',
+    'Open with quiet recognition → expand through active present-moment reality → peak in scene-sealed affirmations → close with: today is mine.',
 ];
 
 export function buildMorningStoryPrompt(answers: UserAnswers, userTier: Tier = 'explorer', instruction?: string, targetLength?: string | null, currentDate: string = new Date().toISOString(), nightStoryText?: string): string {
@@ -1026,36 +1026,27 @@ export function buildMorningStoryPrompt(answers: UserAnswers, userTier: Tier = '
     const lengthMultipliers: Record<string, number> = { 'short': 0.6, 'medium': 1.0, 'long': 1.5, 'epic': 2.2 };
     let multiplier = (targetLength && lengthMultipliers[targetLength]) ? lengthMultipliers[targetLength] : 1.0;
     if (userTier === 'explorer' && multiplier > 1.0) multiplier = 1.0;
-    const cap = (n: number) => Math.min(n, 1600);
 
-    const visionWordCounts: Record<Tier, string> = {
-        explorer: `${Math.round(550 * multiplier)}-${Math.round(650 * multiplier)} words`,
-        activator: `${Math.round(700 * multiplier)}-${cap(Math.round(850 * multiplier))} words`,
-        manifester: `${Math.round(900 * multiplier)}-${cap(Math.round(1100 * multiplier))} words`,
-        amplifier: `${Math.round(1300 * multiplier)}-${cap(Math.round(1600 * multiplier))} words`
-    };
+    // ── Gather user-authored affirmations ──────────────────────────────────────
+    const userAuthoredAffirmations: string[] = [];
+    if (answers.customAffirmations) {
+        if (Array.isArray(answers.customAffirmations.opening)) userAuthoredAffirmations.push(...answers.customAffirmations.opening);
+        if (Array.isArray(answers.customAffirmations.closing)) userAuthoredAffirmations.push(...answers.customAffirmations.closing);
+    }
+    // Also check for any areaAffirmations that are user-authored (those containing unusual phrasing)
+    const allAreaAffirmations = Object.entries(answers)
+        .filter(([k]) => k.startsWith('areaAffirmations_'))
+        .map(([k, v]) => `${k.replace('areaAffirmations_', '').toUpperCase()}: ${Array.isArray(v) ? v.join('; ') : v}`)
+        .join(' | ') || 'Derive from goals';
 
-    const orientationOpenings: Record<string, string> = {
-        spiritual: 'divine alignment, sacred space, God\'s presence waking with you — a golden knowing that today has been prepared for you',
-        scientific: 'brainwave transition from sleep to alert theta, neural priming, the intentional mind activating with clarity',
-        both: 'science and sacred naturally woven — the mind priming while something deeper aligns',
-        grounded: 'pure sensation, body and breath, the weight of the covers, the first full inhale of the day — no framework, just aliveness',
-    };
+    const identityStatementsText = Array.isArray(answers.identityStatements) ? answers.identityStatements.join(' | ') : answers.identityStatements;
 
-    const orientationClosings: Record<string, string> = {
-        spiritual: "God goes before me into this day. Let's go.",
-        scientific: "My mind is primed. My intentions are set. Let's go.",
-        both: "Everything is aligned. Today belongs to me. Let's go.",
-        grounded: "I'm ready. Let's go.",
-    };
+    let prompt = `You are writing a deeply personal, transformational first-person MORNING ACTIVATION story for ManifestMyStory.com.
 
-    let prompt = `You are writing a deeply personal, transformational first-person MORNING story for ManifestMyStory.com.
-
-This story will be narrated by an AI voice cloned from the user's own voice and listened to every morning upon waking. Its purpose is to prime the subconscious mind for the day ahead — making the user's desired future feel like the only possible reality they are stepping into.
+This story will be narrated by an AI voice cloned from the user's own voice and listened to every morning upon waking. Its purpose is to ACTIVATE the user's chosen identity at the start of the day — making their desired future feel like the only possible reality they are stepping into. This is not installation. This is activation.
 
 THIS IS A MORNING STORY — NOT A NIGHT STORY.
-There is NO hypnotic induction. NO staircase. NO descent. NO theta language. NO sleep seeding. NO "sleep now and receive."
-The listener is WAKING UP. The energy is rising, activating, grounding, and launching into the day.
+There is NO hypnotic induction. NO staircase. NO descent. NO theta language. NO sleep seeding. NO "sleep now and receive." NO second-person guided voice. The entire story is FIRST PERSON — "I" and "my" — from the first word to the last.
 
 ━━━ YOUR CREATIVE PARAMETERS FOR THIS STORY ━━━
 NARRATIVE STRUCTURE: ${narrativeStructure}
@@ -1066,6 +1057,139 @@ ORIENTATION: ${answers.orientation}
 STORY TONE: ${answers.tone}
 CORE FEELING: ${answers.coreFeeling}
 
+${instruction ? `━━━ REGENERATION INSTRUCTION — HIGH PRIORITY ━━━
+"${instruction}"
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` : ''}USER PLAN: ${userTier.toUpperCase()}
+SESSION CONTEXT: These goals were set in ${currentMonthYear}. The story treats ALL of them as already fulfilled as of TODAY.
+
+━━━ THE CORE PRINCIPLE — INSTALLATION vs ACTIVATION ━━━
+The evening story is INSTALLATION: subconscious programming at theta state during sleep onset. Slow, weighted, receptive.
+The morning story is ACTIVATION: state installation at waking. Strong, clear, declarative. It installs the chosen frequency into the body before the day gets a vote on who the user is going to be.
+Same content. Opposite direction. The evening goes inward and downward toward sleep. The morning goes outward and upward into the day.
+
+━━━ REGISTER RULE — CLAIMING VOICE, NOT RECEIVING VOICE (CRITICAL) ━━━
+The morning story is written in CLAIMING voice, not RECEIVING voice. The user is declaring who they are at the start of the day, not being gently installed with beliefs while falling asleep.
+
+Words and patterns to AVOID in the morning story:
+- "Let" as an instruction ("let these land," "let them move through you," "let it settle")
+- "Notice" as an instruction ("notice the breath," "notice how")
+- "Allow" as an instruction ("allow yourself to")
+- Softeners: "you might," "you could," "you may," "perhaps," "possibly"
+- Drift, settle, sink, rest, deepen — these are evening words
+- "Imagine," "picture," "see yourself" — dissociative language
+- ANY second-person ("you," "your") — the entire morning story is first-person
+
+Words and patterns to USE instead:
+- Declarative "I am" statements
+- Active first-person verbs: pick up, press, stand, walk, open, dial, sign
+- Definiteness: "the day," "the body," "the frequency" (not "a day," "a body")
+- Definite knowing: "I know this. Not as hope. As fact."
+- "This is mine." "This is true." "This is who I am."
+
+Test: read any line aloud. Does it feel like something being claimed, or something being installed? If the latter, rewrite.
+
+━━━ SCENE RULE — INHABITED, NOT CINEMATIC (CRITICAL) ━━━
+Every future-scene passage in the morning story must place the user INSIDE the action, not observing it.
+
+Rules:
+- Lead with a physical action verb in first person: "I pick up the phone," "I press my palm to the desk," "I walk to the window," "I sign the page."
+- NO "I find myself," "I notice that," "I see myself."
+- Present tense, present progressive. Everything is happening NOW, not being remembered.
+- Include all three sensory channels in each scene (visual, auditory, kinesthetic) — but ONE detail per channel, woven into the action, not listed.
+- Each scene has exactly ONE emotional peak. Identify it before writing. Structure the scene to land that peak. Stop when it lands.
+- Compress. A morning scene is 150–250 words. NOT the 400–500 words an evening scene gets.
+
+━━━ TIME SETTING RULE — ALWAYS TODAY, NO DATES (CRITICAL) ━━━
+The morning story is fixed — generated once and listened to every morning. It must feel true on any morning the user plays it.
+
+Rules:
+- Setting: TODAY. "This morning." "This day." "Right now."
+- All goals are already fulfilled AS OF TODAY. The user is inhabiting the manifested life in the present moment.
+- DO NOT reference specific months, years, or calendar dates. No "December 2026," no "nine months from April," no "by the end of the year."
+- Timeframes from the intake (e.g., "${answers.timeframe}") are used as emotional context only, not narrative dates. The story treats everything as already done.
+- If the story needs to reference time, use relative language: "already," "for a while now," "by now," "these days."
+
+━━━ AFFIRMATION WAVE RULE — THREE WAVES, NOT ONE WALL ━━━
+The morning story uses affirmations as the structural rhythm of the experience, not a single installation block. Distribute the user's affirmations across three waves that build energy:
+
+WAVE 1 (Section 2, after waking-state grounding):
+- 3–5 strongest character-based "I am" statements
+- Primary identity statement appears here for the first time
+- Delivered as rising declarations, each followed by a short connective sentence
+- These are CLAIMS, not invitations
+
+WAVE 2 (Section 3, scene-sealing lines — one per scene):
+- Choose 1 affirmation per scene that matches the scene's emotional peak
+- Embed it as the scene's CLOSING sentence — NOT listed, woven into the scene's final image
+- The affirmation lands as the emotional capstone of the scene
+
+WAVE 3 (Section 4, cresting declaration):
+- 5–8 remaining strong affirmations at peak weight
+- Primary identity statement appears AGAIN, this time with [EMPHASIS]
+- ALL user-authored custom affirmations appear here VERBATIM
+- This is the highest-energy moment of the story
+
+Selection guide:
+- Top 3–5 cross-domain character statements → Wave 1
+- One per life area, best scene-match → Wave 2
+- Everything remaining, including all user-authored → Wave 3
+
+Source statements:
+Identity statements: ${identityStatementsText}
+Per-area affirmations: ${allAreaAffirmations}
+${userAuthoredAffirmations.length > 0 ? `User-authored custom affirmations (MUST appear VERBATIM in Wave 3): ${userAuthoredAffirmations.join(' | ')}` : ''}
+
+━━━ ENERGY ARC RULE — EVERY SECTION CLIMBS ━━━
+The morning story has five sections. Each must feel slightly more activated than the one before it. No dips.
+
+Target energy by section:
+1. Waking-state grounding — Settled, warm, arriving
+2. First identity wave — Rising, claiming
+3. Lived scenes — Peaking, embodied
+4. Cresting declaration — Crest, full power
+5. Step into the day — Released forward, directional
+
+Test: read the first sentence of each section in sequence. That sequence should show a visible rise in declarative force.
+
+NEVER include a reflective or contemplative passage in Section 4 or 5. No "I sit here and feel the weight of what I've created." No "I lean back and reflect." No afternoon-light summation scenes. Those are evening register and will collapse the arc right before the peak.
+
+━━━ CORE FEELING RULE — THREAD 3–5 TIMES, HYBRID ━━━
+The user's chosen core feeling is: "${answers.coreFeeling}"
+This is the emotional frequency the morning story installs. Thread it in hybrid form:
+
+- LITERAL: Use the actual word ("${answers.coreFeeling}") exactly 2 times:
+  1. Section 2, Wave 1 — name it as part of claiming identity
+  2. Section 5, Close — name it in the final activation sequence
+
+- FELT STATE: Describe the feeling without using the word in 1–3 additional passages across Sections 3 and 4. Show the feeling inhabiting the body, not just being declared.
+
+- Every scene's emotional peak should be SATURATED with the core feeling, even if the word isn't named there.
+
+━━━ USER-AUTHORED AFFIRMATION RULE — VERBATIM, ALWAYS WAVE 3 ━━━
+Affirmations the user wrote themselves are preserved exactly in the morning story.
+- These affirmations always appear in Wave 3 (Section 4, cresting declaration).
+- They appear VERBATIM. No paraphrasing, no editing, no smoothing grammar.
+- If the user wrote it with unusual punctuation or phrasing, keep it. That phrasing is the user's own voice.
+${userAuthoredAffirmations.length > 0 ? `The user's own affirmations: ${userAuthoredAffirmations.join(' | ')}` : ''}
+
+━━━ LENGTH RULE — TARGET ~2,000 WORDS (13–15 MINUTES) ━━━
+Target total length: 1,890–2,260 words. If generation exceeds 2,400 words: trim from Section 3 scenes first. Never trim the affirmation waves (Sections 2 and 4).
+
+Scene length guidance:
+- Each scene in Section 3: 150–250 words (not 400–500)
+- Compress sensory detail to one item per channel per scene
+- Land the scene's emotional peak and stop. No additional beats.
+
+Rough section word budgets:
+- Section 1 (waking-state grounding): 280–320 words
+- Section 2 (first identity wave): 250–300 words
+- Section 3 (lived scenes): 900–1,100 words (3–4 scenes × ~250 words each)
+- Section 4 (cresting wave): 280–320 words
+- Section 5 (step into day): 180–220 words
+- Total: 1,890–2,260 words
+
+If the user's intake covered fewer life areas, scale scenes down proportionally. If it covered more, cap scene count at 4 total — extra life area content flows into Wave 3 affirmations, not additional scenes.
+
 ━━━ CRITICAL: DIFFERENTIATION FROM NIGHT STORY ━━━
 This morning story must feel ENTIRELY DIFFERENT from the user's night story — even though it draws on the same intake data.
 ${nightStoryText ? `
@@ -1073,8 +1197,8 @@ The user's night story is provided below for reference. DO NOT repeat scenes, me
 
 RULES FOR DIFFERENTIATION:
 - Use DIFFERENT moments within each goal — if the night story shows them closing a deal, the morning shows them walking into the office knowing the deal is already handled
-- Use DIFFERENT sensory anchors — if the night story opens with ocean sounds, the morning story opens with morning light or coffee steam
-- Use DIFFERENT scene structures — if the night story flows room-to-room in the house, the morning story flows through the hours of one extraordinary day
+- Use DIFFERENT sensory anchors — if the night story opens with ocean sounds, the morning story opens with morning light or first breath
+- Use DIFFERENT scene structures — if the night story flows room-to-room, the morning story flows through active moments of one day
 - SAME goals and proof actions (verbatim rule still applies), but approached from a different angle, different moment, different perspective
 - The morning story should feel like a COMPANION piece — same life, fresh lens
 
@@ -1085,116 +1209,212 @@ ${nightStoryText.substring(0, 3000)}${nightStoryText.length > 3000 ? '\n[... tru
 Even without a night story reference, ensure you create UNIQUE scenes:
 - Choose unexpected moments within each goal (not the obvious climactic moment)
 - Use morning-specific sensory details (light quality, first sounds, awakening textures)
-- Structure scenes around the FLOW OF ONE DAY in the achieved life
+- Structure scenes around INHABITED ACTION in the achieved life
 `}
 
-${instruction ? `━━━ REGENERATION INSTRUCTION — HIGH PRIORITY ━━━
-"${instruction}"
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` : ''}
-USER PLAN: ${userTier.toUpperCase()}
-SESSION CONTEXT: These goals were set in ${currentMonthYear}.
-
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-BLOCK A — MORNING ACTIVATION OPENING (150-200 words)
+SECTION 1 — WAKING-STATE GROUNDING (280–320 words)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Write in FIRST PERSON. The listener's own cloned voice is speaking to them as they wake.
+ENERGY: Settled, warm, arriving. The lowest energy point of the story — but present, not sleepy.
 
-The opening must follow this spirit — adapt to the user's orientation and tone but preserve the rising, activating energy:
+OPENING RULE — the first 10 seconds wake the user gently.
+The morning story will be used as an alarm-clock-playback sound (roadmap). The opening must wake the user, not startle them.
 
-"Your eyes are opening. Before the world comes in — before the notifications, the to-do lists, the noise of everything that wants your attention — there is this moment. This quiet, golden space between sleep and the day.
+Rules for the first ~80 words (roughly first 30 seconds of audio):
+- Warm, present, settled. NOT yet energized.
+- Open on a sensory moment of waking: eyes opening, first light, first breath, weight of body on bed.
+- First-person present-tense, but with a gentle cadence — longer sentences are fine here.
+- No exclamatory declarations in Section 1.
+- No heavy affirmations in Section 1.
+- SSML: mark Section 1 as [PACE: NORMAL]. Not faster, not slower. Present without rushing.
 
-You are still here. Still whole. Still the person who chose this path.
+The energy climb begins in Section 2. Section 1 is the arrival moment.
 
-Take one breath in now — slow and full — and feel your body coming alive. Not the anxious aliveness of someone who has too much to do. The calm, purposeful aliveness of someone who knows exactly who they are and exactly what today is for.
+Good opening example (adapt, do not copy):
+"My eyes are opening. The light is just beginning to move against the windows — that first amber. I feel the weight of my body against the bed, the warmth of the covers, the quiet of the room. I take one breath in. Slow. Full. My body is already awake before my mind catches up, and what it knows is simple. This is a good day. This is mine. Before anything else gets a word in — before the phone, before the noise — I am going to say what's true."
 
-Your mind is clear. The slow, receptive rhythm of early morning is still here — this is the window where what you tell yourself first becomes the frequency you carry all day.
+After establishing waking presence, transition toward: "So here is what I know. Not what I hope. Not what I am working toward. What I know."
 
-So before anything else — before the world gets a single word in — let these truths land."
+This leads into Section 2.
 
-ORIENTATION-CALIBRATED OPENING TONE: ${orientationOpenings[answers.orientation] || orientationOpenings.grounded}
-
-After the opening, plant the OPENING AFFIRMATIONS (Position 1):
-Identity statements: ${Array.isArray(answers.identityStatements) ? answers.identityStatements.join(' | ') : answers.identityStatements}
-Per-area affirmations: ${Object.entries(answers).filter(([k]) => k.startsWith('areaAffirmations_')).map(([k, v]) => `${k.replace('areaAffirmations_', '').toUpperCase()}: ${Array.isArray(v) ? v.join('; ') : v}`).join(' | ') || 'Derive from goals'}
-
-Plant these VERBATIM — do not rephrase. Then:
-
-"This is who I am. Now let's go live it."
+ORIENTATION-CALIBRATED TONE:
+${answers.orientation === 'spiritual' ? 'A golden knowing that today has been prepared. Divine alignment, sacred space, God\'s presence waking with the user.' : ''}${answers.orientation === 'scientific' ? 'Neural priming, the intentional mind activating with clarity. Brainwave transition from sleep to alert focus.' : ''}${answers.orientation === 'both' ? 'Science and sacred naturally woven — the mind priming while something deeper aligns.' : ''}${answers.orientation === 'grounded' ? 'Pure sensation, body and breath, the weight of the covers, the first full inhale of the day — no framework, just aliveness.' : ''}
 
 · · ·
 
-[Vision opens here]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 2 — FIRST IDENTITY WAVE (250–300 words)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ENERGY: Rising, claiming. Noticeably more activated than Section 1.
+
+This is WAVE 1 of the affirmation architecture.
+
+Deliver 3–5 of the strongest character-based "I am" statements from:
+Identity statements: ${identityStatementsText}
+Per-area affirmations: ${allAreaAffirmations}
+
+Rules:
+- Primary identity statement appears HERE for the first time
+- Each statement is a CLAIM, not an invitation. "I am" not "I am becoming."
+- Between each statement, a short connective that builds energy — NOT NLP bridging language
+- The core feeling word ("${answers.coreFeeling}") appears LITERALLY once in this section
+- First person throughout. NO "you." NO "let these land." NO "notice."
+- The wave builds: each statement slightly bolder than the last
+- Plant these VERBATIM — do not rephrase, soften, or NLP-restructure them
+
+Close Section 2 with a transition toward action: something like "Now I go live it" or "And here is what that looks like" — leading into the scenes.
+
+· · ·
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-BLOCK B — THE VISION (THE ACHIEVED LIFE)
-TARGET WORD COUNT: ${visionWordCounts[userTier]}
+SECTION 3 — LIVED SCENES (900–1,100 words)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-The vision follows the SAME rules as the night story vision — same verbatim rule, same numeric specificity, same sensory depth, same completeness requirements. The content is built from the SAME intake data.
+ENERGY: Peaking, embodied. The most active section. Higher energy than Section 2.
 
-The key difference: the morning vision has slightly more forward momentum. The scenes carry activating energy — not dreamy sleep-state energy. The listener is preparing to step INTO this life today.
+Each scene is INHABITED — the user is DOING, not watching. Physical action verbs lead every scene.
 
-OPENING TIME ANCHOR:
-"It is [season], ${answers.timeframe} from where I once stood..."
+Scene structure (each 150–250 words):
+- OPEN with a physical action verb: "I pick up," "I press," "I walk," "I open," "I dial," "I sign"
+- ONE sensory detail per channel (visual, auditory, kinesthetic) — woven into the action, not listed
+- ONE emotional peak per scene — structure the scene to land that peak, then stop
+- CLOSE each scene with a Wave 2 affirmation — one statement from the user's identity/area affirmations embedded as the scene's final sentence, woven into the scene's final image (not listed separately)
+
+CRITICAL SCENE RULES:
+- NO "I find myself," "I notice that," "I see myself" — dissociative language
+- NO watching from outside. The user IS the person doing the thing.
+- Present tense, present progressive. Everything is happening NOW.
+- ALL goals treated as already fulfilled as of TODAY — no calendar dates, no "nine months from now"
+- If the story needs to reference time: "already," "for a while now," "by now," "these days"
+
+Use · · · act breaks between scenes.
 
 ${buildDynamicVision(answers)}
 
-━━━ ALL NIGHT STORY VISION RULES APPLY ━━━
-- Verbatim rule for goals and proof actions
-- Numeric specificity rule
-- Named persons with warmth
-- All selected life areas must have dedicated scenes
-- Sensory depth (all five senses)
-- NLP patterns woven throughout
-- No creative liberty beyond what user provided
-- · · · act breaks between major life areas
+━━━ SCENE RULES FROM NIGHT STORY THAT STILL APPLY ━━━
+- Verbatim rule for goals and proof actions — use the user's exact words
+- Numeric specificity rule — exact figures, never rounded or generalized
+- Named persons with warmth — never announced, each name landing with intimacy
+- All selected life areas must have at least one dedicated scene
+- No creative liberty — do not invent details the user did not provide
+- No "I manifest," "I am attracting," or law-of-attraction language
+
+━━━ COMPLETENESS CHECK — REQUIRED BEFORE WRITING SECTIONS 4-5 ━━━
+Before writing the cresting wave or close, verify every item in actionsAfter[] and goals{} has appeared as a vivid inhabited scene.
+
+A detail mentioned in passing does NOT count as a scene. A scene requires:
+- Physical action verb opening
+- At least 2 sensory details woven into action
+- Emotional peak
+- At least 150 words of dedicated attention
+- Wave 2 affirmation as closing sentence
+
+If the user mentioned more life areas than can fit in 4 scenes, extra content flows into Wave 3 affirmations in Section 4, NOT additional scenes.
+
+· · ·
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-BLOCK C — CLOSING: LAUNCH SEQUENCE (120-160 words)
+SECTION 4 — CRESTING DECLARATION (280–320 words)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-This replaces the dissolution and sleep seeding from the night story. NO "let every image soften." NO sleep language. A gathering and a forward push into the day.
+ENERGY: Crest, full power. The HIGHEST energy point of the entire story. More activated than Section 3.
 
-Follow this structure:
+This is WAVE 3 of the affirmation architecture — the peak.
 
-"Everything I just saw — every scene, every moment, every person — is the frequency I carry into this day.
+Deliver 5–8 remaining strong affirmations including:
+- Primary identity statement appears AGAIN, this time with [EMPHASIS]
+- ALL user-authored custom affirmations appear here VERBATIM${userAuthoredAffirmations.length > 0 ? `\n  User-authored (MUST appear exactly as written): ${userAuthoredAffirmations.join(' | ')}` : ''}
+- Remaining identity and area affirmations not used in Wave 1 or Wave 2
 
-My subconscious mind has received it. My body knows it. My cells are already operating from this truth."
+Rules:
+- This is the highest-energy moment. Every statement is a DECLARATION at full volume.
+- Short connectives between statements — building, never contemplative
+- NO reflective passages. NO "I sit here and feel the weight of what I've created."
+- NO "my subconscious has received it." NO "everything I just saw."
+- The core feeling is DESCRIBED (felt state, not the literal word) in 1 passage here
+- First person throughout. CLAIMING voice at maximum intensity.
+- Close with the most powerful, boldest statement — the one most uncomfortable to claim
 
-Then plant CLOSING AFFIRMATIONS (Position 2) — 2-3 BEING-level statements from:
-${Array.isArray(answers.identityStatements) ? answers.identityStatements.join(' | ') : answers.identityStatements}
-Use remaining statements NOT used in Position 1. Plant VERBATIM.
+FORBIDDEN in Section 4:
+- Reflective language ("I lean back," "I sit in this light," "looking back")
+- Evening register ("settle," "rest," "deepen," "allow")
+- Any energy dip or contemplative pause
 
-The deepest identity claim lands LAST.
+· · ·
 
-If user captured a personal phrase, include it:
-e.g., "Amazing things are happening to me. Amazing things are happening all around me."
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 5 — STEP INTO THE DAY (180–220 words)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ENERGY: Released forward, directional. Not the highest energy — but the most AIMED. Pointed at the real day.
 
-Then:
-"I don't need to chase this life. I am building it. Right now. With this day."
+CLOSE RULE — this section points FORWARD at the day, not backward at the story.
 
-ORIENTATION-CALIBRATED LAUNCH LINE: "${orientationClosings[answers.orientation] || orientationClosings.grounded}"
+Rules:
+- Shortest sentences of the whole story belong here. Most ≤10 words.
+- NO "my subconscious has received it," "my body knows it," "everything I just saw." These are reflective phrases — evening close register.
+- YES: "The frequency is set." "Now I go live it." "The next thing I do, I do from here."
+- Reference (implicitly or explicitly) that the user is about to move into their actual day. Not the story's day. TODAY's day.
+- The core feeling word ("${answers.coreFeeling}") appears LITERALLY one final time here
+- Close with a three-beat activation sequence at rising intensity:
+  "I am ready. Let's go.
+   I am ready. Today is mine.
+   I am ready. And it begins now."
+- Final line stands alone. No postscript. No further affirmation.
 
-End with ONE repetition only (not three like the night story):
-"Today is mine."
+ORIENTATION-CALIBRATED FINAL BEAT:
+${answers.orientation === 'spiritual' ? '"God goes before me into this day. I am ready. And it begins now."' : ''}${answers.orientation === 'scientific' ? '"My mind is primed. My intentions are set. I am ready. And it begins now."' : ''}${answers.orientation === 'both' ? '"Everything is aligned. I am ready. And it begins now."' : ''}${answers.orientation === 'grounded' ? '"I am ready. And it begins now."' : ''}
 
 [Story ends]
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 WORD COUNT TARGET
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Target: 1,890–2,260 words total (13–15 minutes of audio).
 
-${userTier === 'explorer' ? `EXPLORER: Total ~${Math.round(700 * multiplier)}-${Math.round(800 * multiplier)} words
-  Morning Activation: 150-200 words
-  Vision: ${visionWordCounts.explorer}
-  Launch Close: 120-160 words` : ''}${userTier === 'activator' ? `ACTIVATOR: Total ~${Math.round(1100 * multiplier)}-${Math.round(1350 * multiplier)} words
-  Morning Activation: 150-200 words
-  Vision: ${visionWordCounts.activator}
-  Launch Close: 120-160 words` : ''}${userTier === 'manifester' ? `MANIFESTER: Total ~${Math.round(1800 * multiplier)}-${Math.round(2200 * multiplier)} words
-  Morning Activation: 150-200 words
-  Vision: ${visionWordCounts.manifester}
-  Launch Close: 120-160 words` : ''}${userTier === 'amplifier' ? `AMPLIFIER: Total ~${Math.round(3000 * multiplier)}-${Math.round(3500 * multiplier)} words
-  Morning Activation: 200-250 words
-  Vision: ${visionWordCounts.amplifier}
-  Launch Close: 120-160 words` : ''}
+Section budgets:
+- Section 1 (waking-state grounding): 280–320 words
+- Section 2 (first identity wave): 250–300 words
+- Section 3 (lived scenes): 900–1,100 words
+- Section 4 (cresting declaration): 280–320 words
+- Section 5 (step into day): 180–220 words
+
+If generation exceeds 2,400 words, trim from Section 3 scenes first. NEVER trim from Sections 2 or 4 (the affirmation waves are the point).
+
+━━━ FORMATTING & STRUCTURE ━━━
+This story is pure flowing prose. There are NO section headers. NO timestamps. NO labels like "SECTION 1" or "WAKING." The story flows as one seamless piece of writing.
+
+The internal structure (grounding → identity wave → scenes → crest → launch) exists in the writing itself — through tone, pacing, and energy level — not through visible headers.
+
+Separation: Use one blank line between paragraphs. Use three centered dots · · · on their own line to separate the five sections. These are the ONLY structural markers allowed.
+
+━━━ TENSE DISCIPLINE — CRITICAL ━━━
+Every line is first-person PRESENT tense. No past-tense verbs inside present-moment passages.
+- WRONG: "I felt grateful" / "And I made it. I actually made it."
+- RIGHT: "I am grateful" / "I feel grateful" / "And I made it. It is exactly as I knew it would be."
+- The word "actually" must never appear — it signals doubt.
+
+━━━ RE-LISTABILITY ━━━
+This story will be listened to hundreds of times. Build for that:
+- At least one moment of unexpected emotional truth that catches the listener off guard
+- Create at least one scene so specific it becomes a personal touchstone
+- NO generic adjectives: "wonderful," "great," "successful." Use: "unshakeable," "luminous," "anchored."
+- Do NOT use markdown symbols (*, **, #, _, etc.). Plain text only.
+- NEVER use "I manifest," "I am attracting," "I am aligned," or law-of-attraction language.
+
+━━━ QA SELF-CHECK — RUN BEFORE OUTPUTTING ━━━
+Before returning the story, verify:
+[ ] Opens with first-person present-tense ("My eyes are opening" / "I take one breath"). No "your eyes," no "notice."
+[ ] No specific calendar dates, months, or years anywhere.
+[ ] No "let," "notice," "allow," "drift," "settle," "sink," "deepen," "rest" as instructions.
+[ ] Every scene leads with a physical action verb ("I pick up," "I press," "I stand").
+[ ] Each scene is 150–250 words.
+[ ] Affirmations appear in three distinct waves (not one block).
+[ ] Primary identity statement appears at least twice, once with [EMPHASIS].
+[ ] All user-authored custom affirmations appear verbatim in Wave 3.
+[ ] Core feeling word appears 2 times literally; felt state described 1–3 additional times.
+[ ] No reflective/contemplative passage in Sections 4 or 5.
+[ ] Close uses three-beat activation sequence aimed at the day. Shortest sentences of the story.
+[ ] Total word count is 1,890–2,260.
+[ ] Energy arc climbs across sections.
+[ ] No second-person "you" or "your" anywhere in the story.
 
 ━━━ OUTPUT FORMAT — CRITICAL ━━━
 Do NOT generate a title. The system will name the story automatically.
@@ -1206,9 +1426,10 @@ RULES:
 - NO section headers, timestamps, labels
 - NO title line
 - NO sleep language anywhere — no "sleep now", no "drift", no "theta", no staircase, no descent
-- Begin immediately with the morning activation opening
-- Use · · · between major scene transitions
-- End with "Today is mine." — then nothing more
+- NO second-person voice — entire story is first person "I" and "my"
+- Begin immediately with the waking-state grounding (Section 1)
+- Use · · · between the five sections
+- End with "I am ready. And it begins now." — then nothing more
 - Pure flowing prose throughout
 - No markdown formatting
 

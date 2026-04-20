@@ -741,618 +741,265 @@ const Dashboard: React.FC = () => {
     router.push(`/user/audio-download?storyId=${story.id}`);
   };
 
+
+  // V13 Layout State
+  const [selectedStoryId, setSelectedStoryId] = useState<string | null>(null);
+  const heroStory = stories.find((s) => s.status === "audio_ready" && s.audio_url);
+  const libraryStories = stories.filter((s) => s !== heroStory);
+  const defaultVoice = savedVoices.find((v) => v.is_default) || savedVoices[0] || null;
+
+  const handleRowClick = (storyId: string) => {
+    setSelectedStoryId((prev) => (prev === storyId ? null : storyId));
+  };
+
+  const handleRowKeyDown = (e: React.KeyboardEvent, storyId: string) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      handleRowClick(storyId);
+    }
+  };
+
+  const handleDeleteStory = (story: Story) => {
+    showConfirm({
+      title: "Delete Story",
+      message: `Are you sure you want to delete "${story.title}"?`,
+      confirmText: "Delete",
+      danger: true,
+      onConfirm: async () => {
+        try {
+          await fetch(`/api/user/stories/${story.id}`, { method: "DELETE" });
+          queryClient.invalidateQueries({ queryKey: ["stories"] });
+          queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+          showToast("Story deleted", "success");
+        } catch {
+          showToast("Failed to delete story", "error");
+        }
+      },
+    });
+  };
+
   return (
-    <div className={styles.container}>
-      <main className={styles.page}>
-        {/* GREETING */}
-        <div className={styles.greeting}>
-          <div className={styles.greetingEyebrow}>Good morning</div>
-          <h1 className={styles.greetingTitle}>
-            Welcome back, <em>{firstName}.</em>
-            {stats?.isBetaUser && (
-              <span
-                className={styles.betaBadge}
-                style={{
-                  fontSize: "14px",
-                  backgroundColor: "var(--accent)",
-                  color: "var(--surface-dark, #fff)",
-                  padding: "4px 12px",
-                  borderRadius: "99px",
-                  marginLeft: "12px",
-                  fontWeight: "600",
-                  verticalAlign: "middle",
-                  display: "inline-block",
-                }}
-              >
-                Beta Access
-              </span>
-            )}
-          </h1>
-          <p className={styles.greetingSub}>
-            Your Night Story is waiting. Take a few minutes to listen — your future
-            self is already living this.
-          </p>
-        </div>
-
-        {/* METRICS */}
-        <div className={styles.metricsRow}>
-          <MetricCard
-            icon={<StarIcon />}
-            value={stats?.metrics?.stories_ever || "0"}
-            label="Stories created"
-          />
-          <MetricCard
-            icon={<TrendIcon />}
-            value={stats?.metrics?.streak_days || "0"}
-            label="Day streak"
-            delta={
-              stats?.metrics?.streak_days > 0
-                ? "Keep it up! 🔥"
-                : "Start today! ✨"
-            }
-          />
-          <MetricCard
-            icon={<ClockIcon />}
-            value={stats?.metrics?.total_plays || "0"}
-            label="Times played"
-          />
-          <MetricCard
-            icon={<DownloadIcon />}
-            value={stats?.metrics?.total_downloads || "0"}
-            label="MP3 downloads"
-          />
-        </div>
-
-        {/* STREAK CARD */}
-        <div className={styles.streakCard}>
-          <div className={styles.streakLeft}>
-            <div className={styles.streakEyebrow}>Your listening streak</div>
-            <div className={styles.streakCount}>
-              14 <span>days in a row</span>
+    <div className={styles.mmsWrap}>
+      {/* TOP LINE */}
+      <div className={styles.topline}>
+        <p className={styles.toplineH1}>
+          Welcome back, <em>{firstName}</em>.
+        </p>
+        <div className={styles.topStats}>
+          <span><b>{stats?.metrics?.stories_ever || 0}</b> stories</span>
+          <span><b>{stats?.metrics?.total_plays || 0}</b> plays</span>
+          <span><b>{stats?.metrics?.total_downloads || 0}</b> downloads</span>
+          <div className={styles.streakInline}>
+            <div className={styles.streakDotsInline}>
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className={`${styles.dot} ${styles.dotDone}`} />
+              ))}
+              <div className={`${styles.dot} ${styles.dotNow}`} />
             </div>
-            <div className={styles.streakSub}>
-              Keep it going — your brain is rewiring with every listen.
-              <br />
-              Listen today to protect your streak.
-            </div>
-          </div>
-          <div className={styles.streakDots} aria-label="Last 7 days">
-            {[...Array(6)].map((_, i) => (
-              <div key={i} className={`${styles.streakDot} ${styles.done}`}>
-                <CheckIcon />
-              </div>
-            ))}
-            <div className={`${styles.streakDot} ${styles.today}`}>Now</div>
+            <span>{stats?.metrics?.streak_days || 0} day streak</span>
           </div>
         </div>
+      </div>
 
-        {/* MY VOICE */}
-        <div className={styles.sectionHeader}>
-          <div>
-            <div className={styles.sectionTitle}>My Voice</div>
-            <div className={styles.sectionSub}>
-              Your saved voice samples for story narration
-            </div>
+      {/* TOOLBAR */}
+      <div className={styles.toolbar}>
+        {defaultVoice ? (
+          <div className={styles.toolItem}>
+            <div className={styles.voiceMini} />
+            <span>Voice · {defaultVoice.duration_s ? `${Math.floor(defaultVoice.duration_s / 60)}:${String(Math.round(defaultVoice.duration_s) % 60).padStart(2, "0")}` : "—"}</span>
+            <button className={styles.toolLink} onClick={() => router.push("/user/voice-recording")}>Re-record</button>
           </div>
-        </div>
-
-        <div style={{
-          display: "flex",
-          gap: "14px",
-          flexWrap: "wrap",
-          marginBottom: "2rem",
-        }}>
-          {savedVoices.length > 0 ? (
-            savedVoices.map((voice) => {
-              const isPlaying = playingVoiceId === voice.id;
-              return (
-                <div
-                  key={voice.id}
-                  onClick={() => handlePlayVoice(voice)}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "14px",
-                    background: isPlaying
-                      ? "linear-gradient(135deg, rgba(168,139,97,0.18) 0%, rgba(168,139,97,0.08) 100%)"
-                      : voice.is_default
-                        ? "linear-gradient(135deg, rgba(168,139,97,0.10) 0%, rgba(168,139,97,0.04) 100%)"
-                        : "rgba(255,255,255,0.03)",
-                    border: `1.5px solid ${isPlaying ? "var(--accent)" : voice.is_default ? "rgba(168,139,97,0.35)" : "rgba(255,255,255,0.08)"}`,
-                    borderRadius: "14px",
-                    padding: "16px 20px",
-                    minWidth: "240px",
-                    flex: "0 1 auto",
-                    cursor: "pointer",
-                    transition: "all 0.25s cubic-bezier(0.4,0,0.2,1)",
-                    ...(isPlaying
-                      ? { boxShadow: "0 0 20px rgba(168,139,97,0.15), 0 0 0 1px rgba(168,139,97,0.3)" }
-                      : {}),
-                  }}
-                >
-                  <div style={{
-                    width: "44px",
-                    height: "44px",
-                    borderRadius: "50%",
-                    background: isPlaying
-                      ? "var(--accent)"
-                      : voice.is_default
-                        ? "var(--accent)"
-                        : "rgba(255,255,255,0.06)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    flexShrink: 0,
-                    transition: "all 0.25s cubic-bezier(0.4,0,0.2,1)",
-                    boxShadow: isPlaying
-                      ? "0 4px 12px rgba(168,139,97,0.4)"
-                      : voice.is_default
-                        ? "0 2px 8px rgba(168,139,97,0.25)"
-                        : "none",
-                  }}>
-                    <span style={{
-                      width: "18px",
-                      height: "18px",
-                      color: isPlaying || voice.is_default ? "#fff" : "var(--ink-muted)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}>
-                      {isPlaying ? <PauseIcon /> : <PlayIcon />}
-                    </span>
-                  </div>
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    {editingVoiceId === voice.id ? (
-                      <div
-                        style={{ display: "flex", alignItems: "center", gap: "6px" }}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <input
-                          value={editVoiceLabel}
-                          onChange={(e) => setEditVoiceLabel(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" && editVoiceLabel.trim()) handleRenameVoice(voice.id, editVoiceLabel.trim());
-                            if (e.key === "Escape") setEditingVoiceId(null);
-                          }}
-                          autoFocus
-                          style={{
-                            fontSize: "0.85rem",
-                            padding: "4px 8px",
-                            maxWidth: "140px",
-                            background: "rgba(0,0,0,0.3)",
-                            color: "#fff",
-                            border: "1px solid var(--accent)",
-                            borderRadius: "6px",
-                            outline: "none",
-                          }}
-                        />
-                        <button
-                          onClick={() => editVoiceLabel.trim() && handleRenameVoice(voice.id, editVoiceLabel.trim())}
-                          style={{
-                            background: "var(--accent)",
-                            border: "none",
-                            borderRadius: "6px",
-                            padding: "4px 10px",
-                            fontSize: "0.7rem",
-                            fontWeight: 600,
-                            color: "#fff",
-                            cursor: "pointer",
-                          }}
-                        >
-                          Save
-                        </button>
-                        <button
-                          onClick={() => setEditingVoiceId(null)}
-                          style={{
-                            background: "rgba(255,255,255,0.06)",
-                            border: "1px solid rgba(255,255,255,0.12)",
-                            borderRadius: "6px",
-                            padding: "4px 8px",
-                            fontSize: "0.7rem",
-                            color: "var(--ink-muted)",
-                            cursor: "pointer",
-                          }}
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    ) : (
-                      <>
-                        <div style={{
-                          fontSize: "0.88rem",
-                          fontWeight: 600,
-                          color: "var(--ink)",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "8px",
-                          letterSpacing: "-0.01em",
-                        }}>
-                          {voice.label}
-                          {voice.is_default && (
-                            <span style={{
-                              fontSize: "0.58rem",
-                              color: "#fff",
-                              textTransform: "uppercase",
-                              letterSpacing: "0.06em",
-                              fontWeight: 700,
-                              background: "var(--accent)",
-                              padding: "2px 7px",
-                              borderRadius: "4px",
-                            }}>
-                              Active
-                            </span>
-                          )}
-                        </div>
-                        <div style={{
-                          fontSize: "0.74rem",
-                          color: isPlaying ? "var(--accent)" : "rgba(255,255,255,0.4)",
-                          marginTop: "3px",
-                          transition: "color 0.2s ease",
-                          fontWeight: isPlaying ? 500 : 400,
-                        }}>
-                          {isPlaying
-                            ? "▸ Playing now..."
-                            : voice.duration_s
-                              ? `${Math.floor(voice.duration_s / 60)}:${String(voice.duration_s % 60).padStart(2, "0")} recorded`
-                              : "Tap to play"}
-                        </div>
-                      </>
-                    )}
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
-                    {editingVoiceId !== voice.id && (
-                      <>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEditingVoiceId(voice.id);
-                            setEditVoiceLabel(voice.label);
-                          }}
-                          title="Rename"
-                          style={{
-                            background: "rgba(255,255,255,0.06)",
-                            border: "1px solid rgba(255,255,255,0.10)",
-                            borderRadius: "7px",
-                            width: "30px",
-                            height: "30px",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            cursor: "pointer",
-                            transition: "all 0.2s ease",
-                            color: "var(--ink-muted)",
-                            padding: 0,
-                          }}
-                        >
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: "13px", height: "13px" }}>
-                            <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
-                            <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
-                          </svg>
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteVoice(voice.id);
-                          }}
-                          title="Delete"
-                          style={{
-                            background: "rgba(255,255,255,0.06)",
-                            border: "1px solid rgba(255,255,255,0.10)",
-                            borderRadius: "7px",
-                            width: "30px",
-                            height: "30px",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            cursor: "pointer",
-                            transition: "all 0.2s ease",
-                            color: "rgba(255,100,100,0.7)",
-                            padding: 0,
-                          }}
-                        >
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: "13px", height: "13px" }}>
-                            <polyline points="3 6 5 6 21 6" />
-                            <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
-                          </svg>
-                        </button>
-                        {!voice.is_default && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleSelectVoice(voice.id);
-                            }}
-                            style={{
-                              background: "rgba(255,255,255,0.06)",
-                              border: "1px solid rgba(255,255,255,0.12)",
-                              borderRadius: "8px",
-                              padding: "6px 12px",
-                              fontSize: "0.7rem",
-                              fontWeight: 600,
-                              color: "var(--accent)",
-                              cursor: "pointer",
-                              transition: "all 0.2s ease",
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            Set Active
-                          </button>
-                        )}
-                      </>
-                    )}
-                  </div>
-                </div>
-              );
-            })
-          ) : (
-            <div
-              onClick={() => router.push("/user/voice-recording")}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "14px",
-                background: "rgba(255,255,255,0.03)",
-                border: "1.5px dashed rgba(168,139,97,0.3)",
-                borderRadius: "14px",
-                padding: "18px 22px",
-                cursor: "pointer",
-                transition: "all 0.25s cubic-bezier(0.4,0,0.2,1)",
-                minWidth: "260px",
-              }}
-            >
-              <div style={{
-                width: "44px",
-                height: "44px",
-                borderRadius: "50%",
-                background: "linear-gradient(135deg, rgba(168,139,97,0.15) 0%, rgba(168,139,97,0.06) 100%)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flexShrink: 0,
-              }}>
-                <span style={{ width: "18px", height: "18px", color: "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <MicIcon />
-                </span>
-              </div>
-              <div>
-                <div style={{ fontSize: "0.88rem", fontWeight: 600, color: "var(--ink)", letterSpacing: "-0.01em" }}>
-                  Record your voice
-                </div>
-                <div style={{ fontSize: "0.74rem", color: "rgba(255,255,255,0.4)", marginTop: "3px" }}>
-                  60 seconds is all we need to clone your voice
-                </div>
-              </div>
-            </div>
-          )}
-          {savedVoices.length > 0 && (
-            <div
-              onClick={() => router.push("/user/voice-recording")}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "8px",
-                background: "rgba(255,255,255,0.03)",
-                border: "1.5px dashed rgba(168,139,97,0.3)",
-                borderRadius: "14px",
-                padding: "16px 22px",
-                cursor: "pointer",
-                minWidth: "160px",
-                transition: "all 0.25s cubic-bezier(0.4,0,0.2,1)",
-              }}
-            >
-              <span style={{ width: "14px", height: "14px", color: "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <PlusIcon />
-              </span>
-              <span style={{ fontSize: "0.8rem", color: "var(--accent)", fontWeight: 600, letterSpacing: "-0.01em" }}>
-                Record New
-              </span>
-            </div>
-          )}
-        </div>
-
-        {/* STORY LIBRARY */}
-        <div className={styles.sectionHeader}>
-          <div>
-            <div className={styles.sectionTitle}>My Story Library</div>
-            <div className={styles.sectionSub}>
-              Recent captures and sessions
-            </div>
+        ) : (
+          <div className={styles.toolItem}>
+            <button className={styles.toolLink} onClick={() => router.push("/user/voice-recording")}>+ Record voice</button>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            {hasMorningStory && (
-              <button
-                onClick={handleGenerateMorningStory}
-                disabled={isGeneratingMorning}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "6px",
-                  background: "linear-gradient(135deg, rgba(232,168,56,0.12) 0%, rgba(232,168,56,0.04) 100%)",
-                  border: "1px solid rgba(232,168,56,0.25)",
-                  borderRadius: "8px",
-                  padding: "8px 14px",
-                  fontSize: "0.78rem",
-                  fontWeight: 600,
-                  color: "#e8a838",
-                  cursor: isGeneratingMorning ? "wait" : "pointer",
-                  opacity: isGeneratingMorning ? 0.6 : 1,
-                  whiteSpace: "nowrap",
-                  transition: "all 0.2s ease",
-                  letterSpacing: "-0.01em",
-                }}
-              >
-                <span style={{ width: "13px", height: "13px", display: "inline-flex" }}>
-                  <SunIcon />
-                </span>
-                {isGeneratingMorning ? "Generating..." : "+ New Morning Story"}
-              </button>
-            )}
-            {stories.length > 10 && (
-              <Link href="/user/stories" className={styles.viewAllLink}>
-                View All Stories
-                <ArrowIcon />
-              </Link>
-            )}
-          </div>
-        </div>
+        )}
+        <div className={styles.toolSep} />
+        <button className={styles.toolLink} onClick={() => { clearStore(); router.push("/user/goal-intake-ai"); }}>Edit intake ✎</button>
+        <div className={styles.toolSep} />
+        <span className={styles.reminderPill}>☀ 6:30 AM</span>
+        <span className={styles.reminderPill}>☾ 10:00 PM</span>
+        <div className={styles.toolSpacer} />
+        <button
+          className={styles.toolLink}
+          onClick={() => { clearStore(); router.push("/user/goal-intake-ai"); }}
+        >
+          + New story · {stats?.limits ? `${stats.limits.total - stats.limits.used} left` : "..."}
+        </button>
+      </div>
 
-        <div className={styles.storyGrid}>
-          {isLoadingStories ? (
-            <div style={{ opacity: 0.7, padding: "2rem" }}>
-              Loading your stories...
-            </div>
-          ) : (
-            stories
-              .slice(0, 10)
-              .map((story: Story) => (
-                <StoryCard
-                  key={story.id}
-                  story={story}
-                  onPlay={handlePlayStory}
-                  onDownload={handleDownload}
-                  onRead={handleRead}
-                  onEnhance={handleEnhance}
-                />
-              ))
-          )}
-
-          {/* Empty slot for new story */}
-          <div
-            className={styles.storySlot}
-            onClick={() => {
-              clearStore();
-              router.push("/user/goal-intake-ai");
-            }}
-            style={{ cursor: "pointer" }}
+      {/* HERO CARD — most recent audio-ready story */}
+      {heroStory && (
+        <div className={styles.hero}>
+          <button
+            className={styles.heroPlay}
+            onClick={() => handlePlayStory(heroStory)}
+            aria-label="Play story"
           >
-            <div className={styles.storySlotIcon}>
-              <PlusIcon />
+            ▶
+          </button>
+          <div className={styles.heroInfo}>
+            <div className={styles.heroKicker}>
+              {heroStory.story_type === "morning" ? "☀" : "☾"} Today&rsquo;s story
             </div>
-            <div className={styles.storySlotTitle}>Create a new story</div>
-            <div className={styles.storySlotSub}>
-              Go deeper on health, relationships, abundance...
-            </div>
-            <div className={styles.storySlotCount}>
-              {stats?.limits
-                ? `${stats.limits.total - stats.limits.used} of ${stats.limits.total} slots remaining`
-                : "Loading..."}
-            </div>
+            <div className={styles.heroTitle}>{heroStory.title}</div>
+            <div className={styles.heroMeta}>{heroStory.duration}</div>
           </div>
-        </div>
-
-        {/* MORNING STORY PROMPT — shown when user has night story but no morning story */}
-        {showMorningPrompt && (
-          <div
-            style={{
-              background: "linear-gradient(135deg, rgba(232,168,56,0.08) 0%, rgba(232,168,56,0.03) 100%)",
-              border: "1.5px solid rgba(232,168,56,0.2)",
-              borderRadius: "16px",
-              padding: "28px 32px",
-              marginBottom: "2rem",
-              display: "flex",
-              alignItems: "center",
-              gap: "20px",
-              flexWrap: "wrap",
-            }}
-          >
-            <div style={{
-              width: "48px",
-              height: "48px",
-              borderRadius: "50%",
-              background: "linear-gradient(135deg, rgba(232,168,56,0.2) 0%, rgba(232,168,56,0.08) 100%)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              flexShrink: 0,
-            }}>
-              <span style={{ width: "22px", height: "22px", color: "#e8a838", display: "flex" }}>
-                <SunIcon />
-              </span>
-            </div>
-            <div style={{ flex: 1, minWidth: "200px" }}>
-              <div style={{ fontSize: "1.05rem", fontWeight: 600, color: "var(--ink)", marginBottom: "4px", letterSpacing: "-0.01em" }}>
-                Start your mornings the same way
-              </div>
-              <div style={{ fontSize: "0.85rem", color: "var(--ink-muted)", lineHeight: 1.5 }}>
-                Your vision is already captured. Generate your Morning Story — same goals, same life, written for how you wake up.
-              </div>
-            </div>
+          <div className={styles.heroActions}>
+            <button className={styles.mmsBtn} onClick={() => handleEnhance(heroStory)}>♫ Enhance</button>
+            <button className={styles.mmsBtn} onClick={() => handleDownload(heroStory)}>↓ Download</button>
+            <button className={styles.mmsBtn} onClick={() => handleRead(heroStory)}>👁 Read</button>
             <button
-              onClick={handleGenerateMorningStory}
-              disabled={isGeneratingMorning}
-              style={{
-                background: "linear-gradient(135deg, #e8a838 0%, #d4942e 100%)",
-                color: "#fff",
-                border: "none",
-                borderRadius: "10px",
-                padding: "12px 24px",
-                fontSize: "0.88rem",
-                fontWeight: 600,
-                cursor: isGeneratingMorning ? "wait" : "pointer",
-                opacity: isGeneratingMorning ? 0.7 : 1,
-                whiteSpace: "nowrap",
-                transition: "all 0.2s ease",
-                letterSpacing: "-0.01em",
-              }}
+              className={`${styles.mmsBtn} ${styles.mmsBtnIconOnly}`}
+              onClick={() => handleDeleteStory(heroStory)}
+              aria-label="Delete story"
             >
-              {isGeneratingMorning ? "Generating..." : "Generate Morning Story →"}
+              🗑
             </button>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Generating morning story indicator */}
-        {isGeneratingMorning && (
-          <div
-            style={{
-              background: "rgba(232,168,56,0.06)",
-              border: "1px solid rgba(232,168,56,0.15)",
-              borderRadius: "12px",
-              padding: "20px 24px",
-              marginBottom: "2rem",
-              display: "flex",
-              alignItems: "center",
-              gap: "14px",
-            }}
+      {/* MORNING STORY PROMPT */}
+      {showMorningPrompt && (
+        <div className={styles.morningPrompt}>
+          <span className={styles.morningPromptIcon}>☀</span>
+          <div className={styles.morningPromptText}>
+            <strong>Start your mornings the same way</strong> — Generate your Morning Story from the same vision.
+          </div>
+          <button
+            className={styles.mmsBtn}
+            onClick={handleGenerateMorningStory}
+            disabled={isGeneratingMorning}
           >
-            <div
-              style={{
-                width: "20px",
-                height: "20px",
-                border: "2px solid rgba(232,168,56,0.3)",
-                borderTop: "2px solid #e8a838",
-                borderRadius: "50%",
-                animation: "spin 1s linear infinite",
-              }}
-            />
-            <span style={{ fontSize: "0.88rem", color: "var(--ink-muted)" }}>
-              Generating your Morning Story — same vision, built for how you wake up...
-            </span>
-          </div>
-        )}
-
-        <div className={styles.sectionHeader}>
-          <div>
-            <div className={styles.sectionTitle}>Recent Activity</div>
-          </div>
+            {isGeneratingMorning ? "Generating..." : "Generate Morning Story →"}
+          </button>
         </div>
+      )}
 
-        <div className={styles.activityCard}>
-          {activities.length > 0 ? (
-            activities.map((activity: any) => (
-              <ActivityRow key={activity.id} activity={activity} />
-            ))
-          ) : (
-            <div className={styles.emptyActivity}>
-              <div className={styles.emptyActivityIcon}>
-                <ClockIcon />
-              </div>
-              <div className={styles.emptyActivityText}>
-                No recent activity yet. Start with a new story session.
-              </div>
-            </div>
+      {/* GENERATING INDICATOR */}
+      {isGeneratingMorning && (
+        <div className={styles.generatingBar}>
+          <div className={styles.spinner} />
+          <span>Generating your Morning Story...</span>
+        </div>
+      )}
+
+      {/* LIBRARY HEADER */}
+      <div className={styles.libHeader}>
+        <span className={styles.libTitle}>Library</span>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          {hasNightStory && (
+            <button
+              className={styles.morningStoryBtn}
+              onClick={handleGenerateMorningStory}
+              disabled={isGeneratingMorning}
+            >
+              ☀ {isGeneratingMorning ? "Generating..." : "+ New Morning Story"}
+            </button>
           )}
+          <span className={styles.libHint}>Click a row to see options</span>
         </div>
-      </main>
+      </div>
+
+      {/* LIBRARY LIST */}
+      <div className={styles.storyList}>
+        {isLoadingStories ? (
+          <div style={{ opacity: 0.7, padding: "1rem 0.75rem" }}>Loading your stories...</div>
+        ) : libraryStories.length === 0 && !heroStory ? (
+          <div style={{ padding: "2rem", textAlign: "center", color: "var(--ink-faint)", fontSize: "0.85rem" }}>
+            No stories yet. Create your first story to get started.
+          </div>
+        ) : (
+          libraryStories.map((story) => {
+            const isDraft = story.status !== "audio_ready" || !story.audio_url;
+            const isSelected = selectedStoryId === story.id;
+            return (
+              <div
+                key={story.id}
+                className={`${styles.storyRow} ${isSelected ? styles.storyRowSelected : ""} ${isDraft ? styles.storyRowProgress : ""}`}
+                role="button"
+                tabIndex={0}
+                onClick={(e) => {
+                  if ((e.target as HTMLElement).closest("button")) return;
+                  handleRowClick(story.id);
+                }}
+                onKeyDown={(e) => handleRowKeyDown(e, story.id)}
+                aria-expanded={isSelected}
+              >
+                <button
+                  className={styles.roundPlay}
+                  onClick={(e) => { e.stopPropagation(); handlePlayStory(story); }}
+                  aria-label={isDraft ? "Resume generation" : "Play story"}
+                >
+                  {isDraft ? "↻" : "▶"}
+                </button>
+                <div className={styles.storyMain}>
+                  <div className={styles.storyRowTitle}>{story.title}</div>
+                  {isDraft && (
+                    <span className={styles.storyBadge}>
+                      {story.status === "draft" ? "In progress" : "Awaiting voice"}
+                    </span>
+                  )}
+                  <div className={styles.storyRowDate}>
+                    {story.createdAt instanceof Date && !isNaN(story.createdAt.getTime())
+                      ? format(story.createdAt, "MMM d")
+                      : "Recently"}
+                  </div>
+                </div>
+                <div className={styles.storyRowActions}>
+                  {isDraft ? (
+                    <>
+                      <button className={styles.mmsBtn} onClick={(e) => { e.stopPropagation(); handlePlayStory(story); }}>Resume generation</button>
+                      <button
+                        className={`${styles.mmsBtn} ${styles.mmsBtnIconOnly}`}
+                        onClick={(e) => { e.stopPropagation(); handleDeleteStory(story); }}
+                        aria-label="Delete story"
+                      >
+                        🗑
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button className={styles.mmsBtn} onClick={(e) => { e.stopPropagation(); handleEnhance(story); }}>♫ Enhance</button>
+                      <button className={styles.mmsBtn} onClick={(e) => { e.stopPropagation(); handleDownload(story); }}>↓ Download</button>
+                      <button className={styles.mmsBtn} onClick={(e) => { e.stopPropagation(); handleRead(story); }}>👁 Read</button>
+                      <button
+                        className={`${styles.mmsBtn} ${styles.mmsBtnIconOnly}`}
+                        onClick={(e) => { e.stopPropagation(); handleDeleteStory(story); }}
+                        aria-label="Delete story"
+                      >
+                        🗑
+                      </button>
+                    </>
+                  )}
+                </div>
+                {!isSelected && <span className={styles.storyChevron} aria-hidden="true">›</span>}
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* ACTIVITY FOOTER */}
+      <div className={styles.activityFooter}>
+        <span>
+          {activities.length > 0 ? (
+            <>
+              Last activity · <b>{activities[0]?.storyTitle}</b> ·{" "}
+              {activities[0]?.timestamp instanceof Date && !isNaN(activities[0].timestamp.getTime())
+                ? formatDistanceToNow(activities[0].timestamp, { addSuffix: false })
+                : "recently"}{" "}
+              ago
+            </>
+          ) : (
+            "No recent activity yet"
+          )}
+        </span>
+        {activities.length > 0 && (
+          <button className={styles.activityToggle} onClick={() => router.push("/user/stories")}>See all →</button>
+        )}
+      </div>
     </div>
   );
 };

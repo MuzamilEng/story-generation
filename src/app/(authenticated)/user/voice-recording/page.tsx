@@ -1065,6 +1065,18 @@ const VoiceRecordingContent: React.FC = () => {
           </div>
 
           <div className={styles.sampleScript}>
+            <div className={styles.sampleScriptLabel}>🎙 Before you record</div>
+            <p style={{ fontSize: "0.78rem", color: "var(--ink-muted)", lineHeight: 1.6, marginBottom: "10px" }}>
+              Read this passage the way you'd read the most important sentences
+              of your life. Clear. Present. Strong enough to be trusted — gentle
+              enough to hear yourself fall asleep to.
+            </p>
+            <p style={{ fontSize: "0.72rem", color: "var(--ink-faint)", lineHeight: 1.5, marginBottom: "12px" }}>
+              Your voice will be used for both your evening story (played as you
+              fall asleep) and your morning story (played as you wake up). A
+              neutral, present, grounded recording works for both. Don't make it
+              sleepy. Don't make it performative. Just make it true.
+            </p>
             <div className={styles.sampleScriptLabel}>📖 Read this script</div>
             <p>
               I wake each morning with a quiet sense of purpose — knowing
