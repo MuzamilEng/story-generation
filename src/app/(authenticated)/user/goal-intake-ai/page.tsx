@@ -1319,9 +1319,11 @@ const GoalDiscovery: React.FC = () => {
       recognition.onend = () => {
         // Auto-restart on timeout/pause if user hasn't explicitly stopped
         if (voiceIntentActiveRef.current) {
-          // Only carry forward FINALIZED text to avoid duplicates on restart
-          // (interim text would be re-recognized in the new session)
-          voiceBaseTextRef.current = voiceFinalizedRef.current;
+          // Carry forward the FULL transcript (finalized + interim).
+          // When the browser auto-stops on silence/breath, the last spoken
+          // words may still be interim — those words are NOT re-recognized
+          // in the new session, so we must include them or they're lost.
+          voiceBaseTextRef.current = voiceTranscriptRef.current;
           try {
             recognition.start();
           } catch {
