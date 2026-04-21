@@ -334,8 +334,11 @@ function pickRandom<T>(arr: T[]): T {
     return arr[Math.floor(Math.random() * arr.length)];
 }
 
-export function buildStoryPrompt(answers: UserAnswers, userTier: Tier = 'explorer', instruction?: string, targetLength?: string | null, currentDate: string = new Date().toISOString()): string {
+export function buildStoryPrompt(answers: UserAnswers, userTier: Tier = 'explorer', instruction?: string, targetLength?: string | null, currentDate: string = new Date().toISOString(), goalCount?: number): string {
     const currentMonthYear = new Date(currentDate).toLocaleString('default', { month: 'long', year: 'numeric' });
+
+    // Dynamic goal count — drives amplifier scaling
+    const numGoals = goalCount ?? (Array.isArray(answers.selectedAreas) ? answers.selectedAreas.length : 3);
 
     const narrativeStructure = pickRandom(NARRATIVE_STRUCTURES);
     const emotionalArc = pickRandom(EMOTIONAL_ARCS);
@@ -531,13 +534,17 @@ CRITICAL: Use the user's EXACT words. If they selected 'I am $100 million. This 
     }
 
     // Hard cap helper — no vision block should exceed values that push total story past 3000 words
-    const cap = (n: number) => Math.min(n, 1600);
+    const cap = (n: number) => Math.min(n, 2000);
+
+    // Amplifier vision scales with number of goals: 1→1100, 5+→1800
+    const ampVisionLow = numGoals <= 1 ? 1100 : numGoals >= 5 ? 1600 : Math.round(1100 + ((numGoals - 1) / 4) * 500);
+    const ampVisionHigh = numGoals <= 1 ? 1400 : numGoals >= 5 ? 2000 : Math.round(1400 + ((numGoals - 1) / 4) * 600);
 
     const visionWordCounts: Record<Tier, string> = {
-        explorer: `${Math.round(550 * multiplier)}-${Math.round(650 * multiplier)} words (1 life area, proof actions)`,
-        activator: `${Math.round(700 * multiplier)}-${cap(Math.round(850 * multiplier))} words (up to 3 areas, proof actions)`,
-        manifester: `${Math.round(900 * multiplier)}-${cap(Math.round(1100 * multiplier))} words (all selected areas, proof actions)`,
-        amplifier: `${Math.round(1300 * multiplier)}-${cap(Math.round(1600 * multiplier))} words (all areas, 2+ scenes per area)`
+        explorer: `${Math.round(450 * multiplier)}-${Math.round(550 * multiplier)} words (1 life area, proof actions)`,
+        activator: `${Math.round(600 * multiplier)}-${cap(Math.round(750 * multiplier))} words (up to 3 areas, proof actions)`,
+        manifester: `${Math.round(800 * multiplier)}-${cap(Math.round(1000 * multiplier))} words (all selected areas, proof actions)`,
+        amplifier: `${Math.round(ampVisionLow * multiplier)}-${cap(Math.round(ampVisionHigh * multiplier))} words (all areas, ${numGoals >= 5 ? '1 rich scene' : '2+ scenes'} per area)`
     };
 
     const currentVisionTarget = visionWordCounts[userTier];
@@ -925,25 +932,26 @@ WORD COUNT TARGET — STRICT UPPER AND LOWER BOUNDS
 Write every word with intention. Quality over quantity. Do NOT exceed the upper bound.
 
 ${userTier === 'explorer' ? `EXPLORER (free tier)
-Target: ${Math.round(700 * multiplier)}-${Math.round(800 * multiplier)} words. HARD MAXIMUM: ${Math.round(900 * multiplier)} words.
-  Vision (1 life area, proof actions): ${Math.round(600 * multiplier)}-${Math.round(700 * multiplier)} words
-  Resonant close: 100-150 words` : ''}${userTier === 'activator' ? `ACTIVATOR
-Target: ${Math.round(1100 * multiplier)}-${Math.round(1350 * multiplier)} words. HARD MAXIMUM: ${Math.round(1500 * multiplier)} words.
+Target: ${Math.round(600 * multiplier)}-${Math.round(750 * multiplier)} words. HARD MAXIMUM: ${Math.round(900 * multiplier)} words.
+  Vision (1 life area, proof actions): ${Math.round(450 * multiplier)}-${Math.round(550 * multiplier)} words
+  Resonant close: 150-200 words (MUST complete fully)` : ''}${userTier === 'activator' ? `ACTIVATOR
+Target: ${Math.round(1000 * multiplier)}-${Math.round(1250 * multiplier)} words. HARD MAXIMUM: ${Math.round(1500 * multiplier)} words.
   Hypnotic induction: 250-300 words
-  Vision (up to 3 areas, proof actions): ${Math.round(700 * multiplier)}-${Math.round(850 * multiplier)} words
-  Dissolution + Affirmation Planting + Close: 200-300 words` : ''}${userTier === 'manifester' ? `MANIFESTER
-Target: ${Math.round(1800 * multiplier)}-${Math.round(2200 * multiplier)} words. HARD MAXIMUM: ${Math.round(2500 * multiplier)} words.
+  Vision (up to 3 areas, proof actions): ${Math.round(600 * multiplier)}-${Math.round(750 * multiplier)} words
+  Dissolution + Affirmation Planting + Close: 200-300 words (MUST complete fully including "Sleep now... and receive" x3)` : ''}${userTier === 'manifester' ? `MANIFESTER
+Target: ${Math.round(1600 * multiplier)}-${Math.round(2000 * multiplier)} words. HARD MAXIMUM: ${Math.round(2500 * multiplier)} words.
   Hypnotic induction: 300-350 words
-  Vision (all selected areas, proof actions): ${Math.round(1100 * multiplier)}-${Math.round(1300 * multiplier)} words
+  Vision (all selected areas, proof actions): ${Math.round(800 * multiplier)}-${Math.round(1000 * multiplier)} words
   Future pacing moment: 60-80 words
   Anchor installation at emotional peak: 100-120 words
-  Dissolution + Affirmation Planting + Seeded Close: 250-400 words` : ''}${userTier === 'amplifier' ? `AMPLIFIER
-Target: ${Math.round(2200 * multiplier)}-${Math.round(2800 * multiplier)} words. HARD MAXIMUM: ${Math.round(3000 * multiplier)} words.
+  Dissolution + Affirmation Planting + Seeded Close: 250-400 words (MUST complete fully including "Sleep now... and receive" x3)` : ''}${userTier === 'amplifier' ? `AMPLIFIER (${numGoals} life areas)
+Target: ${Math.round((numGoals >= 5 ? 2500 : 2000) * multiplier)}-${Math.round((numGoals >= 5 ? 2800 : 2500) * multiplier)} words. HARD MAXIMUM: ${Math.min(Math.round((numGoals >= 5 ? 3000 : 2800) * multiplier), 3000)} words.
   Hypnotic induction: 350-400 words
-  Vision (all areas, 2+ scenes per area): ${Math.round(1400 * multiplier)}-${Math.round(1800 * multiplier)} words
+  Vision (all ${numGoals} areas): ${Math.round(ampVisionLow * multiplier)}-${cap(Math.round(ampVisionHigh * multiplier))} words
   Future pacing moments: 100-120 words
   Anchor installation: 120-150 words
-  Dissolution + Affirmation Planting + Lush Seeded Close: 350-500 words` : ''}
+  Dissolution + Affirmation Planting + Lush Seeded Close: 350-500 words (MUST complete fully including "Sleep now... and receive" x3)
+  IMPORTANT: With ${numGoals} life areas, use the FULL word budget. Each area needs a dedicated scene of at least 200 words.` : ''}
 
 ⚠️ LENGTH DISCIPLINE — CRITICAL:
 - Stories that EXCEED the HARD MAXIMUM will be truncated by the audio pipeline, cutting off the close. This destroys the subconscious programming.
@@ -951,10 +959,25 @@ Target: ${Math.round(2200 * multiplier)}-${Math.round(2800 * multiplier)} words.
 - AIM for the middle of the target range. Do NOT pad with repetitive content. Every paragraph must advance either the emotional arc or the NLP programming function.
 - If inputs are brief, expand through sensory depth in EXISTING scenes — do NOT add extra scenes or filler paragraphs.
 
+⚠️⚠️⚠️ CLOSE COMPLETION — THE SINGLE MOST IMPORTANT RULE ⚠️⚠️⚠️
+The story MUST ALWAYS end with a fully completed Block D close including ALL steps: Dissolution → Affirmation Planting → Subconscious Programming → Sleep Seeding → Three Repetitions ending with "Sleep now... and receive." x3.
+
+A story without a complete close is BROKEN and USELESS. It is better to write a shorter vision (Block B) than to run out of words before the close.
+
+WRITING STRATEGY — MANDATORY:
+1. BEFORE writing Block B (the vision), mentally RESERVE at least 400-500 words for Block D (the close).
+2. As you write Block B, track your approximate word count. When you reach the vision word target, STOP the vision immediately — even if you have more scenes planned.
+3. If you are running long, CUT vision scenes short or merge them. NEVER sacrifice the close.
+4. The close (Block D) must ALWAYS be written in full — every step, ending with the three "Sleep now... and receive." repetitions.
+5. If you must choose between a richer vision and a complete close, ALWAYS choose the complete close. The close is the subconscious programming payload — without it, the entire story fails.
+
+FAILURE MODE TO AVOID: Writing an expansive 2500-word vision and then running out of tokens before completing the close. This produces a story that cuts off mid-sentence or skips "Sleep now... and receive." — which is the worst possible outcome.
+
 ${userTier === 'amplifier' ? `━━━ AMPLIFIER SPECIAL DIRECTIVE ━━━
-You are writing for our most premium user. Aim for ~2,500 words of rich, unhurried literary prose.
+You are writing for our most premium user with ${numGoals} life areas to cover.
+${numGoals >= 5 ? `With ${numGoals} areas, you MUST use the full word budget (aim for ~2,700 words). Each area needs a dedicated vivid scene of at least 200 words. Do NOT compress scenes to stay under budget — USE the budget to give each area proper depth.` : 'Aim for ~2,300 words of rich, unhurried literary prose.'}
 Describe the architecture, textures, and sensory landscape of their home in cinematic detail. 
-Expand each "proof action" into a vivid, lush memory. But do NOT exceed 3,000 words.` : ''}\n\n`;
+Expand each "proof action" into a vivid, lush memory. But ALWAYS leave 400-500 words for the full close ending with "Sleep now... and receive." x3.` : ''}\n\n`;
 
     prompt += `━━━ SSML / AUDIO MARKUP TAGS — REQUIRED ━━━
 Include these markers in the output for the ElevenLabs audio processing pipeline:
@@ -1015,6 +1038,15 @@ RULES FOR THE STORY BODY:
 
 
 The output must look exactly like a beautifully written piece of literary prose — pure text, no structure visible to the reader (except the required [INTRO_END] marker for the audio system).
+
+⚠️ FINAL REMINDER — COMPLETE THE CLOSE:
+You MUST finish the story with the FULL Block D close. The story is NOT complete until you have written:
+1. Dissolution passage
+2. Closing affirmation planting (3-5 statements)
+3. Subconscious programming passage
+4. Sleep seeding passage
+5. Three final repetitions: "Sleep now... and receive." (x3)
+If you are running long, SHORTEN the vision scenes — NEVER skip or truncate the close. The close is the most important part of the entire story. A story without "Sleep now... and receive." at the end is a failed generation.
 
 Begin now. Write the full story with no preamble, no explanation. Start directly with the story itself.\n`;
 

@@ -22,7 +22,11 @@ This story will be narrated in the user's own voice. Its goal is to rewrite the 
 5. NO TITLE: Do not generate a title. The system names stories automatically.
 
 ━━━ SAFETY ━━━
-ManifestMyStory is for positive creation only. Harmful intent = "ManifestMyStory is built for positive creation only. I'm not able to write this story as requested."`;
+ManifestMyStory is for positive creation only. Harmful intent = "ManifestMyStory is built for positive creation only. I'm not able to write this story as requested."
+
+━━━ ABSOLUTE PRIORITY — COMPLETE THE CLOSE ━━━
+The story MUST ALWAYS end with the full Block D close: Dissolution → Affirmation Planting → Subconscious Programming → Sleep Seeding → Three final repetitions of "Sleep now... and receive."
+A story without this ending is BROKEN. If you are running long, shorten the vision scenes — NEVER skip or truncate the close. Reserve at least 400-500 words for the close before you start writing the vision.`;
 
 const BASE_SYSTEM_MESSAGE_MORNING = `You are a master manifestation story writer, NLP practitioner, and morning activation specialist. Your sole purpose is to write a deeply personal, sensory-rich, first-person MORNING story for ManifestMyStory.com.
 
@@ -172,10 +176,10 @@ export async function POST(
             });
             nightStoryText = (latestNight?.story_text_draft as string) || undefined;
         }
+        const goalCount = Array.isArray(answers.selectedAreas) ? answers.selectedAreas.length : 3;
         const prompt = storyType === 'morning'
             ? buildMorningStoryPrompt(answers, userTier, instruction, story.story_length_option, new Date().toISOString(), nightStoryText)
-            : buildStoryPrompt(answers, userTier, instruction, story.story_length_option, new Date().toISOString());
-        const goalCount = Array.isArray(answers.selectedAreas) ? answers.selectedAreas.length : 3;
+            : buildStoryPrompt(answers, userTier, instruction, story.story_length_option, new Date().toISOString(), goalCount);
         const systemMessage = getSystemMessage(userTier, story.story_length_option, storyType, goalCount);
 
         console.log(`[STORY_GENERATE] Using LangChain GPT-4o-2024-08-06 for ${storyType} story ${storyId}`);
@@ -243,6 +247,18 @@ export async function POST(
                 } else {
                     storyText = truncated.trim();
                 }
+            }
+        }
+
+        // ── SAFETY NET: Ensure night stories always end with the full close ──
+        // If the LLM ran out of tokens or truncation removed the close,
+        // append the mandatory "Sleep now... and receive." ending.
+        if (storyType === 'night') {
+            const lastChunk = storyText.slice(-500).toLowerCase();
+            const hasSleepClose = lastChunk.includes('sleep now');
+            if (!hasSleepClose) {
+                console.log(`[STORY_GENERATE] WARNING: Night story missing "Sleep now" close — appending safety-net ending for story ${storyId}`);
+                storyText += `\n\n[PAUSE_LONG]\n\nYou can let it all go now. Let every image soften. Let every vision dissolve into warm light. You don't need to hold on to any of it. Your subconscious mind has received every word. Every feeling. Every instruction. It is already working. [PAUSE_LONG]\n\nTonight your dreams will carry the frequency of your highest life. Your cells will repair and renew. Your subconscious will begin assembling the circumstances, the connections, the ideas, the opportunities that make every single one of these visions physical reality. You will notice something different tomorrow. A quiet shift. A new certainty. The feeling of someone who knows something the world doesn't know yet. Because you do.\n\n[PAUSE_LONG]\n\nSleep now... and receive. [PAUSE_SHORT]\n\nSleep now... and receive. [PAUSE_SHORT]\n\nSleep now... and receive. [PAUSE_LONG][PAUSE_LONG]`;
             }
         }
 

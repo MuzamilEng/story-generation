@@ -15,7 +15,7 @@ export const model = isAnthropic
         anthropicApiKey: anthropicKey,
         modelName: "claude-sonnet-4-6",
         temperature: 0.85,
-        maxTokens: 5000,
+        maxTokens: 8192,
         maxRetries: 0, // We handle retries + fallback ourselves
     })
     : new AzureChatOpenAI({
@@ -36,7 +36,7 @@ if (isAnthropic) {
         anthropicApiKey: anthropicKey,
         modelName: "claude-3-5-sonnet-20241022",
         temperature: 0.85,
-        maxTokens: 5000,
+        maxTokens: 8192,
         maxRetries: 0,
     }));
 }
