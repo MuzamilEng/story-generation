@@ -11,9 +11,7 @@ ffmpeg.setFfmpegPath(ffmpegPath.path);
 // Speech-focused encoding settings to keep narration files compact.
 // Formula: fileSizeBytes ≈ durationSeconds * (bitrateKbps / 8) * 1024.
 const MIX_MP3_BITRATE = '96k';
-// 80k provides a good balance between quality and size for enhanced voice.
-// Previous 56k caused audible artefacts on consonants and sibilants.
-const ENHANCE_MP3_BITRATE = '80k';
+const ENHANCE_MP3_BITRATE = '56k';
 
 interface MixOptions {
   /** Buffer of the primary voice / narration MP3 */
@@ -314,40 +312,18 @@ export async function mixAudio(opts: MixOptions): Promise<Buffer> {
 /**
  * Enhance a narration track for a more polished, professional spoken-voice sound.
  *
- * DESIGN PHILOSOPHY:
- * Fish Audio S2-Pro already produces high-quality, expressive speech. The
- * previous enhancement chain was too aggressive — it stripped away the natural
- * warmth, breath sounds, and subtle low-frequency body that make a voice sound
- * "smooth" and "human". ElevenLabs sounds smoother partly because their output
- * isn't run through aggressive post-processing.
- *
- * This revised chain is intentionally GENTLE:
- * - Very light highpass (60Hz) — preserves chest resonance
- * - Gentle lowpass (15kHz) — keeps natural air/sibilance
- * - Mild denoise (-25dB floor) — only removes actual noise, not breath
- * - Gentle compression (3:1, -22dB threshold) — smooths without squashing
- * - Subtle warmth EQ (+1.5dB at 180Hz, +1dB at 2.5kHz) — adds body
- * - Standard loudness normalisation (-16 LUFS)
- * - Soft limiter — prevents clipping
- *
- * Input: WAV (44.1kHz) or MP3 from the TTS pipeline.
- * Output: High-quality MP3 at 44.1kHz / 128kbps — matches ElevenLabs output spec.
- *
- * The key insight: the LESS we process the S2-Pro output, the better it sounds.
- * Over-processing (aggressive denoise, tight compression, low sample rate) is
- * what made our output sound "worse" than ElevenLabs, not the TTS model itself.
+ * Processing chain:
+ * - highpass/lowpass: remove rumble + overly harsh top-end
+ * - afftdn: light broadband denoise
+ * - acompressor: smooth dynamics for stable narration level
+ * - loudnorm: podcast-style integrated loudness target
+ * - alimiter: protect peaks and prevent clipping
  */
 export async function enhanceNarrationVoice(voiceBuffer: Buffer): Promise<Buffer> {
   const tmpDir = path.join(os.tmpdir(), `enhance-${randomUUID()}`);
   fs.mkdirSync(tmpDir, { recursive: true });
 
-  // Detect input format from buffer header
-  const isWav = voiceBuffer.length >= 4 &&
-    voiceBuffer[0] === 0x52 && voiceBuffer[1] === 0x49 &&
-    voiceBuffer[2] === 0x46 && voiceBuffer[3] === 0x46; // "RIFF"
-
-  const inExt = isWav ? 'wav' : 'mp3';
-  const inPath = path.join(tmpDir, `voice-in.${inExt}`);
+  const inPath = path.join(tmpDir, 'voice-in.mp3');
   const outPath = path.join(tmpDir, 'voice-enhanced.mp3');
   fs.writeFileSync(inPath, voiceBuffer);
 
@@ -356,48 +332,17 @@ export async function enhanceNarrationVoice(voiceBuffer: Buffer): Promise<Buffer
     ffmpeg()
       .input(inPath)
       .audioFilters([
-        // Very light highpass — only removes true rumble while preserving
-        // chest resonance and low-frequency warmth (60Hz vs previous 80Hz)
-        'highpass=f=60',
-
-        // Keep natural air and sibilance — 15kHz is well above speech
-        // fundamentals but removes ultrasonic noise
-        'lowpass=f=15000',
-
-        // Mild denoise — -25dB floor only catches real background noise,
-        // NOT breath sounds or natural voice texture.
-        // Previous -20dB was too aggressive and stripped life from the voice.
-        'afftdn=nf=-25',
-
-        // Gentle compression: smooth volume dynamics without squashing
-        // the natural expressiveness of S2-Pro's output.
-        //   threshold -22dB: only compresses louder passages
-        //   ratio 2:1: gentle, broadcast-style compression
-        //   attack 30ms: preserves consonant transients (plosives, fricatives)
-        //   release 300ms: natural, breathing-speed release
-        //   makeup 1.5dB: light gain compensation
-        'acompressor=threshold=-22dB:ratio=2:attack=30:release=300:makeup=1.5',
-
-        // Subtle warmth EQ — adds body without making the voice sound processed:
-        //   +1.5dB at 180Hz (chest warmth / voice body)
-        //   +1dB at 2500Hz (clarity / intelligibility, not harsh presence)
-        'equalizer=f=180:t=q:w=1.2:g=1.5',
-        'equalizer=f=2500:t=q:w=1.5:g=1',
-
-        // Podcast-standard loudness normalisation
-        'loudnorm=I=-16:LRA=9:TP=-1.5',
-
-        // Soft limiter — prevents clipping while preserving dynamics
-        'alimiter=limit=0.95:attack=3:release=80',
+        'highpass=f=70',
+        'lowpass=f=14500',
+        'afftdn=nf=-24',
+        'acompressor=threshold=-18dB:ratio=2.8:attack=20:release=220:makeup=3',
+        'loudnorm=I=-16:LRA=8:TP=-1.5',
+        'alimiter=limit=0.95',
       ])
       .outputOptions([
         '-ac', '1',
-        // 44.1kHz preserves the full frequency range from Fish Audio.
-        // Previous 32kHz/24kHz caused audible quality loss on sibilants.
-        '-ar', '44100',
-        // 128kbps = transparent quality for speech. Matches ElevenLabs'
-        // mp3_44100_128 output. Previous 56k/80k caused MP3 artefacts.
-        '-b:a', '128k',
+        '-ar', '24000',
+        '-b:a', ENHANCE_MP3_BITRATE,
         '-codec:a', 'libmp3lame',
       ])
       .output(outPath)

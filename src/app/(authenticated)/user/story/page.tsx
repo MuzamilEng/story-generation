@@ -247,9 +247,11 @@ const StorySummaryPanel: React.FC<{ answers: UserAnswers | null }> = ({
   }
 
   // Per-area affirmations
-  const areaAffKeys = Object.keys(answers).filter(k => k.startsWith('areaAffirmations_'));
+  const areaAffKeys = Object.keys(answers).filter((k) =>
+    k.startsWith("areaAffirmations_"),
+  );
   for (const key of areaAffKeys) {
-    const area = key.replace('areaAffirmations_', '');
+    const area = key.replace("areaAffirmations_", "");
     const val = (answers as any)[key];
     if (val) {
       summaryItems.push({
@@ -730,33 +732,39 @@ const StoryContent: React.FC = () => {
     <div className={styles.container}>
       {/* Audio Assembly Overlay — Morning stories only */}
       {assembleStep >= 0 && (
-        <div style={{
-          position: "fixed",
-          inset: 0,
-          zIndex: 9999,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          backdropFilter: "blur(8px)",
-          WebkitBackdropFilter: "blur(8px)",
-          backgroundColor: "rgba(0, 0, 0, 0.45)",
-        }}>
-          <div style={{
-            background: "var(--surface, #1a1a2e)",
-            border: "1px solid var(--border, rgba(255,255,255,0.1))",
-            borderRadius: "16px",
-            padding: "36px 40px",
-            maxWidth: "400px",
-            width: "90%",
-            boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
-          }}>
-            <h3 style={{
-              fontSize: "1.15rem",
-              fontWeight: 600,
-              marginBottom: "24px",
-              color: "var(--ink, #fff)",
-              textAlign: "center",
-            }}>
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 9999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            backdropFilter: "blur(8px)",
+            WebkitBackdropFilter: "blur(8px)",
+            backgroundColor: "rgba(0, 0, 0, 0.45)",
+          }}
+        >
+          <div
+            style={{
+              background: "var(--surface, #1a1a2e)",
+              border: "1px solid var(--border, rgba(255,255,255,0.1))",
+              borderRadius: "16px",
+              padding: "36px 40px",
+              maxWidth: "400px",
+              width: "90%",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
+            }}
+          >
+            <h3
+              style={{
+                fontSize: "1.15rem",
+                fontWeight: 600,
+                marginBottom: "24px",
+                color: "var(--ink, #fff)",
+                textAlign: "center",
+              }}
+            >
               Creating Your Morning Story
             </h3>
             {[
@@ -768,63 +776,89 @@ const StoryContent: React.FC = () => {
               const done = assembleStep > i;
               const active = assembleStep === i;
               return (
-                <div key={i} style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "12px",
-                  padding: "10px 0",
-                  opacity: done || active ? 1 : 0.35,
-                  transition: "opacity 0.3s ease",
-                }}>
-                  <div style={{
-                    width: "26px",
-                    height: "26px",
-                    borderRadius: "50%",
+                <div
+                  key={i}
+                  style={{
                     display: "flex",
                     alignItems: "center",
-                    justifyContent: "center",
-                    flexShrink: 0,
-                    background: done
-                      ? "linear-gradient(135deg, #e8a838, #f0c060)"
-                      : active
-                        ? "rgba(232, 168, 56, 0.2)"
-                        : "rgba(255,255,255,0.06)",
-                    border: active ? "2px solid #e8a838" : "2px solid transparent",
-                    transition: "all 0.3s ease",
-                  }}>
+                    gap: "12px",
+                    padding: "10px 0",
+                    opacity: done || active ? 1 : 0.35,
+                    transition: "opacity 0.3s ease",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: "26px",
+                      height: "26px",
+                      borderRadius: "50%",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                      background: done
+                        ? "linear-gradient(135deg, #e8a838, #f0c060)"
+                        : active
+                          ? "rgba(232, 168, 56, 0.2)"
+                          : "rgba(255,255,255,0.06)",
+                      border: active
+                        ? "2px solid #e8a838"
+                        : "2px solid transparent",
+                      transition: "all 0.3s ease",
+                    }}
+                  >
                     {done ? (
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1a1a2e" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="#1a1a2e"
+                        strokeWidth="3"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
                         <polyline points="20 6 9 17 4 12" />
                       </svg>
                     ) : active ? (
-                      <div style={{
-                        width: "8px",
-                        height: "8px",
-                        borderRadius: "50%",
-                        background: "#e8a838",
-                        animation: "pulse 1.2s ease-in-out infinite",
-                      }} />
+                      <div
+                        style={{
+                          width: "8px",
+                          height: "8px",
+                          borderRadius: "50%",
+                          background: "#e8a838",
+                          animation: "pulse 1.2s ease-in-out infinite",
+                        }}
+                      />
                     ) : null}
                   </div>
-                  <span style={{
-                    fontSize: "0.95rem",
-                    color: done ? "var(--ink, #fff)" : active ? "#e8a838" : "var(--ink-muted, #888)",
-                    fontWeight: active ? 600 : 400,
-                    transition: "all 0.3s ease",
-                  }}>
+                  <span
+                    style={{
+                      fontSize: "0.95rem",
+                      color: done
+                        ? "var(--ink, #fff)"
+                        : active
+                          ? "#e8a838"
+                          : "var(--ink-muted, #888)",
+                      fontWeight: active ? 600 : 400,
+                      transition: "all 0.3s ease",
+                    }}
+                  >
                     {label}
                   </span>
                 </div>
               );
             })}
             {assembleStep < 3 && (
-              <p style={{
-                fontSize: "0.8rem",
-                color: "var(--ink-muted, #888)",
-                textAlign: "center",
-                marginTop: "20px",
-                lineHeight: 1.5,
-              }}>
+              <p
+                style={{
+                  fontSize: "0.8rem",
+                  color: "var(--ink-muted, #888)",
+                  textAlign: "center",
+                  marginTop: "20px",
+                  lineHeight: 1.5,
+                }}
+              >
                 Using your saved voice clone. This may take a minute.
               </p>
             )}
@@ -850,124 +884,125 @@ const StoryContent: React.FC = () => {
 
       {/* Mobile Navigation Bar — hidden during generation */}
       {!isGenerating && (
-      <div className={styles.mobilePanelNav}>
-        <button
-          className={`${styles.mobileNavBtn} ${showVisionMobile ? styles.active : ""}`}
-          onClick={() => {
-            setShowVisionMobile(!showVisionMobile);
-            setShowChecklistMobile(false);
-          }}
-        >
-          <InfoIcon />
-          Your Vision
-        </button>
-        <button
-          className={`${styles.mobileNavBtn} ${showChecklistMobile ? styles.active : ""}`}
-          onClick={() => {
-            setShowChecklistMobile(!showChecklistMobile);
-            setShowVisionMobile(false);
-          }}
-        >
-          <CheckIcon />
-          Your Story Details
-        </button>
-      </div>
+        <div className={styles.mobilePanelNav}>
+          <button
+            className={`${styles.mobileNavBtn} ${showVisionMobile ? styles.active : ""}`}
+            onClick={() => {
+              setShowVisionMobile(!showVisionMobile);
+              setShowChecklistMobile(false);
+            }}
+          >
+            <InfoIcon />
+            Your Vision
+          </button>
+          <button
+            className={`${styles.mobileNavBtn} ${showChecklistMobile ? styles.active : ""}`}
+            onClick={() => {
+              setShowChecklistMobile(!showChecklistMobile);
+              setShowVisionMobile(false);
+            }}
+          >
+            <CheckIcon />
+            Your Story Details
+          </button>
+        </div>
       )}
 
       <div className={styles.pageBody}>
         {/* Left sidebar — hidden during story generation (#27) */}
         {!isGenerating && (
-        <aside
-          className={`${styles.leftPanel} ${showVisionMobile ? styles.showMobile : ""}`}
-        >
-          <div className={styles.mobilePanelHeader}>
-            <span className={styles.panelSectionTitle}>Your Vision</span>
-            <button
-              className={styles.closeMobileBtn}
-              onClick={() => setShowVisionMobile(false)}
-            >
-              ×
-            </button>
-          </div>
-          {userAnswers && (
-            <div>
-              <div className={styles.panelSectionTitle}>Your Vision</div>
+          <aside
+            className={`${styles.leftPanel} ${showVisionMobile ? styles.showMobile : ""}`}
+          >
+            <div className={styles.mobilePanelHeader}>
+              <span className={styles.panelSectionTitle}>Your Vision</span>
+              <button
+                className={styles.closeMobileBtn}
+                onClick={() => setShowVisionMobile(false)}
+              >
+                ×
+              </button>
+            </div>
+            {userAnswers && (
+              <div>
+                <div className={styles.panelSectionTitle}>Your Vision</div>
 
-              {userAnswers.identityStatements?.length > 0 && (
-                <VisionItem
-                  label="Identity Statements"
-                  value={userAnswers.identityStatements.join(" · ")}
-                />
-              )}
-
-              {/* Per-area goals */}
-              {userAnswers.selectedAreas?.length > 0 && userAnswers.selectedAreas.map((area) => {
-                const areaGoals = (userAnswers as any)[area.toLowerCase()];
-                if (!areaGoals || !String(areaGoals).trim()) return null;
-                return (
+                {userAnswers.identityStatements?.length > 0 && (
                   <VisionItem
-                    key={area}
-                    label={`${area.charAt(0).toUpperCase() + area.slice(1)} Goals`}
-                    value={String(areaGoals)}
-                  />
-                );
-              })}
-
-              {userAnswers.goals && (
-                <VisionItem
-                  label="Goals"
-                  value={userAnswers.goals}
-                />
-              )}
-
-              {userAnswers.actionsAfter && (
-                <VisionItem
-                  label="Proof Actions"
-                  value={userAnswers.actionsAfter}
-                />
-              )}
-
-              {userAnswers.namedPersons &&
-                userAnswers.namedPersons.length > 0 && (
-                  <VisionItem
-                    label="People with you"
-                    value={userAnswers.namedPersons.join(", ")}
+                    label="Identity Statements"
+                    value={userAnswers.identityStatements.join(" · ")}
                   />
                 )}
 
-              {userAnswers.location && (
-                <VisionItem label="Environment" value={userAnswers.location} />
-              )}
+                {/* Per-area goals */}
+                {userAnswers.selectedAreas?.length > 0 &&
+                  userAnswers.selectedAreas.map((area) => {
+                    const areaGoals = (userAnswers as any)[area.toLowerCase()];
+                    if (!areaGoals || !String(areaGoals).trim()) return null;
+                    return (
+                      <VisionItem
+                        key={area}
+                        label={`${area.charAt(0).toUpperCase() + area.slice(1)} Goals`}
+                        value={String(areaGoals)}
+                      />
+                    );
+                  })}
 
-              {userAnswers.coreFeeling && (
-                <VisionItem
-                  label="Core Feeling"
-                  value={userAnswers.coreFeeling}
-                />
-              )}
+                {userAnswers.goals && (
+                  <VisionItem label="Goals" value={userAnswers.goals} />
+                )}
 
-              {userAnswers.selectedAreas &&
-                userAnswers.selectedAreas.length > 0 && (
-                  <div className={styles.visionItem}>
-                    <div className={styles.visionLabel}>Areas of Focus</div>
-                    <CategoryTags categories={userAnswers.selectedAreas} />
+                {userAnswers.actionsAfter && (
+                  <VisionItem
+                    label="Proof Actions"
+                    value={userAnswers.actionsAfter}
+                  />
+                )}
+
+                {userAnswers.namedPersons &&
+                  userAnswers.namedPersons.length > 0 && (
+                    <VisionItem
+                      label="People with you"
+                      value={userAnswers.namedPersons.join(", ")}
+                    />
+                  )}
+
+                {userAnswers.location && (
+                  <VisionItem
+                    label="Environment"
+                    value={userAnswers.location}
+                  />
+                )}
+
+                {userAnswers.coreFeeling && (
+                  <VisionItem
+                    label="Core Feeling"
+                    value={userAnswers.coreFeeling}
+                  />
+                )}
+
+                {userAnswers.selectedAreas &&
+                  userAnswers.selectedAreas.length > 0 && (
+                    <div className={styles.visionItem}>
+                      <div className={styles.visionLabel}>Areas of Focus</div>
+                      <CategoryTags categories={userAnswers.selectedAreas} />
+                    </div>
+                  )}
+
+                <div className={styles.visionItem}>
+                  <div className={styles.visionLabel}>Timeframe</div>
+                  <div className={styles.visionValue}>
+                    {userAnswers.timeframe}
                   </div>
-                )}
-
-              <div className={styles.visionItem}>
-                <div className={styles.visionLabel}>Timeframe</div>
-                <div className={styles.visionValue}>
-                  {userAnswers.timeframe}
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          <button className={styles.regenBtn} onClick={handleRegenerate}>
-            <RefreshIcon />
-            Regenerate story
-          </button>
-        </aside>
+            <button className={styles.regenBtn} onClick={handleRegenerate}>
+              <RefreshIcon />
+              Regenerate story
+            </button>
+          </aside>
         )}
 
         <main className={styles.centerPanel} id="centerPanel">
@@ -1093,6 +1128,16 @@ const StoryContent: React.FC = () => {
                             return <br key={`${keyPrefix}-${idx}`} />;
                           const cleanLine = trimmed
                             .replace(/[\*#_]/g, "")
+                            .replace(/\[PAUSE\w*\]/gi, "")
+                            .replace(/\[PACE:\s*\w+\]/gi, "")
+                            .replace(/\[BREATH\]/gi, "")
+                            .replace(/\[TONE:\s*[^\]]*\]/gi, "")
+                            .replace(/\[SILENCE:\s*[^\]]*\]/gi, "")
+                            // [EMPHASIS]
+                            .replace(/\[EMPHASIS:\s*[^\]]*\]/gi, "")
+                            .replace(/\[\/EMPHASIS\]/gi, "")
+                            // or any uppercase word in [] like [SCENE], [LOCATION], etc.
+                            .replace(/\[[A-Z_]{3,}(?:\s+[A-Z_]+)*\]/g, "")
                             .trim();
                           const isHeader = /[A-Z\s]{5,}.*?\d+-\d+\s+min/i.test(
                             cleanLine,
@@ -1321,26 +1366,28 @@ const StoryContent: React.FC = () => {
 
         {/* Right sidebar — hidden during story generation (#27) */}
         {!isGenerating && (
-        <aside
-          className={`${styles.rightPanel} ${showChecklistMobile ? styles.showMobile : ""}`}
-        >
-          <div className={styles.mobilePanelHeader}>
-            <div className={styles.panelSectionTitle}>What's In Your Story</div>
-            <button
-              className={styles.closeMobileBtn}
-              onClick={() => setShowChecklistMobile(false)}
-            >
-              ×
-            </button>
-          </div>
-          <TipCard />
+          <aside
+            className={`${styles.rightPanel} ${showChecklistMobile ? styles.showMobile : ""}`}
+          >
+            <div className={styles.mobilePanelHeader}>
+              <div className={styles.panelSectionTitle}>
+                What's In Your Story
+              </div>
+              <button
+                className={styles.closeMobileBtn}
+                onClick={() => setShowChecklistMobile(false)}
+              >
+                ×
+              </button>
+            </div>
+            <TipCard />
 
-          <div>
-            <StorySummaryPanel answers={userAnswers} />
-          </div>
+            <div>
+              <StorySummaryPanel answers={userAnswers} />
+            </div>
 
-          <NextStepCard onNext={handleRecordVoice} disabled={!isApproved} />
-        </aside>
+            <NextStepCard onNext={handleRecordVoice} disabled={!isApproved} />
+          </aside>
         )}
       </div>
     </div>

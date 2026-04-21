@@ -721,6 +721,62 @@
     cursor: not-allowed;
 }
 
+.aiBtn {
+    width: 48px;
+    height: 48px;
+    background: transparent;
+    border: 1px solid var(--border2);
+    border-radius: 50%;
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    transition: all 0.3s ease;
+    flex-shrink: 0;
+}
+
+.aiBtn svg {
+    width: 20px;
+    height: 20px;
+    color: var(--dim);
+    transition: color 0.3s;
+}
+
+.aiBtn:hover:not(:disabled) {
+    border-color: #a78bfa;
+    background: rgba(167, 139, 250, 0.10);
+}
+
+.aiBtn:hover:not(:disabled) svg {
+    color: #a78bfa;
+}
+
+.aiBtn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+.aiBtnActive {
+    border-color: #a78bfa;
+    background: rgba(167, 139, 250, 0.12);
+    animation: aiPulse 1.5s ease-in-out infinite;
+}
+
+.aiBtnActive svg {
+    color: #a78bfa;
+}
+
+@keyframes aiPulse {
+
+    0%,
+    100% {
+        box-shadow: 0 0 0 0 rgba(167, 139, 250, 0.3);
+    }
+
+    50% {
+        box-shadow: 0 0 0 8px rgba(167, 139, 250, 0);
+    }
+}
+
 .micBtnActive {
     border-color: #e05252;
     background: rgba(224, 82, 82, 0.12);
@@ -741,9 +797,12 @@
 }
 
 @keyframes micPulse {
-    0%, 100% {
+
+    0%,
+    100% {
         box-shadow: 0 0 0 0 rgba(224, 82, 82, 0.3);
     }
+
     50% {
         box-shadow: 0 0 0 8px rgba(224, 82, 82, 0);
     }
@@ -764,9 +823,11 @@
     0% {
         box-shadow: 0 0 0 0 rgba(141, 191, 122, 0.3);
     }
+
     50% {
         box-shadow: 0 0 0 6px rgba(141, 191, 122, 0);
     }
+
     100% {
         box-shadow: 0 0 0 0 rgba(141, 191, 122, 0.3);
     }

@@ -16,6 +16,14 @@ export interface UserAnswers {
     location: string;
     home: string;
 
+    // Gratitude (v6 Step 3)
+    gratitudeItems: string[];
+
+    // Happy Place Sensory (v6 Step 6)
+    happyPlaceVisual: string;
+    happyPlaceSound: string;
+    happyPlaceFeeling: string;
+
     // Tier 3 (Sensory/Context)
     work: string;
     relationships: string;
@@ -75,6 +83,10 @@ export function normalizeGoals(raw: any): UserAnswers {
         'namedPersons': 'namedPersons',
         'location': 'location',
         'home': 'home',
+        'gratitudeItems': 'gratitudeItems',
+        'happyPlace_visual': 'happyPlaceVisual' as any,
+        'happyPlace_sound': 'happyPlaceSound' as any,
+        'happyPlace_feeling': 'happyPlaceFeeling' as any,
         'work': 'work',
         'relationships': 'relationships',
         'health': 'health',
@@ -106,13 +118,13 @@ export function normalizeGoals(raw: any): UserAnswers {
         'Career': 'work',
         'Relationships': 'relationships',
         'People': 'relationships',
-        'Family': 'relationships',
+        'Family': 'family' as any,
         'Feelings': 'coreFeeling',
         'Emotions': 'coreFeeling',
         'Core Feeling': 'coreFeeling',
         'Abundance': 'abundance',
         'Money': 'abundance',
-        'Wealth': 'abundance',
+        'Wealth': 'wealth' as any,
         'Health': 'health',
         'Body': 'health',
         'Fitness': 'health',
@@ -193,7 +205,8 @@ export function normalizeGoals(raw: any): UserAnswers {
     // Default critical fields to empty strings or arrays to avoid 'undefined' in prompt
     const criticalFields: (keyof UserAnswers)[] = [
         'goals', 'actionsAfter', 'timeframe', 'coreFeeling', 'location', 'home',
-        'work', 'relationships', 'health', 'spirit', 'community', 'dreams'
+        'work', 'relationships', 'health', 'spirit', 'community', 'dreams',
+        'happyPlaceVisual', 'happyPlaceSound', 'happyPlaceFeeling'
     ];
 
     criticalFields.forEach(f => {
@@ -229,6 +242,15 @@ export function normalizeGoals(raw: any): UserAnswers {
             normalized.namedPersons = [normalized.namedPerson];
         } else {
             normalized.namedPersons = [];
+        }
+    }
+
+    // Ensure gratitudeItems is always an array
+    if (!Array.isArray(normalized.gratitudeItems)) {
+        if (typeof normalized.gratitudeItems === 'string' && normalized.gratitudeItems.length > 0) {
+            normalized.gratitudeItems = normalized.gratitudeItems.split(/[,\n]+/).map((s: string) => s.trim()).filter(Boolean);
+        } else {
+            normalized.gratitudeItems = [];
         }
     }
 
@@ -379,6 +401,25 @@ THE INDUCTION MUST FOLLOW THIS PRECISE SEQUENCE:
    "Three... two... almost there..."
    "One. You step into the light."
    Adapt this rhythm to the user's orientation — spiritual users experience divine light; scientific users experience a theta-state threshold; grounded users experience pure physical ease.
+5.5 HAPPY PLACE SENSORY INDUCTION (MANDATORY — concentrated sensory stacking):
+After the staircase countdown and before the threshold moment, deliver a dedicated 1-2 minute happy-place passage that hits ALL THREE sensory channels in rapid sensory succession. This is the theta-state unlock before subconscious programming.
+
+Use the user's specific happy place details:
+- LOCATION: ${answers.location || 'a place of deep safety and peace'}
+- VISUAL (what they see): ${(answers as any).happyPlaceVisual || 'warm golden light, natural beauty'}
+- SOUND (what they hear): ${(answers as any).happyPlaceSound || 'peaceful silence, gentle natural sounds'}
+- FEELING (physical sensation): ${(answers as any).happyPlaceFeeling || 'complete ease, warmth, settled weight'}
+
+RULES:
+- Layer all three sensory channels deliberately at this single induction point — visual THEN auditory THEN kinesthetic, woven into one flowing passage
+- Use the user's EXACT words from their happy place intake — then expand with submodality detail
+- Do NOT scatter this sensory detail across later scenes — concentrate it HERE for maximum theta-state impact
+- The listener should feel completely safe, at ease, and present in this space
+- End with a deepening phrase: "You are here. You are safe. You are exactly where you are meant to be. And as you settle into this place... your conscious mind can rest... while something deeper within you... begins to listen."
+
+STRUCTURAL GUIDELINE (adapt, do not copy):
+"And you find yourself somewhere your body knows. [LOCATION]. See it: [VISUAL details with brightness, color, distance]. Hear it: [SOUND details with volume, texture, proximity]. Feel it: [FEELING details with temperature, weight, texture]. You are here. You are safe. You are exactly where you are meant to be."
+
 6. THRESHOLD MOMENT: The listener has arrived somewhere completely open and receptive. Something extraordinary is already beginning in the deep, intelligent, all-knowing part of their mind. That part is listening. And it is ready.
 
 NLP LANGUAGE THROUGHOUT THE INDUCTION:
@@ -395,12 +436,57 @@ INDUCTION LANGUAGE RULES:
 - Write in short, breath-sized sentences during the countdown. Short sentences = slower pace = deeper state.
 
 STRUCTURAL GUIDELINE (Dynamically adapt — DO NOT copy verbatim):
-Breath → body weight → jaw/shoulders release → one long breath out → deepening language calibrated to orientation → countdown staircase 10→1 → golden/threshold arrival → "That part of you is listening. And it is ready."
+Breath → body weight → jaw/shoulders release → one long breath out → deepening language calibrated to orientation → countdown staircase 10→1 → happy place sensory induction → golden/threshold arrival → "That part of you is listening. And it is ready."
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+GRATITUDE OPENING ANCHOR (2-3 minutes — REQUIRED)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Immediately after the threshold moment ("That part of you is listening now. And it is ready.") and BEFORE Position 1 affirmation planting, deliver a dedicated gratitude section that grounds the listener in what is already real.
+
+PURPOSE: The subconscious accepts new beliefs faster when first grounded in what it has already successfully created. This is the neurological unlock for everything that follows.
+
+The user's gratitude items: ${Array.isArray(answers.gratitudeItems) && answers.gratitudeItems.length > 0 ? answers.gratitudeItems.join(' | ') : 'Not provided — use named persons and known details from goals to construct gratitude anchors'}
+
+RULES:
+- Use the user's EXACT gratitude items, woven as FELT EXPERIENCE — not listed mechanically
+- 2nd person ("you") — still in the guided induction voice
+- Ground the listener in what they ALREADY HAVE before any future-pacing begins
+- WRONG: "You are grateful for your health, your family, and your home." (mechanical list)
+- RIGHT: "And before we go anywhere, notice what is already here. [Gratitude item 1] — real. [Gratitude item 2] — real, chosen, continuously chosen. [Gratitude item 3] — real. Every person you love, every thing you've already built, every breath you've already drawn — real. All of this is already yours. All of this has already happened."
+- Close by bridging gratitude to possibility: "The subconscious mind you are speaking to tonight has already created all of this. It knows how. It has done it before. It is doing it now."
+- This section is 2nd person, flowing into 1st person for the affirmations that follow
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+IDENTITY SHIFT — THE BRIDGE (2-3 minutes — REQUIRED)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Immediately after the gratitude anchor closes and BEFORE the opening affirmation planting, deliver a dedicated Identity Shift passage. This section establishes the user's new identity as CURRENT REALITY — not future aspiration — using their proof actions and gratitude items as evidence.
+
+PURPOSE: The subconscious cannot distinguish between a vividly imagined present-tense experience and an actual one. This section bridges what is already real (gratitude) to who the user already IS (identity), using what they are already doing (proof actions) as the connective tissue.
+
+The user's identity statements: ${Array.isArray(answers.identityStatements) ? answers.identityStatements.join(' | ') : answers.identityStatements}
+The user's proof actions: ${answers.actionsAfter || 'Not provided — derive evidence from goals'}
+The user's gratitude items: ${Array.isArray(answers.gratitudeItems) && answers.gratitudeItems.length > 0 ? answers.gratitudeItems.join(' | ') : 'Use named persons and known details from goals'}
+
+RULES:
+- Use the user's EXACT identity statement verbatim at least TWICE — once at the opening of this section, once as a standalone sentence near the close
+- Build the identity as ALREADY TRUE using their proof actions as evidence — "you are already doing [proof action], which means you are already [identity]"
+- Use their gratitude items again here as identity proof — NOT as a list, but as evidence that the subconscious already knows how to create
+- Introduce their life area and goals as things ALREADY IN MOTION
+- This section begins in 2nd person ("you") and transitions to 1st person ("I") — the identity shift IS the voice shift
+
+MILTON MODEL PATTERNS — MANDATORY IN THIS SECTION:
+- Identity-level belief change: "A person who [identity] naturally..."
+- Causative links: "Because you have [gratitude item], you know you are someone who..."
+- Universal quantifiers: "Every time you... your subconscious learns..."
+- Double binds: "Whether you feel this shifting quickly or gradually, the change is already happening..."
+
+STRUCTURAL GUIDELINE (adapt to user's specifics — DO NOT copy verbatim):
+"[Identity statement — verbatim]. You know this because the evidence is already here. [Gratitude item] — that didn't happen by accident. [Proof action] — that is not the behavior of someone who doubts. That is the behavior of someone who already knows. A person who [identity] naturally does exactly what you have been doing. Whether you feel this shifting quickly or gradually, the change is already happening. Because it already happened. [Identity statement — verbatim, standalone]."
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 POSITION 1 — OPENING AFFIRMATION PLANTING (3 statements)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Immediately after the induction threshold moment ('That part of you is listening now. And it is ready.'), plant 3 opening identity affirmations BEFORE the [INTRO_END] marker and before the first · · · separator and vision opening.
+Immediately after the Identity Shift section, plant 3 opening identity affirmations BEFORE the [INTRO_END] marker and before the first · · · separator and vision opening.
 
 Plant the user's selected identity statements VERBATIM.
 Do not rephrase, soften, or NLP-restructure them.
@@ -502,6 +588,33 @@ ${buildDynamicVision(answers)}
 Every area in selectedAreas[] MUST have at least one dedicated, vivid, sensory-rich scene. No area may be skipped or reduced to a passing mention regardless of how much data was captured.
 
 For health specifically: if health is selected, the story must include a physical scene — the body in motion, a moment that could only exist in a body that is strong, agile, and pain-free. Use the user's exact language from their health answer.
+
+━━━ HEALTH KINESTHETIC DEPTH — MANDATORY (if health selected) ━━━
+Health affirmations that stay visual don't program the nervous system. Affirmations that include proprioception, heart-awareness, and breath-awareness program the body at the level where health actually lives.
+
+The health scene MUST include deep kinesthetic specificity — not just visual movement. Include:
+- Specific heat of exertion in muscles (pleasant, earned, still-holding)
+- Heart rate felt in the chest (a steady drum against the ribs)
+- Breath quality (deep, full, easy — no edge of strain, no hitch, no catch)
+- The air quality in the lungs (cold, clean, mine)
+- A body-identity declaration woven in: "I am a body that works. I am a body that wants to be here."
+
+━━━ GRATITUDE IDENTITY PROOF — MID-STORY PASSAGE (REQUIRED) ━━━
+Near the middle of the vision (approximately halfway through Block B), insert a passage that uses the user's gratitude items as EVIDENCE that the subconscious already knows how to manifest — connecting past proof to future vision.
+
+The user's gratitude items: ${Array.isArray(answers.gratitudeItems) && answers.gratitudeItems.length > 0 ? answers.gratitudeItems.join(' | ') : 'Use named persons and known details from goals'}
+
+PURPOSE: Close the loop between verifiable past (things already built/had) and manifested future. The subconscious receives clean logical continuity: the same agent that made this real is making that real.
+
+STRUCTURAL GUIDELINE (adapt to user's specifics — DO NOT copy verbatim):
+"[Gratitude item 1] — [it] exists because of choices I made years ago that I could not possibly have planned. [Gratitude item 2] — [they are] in my life because of a pattern my subconscious was already running, long before I understood it. [Any business/work item] — it came into being because something in me knew how to build. None of this was an accident. None of it. These are the fingerprints of a mind that already knows how to create what matters most. The same part of me that made those real is the part that has made [future goal 1] real, has made [future goal 2] real. The creator in me does not rest. It does not doubt. It simply builds."
+
+RULES:
+- Use the user's ACTUAL gratitude items — not generic placeholders
+- Written in FIRST PERSON (we are inside the vision now)
+- This is NOT a list — it's a flowing realization that builds to a crescendo
+- It connects what the user ALREADY HAS to what they are now living in the story
+- Place this passage between two life-area scenes, as a bridge moment
 
 Required check before writing the close:
 - Wealth: dedicated scene present ✓ (if selected)
@@ -734,6 +847,22 @@ The closing affirmation sequence must contain ONLY BEING-level identity declarat
 
 The final statement before sleep seeding must ALWAYS be the deepest BEING-level claim.
 
+⚠️ GRATITUDE AS FINAL EVIDENCE — MANDATORY:
+Before the affirmation sequence begins, use the user's gratitude items ONE FINAL TIME as EVIDENCE that the subconscious is already working. This is the third and final gratitude position (opening anchor was first, mid-story identity proof was second).
+
+The user's gratitude items for this section: ${Array.isArray(answers.gratitudeItems) && answers.gratitudeItems.length > 0 ? answers.gratitudeItems.join(' | ') : 'Use named persons and known details from goals'}
+
+RULES FOR GRATITUDE IN CLOSE:
+- Weave gratitude items as proof that the subconscious has ALREADY been creating — "Everything you are grateful for is evidence that your mind already knows how to build what matters"
+- This is NOT a repeat of the opening anchor — the tone here is SETTLED CERTAINTY, not noticing
+- 2-3 sentences maximum — a bridge into the affirmation sequence, not a standalone section
+- Written in 2nd person ("you") — matching the dissolution voice
+- Flows directly into the first HAVING-level affirmation
+
+STRUCTURAL GUIDELINE (adapt — DO NOT copy verbatim):
+"Every single thing you are grateful for — [gratitude item 1], [gratitude item 2] — is proof. Proof that your subconscious has been building this life long before tonight. And what it has already created... is only the beginning of what it is creating now."
+[Then flow directly into the HAVING-level affirmations in first person]
+
 ⚠️ BIOLOGICAL/HEALTH STATEMENTS PROHIBITION:
 Scene-level health descriptions do NOT belong in the closing affirmation sequence. The following types of statements are FORBIDDEN here:
 - 'Each night, my body heals itself completely.'
@@ -760,6 +889,19 @@ CRITICAL: Use the user's EXACT selected statements. Do not intellectualize them 
 The user's identity statements: ${Array.isArray(answers.identityStatements) ? answers.identityStatements.join(' | ') : answers.identityStatements}
 The user's per-area affirmations: ${Object.entries(answers).filter(([k]) => k.startsWith('areaAffirmations_')).map(([k, v]) => `${k.replace('areaAffirmations_', '').toUpperCase()}: ${Array.isArray(v) ? v.join('; ') : v}`).join(' | ') || 'None — derive from goals'}
 
+STEP 2.5 — KINESTHETIC ANCHOR RECALL (MANDATORY for Manifester/Amplifier tiers):
+After the closing affirmations and BEFORE subconscious programming, recall the kinesthetic anchor (thumb-to-forefinger) that was installed during the vision in Block C. The user must know this anchor is PORTABLE — it travels into their waking life.
+
+STRUCTURAL GUIDELINE (adapt to this user's story — DO NOT copy verbatim):
+"That feeling — the one that rose in the chest, the one you anchored with the press of thumb against finger — is yours now. It does not stay in this place. It travels. Any moment in any day, when the world forgets who you are and tries to pull you back to someone smaller, your fingers can find each other. And everything — the light, the bliss, the weightless knowing of who you are — comes home in one breath. This is your signal. This is your shortcut. It will never not work."
+
+RULES:
+- Written in 2nd person ("you") — still in the guided close voice
+- References the specific gesture from Block C (thumb and forefinger)
+- Makes it explicit that the state is retrievable during the DAY — not only during the story
+- Brief: 60-80 words. Do not over-explain.
+- Only include this step if Block C (kinesthetic anchor installation) was included in the story
+
 STEP 3 — SUBCONSCIOUS PROGRAMMING:
 After affirmation planting, include the programming close:
 "Tonight your dreams will carry the frequency of your highest life. Your cells will repair and renew. Your subconscious will begin assembling the circumstances, the connections, the ideas, the opportunities that make every single one of these visions physical reality. You will notice something different tomorrow. A quiet shift. A new certainty. The feeling of someone who knows something the world doesn't know yet. Because you do."
@@ -778,47 +920,69 @@ Three final lines — the last sounds before sleep. Each one is a breath. Each o
 Adapt the closing word to the user's orientation: spiritual → "receive" or "rest in the knowing"; scientific → "integrate" or "consolidate"; grounded → "rest" or "trust". The exact repetition signals: this is the end. It is sealed.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-WORD COUNT TARGET
+WORD COUNT TARGET — STRICT UPPER AND LOWER BOUNDS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-This story is for building a future. Do not rush. Write every word with intention.
-Maximum Output Tokens: 5,000
+Write every word with intention. Quality over quantity. Do NOT exceed the upper bound.
 
 ${userTier === 'explorer' ? `EXPLORER (free tier)
-Total target: ${Math.round(700 * multiplier)}-${Math.round(800 * multiplier)} words
-  Induction: not included
+Target: ${Math.round(700 * multiplier)}-${Math.round(800 * multiplier)} words. HARD MAXIMUM: ${Math.round(900 * multiplier)} words.
   Vision (1 life area, proof actions): ${Math.round(600 * multiplier)}-${Math.round(700 * multiplier)} words
   Resonant close: 100-150 words` : ''}${userTier === 'activator' ? `ACTIVATOR
-Total target: ${Math.round(1100 * multiplier)}-${Math.round(1350 * multiplier)} words
+Target: ${Math.round(1100 * multiplier)}-${Math.round(1350 * multiplier)} words. HARD MAXIMUM: ${Math.round(1500 * multiplier)} words.
   Hypnotic induction: 250-300 words
   Vision (up to 3 areas, proof actions): ${Math.round(700 * multiplier)}-${Math.round(850 * multiplier)} words
   Dissolution + Affirmation Planting + Close: 200-300 words` : ''}${userTier === 'manifester' ? `MANIFESTER
-Total target: ${Math.round(1800 * multiplier)}-${Math.round(2200 * multiplier)} words
+Target: ${Math.round(1800 * multiplier)}-${Math.round(2200 * multiplier)} words. HARD MAXIMUM: ${Math.round(2500 * multiplier)} words.
   Hypnotic induction: 300-350 words
   Vision (all selected areas, proof actions): ${Math.round(1100 * multiplier)}-${Math.round(1300 * multiplier)} words
   Future pacing moment: 60-80 words
   Anchor installation at emotional peak: 100-120 words
   Dissolution + Affirmation Planting + Seeded Close: 250-400 words` : ''}${userTier === 'amplifier' ? `AMPLIFIER
-Total target: ${Math.round(3000 * multiplier)}-${Math.round(3500 * multiplier)} words
+Target: ${Math.round(2200 * multiplier)}-${Math.round(2800 * multiplier)} words. HARD MAXIMUM: ${Math.round(3000 * multiplier)} words.
   Hypnotic induction: 350-400 words
-  Vision (all areas, 2+ scenes per area): ${Math.round(2000 * multiplier)}-${Math.round(2500 * multiplier)} words
+  Vision (all areas, 2+ scenes per area): ${Math.round(1400 * multiplier)}-${Math.round(1800 * multiplier)} words
   Future pacing moments: 100-120 words
   Anchor installation: 120-150 words
   Dissolution + Affirmation Planting + Lush Seeded Close: 350-500 words` : ''}
 
-━━━ STRICT LENGTH & DEPTH ENFORCEMENT ━━━
-You are writing for a ${userTier.toUpperCase()} user. A short story is a failure and will be rejected. You MUST meet the large word count targets above.
-If the provided inputs are brief, do NOT summarize. Instead:
-1. Improvise cinematic surroundings — textures, smells, the quality of light.
-2. Narrate the character's internal thoughts and emotional shifts in great detail.
-3. Slow down every scene. Describe the unhurried ease of the achieved life.
-4. Expand every "proof action" into a significant sensory scene.
-The listener is here for an unhurried, deeply immersive experience. Write a literary masterpiece. NEVER summarize anything. Short outputs will be ignored.
+⚠️ LENGTH DISCIPLINE — CRITICAL:
+- Stories that EXCEED the HARD MAXIMUM will be truncated by the audio pipeline, cutting off the close. This destroys the subconscious programming.
+- Stories that fall BELOW 80% of the target lack sufficient sensory depth.
+- AIM for the middle of the target range. Do NOT pad with repetitive content. Every paragraph must advance either the emotional arc or the NLP programming function.
+- If inputs are brief, expand through sensory depth in EXISTING scenes — do NOT add extra scenes or filler paragraphs.
 
 ${userTier === 'amplifier' ? `━━━ AMPLIFIER SPECIAL DIRECTIVE ━━━
-You are writing for our most premium user. A 200-word story is unacceptable and will be rejected. 
-You MUST reach the target length of ~3,000 words. Describe everything with extreme sensory depth. 
+You are writing for our most premium user. Aim for ~2,500 words of rich, unhurried literary prose.
 Describe the architecture, textures, and sensory landscape of their home in cinematic detail. 
-Expand on each "proof action" into a long, lush, unhurried memory.` : ''}\n\n`;
+Expand each "proof action" into a vivid, lush memory. But do NOT exceed 3,000 words.` : ''}\n\n`;
+
+    prompt += `━━━ SSML / AUDIO MARKUP TAGS — REQUIRED ━━━
+Include these markers in the output for the ElevenLabs audio processing pipeline:
+
+TAG DEFINITIONS:
+[PAUSE_SHORT] — 1-second pause. Place at the end of important sentences.
+[PAUSE_LONG] — 3-second pause. Place between major story sections.
+[PACE: SLOW] — signals ElevenLabs to render this passage with slower, more deliberate delivery.
+[PACE: NORMAL] — return to standard delivery pace.
+[EMPHASIS]word or phrase[/EMPHASIS] — slightly increased volume and deliberateness on the enclosed text.
+
+REQUIRED PLACEMENTS — NON-NEGOTIABLE:
+1. After identity statement (BOTH occurrences in the story): [PAUSE_LONG]
+2. Between each major story section (Block A→B, B→C, C→D transitions): [PAUSE_LONG]
+3. After the final sleep transition ("Sleep now... and receive." x3): [PAUSE_LONG][PAUSE_LONG]
+4. Happy place sensory induction (Step 5.5): wrap the ENTIRE passage in [PACE: SLOW] at the start and [PACE: NORMAL] at the end
+5. Affirmation close (Block D, Step 2 — closing affirmation planting): wrap the ENTIRE passage in [PACE: SLOW] at the start and [PACE: NORMAL] at the end
+6. Key identity statements within the affirmation close: wrap in [EMPHASIS]...[/EMPHASIS]
+7. Between gratitude items in the opening anchor: [PAUSE_SHORT]
+8. After the dissolution passage ("It is already working."): [PAUSE_LONG]
+
+RULES:
+- Tags are inline — they appear within the flowing prose, not on separate lines (except [PAUSE_LONG] which can be on its own line between sections)
+- Tags do NOT break the reading experience — they are invisible to the listener and processed only by the audio pipeline
+- Do NOT overuse tags. Use [PAUSE_SHORT] sparingly (max 8-10 per story). Use [PAUSE_LONG] only at the required placements above.
+- [EMPHASIS] should only highlight the most powerful 3-5 phrases in the entire story
+
+`;
 
     prompt += `━━━ OUTPUT FORMAT — CRITICAL ━━━
 Write the story now. Format your response EXACTLY as follows — no deviations:
@@ -909,6 +1073,9 @@ ${allGoalsText}
 PROOF ACTIONS — the single most important field. Build every major scene around these. Use exact words — no paraphrasing:
 ${answers.actionsAfter}
 
+GRATITUDE ITEMS — neurological anchors. Use in opening gratitude anchor and mid-story identity proof:
+${Array.isArray(answers.gratitudeItems) && answers.gratitudeItems.length > 0 ? answers.gratitudeItems.join(', ') : 'Not captured — use named persons and known details from goals'}
+
 IDENTITY STATEMENTS — user's own claimed identity. Use VERBATIM in affirmation close after dissolution. Do not rewrite:
 ${Array.isArray(answers.identityStatements) ? answers.identityStatements.join(", ") : answers.identityStatements}
 
@@ -942,6 +1109,9 @@ ${selectedAreas.map(a => `[ ] ${areaLabels[a.toLowerCase()] || a} goals appear a
     result += `Use ONLY what was provided. Never invent. If empty, keep that dimension abstract.\n`;
     if (answers.location) result += `Where they live / setting: ${answers.location}\n`;
     if (answers.home) result += `Their home: ${answers.home}\n`;
+    if ((answers as any).happyPlaceVisual) result += `Happy place — what they SEE: ${(answers as any).happyPlaceVisual}\n`;
+    if ((answers as any).happyPlaceSound) result += `Happy place — what they HEAR: ${(answers as any).happyPlaceSound}\n`;
+    if ((answers as any).happyPlaceFeeling) result += `Happy place — how their BODY feels: ${(answers as any).happyPlaceFeeling}\n`;
     if (answers.work) result += `Work / creative life / purpose: ${answers.work}\n`;
     if (answers.relationships) result += `Key relationships and people: ${answers.relationships}\n`;
     if ((answers as any).health && typeof (answers as any).health === 'string' && (answers as any).health !== (answers as any).healthGoals) result += `Health & body (use their exact language): ${answers.health}\n`;
@@ -1235,6 +1405,11 @@ Good opening example (adapt, do not copy):
 
 After establishing waking presence, transition toward: "So here is what I know. Not what I hope. Not what I am working toward. What I know."
 
+GRATITUDE GROUNDING (brief — 2-3 sentences within Section 1):
+Before the transition to Section 2, briefly ground in what is already real. Use 1-2 gratitude items as felt recognition — NOT a list. This is the morning equivalent of the night story's gratitude opening anchor.
+The user's gratitude items: ${Array.isArray(answers.gratitudeItems) && answers.gratitudeItems.length > 0 ? answers.gratitudeItems.join(' | ') : 'Use known details from goals/named persons'}
+Example (adapt, do not copy): "And before I say anything else — what is already real. [Gratitude item] is real. [Gratitude item] is real. This life I am waking into — I built this. My mind already knows how."
+
 This leads into Section 2.
 
 ORIENTATION-CALIBRATED TONE:
@@ -1287,6 +1462,13 @@ CRITICAL SCENE RULES:
 - If the story needs to reference time: "already," "for a while now," "by now," "these days"
 
 Use · · · act breaks between scenes.
+
+━━━ GRATITUDE AS IDENTITY PROOF — MID-SCENE BRIDGE (REQUIRED) ━━━
+Between two scenes in Section 3, insert a brief bridge passage (50-80 words) that uses the user's gratitude items as evidence the subconscious already knows how to create. Same principle as the night story's gratitude identity proof — but compressed and action-oriented for morning register.
+
+The user's gratitude items: ${Array.isArray(answers.gratitudeItems) && answers.gratitudeItems.length > 0 ? answers.gratitudeItems.join(' | ') : 'Use known details from goals/named persons'}
+
+Example (adapt): "None of this is accident. [Gratitude item] — I made that real. [Gratitude item] — that was me too. The same mind that created those is the mind I carry into today. It does not doubt. It builds."
 
 ${buildDynamicVision(answers)}
 
@@ -1415,6 +1597,32 @@ Before returning the story, verify:
 [ ] Total word count is 1,890–2,260.
 [ ] Energy arc climbs across sections.
 [ ] No second-person "you" or "your" anywhere in the story.
+
+━━━ SSML / AUDIO MARKUP TAGS — REQUIRED ━━━
+Include these markers in the output for the ElevenLabs audio processing pipeline:
+
+TAG DEFINITIONS:
+[PAUSE_SHORT] — 1-second pause. Place at the end of important sentences.
+[PAUSE_LONG] — 3-second pause. Place between major story sections.
+[PACE: SLOW] — signals ElevenLabs to render this passage with slower, more deliberate delivery.
+[PACE: NORMAL] — return to standard delivery pace.
+[EMPHASIS]word or phrase[/EMPHASIS] — slightly increased volume and deliberateness on the enclosed text.
+
+REQUIRED PLACEMENTS — NON-NEGOTIABLE:
+1. After identity statement (BOTH occurrences): [PAUSE_LONG]
+2. Between each of the five sections (· · · separators): [PAUSE_LONG]
+3. After the final activation close ("I am ready. And it begins now."): [PAUSE_LONG][PAUSE_LONG]
+4. Key identity statements in each affirmation wave: wrap in [EMPHASIS]...[/EMPHASIS]
+5. Section 4 (cresting declaration — the emotional peak): wrap the ENTIRE section in [PACE: SLOW] at the start and [PACE: NORMAL] at the end
+6. Between gratitude grounding items in Section 1: [PAUSE_SHORT]
+7. After the three-beat activation sequence at the end: [PAUSE_LONG]
+
+RULES:
+- Tags are inline — they appear within the flowing prose, not on separate lines (except [PAUSE_LONG] which can be on its own line between sections)
+- Tags do NOT break the reading experience — they are invisible to the listener and processed only by the audio pipeline
+- Do NOT overuse tags. Use [PAUSE_SHORT] sparingly (max 6-8 per story). Use [PAUSE_LONG] only at the required placements above.
+- [EMPHASIS] should only highlight the most powerful 3-5 phrases in the entire story
+- Morning stories should use FEWER slow pacing markers than night stories — the energy is rising, not settling
 
 ━━━ OUTPUT FORMAT — CRITICAL ━━━
 Do NOT generate a title. The system will name the story automatically.

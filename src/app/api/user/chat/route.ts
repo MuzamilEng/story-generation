@@ -42,21 +42,47 @@ Do NOT ask a combined question about all areas. Each area gets its own turn.`;
         // and inject a strict enforcement reminder
         const allContent = messages.map((m: any) => m.content || '').join('\n');
         const isInProofActions = /phase["']?\s*:\s*["']Proof Actions/i.test(allContent);
-        const proofActionQuestionCount = (allContent.match(/actionsAfter/gi) || []).length;
         // Count how many assistant messages contain CAPTURE for actionsAfter (= completed Q&A exchanges)
         const proofActionCaptures = messages.filter(
             (m: any) => m.role === 'assistant' && /CAPTURE[:\s]*\{[^}]*"label"\s*:\s*"actionsAfter"/i.test(m.content || '')
         ).length;
 
-        if (isInProofActions && proofActionCaptures < 2) {
+        // Extract selected life areas from the conversation to enforce per-area coverage
+        const selectedAreasMatch = allContent.match(/life areas i want to transform are:\s*(.+)/i);
+        let selectedAreasList: string[] = [];
+        if (selectedAreasMatch) {
+            selectedAreasList = selectedAreasMatch[1].split(',').map((a: string) => a.trim().replace(/\.$/, '')).filter(Boolean);
+        }
+        // Also try to parse from CAPTURE tags for selectedAreas
+        const selectedAreasCaptureMatch = allContent.match(/CAPTURE[:\s]*\{[^}]*"label"\s*:\s*"selectedAreas"[^}]*"value"\s*:\s*\[([^\]]*)\]/i);
+        if (selectedAreasCaptureMatch && selectedAreasList.length === 0) {
+            selectedAreasList = selectedAreasCaptureMatch[1].replace(/"/g, '').split(',').map((a: string) => a.trim()).filter(Boolean);
+        }
+
+        // Minimum proof action exchanges: at least 2, scaled up if many areas (capped at 4 per spec)
+        const minProofExchanges = Math.max(2, Math.min(selectedAreasList.length > 0 ? Math.ceil(selectedAreasList.length / 2) + 1 : 2, 4));
+
+        if (isInProofActions && proofActionCaptures < minProofExchanges) {
+            // Try to identify which areas have proof action coverage from CAPTURE values
+            const proofCaptureTexts = messages
+                .filter((m: any) => m.role === 'assistant' && /CAPTURE[:\s]*\{[^}]*"label"\s*:\s*"actionsAfter"/i.test(m.content || ''))
+                .map((m: any) => m.content || '');
+            const coveredAreasInProof = selectedAreasList.filter(area =>
+                proofCaptureTexts.some((text: string) => text.toLowerCase().includes(area.toLowerCase()))
+            );
+            const uncoveredAreas = selectedAreasList.filter(area => !coveredAreasInProof.includes(area));
+
             systemPrompt += `\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 PROOF ACTIONS ENFORCEMENT — ACTIVE NOW
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 You are currently in Phase 3 (Proof Actions). You have completed ${proofActionCaptures} proof-action question(s) so far.
-You MUST ask at least 2 separate proof-action questions total before moving to Phase 4.
-${proofActionCaptures === 0 ? 'Ask Question 1 now — the opening proof action question about what the user will do FIRST when their goals are real.' : ''}
-${proofActionCaptures === 1 ? 'Ask Question 2 now — expand across the remaining life areas that were NOT covered by the first proof action. List the uncovered areas by name and ask about them specifically.' : ''}
-Do NOT skip to Phase 4 (Story Anchors/Tone). Do NOT move past Proof Actions until you have asked at least 2 questions and received 2 responses.`;
+The user selected these life areas: ${selectedAreasList.length > 0 ? selectedAreasList.join(', ') : 'multiple areas'}.
+You MUST ask at least ${minProofExchanges} separate proof-action questions total before moving to Phase 4.
+${proofActionCaptures === 0 ? 'Ask Step 1 now — the opening proof action question: "Once [reference their most important goal] is real — what is the very first thing you do?"' : ''}
+${proofActionCaptures >= 1 && uncoveredAreas.length > 0 ? `Ask Step 2 now — the following life areas still need proof action coverage: ${uncoveredAreas.join(', ')}. Ask about ONE uncovered area at a time: "You also mentioned [uncovered goal area] — what is one moment that tells you that is completely real too?"` : ''}
+${proofActionCaptures >= 1 && uncoveredAreas.length === 0 ? 'Ask the final confirmation step — list all captured proof actions and confirm: "Does this cover the life that is waiting for you — or is there anything else?"' : ''}
+The proof action prompt MUST reference ALL goals from ALL selected areas, not just a subset.
+Do NOT skip to Phase 4 (Story Anchors/Tone). Do NOT move past Proof Actions until you have asked at least ${minProofExchanges} questions and received responses covering ALL selected life areas.`;
         }
 
         const langchainMessages = [

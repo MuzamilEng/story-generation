@@ -14,8 +14,8 @@ export const model = isAnthropic
     ? new ChatAnthropic({
         anthropicApiKey: anthropicKey,
         modelName: "claude-sonnet-4-6",
-        temperature: 0.88,
-        maxTokens: 16384,
+        temperature: 0.85,
+        maxTokens: 5000,
         maxRetries: 0, // We handle retries + fallback ourselves
     })
     : new AzureChatOpenAI({
@@ -35,8 +35,8 @@ if (isAnthropic) {
     fallbackModels.push(new ChatAnthropic({
         anthropicApiKey: anthropicKey,
         modelName: "claude-3-5-sonnet-20241022",
-        temperature: 0.88,
-        maxTokens: 16384,
+        temperature: 0.85,
+        maxTokens: 5000,
         maxRetries: 0,
     }));
 }
@@ -48,7 +48,7 @@ if (isAnthropic && isAzure) {
         azureOpenAIEndpoint: process.env.AZURE_OPENAI_ENDPOINT,
         azureOpenAIApiDeploymentName: process.env.AZURE_OPENAI_DEPLOYMENT_NAME || 'gpt-4o',
         azureOpenAIApiVersion: process.env.AZURE_OPENAI_API_VERSION || '2024-12-01-preview',
-        temperature: 0.88,
+        temperature: 0.85,
         maxRetries: 0,
     }));
 }

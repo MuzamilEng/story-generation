@@ -40,7 +40,7 @@ THIS IS A MORNING STORY. No sleep language. No hypnotic induction. No theta / st
 ━━━ SAFETY ━━━
 ManifestMyStory is for positive creation only. Harmful intent = "ManifestMyStory is built for positive creation only. I'm not able to write this story as requested."`;
 
-function getSystemMessage(tier: Tier, targetLength?: string | null, storyType: string = 'night'): string {
+function getSystemMessage(tier: Tier, targetLength?: string | null, storyType: string = 'night', goalCount: number = 3): string {
     const lengthMultipliers: Record<string, number> = { 'short': 0.6, 'medium': 1.0, 'long': 1.5, 'epic': 2.2 };
     let multiplier = (targetLength && lengthMultipliers[targetLength]) ? lengthMultipliers[targetLength] : 1.0;
     
@@ -49,27 +49,35 @@ function getSystemMessage(tier: Tier, targetLength?: string | null, storyType: s
         multiplier = 1.0;
     }
 
+    // Dynamic base word count for amplifier tier based on number of selected goals
+    // 1 goal → ~1100 words, 5-7 goals → ~2500-3000 words, interpolated between
+    function amplifierBase(goals: number): number {
+        if (goals <= 1) return 1100;
+        if (goals >= 5) return 2500;
+        // Linear interpolation: 1→1100, 5→2500
+        return Math.round(1100 + ((goals - 1) / (5 - 1)) * (2500 - 1100));
+    }
+
     const MAX_WORDS = 3000;
     const targets: Record<Tier, number> = {
         explorer: Math.round(750 * multiplier),
         activator: Math.round(1200 * multiplier),
         manifester: Math.round(2000 * multiplier),
-        amplifier: Math.round(3500 * multiplier)
+        amplifier: Math.round(amplifierBase(goalCount) * multiplier)
     };
 
     const targetWc = Math.min(targets[tier], MAX_WORDS);
+    const hardMax = Math.min(Math.round(targetWc * 1.15), MAX_WORDS); // Never exceed 3000
     const baseMessage = storyType === 'morning' ? BASE_SYSTEM_MESSAGE_MORNING : BASE_SYSTEM_MESSAGE_NIGHT;
 
     return `${baseMessage}
 
-━━━ CRITICAL LENGTH INSTRUCTION — HIGH PRIORITY ━━━
-This user is on the ${tier.toUpperCase()} tier. 
-You MUST provide a full, unhurried, and deeply detailed experience that matches this premium tier.
-The target length is exactly ${targetWc} words. 
-Do NOT summarize. Do NOT rush the ending.
-Your quality is measured by your ability to reach this word count through cinematic expansion and sensory depth. 
-Short outputs (fewer than ${Math.round(targetWc * 0.9)} words) are considered a failure of the manifestation experience. 
-Luxuriate in the scenes. Expand the textures, the scents, and the unhurried internal dialogue of the achieved life.`;
+━━━ LENGTH INSTRUCTION — STRICT BOUNDS ━━━
+This user is on the ${tier.toUpperCase()} tier.
+Target length: ${targetWc} words. Hard maximum: ${hardMax} words.
+Do NOT exceed ${hardMax} words — stories that run long get truncated by the audio pipeline, destroying the closing affirmation sequence.
+Do NOT fall below ${Math.round(targetWc * 0.8)} words — the story needs sufficient sensory depth.
+Aim for the target. Quality and precision over length. Every paragraph must advance either the emotional arc or the NLP programming function.`;
 }
 
 async function generateStory(prompt: string, systemMessage: string): Promise<string> {
@@ -167,7 +175,8 @@ export async function POST(
         const prompt = storyType === 'morning'
             ? buildMorningStoryPrompt(answers, userTier, instruction, story.story_length_option, new Date().toISOString(), nightStoryText)
             : buildStoryPrompt(answers, userTier, instruction, story.story_length_option, new Date().toISOString());
-        const systemMessage = getSystemMessage(userTier, story.story_length_option, storyType);
+        const goalCount = Array.isArray(answers.selectedAreas) ? answers.selectedAreas.length : 3;
+        const systemMessage = getSystemMessage(userTier, story.story_length_option, storyType, goalCount);
 
         console.log(`[STORY_GENERATE] Using LangChain GPT-4o-2024-08-06 for ${storyType} story ${storyId}`);
         const rawResponse = await generateStory(prompt, systemMessage);
@@ -175,6 +184,15 @@ export async function POST(
         if (!rawResponse) {
             throw new Error('Failed to generate story text')
         }
+
+        // Compute the hard-max word cap for this generation (same formula as prompt)
+        const lengthMultipliers: Record<string, number> = { 'short': 0.6, 'medium': 1.0, 'long': 1.5, 'epic': 2.2 };
+        const lenOpt = story.story_length_option as string | null;
+        const mul = (lenOpt && lengthMultipliers[lenOpt]) ? lengthMultipliers[lenOpt] : 1.0;
+        function _ampBase(g: number) { if (g <= 1) return 1100; if (g >= 5) return 2500; return Math.round(1100 + ((g - 1) / 4) * 1400); }
+        const tierTargets: Record<string, number> = { explorer: Math.round(750 * mul), activator: Math.round(1200 * mul), manifester: Math.round(2000 * mul), amplifier: Math.round(_ampBase(goalCount) * mul) };
+        const computedTarget = Math.min(tierTargets[userTier] || 2500, 3000);
+        const HARD_MAX_WORDS = Math.min(Math.round(computedTarget * 1.15), 3000); // Never exceed 3000 words
 
         // System-generated title — no AI title parsing
         const title = story.title;
@@ -197,6 +215,36 @@ export async function POST(
             .replace(/\*\*(.*?)\*\*/g, '$1') // Strip bold
             .replace(/\*(.*?)\*/g, '$1')   // Strip italic
             .trim();
+
+        // ── HARD WORD-COUNT ENFORCEMENT ──
+        // The LLM sometimes ignores length instructions. Truncate at a sentence
+        // boundary near the hard max so the closing affirmation stays intact.
+        const words = storyText.split(/\s+/);
+        if (words.length > HARD_MAX_WORDS) {
+            console.log(`[STORY_GENERATE] Truncating: ${words.length} words → ${HARD_MAX_WORDS} cap`);
+            const truncated = words.slice(0, HARD_MAX_WORDS).join(' ');
+            // Find the last sentence-ending punctuation within the truncated text
+            const lastSentence = truncated.search(/[.!?"…]\s*$/);
+            if (lastSentence > truncated.length * 0.85) {
+                // Close at the last clean sentence end
+                storyText = truncated.substring(0, lastSentence + 1).trim();
+            } else {
+                // Fallback: find the last period/exclamation in the truncated text
+                const lastPeriod = Math.max(
+                    truncated.lastIndexOf('. '),
+                    truncated.lastIndexOf('.\n'),
+                    truncated.lastIndexOf('! '),
+                    truncated.lastIndexOf('!\n'),
+                    truncated.lastIndexOf('?" '),
+                    truncated.lastIndexOf('…')
+                );
+                if (lastPeriod > truncated.length * 0.7) {
+                    storyText = truncated.substring(0, lastPeriod + 1).trim();
+                } else {
+                    storyText = truncated.trim();
+                }
+            }
+        }
 
         // Update story and create a version
         const updatedStory = await prisma.story.update({

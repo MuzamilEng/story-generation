@@ -16,6 +16,7 @@ import {
   ArrowIcon,
   MicIcon,
   MicOffIcon,
+  AiSparkleIcon,
 } from "../../../components/icons/ChatIcons";
 import {
   Message,
@@ -25,6 +26,8 @@ import {
   SYSTEM_PROMPT,
   TOPICS,
   AREA_TOPIC_IDS,
+  SIDEBAR_GROUPS,
+  SidebarGroup,
 } from "../../../types/goal-discovery";
 import { useStoryStore } from "@/store/useStoryStore";
 import { normalizeGoals } from "@/lib/story-utils";
@@ -728,12 +731,24 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
       isIdentityPhase ||
       isLifeAreasPhase ||
       isAffirmationPhase ||
-      /select every|select all|which of these|claim|choose the ones|pick the ones|check.*(you want|that feel|that resonate)|i['']ve captured the following|here['']s what i captured|affirmation/i.test(lower)
+      /select every|select all|which of these|claim|choose the ones|pick the ones|check.*(you want|that feel|that resonate)|i['']ve captured the following|here['']s what i captured|affirmation/i.test(
+        lower,
+      )
     );
-  }, [isUser, chips.length, message.content, isIdentityPhase, isLifeAreasPhase, isAffirmationPhase]);
+  }, [
+    isUser,
+    chips.length,
+    message.content,
+    isIdentityPhase,
+    isLifeAreasPhase,
+    isAffirmationPhase,
+  ]);
 
   // Whether to show the custom input field (for identity or affirmation chips)
-  const showCustomInput = isIdentityPhase || isAffirmationPhase || (isMultiSelectMessage && !isLifeAreasPhase);
+  const showCustomInput =
+    isIdentityPhase ||
+    isAffirmationPhase ||
+    (isMultiSelectMessage && !isLifeAreasPhase);
 
   const toggleChip = (chip: string) => {
     if (isMultiSelectMessage) {
@@ -782,11 +797,38 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
 
   // Format text with simple markdown and strip AI markers
   const formatText = (text: string) => {
-    // Strip technical markers (all variations)
-    let cleanText = text.replace(
-      /(?:PROGRESS|PROG|CAPTURE|CAPTURED|CAP):\s*(?:```json)?\s*\{[\s\S]*?\}\s*(?:```)?/gi,
-      "",
-    );
+    // Strip technical markers using balanced-brace matching
+    let cleanText = text;
+    const tagPattern =
+      /(?:PROGRESS|PROG|CAPTURE|CAPTURED|CAP):?\s*(?:```json)?\s*/gi;
+    let tagMatch;
+    const ranges: [number, number][] = [];
+    while ((tagMatch = tagPattern.exec(cleanText)) !== null) {
+      const searchStart = tagMatch.index + tagMatch[0].length;
+      const brace = cleanText.indexOf("{", searchStart);
+      if (brace === -1 || brace - searchStart > 5) continue;
+      let depth = 0;
+      let end = brace;
+      for (let i = brace; i < cleanText.length; i++) {
+        if (cleanText[i] === "{") depth++;
+        else if (cleanText[i] === "}") depth--;
+        if (depth === 0) {
+          end = i;
+          break;
+        }
+      }
+      let trailEnd = end + 1;
+      const trailing = cleanText.substring(trailEnd, trailEnd + 10);
+      const fenceMatch = trailing.match(/^\s*```\s*/);
+      if (fenceMatch) trailEnd += fenceMatch[0].length;
+      ranges.push([tagMatch.index, trailEnd]);
+    }
+    for (let i = ranges.length - 1; i >= 0; i--) {
+      cleanText =
+        cleanText.substring(0, ranges[i][0]) +
+        cleanText.substring(ranges[i][1]);
+    }
+    cleanText = cleanText.trim();
 
     // If chips were detected, strip the bullet lines from the displayed text
     // so options appear ONLY as interactive chips, not as text + chips
@@ -815,9 +857,9 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
     // Safety net: remove any orphaned template/JSON artifacts (#8)
     // Catches stray braces, brackets, or partial JSON that leaked through
     cleanText = cleanText
-      .replace(/^\s*[\{\}]\s*$/gm, "")           // Lines that are just { or }
-      .replace(/["']\s*:\s*["']/g, "")            // Key-value fragments like "label": "value"
-      .replace(/^\s*"?\w+"?\s*:\s*$/gm, "")       // Orphaned JSON keys on their own line
+      .replace(/^\s*[\{\}]\s*$/gm, "") // Lines that are just { or }
+      .replace(/["']\s*:\s*["']/g, "") // Key-value fragments like "label": "value"
+      .replace(/^\s*"?\w+"?\s*:\s*$/gm, "") // Orphaned JSON keys on their own line
       .trim();
 
     const withBold = cleanText.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
@@ -856,7 +898,11 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                 <div style={{ display: "flex", gap: "8px", width: "100%" }}>
                   <input
                     type="text"
-                    placeholder={isIdentityPhase ? "Write your own identity statement…" : "Write your own…"}
+                    placeholder={
+                      isIdentityPhase
+                        ? "Write your own identity statement…"
+                        : "Write your own…"
+                    }
                     value={customIdentity}
                     onChange={(e) => setCustomIdentity(e.target.value)}
                     onKeyDown={(e) => {
@@ -966,6 +1012,35 @@ const SkipConfirmModal: React.FC<SkipConfirmModalProps> = ({
     </div>
   </div>
 );
+
+// Helper: check if a sidebar area group is selected by the user
+function isAreaSelected(
+  topicId: string,
+  capturedGoals: CapturedData | null,
+): boolean {
+  const rawAreas =
+    ((capturedGoals?.selectedAreas ||
+      capturedGoals?.SELECTEDAREAS) as string[]) || [];
+  const areas = Array.isArray(rawAreas) ? rawAreas : [rawAreas];
+  return areas.some((a) => {
+    const s = String(a).toLowerCase();
+    if (s === topicId) return true;
+    if (s.includes(topicId)) return true;
+    if (topicId === "spirituality" && s.includes("spirit")) return true;
+    if (topicId === "purpose" && s.includes("career")) return true;
+    return false;
+  });
+}
+
+// Helper: check if a sidebar group should be visible
+function isSidebarGroupVisible(
+  group: SidebarGroup,
+  capturedGoals: CapturedData | null,
+): boolean {
+  if (!group.isArea) return true;
+  // Area groups are visible only if the user selected that area
+  return group.topicIds.some((tid) => isAreaSelected(tid, capturedGoals));
+}
 
 // Topic item component
 interface TopicItemProps {
@@ -1094,6 +1169,7 @@ const GoalDiscovery: React.FC = () => {
       Orientation: "orientation",
       Setup: "orientation",
       "Life Areas": "selectedAreas",
+      Gratitude: "gratitude",
       Wealth: "wealth",
       Health: "health",
       Love: "love",
@@ -1156,6 +1232,7 @@ const GoalDiscovery: React.FC = () => {
   // TODO: Upgrade to Whisper or another professional STT model later
   const [isListening, setIsListening] = useState(false);
   const [voiceSupported, setVoiceSupported] = useState(false);
+  const [isAiAnswering, setIsAiAnswering] = useState(false);
   const recognitionRef = useRef<any>(null);
   // Stores text that was finalized before the current recognition session
   const voiceBaseTextRef = useRef<string>("");
@@ -1183,7 +1260,11 @@ const GoalDiscovery: React.FC = () => {
           const text = event.results[i][0].transcript;
           if (event.results[i].isFinal) {
             // Add a space before appending if needed
-            if (finalizedInSession && !finalizedInSession.endsWith(" ") && !text.startsWith(" ")) {
+            if (
+              finalizedInSession &&
+              !finalizedInSession.endsWith(" ") &&
+              !text.startsWith(" ")
+            ) {
               finalizedInSession += " ";
             }
             finalizedInSession += text;
@@ -1195,7 +1276,11 @@ const GoalDiscovery: React.FC = () => {
         // Combine: previous base text + finalized in this session + interim
         let combined = voiceBaseTextRef.current;
         if (finalizedInSession) {
-          if (combined && !combined.endsWith(" ") && !finalizedInSession.startsWith(" ")) {
+          if (
+            combined &&
+            !combined.endsWith(" ") &&
+            !finalizedInSession.startsWith(" ")
+          ) {
             combined += " ";
           }
           combined += finalizedInSession;
@@ -1398,13 +1483,34 @@ const GoalDiscovery: React.FC = () => {
       }
 
       // 2. Extract all CAPTURE data (handles variations, no colons, etc)
-      const captureRegex =
-        /(?:CAPTURE|CAPTURED|CAP):?\s*(?:```json)?\s*(\{[\s\S]*?\})\s*(?:```)?/gi;
+      // Use a balanced-brace matcher to handle nested JSON (arrays, objects)
+      const captureRegex = /(?:CAPTURE|CAPTURED|CAP):?\s*(?:```json)?\s*/gi;
       let match;
       const newGoals: Record<string, string | string[]> = {};
       while ((match = captureRegex.exec(cleanText)) !== null) {
         try {
-          const data = JSON.parse(match[1]) as CaptureData;
+          // Find the opening brace after the tag
+          const startIdx = match.index + match[0].length;
+          const braceIdx = cleanText.indexOf("{", startIdx);
+          if (braceIdx === -1 || braceIdx - startIdx > 5) continue;
+
+          // Walk forward matching balanced braces
+          let depth = 0;
+          let endIdx = braceIdx;
+          for (let i = braceIdx; i < cleanText.length; i++) {
+            if (cleanText[i] === "{") depth++;
+            else if (cleanText[i] === "}") depth--;
+            if (depth === 0) {
+              endIdx = i;
+              break;
+            }
+          }
+          if (depth !== 0) continue; // unbalanced — skip
+
+          const jsonStr = cleanText
+            .substring(braceIdx, endIdx + 1)
+            .replace(/```\s*$/, ""); // strip trailing markdown fence
+          const data = JSON.parse(jsonStr) as CaptureData;
           if (data.label && data.value) {
             let label = data.label;
             // Normalize common labels to camelCase for the UI
@@ -1460,6 +1566,17 @@ const GoalDiscovery: React.FC = () => {
               } else {
                 merged.actionsAfter = existing || incoming;
               }
+            } else if (AREA_TOPIC_IDS.includes(key) && merged[key]) {
+              // Append per-area data across multiple CAPTURE tags
+              const existing = String(merged[key]).trim();
+              const incoming = Array.isArray(value)
+                ? value.join(", ")
+                : String(value).trim();
+              if (existing && !existing.includes(incoming)) {
+                merged[key] = `${existing}\n\n${incoming}`;
+              } else {
+                merged[key] = existing || incoming;
+              }
             } else {
               merged[key] = value;
             }
@@ -1472,16 +1589,43 @@ const GoalDiscovery: React.FC = () => {
       }
 
       // Clean up the text for UI: remove tags and any surrounding artifacts
-      return cleanText
-        .replace(
-          /(?:PROGRESS|PROG):?\s*(?:```json)?\s*\{[\s\S]*?\}\s*(?:```)?/gi,
-          "",
-        )
-        .replace(
-          /(?:CAPTURE|CAPTURED|CAP):?\s*(?:```json)?\s*\{[\s\S]*?\}\s*(?:```)?/gi,
-          "",
-        )
-        .trim();
+      // Use a function to strip balanced-brace JSON blocks after tag keywords
+      const stripTagBlocks = (text: string): string => {
+        const tagPattern =
+          /(?:PROGRESS|PROG|CAPTURE|CAPTURED|CAP):?\s*(?:```json)?\s*/gi;
+        let result = text;
+        let tagMatch;
+        // Process from end to start so indices don't shift
+        const ranges: [number, number][] = [];
+        while ((tagMatch = tagPattern.exec(result)) !== null) {
+          const searchStart = tagMatch.index + tagMatch[0].length;
+          const brace = result.indexOf("{", searchStart);
+          if (brace === -1 || brace - searchStart > 5) continue;
+          let depth = 0;
+          let end = brace;
+          for (let i = brace; i < result.length; i++) {
+            if (result[i] === "{") depth++;
+            else if (result[i] === "}") depth--;
+            if (depth === 0) {
+              end = i;
+              break;
+            }
+          }
+          // Also consume trailing markdown fence and whitespace
+          let trailEnd = end + 1;
+          const trailing = result.substring(trailEnd, trailEnd + 10);
+          const fenceMatch = trailing.match(/^\s*```\s*/);
+          if (fenceMatch) trailEnd += fenceMatch[0].length;
+          ranges.push([tagMatch.index, trailEnd]);
+        }
+        // Remove ranges from end to start
+        for (let i = ranges.length - 1; i >= 0; i--) {
+          result =
+            result.substring(0, ranges[i][0]) + result.substring(ranges[i][1]);
+        }
+        return result.trim();
+      };
+      return stripTagBlocks(cleanText);
     },
     [setCapturedGoals],
   );
@@ -1614,8 +1758,17 @@ const GoalDiscovery: React.FC = () => {
     } else if (topic === "coreFeeling") {
       setCapturedGoals((prev) => ({ ...prev, coreFeeling: text }));
     } else if (AREA_TOPIC_IDS.includes(topic)) {
-      // Capture goals for the specific life area being explored
-      setCapturedGoals((prev) => ({ ...prev, [topic]: text }));
+      // Capture goals for the specific life area being explored — APPEND across turns
+      setCapturedGoals((prev) => {
+        const existing = prev[topic] ? String(prev[topic]).trim() : "";
+        return {
+          ...prev,
+          [topic]:
+            existing && !existing.includes(text)
+              ? `${existing}\n\n${text}`
+              : existing || text,
+        };
+      });
     } else if (topic === "actionsAfter") {
       setCapturedGoals((prev) => {
         const existing = prev.actionsAfter
@@ -1640,6 +1793,36 @@ const GoalDiscovery: React.FC = () => {
     },
     [handleSend],
   );
+
+  const handleAiAnswer = useCallback(async () => {
+    if (isWaiting || isComplete || isAiAnswering) return;
+    setIsAiAnswering(true);
+    try {
+      const currentHistory = messagesRef.current.map(
+        ({ role, content, rawContent }) => ({
+          role,
+          content: rawContent || content,
+        }),
+      );
+      const response = await fetch("/api/user/chat/auto-answer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: currentHistory,
+          capturedGoals,
+        }),
+      });
+      if (!response.ok) throw new Error(`API error: ${response.status}`);
+      const data = await response.json();
+      if (data.text) {
+        setInputValue(data.text);
+      }
+    } catch (error) {
+      console.error("Error generating AI answer:", error);
+    } finally {
+      setIsAiAnswering(false);
+    }
+  }, [isWaiting, isComplete, isAiAnswering, capturedGoals]);
 
   const handleChipClick = useCallback(
     (text: string) => {
@@ -1687,14 +1870,29 @@ const GoalDiscovery: React.FC = () => {
       } else if (AREA_TOPIC_IDS.includes(currentTopic)) {
         // If this looks like a multi-select affirmation submission (comma-separated),
         // store as per-area affirmations array; otherwise store as area goals
-        const items = text.split(", ").map((s) => s.trim()).filter(Boolean);
+        const items = text
+          .split(", ")
+          .map((s) => s.trim())
+          .filter(Boolean);
         if (items.length > 1) {
           // Multiple items = likely affirmation multi-select
           const affKey = `areaAffirmations_${currentTopic}`;
           setCapturedGoals((prev) => ({ ...prev, [affKey]: items }));
           setRecentGoalKey(affKey);
         } else {
-          setCapturedGoals((prev) => ({ ...prev, [currentTopic]: text }));
+          // Append per-area goal text instead of overwriting
+          setCapturedGoals((prev) => {
+            const existing = prev[currentTopic]
+              ? String(prev[currentTopic]).trim()
+              : "";
+            return {
+              ...prev,
+              [currentTopic]:
+                existing && !existing.includes(text)
+                  ? `${existing}\n\n${text}`
+                  : existing || text,
+            };
+          });
           setRecentGoalKey(currentTopic);
         }
       } else if (
@@ -1850,39 +2048,32 @@ const GoalDiscovery: React.FC = () => {
         <aside className={styles.sidebar}>
           <div className={styles.sidebarTitle}>Topics</div>
 
-          {TOPICS.filter((topic) => {
-            // Only show area topics that were selected by the user
-            if (AREA_TOPIC_IDS.includes(topic.id)) {
-              const rawAreas =
-                ((capturedGoals?.selectedAreas ||
-                  capturedGoals?.SELECTEDAREAS) as string[]) || [];
-              const areas = Array.isArray(rawAreas) ? rawAreas : [rawAreas];
-              return areas.some((a) => {
-                const s = String(a).toLowerCase();
-                if (s === topic.id) return true;
-                if (s.includes(topic.id)) return true;
-                // Handle labels vs ids mismatch
-                if (topic.id === "spirituality" && s.includes("spirit"))
-                  return true;
-                if (topic.id === "purpose" && s.includes("career")) return true;
-                return false;
-              });
-            }
-            return true;
-          }).map((topic, idx) => {
-            const isActive = activeTopicId === topic.id;
-            const isCovered = progress.covered.includes(topic.id);
-            const isResponded = respondedTopics.includes(topic.id);
+          {SIDEBAR_GROUPS.filter((group) =>
+            isSidebarGroupVisible(group, capturedGoals),
+          ).map((group) => {
+            // A group is "active" if the current activeTopicId is one of its sub-topics
+            const isActive = group.topicIds.includes(activeTopicId);
+            // A group is "covered" if ALL its sub-topics are covered
+            const isCovered = group.topicIds.every((tid) =>
+              progress.covered.includes(tid),
+            );
+            // A group is "responded" if the user responded to at least one of its sub-topics
+            const isResponded = group.topicIds.some((tid) =>
+              respondedTopics.includes(tid),
+            );
+            // When clicked, navigate to the first sub-topic in the group
+            const navTopicId = group.topicIds[0];
+            const navLabel = group.label;
 
             return (
               <TopicItem
-                key={topic.id}
-                id={topic.id}
-                label={topic.label}
+                key={group.id}
+                id={group.id}
+                label={group.label}
                 isActive={isActive}
                 isCovered={isCovered}
                 isResponded={isResponded}
-                onClick={() => handleTopicClick(topic.id, topic.label)}
+                onClick={() => handleTopicClick(navTopicId, navLabel)}
               />
             );
           })}
@@ -1897,14 +2088,54 @@ const GoalDiscovery: React.FC = () => {
                   Your vision will appear here…
                 </span>
               ) : (
-                Object.entries(capturedGoals).map(([label, value]) => (
-                  <div
-                    key={label}
-                    className={`${styles.capturedItemWrapper} ${recentGoalKey === label ? styles.recentGoal : ""}`}
-                  >
-                    <CapturedItem label={label} value={value} />
-                  </div>
-                ))
+                (() => {
+                  const capturedLabelMap: Record<string, string> = {
+                    orientation: "Orientation",
+                    selectedAreas: "Life Areas",
+                    wealth: "Wealth Goals",
+                    health: "Health Goals",
+                    love: "Love Goals",
+                    family: "Family Goals",
+                    purpose: "Purpose Goals",
+                    spirituality: "Spirituality Goals",
+                    growth: "Growth Goals",
+                    goals: "Goals",
+                    actionsAfter: "Proof of Actions",
+                    tone: "Story Tone",
+                    coreFeeling: "Core Feeling",
+                    identityStatements: "Identity Statements",
+                    timeframe: "Timeframe",
+                    location: "Setting / Location",
+                    namedPersons: "Key People",
+                    gratitudeItems: "Gratitude",
+                    home: "Home",
+                  };
+                  return Object.entries(capturedGoals)
+                    .filter(
+                      ([key, v]) =>
+                        !AREA_TOPIC_IDS.includes(key) &&
+                        !key.startsWith("areaAffirmations_") &&
+                        v &&
+                        (Array.isArray(v)
+                          ? v.length > 0
+                          : String(v).trim().length > 0),
+                    )
+                    .map(([key]) => (
+                      <div
+                        key={key}
+                        className={`${styles.capturedItemWrapper} ${recentGoalKey === key ? styles.recentGoal : ""}`}
+                      >
+                        <div className={styles.capturedItem}>
+                          <span>
+                            ✓{" "}
+                            {capturedLabelMap[key] ||
+                              key.charAt(0).toUpperCase() +
+                                key.slice(1).replace(/([A-Z])/g, " $1")}
+                          </span>
+                        </div>
+                      </div>
+                    ));
+                })()
               )}
               <div ref={goalsEndRef} />
             </div>
@@ -1913,25 +2144,10 @@ const GoalDiscovery: React.FC = () => {
           {/* Sidebar finish button - only active when all required fields captured */}
           {!isComplete &&
             (() => {
-              const visibleTopicIds = TOPICS.filter((topic) => {
-                if (AREA_TOPIC_IDS.includes(topic.id)) {
-                  const rawAreas =
-                    ((capturedGoals?.selectedAreas ||
-                      capturedGoals?.SELECTEDAREAS) as string[]) || [];
-                  const areas = Array.isArray(rawAreas) ? rawAreas : [rawAreas];
-                  return areas.some((a) => {
-                    const s = String(a).toLowerCase();
-                    if (s === topic.id) return true;
-                    if (s.includes(topic.id)) return true;
-                    if (topic.id === "spirituality" && s.includes("spirit"))
-                      return true;
-                    if (topic.id === "purpose" && s.includes("career"))
-                      return true;
-                    return false;
-                  });
-                }
-                return true;
-              }).map((t) => t.id);
+              // Collect all visible topic IDs from visible sidebar groups
+              const visibleTopicIds = SIDEBAR_GROUPS.filter((g) =>
+                isSidebarGroupVisible(g, capturedGoals),
+              ).flatMap((g) => g.topicIds);
               const allTopicsResponded = visibleTopicIds.every((id) =>
                 respondedTopics.includes(id),
               );
@@ -1971,9 +2187,15 @@ const GoalDiscovery: React.FC = () => {
                 isIdentityPhase={progress.phase === "Identity Builder"}
                 isLifeAreasPhase={progress.phase === "Life Areas"}
                 isExplorer={!isPaid}
-                isAffirmationPhase={
-                  ["Wealth", "Health", "Love", "Family", "Purpose", "Spirituality", "Proof Actions"].includes(progress.phase)
-                }
+                isAffirmationPhase={[
+                  "Wealth",
+                  "Health",
+                  "Love",
+                  "Family",
+                  "Purpose",
+                  "Spirituality",
+                  "Proof Actions",
+                ].includes(progress.phase)}
               />
             ))}
 
@@ -2000,7 +2222,13 @@ const GoalDiscovery: React.FC = () => {
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={isListening ? "Listening… speak now" : "Share your answer here…"}
+              placeholder={
+                isListening
+                  ? "Listening… speak now"
+                  : activeTopicId === "timeframe"
+                    ? "Pick an option above or type your own timeframe…"
+                    : "Share your answer here…"
+              }
               rows={1}
               disabled={isWaiting || isComplete}
             />
@@ -2014,6 +2242,18 @@ const GoalDiscovery: React.FC = () => {
                 {isListening ? <MicOffIcon /> : <MicIcon />}
               </button>
             )}
+            <button
+              className={`${styles.aiBtn} ${isAiAnswering ? styles.aiBtnActive : ""}`}
+              onClick={handleAiAnswer}
+              disabled={isWaiting || isComplete || isAiAnswering}
+              title={
+                isAiAnswering
+                  ? "Generating answer…"
+                  : "Auto-generate answer with AI"
+              }
+            >
+              <AiSparkleIcon />
+            </button>
             <button
               className={styles.sendBtn}
               onClick={handleSend}
