@@ -245,6 +245,7 @@
     min-width: 0;
     min-height: 0;
     overflow: hidden;
+    position: relative;
 }
 
 .chatMessages {
@@ -833,6 +834,93 @@
     }
 }
 
+/* Recording wave overlay — replaces textarea while recording */
+.recordingOverlay {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-height: 44px;
+    padding-left: 8px;
+}
+
+.recordingWave {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    height: 32px;
+}
+
+.recordingBar {
+    width: 3px;
+    border-radius: 3px;
+    background: #e05252;
+    animation: waveBar 1.2s ease-in-out infinite;
+}
+
+.recordingBar:nth-child(1) { height: 8px; animation-delay: 0s; }
+.recordingBar:nth-child(2) { height: 16px; animation-delay: 0.1s; }
+.recordingBar:nth-child(3) { height: 24px; animation-delay: 0.2s; }
+.recordingBar:nth-child(4) { height: 12px; animation-delay: 0.3s; }
+.recordingBar:nth-child(5) { height: 20px; animation-delay: 0.15s; }
+.recordingBar:nth-child(6) { height: 28px; animation-delay: 0.25s; }
+.recordingBar:nth-child(7) { height: 10px; animation-delay: 0.05s; }
+.recordingBar:nth-child(8) { height: 22px; animation-delay: 0.35s; }
+.recordingBar:nth-child(9) { height: 14px; animation-delay: 0.2s; }
+.recordingBar:nth-child(10) { height: 18px; animation-delay: 0.1s; }
+
+@keyframes waveBar {
+    0%, 100% { transform: scaleY(0.4); opacity: 0.5; }
+    50% { transform: scaleY(1); opacity: 1; }
+}
+
+.recordingLabel {
+    font-size: 14px;
+    color: #e05252;
+    font-weight: 500;
+    letter-spacing: 0.3px;
+    animation: recordingFade 2s ease-in-out infinite;
+}
+
+.recordingTimer {
+    font-size: 13px;
+    color: var(--dim);
+    font-variant-numeric: tabular-nums;
+    margin-left: auto;
+    padding-right: 4px;
+}
+
+@keyframes recordingFade {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* Processing / refining state after recording stops */
+.processingOverlay {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 44px;
+    padding-left: 8px;
+}
+
+.processingSpinner {
+    width: 20px;
+    height: 20px;
+    border: 2px solid rgba(141, 191, 122, 0.2);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    flex-shrink: 0;
+}
+
+.processingLabel {
+    font-size: 14px;
+    color: var(--dim);
+    font-style: italic;
+}
+
 /* Modals */
 .modalOverlay {
     position: fixed;
@@ -935,6 +1023,209 @@
 
     .main {
         padding: 16px;
+        flex-direction: column;
+        gap: 0;
+    }
+
+    /* Mobile topic strip */
+    .mobileTopicBar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        overflow-x: auto;
+        overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
+        padding: 10px 4px;
+        margin-bottom: 8px;
+        flex-shrink: 0;
+        scrollbar-width: none;
+    }
+
+    .mobileTopicBar::-webkit-scrollbar {
+        display: none;
+    }
+
+    .mobileTopicPill {
+        flex-shrink: 0;
+        padding: 6px 14px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-family: var(--sans);
+        border: 1px solid var(--border1);
+        background: transparent;
+        color: var(--dim);
+        cursor: pointer;
+        white-space: nowrap;
+        transition: all 0.25s ease;
+    }
+
+    .mobileTopicPill:active {
+        transform: scale(0.96);
+    }
+
+    .mobileTopicPillActive {
+        background: var(--surface);
+        border-color: var(--accent);
+        color: var(--text);
+        box-shadow: 0 0 12px rgba(141, 191, 122, 0.15);
+    }
+
+    .mobileTopicPillCovered {
+        color: var(--accent);
+        border-color: rgba(141, 191, 122, 0.25);
+    }
+
+    .mobileTopicPillSkipped {
+        opacity: 0.5;
+    }
+
+    .mobileTopicDot {
+        display: inline-block;
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        margin-right: 6px;
+        background: var(--border2);
+        vertical-align: middle;
+    }
+
+    .mobileTopicPillActive .mobileTopicDot {
+        background: var(--accent);
+    }
+
+    .mobileTopicPillCovered .mobileTopicDot {
+        background: var(--accent);
+    }
+
+    /* Mobile finish bar */
+    .mobileFinishBar {
+        display: flex;
+        padding: 8px 4px;
+        flex-shrink: 0;
+    }
+
+    .mobileFinishBtn {
+        width: 100%;
+        padding: 12px 20px;
+        background: rgba(141, 191, 122, 0.08);
+        border: 1px solid var(--border-accent);
+        border-radius: 10px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        transition: all 0.3s;
+        font-family: var(--sans);
+    }
+
+    .mobileFinishBtn span {
+        font-size: 13px;
+        color: var(--accent);
+        font-weight: 600;
+        letter-spacing: 0.3px;
+    }
+
+    .mobileFinishBtn:disabled {
+        opacity: 0.35;
+        cursor: not-allowed;
+    }
+
+    .chatWrap {
+        min-height: 0;
+    }
+
+    .chatMessages {
+        padding-right: 4px;
+    }
+
+    .inputArea {
+        padding: 10px 12px;
+        gap: 10px;
+        margin-top: 12px;
+    }
+
+    .inputArea textarea {
+        font-size: 15px;
+        min-height: 40px;
+    }
+
+    .micBtn,
+    .aiBtn,
+    .sendBtn {
+        width: 42px;
+        height: 42px;
+    }
+
+    .bubble {
+        max-width: 92%;
+    }
+
+    .completeCard {
+        margin-right: 0;
+    }
+}
+
+/* Small phone refinements */
+@media (max-width: 480px) {
+    .main {
+        padding: 8px;
+    }
+
+    .mobileTopicPill {
+        padding: 5px 11px;
+        font-size: 11px;
+    }
+
+    .inputArea {
+        padding: 8px 10px;
+        gap: 8px;
+    }
+
+    .micBtn,
+    .aiBtn,
+    .sendBtn {
+        width: 38px;
+        height: 38px;
+    }
+
+    .micBtn svg,
+    .aiBtn svg,
+    .sendBtn svg {
+        width: 17px;
+        height: 17px;
+    }
+
+    .orientationScreen h1 {
+        font-size: 28px;
+    }
+
+    .orientationScreen p {
+        font-size: 14px;
+    }
+
+    .orientationBtn {
+        padding: 14px 28px;
+        font-size: 12px;
+    }
+
+    .orientationOptions {
+        gap: 10px;
+    }
+
+    .orientationOption {
+        padding: 16px 20px;
+    }
+}
+
+/* Desktop: hide mobile-only elements */
+@media (min-width: 1001px) {
+    .mobileTopicBar {
+        display: none;
+    }
+
+    .mobileFinishBar {
+        display: none;
     }
 }
 
@@ -1540,12 +1831,42 @@
     .discoveryHeader h1 {
         font-size: 28px;
     }
+
+    .orientationScreen {
+        padding: 32px 20px;
+    }
+
+    .orientationScreen h1 {
+        font-size: 30px;
+    }
+
+    .orientationOptions {
+        width: 100%;
+        max-width: 400px;
+    }
 }
 
 @media (max-width: 600px) {
     .discoveryGrid {
         grid-template-columns: 1fr 1fr;
         gap: 10px;
+    }
+
+    .areaCardInner {
+        padding: 16px 12px;
+    }
+
+    .areaLabel {
+        font-size: 12px;
+    }
+
+    .areaDesc {
+        font-size: 10px;
+    }
+
+    .discoveryConfirmBtn {
+        font-size: 12px;
+        padding: 14px 28px;
     }
 }
 

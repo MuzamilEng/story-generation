@@ -1225,16 +1225,23 @@ const GoalDiscovery: React.FC = () => {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const mobileTopicBarRef = useRef<HTMLDivElement>(null);
   // Set when user sends a message in Evening & Close; triggers isComplete after AI replies
   const triggerCompleteAfterResponseRef = useRef(false);
 
   // ── Voice input (Web Speech API) ──
-  // TODO: Upgrade to Whisper or another professional STT model later
   const [isListening, setIsListening] = useState(false);
   const [voiceSupported, setVoiceSupported] = useState(false);
   const [isAiAnswering, setIsAiAnswering] = useState(false);
+  const [isProcessingVoice, setIsProcessingVoice] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const recognitionRef = useRef<any>(null);
-  // Stores text that was finalized before the current recognition session
+  // Only finalized (isFinal=true) text — safe to carry across restarts
+  const voiceFinalizedRef = useRef<string>("");
+  // Full transcript including interim — used as final output on stop
+  const voiceTranscriptRef = useRef<string>("");
+  // Stores finalized text from previous recognition sessions (pause/breath restarts)
   const voiceBaseTextRef = useRef<string>("");
   // Whether we should auto-restart recognition on session end (timeout/pause)
   const voiceIntentActiveRef = useRef<boolean>(false);
@@ -1252,14 +1259,13 @@ const GoalDiscovery: React.FC = () => {
       recognition.lang = "en-US";
 
       recognition.onresult = (event: any) => {
-        // Build transcript from current session results, inserting spaces
-        // between separate recognition segments to prevent merged words
+        // Build transcript silently — don't show in input during recording
+        // Track finalized and interim separately to avoid losing context on restart
         let finalizedInSession = "";
         let interim = "";
         for (let i = 0; i < event.results.length; i++) {
           const text = event.results[i][0].transcript;
           if (event.results[i].isFinal) {
-            // Add a space before appending if needed
             if (
               finalizedInSession &&
               !finalizedInSession.endsWith(" ") &&
@@ -1273,30 +1279,33 @@ const GoalDiscovery: React.FC = () => {
           }
         }
 
-        // Combine: previous base text + finalized in this session + interim
-        let combined = voiceBaseTextRef.current;
+        // Build finalized-only text (base from previous sessions + this session's finals)
+        let finalOnly = voiceBaseTextRef.current;
         if (finalizedInSession) {
           if (
-            combined &&
-            !combined.endsWith(" ") &&
+            finalOnly &&
+            !finalOnly.endsWith(" ") &&
             !finalizedInSession.startsWith(" ")
           ) {
-            combined += " ";
+            finalOnly += " ";
           }
-          combined += finalizedInSession;
+          finalOnly += finalizedInSession;
         }
+        finalOnly = finalOnly.replace(/([a-z])([A-Z])/g, "$1 $2");
+        voiceFinalizedRef.current = finalOnly;
+
+        // Build full transcript (finalized + interim) for final output
+        let combined = finalOnly;
         if (interim) {
           if (combined && !combined.endsWith(" ") && !interim.startsWith(" ")) {
             combined += " ";
           }
           combined += interim;
         }
-
-        // Post-processing safety net: insert space before capital letter
-        // following a lowercase letter with no space (catches "growThe" → "grow The")
         combined = combined.replace(/([a-z])([A-Z])/g, "$1 $2");
 
-        setInputValue(combined);
+        // Store silently — do NOT update inputValue
+        voiceTranscriptRef.current = combined;
       };
 
       recognition.onerror = (event: any) => {
@@ -1310,8 +1319,9 @@ const GoalDiscovery: React.FC = () => {
       recognition.onend = () => {
         // Auto-restart on timeout/pause if user hasn't explicitly stopped
         if (voiceIntentActiveRef.current) {
-          // Persist everything transcribed so far as base text before restarting
-          voiceBaseTextRef.current = inputValueRef.current;
+          // Only carry forward FINALIZED text to avoid duplicates on restart
+          // (interim text would be re-recognized in the new session)
+          voiceBaseTextRef.current = voiceFinalizedRef.current;
           try {
             recognition.start();
           } catch {
@@ -1328,11 +1338,43 @@ const GoalDiscovery: React.FC = () => {
     }
   }, []);
 
-  // Keep a ref to inputValue so onend callback can read current value
-  const inputValueRef = useRef(inputValue);
+  // Keep voice transcript ref clean on unmount
   useEffect(() => {
-    inputValueRef.current = inputValue;
-  }, [inputValue]);
+    return () => {
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+      }
+    };
+  }, []);
+
+  // Refine transcribed voice text via LLM
+  const refineVoiceText = useCallback(
+    async (rawText: string) => {
+      if (!rawText.trim()) return;
+      setIsProcessingVoice(true);
+      try {
+        const currentTopic = activeTopicIdRef.current;
+        const topicObj = TOPICS.find((t) => t.id === currentTopic);
+        const response = await fetch("/api/user/chat/refine-voice", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            text: rawText,
+            context: topicObj ? topicObj.label : currentTopic,
+          }),
+        });
+        if (!response.ok) throw new Error("Refine API failed");
+        const data = await response.json();
+        setInputValue(data.text || rawText.trim());
+      } catch (error) {
+        console.error("Voice refinement failed, using raw text:", error);
+        setInputValue(rawText.trim());
+      } finally {
+        setIsProcessingVoice(false);
+      }
+    },
+    [],
+  );
 
   const toggleVoice = useCallback(() => {
     if (!recognitionRef.current) return;
@@ -1341,14 +1383,33 @@ const GoalDiscovery: React.FC = () => {
       voiceIntentActiveRef.current = false;
       recognitionRef.current.stop();
       setIsListening(false);
+      // Stop recording timer
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+      }
+      setRecordingSeconds(0);
+      // Send accumulated transcript to LLM for refinement
+      const rawTranscript = voiceTranscriptRef.current.trim();
+      if (rawTranscript) {
+        refineVoiceText(rawTranscript);
+      }
+      voiceTranscriptRef.current = "";
     } else {
-      // Append to existing text instead of clearing
-      voiceBaseTextRef.current = inputValueRef.current;
+      // Clear previous transcript and start fresh
+      voiceTranscriptRef.current = "";
+      voiceFinalizedRef.current = "";
+      voiceBaseTextRef.current = "";
       voiceIntentActiveRef.current = true;
+      setRecordingSeconds(0);
+      // Start recording timer
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingSeconds((s) => s + 1);
+      }, 1000);
       recognitionRef.current.start();
       setIsListening(true);
     }
-  }, [isListening]);
+  }, [isListening, refineVoiceText]);
 
   // ── Persist session state to localStorage whenever key state changes ──
   useEffect(() => {
@@ -1379,6 +1440,26 @@ const GoalDiscovery: React.FC = () => {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, showTyping]);
+
+  // Auto-scroll active topic into view in mobile topic bar
+  useEffect(() => {
+    if (!mobileTopicBarRef.current) return;
+    // Find the active topic group ID that contains activeTopicId
+    const activeGroup = SIDEBAR_GROUPS.find((g) =>
+      g.topicIds.includes(activeTopicId),
+    );
+    if (!activeGroup) return;
+    const pill = mobileTopicBarRef.current.querySelector(
+      `[data-topic-id="${activeGroup.id}"]`,
+    ) as HTMLElement | null;
+    if (pill) {
+      pill.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+        inline: "center",
+      });
+    }
+  }, [activeTopicId]);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -1722,6 +1803,8 @@ const GoalDiscovery: React.FC = () => {
         setInputValue("");
         // Reset voice state for next turn (#2, #14)
         voiceBaseTextRef.current = "";
+        voiceFinalizedRef.current = "";
+        voiceTranscriptRef.current = "";
       }
     },
     [isWaiting, parseResponse],
@@ -1735,9 +1818,16 @@ const GoalDiscovery: React.FC = () => {
       voiceIntentActiveRef.current = false;
       recognitionRef.current.stop();
       setIsListening(false);
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+      }
+      setRecordingSeconds(0);
     }
     // Reset voice base text for next turn
     voiceBaseTextRef.current = "";
+    voiceFinalizedRef.current = "";
+    voiceTranscriptRef.current = "";
 
     // Preemptive local capture for specific topics to ensure the UI feels responsive
     // even if the AI fails to send a CAPTURE tag.
@@ -2176,6 +2266,44 @@ const GoalDiscovery: React.FC = () => {
             })()}
         </aside>
 
+        {/* Mobile topic strip — visible only on ≤1000px via CSS */}
+        <div className={styles.mobileTopicBar} ref={mobileTopicBarRef}>
+          {SIDEBAR_GROUPS.filter((group) =>
+            isSidebarGroupVisible(group, capturedGoals),
+          ).map((group) => {
+            const isActive = group.topicIds.includes(activeTopicId);
+            const isCovered = group.topicIds.every((tid) =>
+              progress.covered.includes(tid),
+            );
+            const isResponded = group.topicIds.some((tid) =>
+              respondedTopics.includes(tid),
+            );
+            const navTopicId = group.topicIds[0];
+            const navLabel = group.label;
+
+            let pillClass = styles.mobileTopicPill;
+            if (isActive) {
+              pillClass += ` ${styles.mobileTopicPillActive}`;
+            } else if (isCovered && isResponded) {
+              pillClass += ` ${styles.mobileTopicPillCovered}`;
+            } else if (isCovered && !isResponded) {
+              pillClass += ` ${styles.mobileTopicPillSkipped}`;
+            }
+
+            return (
+              <button
+                key={group.id}
+                className={pillClass}
+                data-topic-id={group.id}
+                onClick={() => handleTopicClick(navTopicId, navLabel)}
+              >
+                <span className={styles.mobileTopicDot} />
+                {group.label}
+              </button>
+            );
+          })}
+        </div>
+
         {/* Chat Area */}
         <div className={styles.chatWrap}>
           <div className={styles.chatMessages}>
@@ -2217,27 +2345,55 @@ const GoalDiscovery: React.FC = () => {
           </div>
 
           <div className={styles.inputArea}>
-            <textarea
-              ref={textareaRef}
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={
-                isListening
-                  ? "Listening… speak now"
-                  : activeTopicId === "timeframe"
+            {isListening ? (
+              <div className={styles.recordingOverlay}>
+                <div className={styles.recordingWave}>
+                  {Array.from({ length: 10 }).map((_, i) => (
+                    <div key={i} className={styles.recordingBar} />
+                  ))}
+                </div>
+                <span className={styles.recordingLabel}>Recording…</span>
+                <span className={styles.recordingTimer}>
+                  {Math.floor(recordingSeconds / 60)
+                    .toString()
+                    .padStart(2, "0")}
+                  :{(recordingSeconds % 60).toString().padStart(2, "0")}
+                </span>
+              </div>
+            ) : isProcessingVoice ? (
+              <div className={styles.processingOverlay}>
+                <div className={styles.processingSpinner} />
+                <span className={styles.processingLabel}>
+                  Refining your words…
+                </span>
+              </div>
+            ) : (
+              <textarea
+                ref={textareaRef}
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={
+                  activeTopicId === "timeframe"
                     ? "Pick an option above or type your own timeframe…"
                     : "Share your answer here…"
-              }
-              rows={1}
-              disabled={isWaiting || isComplete}
-            />
+                }
+                rows={1}
+                disabled={isWaiting || isComplete}
+              />
+            )}
             {voiceSupported && (
               <button
-                className={`${styles.micBtn} ${isListening ? styles.micBtnActive : ""}`}
+                className={`${styles.micBtn} ${isListening ? styles.micBtnActive : ""} ${isProcessingVoice ? styles.micBtnTranscribing : ""}`}
                 onClick={toggleVoice}
-                disabled={isWaiting || isComplete}
-                title={isListening ? "Stop listening" : "Use voice input"}
+                disabled={isWaiting || isComplete || isProcessingVoice}
+                title={
+                  isListening
+                    ? "Stop & refine"
+                    : isProcessingVoice
+                      ? "Processing…"
+                      : "Use voice input"
+                }
               >
                 {isListening ? <MicOffIcon /> : <MicIcon />}
               </button>
@@ -2245,7 +2401,7 @@ const GoalDiscovery: React.FC = () => {
             <button
               className={`${styles.aiBtn} ${isAiAnswering ? styles.aiBtnActive : ""}`}
               onClick={handleAiAnswer}
-              disabled={isWaiting || isComplete || isAiAnswering}
+              disabled={isWaiting || isComplete || isAiAnswering || isListening || isProcessingVoice}
               title={
                 isAiAnswering
                   ? "Generating answer…"
@@ -2257,7 +2413,7 @@ const GoalDiscovery: React.FC = () => {
             <button
               className={styles.sendBtn}
               onClick={handleSend}
-              disabled={!inputValue.trim() || isWaiting || isComplete}
+              disabled={!inputValue.trim() || isWaiting || isComplete || isListening || isProcessingVoice}
             >
               <SendIcon />
             </button>
@@ -2275,9 +2431,25 @@ const GoalDiscovery: React.FC = () => {
           )}
 
           <div className={styles.inputHint}>
-            Enter to send · Shift+Enter for new line
+            {isListening
+              ? "Speak now · Click mic to stop & refine"
+              : isProcessingVoice
+                ? "AI is adding emotional depth to your words…"
+                : "Enter to send · Shift+Enter for new line"}
           </div>
         </div>
+
+        {/* Mobile finish button — visible only on ≤1000px via CSS */}
+        {!isComplete && (
+          <div className={styles.mobileFinishBar}>
+            <button
+              className={styles.mobileFinishBtn}
+              onClick={() => setIsComplete(true)}
+            >
+              <span>Finish & Generate →</span>
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
