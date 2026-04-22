@@ -1,10 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { invokeWithFallback } from '@/lib/langchain';
 import { SYSTEM_PROMPT } from '@/app/types/goal-discovery';
 import { HumanMessage, SystemMessage, AIMessage } from "@langchain/core/messages";
 
 export async function POST(req: NextRequest) {
     try {
+        const session = await getServerSession(authOptions);
+        if (!session || !session.user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
         const { messages } = await req.json();
 
         if (!messages || !Array.isArray(messages)) {

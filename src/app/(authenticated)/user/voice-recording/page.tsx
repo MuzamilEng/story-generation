@@ -20,6 +20,7 @@ import {
 } from "../../../components/icons/VoiceIcons";
 import { RecordingState, TipItem } from "../../../types/voice";
 import { useGlobalUI } from "@/components/ui/global-ui-context";
+import { primeBrowserNotifications } from "@/lib/browser-notifications";
 
 // Saved voice info from API
 interface VoiceSampleItem {
@@ -499,6 +500,7 @@ const VoiceRecordingContent: React.FC = () => {
         }
 
         // Then assemble audio
+        await primeBrowserNotifications();
         const assembleRes = await fetch("/api/user/audio/assemble", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1011,6 +1013,7 @@ const VoiceRecordingContent: React.FC = () => {
 
       // ── Step 2: Full assembly — ONE ElevenLabs call for everything ──────
       // Pipeline: Induction → Opening Affirmations → Story → Closing Affirmations → Guide Close
+      await primeBrowserNotifications();
       const assembleRes = await fetch("/api/user/audio/assemble", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1019,6 +1022,7 @@ const VoiceRecordingContent: React.FC = () => {
       const assembleData = await assembleRes.json();
 
       if (assembleData.success) {
+      await primeBrowserNotifications();
         router.push(`/user/audio-download?storyId=${resolvedStoryId}`);
       } else {
         showToast(

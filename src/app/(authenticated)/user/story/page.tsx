@@ -31,6 +31,7 @@ import {
 } from "@/lib/story-utils";
 import { useStoryStore } from "@/store/useStoryStore";
 import { useGlobalUI } from "@/components/ui/global-ui-context";
+import { primeBrowserNotifications } from "@/lib/browser-notifications";
 
 // Step Item Component
 interface StepItemProps {
@@ -629,6 +630,8 @@ const StoryContent: React.FC = () => {
       // Short delay so the user sees the step transition
       await new Promise((r) => setTimeout(r, 800));
       setAssembleStep(2); // Step 2: Generating audio
+
+      await primeBrowserNotifications();
 
       // Assemble audio using existing voice clone
       const assembleRes = await fetch("/api/user/audio/assemble", {

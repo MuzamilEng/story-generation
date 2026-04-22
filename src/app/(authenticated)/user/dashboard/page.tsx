@@ -9,6 +9,7 @@ import styles from "../../../styles/Dashboard.module.css";
 import Header from "../../../components/Header";
 import { useStoryStore } from "@/store/useStoryStore";
 import { useGlobalUI } from "@/components/ui/global-ui-context";
+import { notifyAudioReady } from "@/lib/browser-notifications";
 
 // Icon Components
 // ... (removing redundant icons if used only in old header)
@@ -191,11 +192,12 @@ interface Story {
   downloads: number;
   audio_url?: string;
   voice_only_url?: string;
-  status: "draft" | "approved" | "audio_ready";
+  status: "draft" | "approved" | "awaited_voice_generation" | "audio_ready";
   story_text_approved?: string;
   story_text_draft?: string;
   story_type: "night" | "morning";
   story_number: number;
+  queueState?: "queued" | "processing" | "completed" | "failed" | null;
 }
 
 interface Activity {
@@ -268,8 +270,16 @@ const StoryCard: React.FC<StoryCardProps> = ({
 
   const getDraftReason = () => {
     if (story.status === "draft") return "In Progress";
-    if (story.status === "approved" || !story.audio_url)
+    if (story.status === "awaited_voice_generation") {
+      if (story.queueState === "queued") return "Queued";
+      if (story.queueState === "processing") return "Processing";
+      return "Awaiting Voice Generation";
+    }
+    if (story.status === "approved" || !story.audio_url) {
+      if (story.queueState === "queued") return "Queued";
+      if (story.queueState === "processing") return "Processing";
       return "Awaiting Voice";
+    }
     return "Draft";
   };
 
@@ -326,7 +336,13 @@ const StoryCard: React.FC<StoryCardProps> = ({
             {isDraft ? (
               <>
                 <RefreshIcon />
-                Resume Generation
+                {story.queueState === "queued"
+                  ? "Queued — View Status"
+                  : story.queueState === "processing"
+                    ? "Processing — View Status"
+                    : story.status === "awaited_voice_generation"
+                      ? "Awaiting Voice — View Status"
+                    : "Resume Generation"}
               </>
             ) : (
               <>
@@ -434,7 +450,7 @@ const ActivityRow: React.FC<ActivityRowProps> = ({ activity }) => {
 
 const Dashboard: React.FC = () => {
   const router = useRouter();
-  const { showToast, showConfirm } = useGlobalUI();
+  const { showAlert, showToast, showConfirm } = useGlobalUI();
   const { data: session, update } = useSession();
   const { clearStore } = useStoryStore();
 
@@ -464,7 +480,10 @@ const Dashboard: React.FC = () => {
     };
   }, []);
 
-  const { data: stories = [], isLoading: isLoadingStories } = useQuery<Story[]>(
+  const [queueStates, setQueueStates] = useState<Record<string, "queued" | "processing" | "completed" | "failed" | null>>({});
+  const notifiedReadyStoriesRef = useRef<Set<string>>(new Set());
+
+  const { data: storiesRaw = [], isLoading: isLoadingStories, refetch: refetchStories } = useQuery<Story[]>(
     {
       queryKey: ["stories"],
       queryFn: async () => {
@@ -495,6 +514,71 @@ const Dashboard: React.FC = () => {
       enabled: !!session,
     },
   );
+
+  // For approved stories without audio, poll the assemble queue status
+  // so we can show "Queued" / "Processing" instead of "Awaiting Voice".
+  useEffect(() => {
+    const pending = storiesRaw.filter(
+      (s) =>
+        (s.status === "approved" || s.status === "awaited_voice_generation") &&
+        !s.audio_url
+    );
+    if (pending.length === 0) return;
+
+    let cancelled = false;
+
+    const fetchStates = async () => {
+      const results = await Promise.all(
+        pending.map(async (s) => {
+          try {
+            const res = await fetch(
+              `/api/user/audio/assemble?storyId=${encodeURIComponent(s.id)}`
+            );
+            if (!res.ok) return { id: s.id, state: null };
+            const data = await res.json();
+            return { id: s.id, state: data.state ?? null };
+          } catch {
+            return { id: s.id, state: null };
+          }
+        })
+      );
+      if (!cancelled) {
+        setQueueStates((prev) => {
+          const next = { ...prev };
+          for (const { id, state } of results) next[id] = state;
+          return next;
+        });
+
+        const completedStories = results.filter(({ state }) => state === "completed");
+        if (completedStories.length > 0) {
+          for (const { id } of completedStories) {
+            if (notifiedReadyStoriesRef.current.has(id)) continue;
+            notifiedReadyStoriesRef.current.add(id);
+            const completedStory = pending.find((story) => story.id === id);
+            showAlert({
+              title: "Voice Generated",
+              message: completedStory?.title
+                ? `Your voice was successfully generated for \"${completedStory.title}\".`
+                : "Your voice was successfully generated and your audio is ready.",
+              buttonText: "Close",
+            });
+            notifyAudioReady(id, completedStory?.title || "Your story");
+          }
+          await refetchStories();
+        }
+      }
+    };
+
+    fetchStates();
+    const timer = setInterval(fetchStates, 5000);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, [storiesRaw, refetchStories, showAlert]);
+
+  // Merge queue states into story objects
+  const stories = storiesRaw.map((s) => ({
+    ...s,
+    queueState: queueStates[s.id] ?? null,
+  }));
 
   const { data: stats, isLoading: isLoadingStats } = useQuery({
     queryKey: ["dashboard-stats"],
@@ -701,6 +785,13 @@ const Dashboard: React.FC = () => {
     if (isDraft) {
       if (story.status === "draft") {
         router.push(`/user/story?id=${story.id}`);
+      } else if (
+        story.status === "awaited_voice_generation" ||
+        story.queueState === "queued" ||
+        story.queueState === "processing"
+      ) {
+        // Audio is being assembled in the queue — send to the waiting/ready page
+        router.push(`/user/audio-download?storyId=${story.id}`);
       } else {
         router.push(`/user/voice-recording?storyId=${story.id}`);
       }
@@ -730,8 +821,19 @@ const Dashboard: React.FC = () => {
   const handleRead = (story: Story) => {
     if (story.status === "draft") {
       router.push(`/user/story?id=${story.id}`);
-    } else if (story.status === "approved" && !story.audio_url) {
-      router.push(`/user/voice-recording?storyId=${story.id}`);
+    } else if (
+      (story.status === "approved" || story.status === "awaited_voice_generation") &&
+      !story.audio_url
+    ) {
+      if (
+        story.status === "awaited_voice_generation" ||
+        story.queueState === "queued" ||
+        story.queueState === "processing"
+      ) {
+        router.push(`/user/audio-download?storyId=${story.id}`);
+      } else {
+        router.push(`/user/voice-recording?storyId=${story.id}`);
+      }
     } else {
       router.push(`/user/story-detail/${story.id}`);
     }
@@ -938,7 +1040,19 @@ const Dashboard: React.FC = () => {
                   <div className={styles.storyRowTitle}>{story.title}</div>
                   {isDraft && (
                     <span className={styles.storyBadge}>
-                      {story.status === "draft" ? "In progress" : "Awaiting voice"}
+                      {story.status === "draft"
+                        ? "In progress"
+                        : story.status === "awaited_voice_generation"
+                          ? story.queueState === "queued"
+                            ? "Queued"
+                            : story.queueState === "processing"
+                              ? "Processing"
+                              : "Awaiting voice generation"
+                        : story.queueState === "queued"
+                          ? "Queued"
+                          : story.queueState === "processing"
+                            ? "Processing"
+                            : "Awaiting voice"}
                     </span>
                   )}
                   <div className={styles.storyRowDate}>
@@ -950,7 +1064,21 @@ const Dashboard: React.FC = () => {
                 <div className={styles.storyRowActions}>
                   {isDraft ? (
                     <>
-                      <button className={styles.mmsBtn} onClick={(e) => { e.stopPropagation(); handlePlayStory(story); }}>Resume generation</button>
+                      <button className={styles.mmsBtn} onClick={(e) => { e.stopPropagation(); handlePlayStory(story); }}>
+                        {story.status === "draft"
+                          ? "Resume generation"
+                          : story.status === "awaited_voice_generation"
+                            ? story.queueState === "queued"
+                              ? "Queued — View status"
+                              : story.queueState === "processing"
+                                ? "Processing — View status"
+                                : "Awaiting Voice — View status"
+                          : story.queueState === "queued"
+                            ? "Queued — View status"
+                            : story.queueState === "processing"
+                              ? "Processing — View status"
+                              : "Resume generation"}
+                      </button>
                       <button
                         className={`${styles.mmsBtn} ${styles.mmsBtnIconOnly}`}
                         onClick={(e) => { e.stopPropagation(); handleDeleteStory(story); }}

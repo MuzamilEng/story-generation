@@ -6,6 +6,8 @@ import { useSession } from "next-auth/react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import styles from "../../../styles/Stories.module.css";
+import { notifyAudioReady } from "@/lib/browser-notifications";
+import { useGlobalUI } from "@/components/ui/global-ui-context";
 
 // Icons
 const PlayIcon = () => (
@@ -102,7 +104,8 @@ interface Story {
   binaural_audio_key?: string;
   story_text_approved?: string;
   story_text_draft?: string;
-  status: "draft" | "approved" | "audio_ready";
+  status: "draft" | "approved" | "awaited_voice_generation" | "audio_ready";
+  queueState?: "queued" | "processing" | "completed" | "failed" | null;
 }
 
 const StoryCard = ({
@@ -120,8 +123,16 @@ const StoryCard = ({
 
   const getDraftReason = () => {
     if (story.status === "draft") return "In Progress";
-    if (story.status === "approved" || !story.audio_url)
+    if (story.status === "awaited_voice_generation") {
+      if (story.queueState === "queued") return "Queued";
+      if (story.queueState === "processing") return "Processing";
+      return "Awaiting Voice Generation";
+    }
+    if (story.status === "approved" || !story.audio_url) {
+      if (story.queueState === "queued") return "Queued";
+      if (story.queueState === "processing") return "Processing";
       return "Awaiting Voice";
+    }
     return "Draft";
   };
 
@@ -186,7 +197,14 @@ const StoryCard = ({
           >
             {isDraft ? (
               <>
-                <RefreshIcon /> Resume Generation
+                <RefreshIcon />
+                {story.queueState === "queued"
+                  ? "Queued — View Status"
+                  : story.queueState === "processing"
+                    ? "Processing — View Status"
+                    : story.status === "awaited_voice_generation"
+                      ? "Awaiting Voice — View Status"
+                    : "Resume Generation"}
               </>
             ) : (
               <>
@@ -225,9 +243,12 @@ const StoryCard = ({
 export default function StoriesPage() {
   const router = useRouter();
   const { data: session } = useSession();
+  const { showAlert } = useGlobalUI();
   const [searchTerm, setSearchTerm] = useState("");
+  const [queueStates, setQueueStates] = useState<Record<string, "queued" | "processing" | "completed" | "failed" | null>>({});
+  const notifiedReadyStoriesRef = useRef<Set<string>>(new Set());
 
-  const { data: stories = [], isLoading } = useQuery<Story[]>({
+  const { data: storiesRaw = [], isLoading, refetch: refetchStories } = useQuery<Story[]>({
     queryKey: ["stories"],
     queryFn: async () => {
       const res = await fetch("/api/user/stories");
@@ -239,12 +260,72 @@ export default function StoriesPage() {
           ? `${Math.floor(s.audio_duration_secs / 60)} min ${s.audio_duration_secs % 60} sec`
           : s.word_count
             ? `~${Math.ceil(s.word_count / 150)} min read`
-            : "\u2014",
+            : "—",
         plays: s.play_count || 0,
         downloads: s.download_count || 0,
       }));
     },
   });
+
+  // Poll queue status for approved stories without audio
+  useEffect(() => {
+    const pending = storiesRaw.filter(
+      (s) =>
+        (s.status === "approved" || s.status === "awaited_voice_generation") &&
+        !s.audio_url
+    );
+    if (pending.length === 0) return;
+    let cancelled = false;
+    const fetchStates = async () => {
+      const results = await Promise.all(
+        pending.map(async (s) => {
+          try {
+            const res = await fetch(
+              `/api/user/audio/assemble?storyId=${encodeURIComponent(s.id)}`
+            );
+            if (!res.ok) return { id: s.id, state: null };
+            const data = await res.json();
+            return { id: s.id, state: data.state ?? null };
+          } catch {
+            return { id: s.id, state: null };
+          }
+        })
+      );
+      if (!cancelled) {
+        setQueueStates((prev) => {
+          const next = { ...prev };
+          for (const { id, state } of results) next[id] = state;
+          return next;
+        });
+
+        const completedStories = results.filter(({ state }) => state === "completed");
+        if (completedStories.length > 0) {
+          for (const { id } of completedStories) {
+            if (notifiedReadyStoriesRef.current.has(id)) continue;
+            notifiedReadyStoriesRef.current.add(id);
+            const completedStory = pending.find((story) => story.id === id);
+            showAlert({
+              title: "Voice Generated",
+              message: completedStory?.title
+                ? `Your voice was successfully generated for \"${completedStory.title}\".`
+                : "Your voice was successfully generated and your audio is ready.",
+              buttonText: "Close",
+            });
+            notifyAudioReady(id, completedStory?.title || "Your story");
+          }
+          await refetchStories();
+        }
+      }
+    };
+    fetchStates();
+    const timer = setInterval(fetchStates, 5000);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, [storiesRaw, refetchStories, showAlert]);
+
+  const stories = storiesRaw.map((s) => ({
+    ...s,
+    queueState: queueStates[s.id] ?? null,
+  }));
 
   const filteredStories = stories.filter((s) =>
     s.title.toLowerCase().includes(searchTerm.toLowerCase()),
@@ -256,6 +337,12 @@ export default function StoriesPage() {
     if (isDraft) {
       if (story.status === "draft") {
         router.push(`/user/story?id=${story.id}`);
+      } else if (
+        story.status === "awaited_voice_generation" ||
+        story.queueState === "queued" ||
+        story.queueState === "processing"
+      ) {
+        router.push(`/user/audio-download?storyId=${story.id}`);
       } else {
         router.push(`/user/voice-recording?storyId=${story.id}`);
       }

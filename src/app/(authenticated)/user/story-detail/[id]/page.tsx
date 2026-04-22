@@ -537,7 +537,7 @@ const StoryDetail: React.FC = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["story", id] });
-      showToast("🎵 New audio version is ready!");
+      showToast("🎵 New audio version queued. We'll update this page when it is ready.");
       setShowRegen(false);
       setActiveRegenStep(null);
     },

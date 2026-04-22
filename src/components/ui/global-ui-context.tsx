@@ -21,8 +21,20 @@ interface ConfirmState {
   onConfirm: () => void;
 }
 
+interface AlertState {
+  visible: boolean;
+  title: string;
+  message: string;
+  buttonText: string;
+}
+
 interface GlobalUIContextType {
   showToast: (message: string, type?: "success" | "error" | "info") => void;
+  showAlert: (opts: {
+    title: string;
+    message: string;
+    buttonText?: string;
+  }) => void;
   showConfirm: (opts: {
     title: string;
     message: string;
@@ -62,6 +74,12 @@ export function GlobalUIProvider({ children }: { children: React.ReactNode }) {
     danger: false,
     onConfirm: () => {},
   });
+  const [alert, setAlert] = useState<AlertState>({
+    visible: false,
+    title: "",
+    message: "",
+    buttonText: "Close",
+  });
 
   const showToast = useCallback(
     (message: string, type: "success" | "error" | "info" = "info") => {
@@ -98,8 +116,24 @@ export function GlobalUIProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
+  const showAlert = useCallback(
+    (opts: { title: string; message: string; buttonText?: string }) => {
+      setAlert({
+        visible: true,
+        title: opts.title,
+        message: opts.message,
+        buttonText: opts.buttonText || "Close",
+      });
+    },
+    [],
+  );
+
   const closeConfirm = useCallback(() => {
     setConfirm((c) => ({ ...c, visible: false }));
+  }, []);
+
+  const closeAlert = useCallback(() => {
+    setAlert((a) => ({ ...a, visible: false }));
   }, []);
 
   const handleConfirm = useCallback(() => {
@@ -108,7 +142,7 @@ export function GlobalUIProvider({ children }: { children: React.ReactNode }) {
   }, [confirm, closeConfirm]);
 
   return (
-    <GlobalUIContext.Provider value={{ showToast, showConfirm }}>
+    <GlobalUIContext.Provider value={{ showToast, showAlert, showConfirm }}>
       {children}
 
       {/* ── Toast ── */}
@@ -133,6 +167,28 @@ export function GlobalUIProvider({ children }: { children: React.ReactNode }) {
                 onClick={handleConfirm}
               >
                 {confirm.confirmText}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Alert Modal ── */}
+      {alert.visible && (
+        <div className={styles.overlay} onClick={closeAlert}>
+          <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+            <button
+              className={styles.alertCloseBtn}
+              onClick={closeAlert}
+              aria-label="Close alert"
+            >
+              ×
+            </button>
+            <div className={styles.modalTitle}>{alert.title}</div>
+            <div className={styles.modalMessage}>{alert.message}</div>
+            <div className={styles.modalActions}>
+              <button className={styles.confirmBtn} onClick={closeAlert}>
+                {alert.buttonText}
               </button>
             </div>
           </div>

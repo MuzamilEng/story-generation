@@ -376,6 +376,7 @@ enum Plan {
 enum StoryStatus {
   draft
   approved
+  awaited_voice_generation
   audio_ready
 }
 

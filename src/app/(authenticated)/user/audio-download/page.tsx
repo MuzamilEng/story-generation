@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import styles from "../../../styles/AudioReady.module.css";
 import { useStoryStore } from "@/store/useStoryStore";
 import { useGlobalUI } from "@/components/ui/global-ui-context";
+import { notifyAudioReady } from "@/lib/browser-notifications";
 import FeedbackPopup from "@/components/FeedbackPopup";
 
 // Icon Components (kept as they were)
@@ -120,7 +121,7 @@ const StepItem: React.FC<StepItemProps> = ({ number, label, status }) => (
 const AudioReadyContent: React.FC = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { showToast, showConfirm } = useGlobalUI();
+  const { showAlert, showToast, showConfirm } = useGlobalUI();
   const storyId = searchParams.get("storyId");
 
   const [story, setStory] = useState<any>(null);
@@ -132,9 +133,14 @@ const AudioReadyContent: React.FC = () => {
   const [showDownloadPrompt, setShowDownloadPrompt] = useState(false);
   const [isBuffering, setIsBuffering] = useState(false);
   const [bufferedPct, setBufferedPct] = useState(0);
+  const [assembleStatus, setAssembleStatus] = useState<
+    "queued" | "processing" | "failed" | "completed" | null
+  >(null);
+  const [assembleMessage, setAssembleMessage] = useState("");
 
   const audioRef = useRef<HTMLAudioElement>(null);
   const pendingAutoplay = useRef(false);
+  const hasReadyNotificationSent = useRef(false);
   const progressBarRef = useRef<HTMLDivElement>(null);
   const seekTarget = useRef<number | null>(null);
 
@@ -239,6 +245,7 @@ const AudioReadyContent: React.FC = () => {
         if (res.ok) {
           const data = await res.json();
           setStory(data);
+          hasReadyNotificationSent.current = !!data?.audio_url;
         }
       } catch (err) {
         console.error("Failed to fetch story", err);
@@ -248,6 +255,65 @@ const AudioReadyContent: React.FC = () => {
     };
     fetchStory();
   }, [storyId]);
+
+  useEffect(() => {
+    if (!storyId || !story || story?.audio_url) return;
+
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const [statusRes, storyRes] = await Promise.all([
+          fetch(`/api/user/audio/assemble?storyId=${encodeURIComponent(storyId)}`),
+          fetch(`/api/user/stories/${storyId}`),
+        ]);
+
+        if (!cancelled && statusRes.ok) {
+          const statusData = await statusRes.json();
+          const nextState = (statusData?.state || "processing") as
+            | "queued"
+            | "processing"
+            | "failed"
+            | "completed";
+          setAssembleStatus(nextState);
+          setAssembleMessage(statusData?.message || "Preparing your audio...");
+
+          if (nextState === "failed") {
+            showToast("Audio generation failed. Please try generating again.", "error");
+          }
+        }
+
+        if (!cancelled && storyRes.ok) {
+          const storyData = await storyRes.json();
+          if (storyData?.audio_url) {
+            setStory(storyData);
+            setAssembleStatus("completed");
+            setAssembleMessage("Your audio is ready.");
+            if (!hasReadyNotificationSent.current) {
+              hasReadyNotificationSent.current = true;
+              showAlert({
+                title: "Voice Generated",
+                message: "Your voice was successfully generated and your audio is ready.",
+                buttonText: "Close",
+              });
+              notifyAudioReady(storyData.id, storyData.title || "Your story");
+            }
+          }
+        }
+      } catch {
+        if (!cancelled) {
+          setAssembleStatus("processing");
+          setAssembleMessage("Preparing your audio...");
+        }
+      }
+    };
+
+    poll();
+    const timer = setInterval(poll, 4000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [storyId, story, showAlert, showToast]);
 
   // Fetch available soundscapes for server-side mixing
   useEffect(() => {
@@ -648,6 +714,36 @@ const AudioReadyContent: React.FC = () => {
       <div className={styles.container}>
         <div style={{ padding: "100px", textAlign: "center" }}>
           Story not found.
+        </div>
+      </div>
+    );
+  }
+
+  if (!story?.audio_url) {
+    return (
+      <div className={styles.container}>
+        <div style={{ padding: "100px", textAlign: "center" }}>
+          <div style={{ fontSize: "1.25rem", marginBottom: "12px" }}>
+            {assembleStatus === "queued"
+              ? "Your audio is queued"
+              : assembleStatus === "failed"
+                ? "Audio generation failed"
+                : "We are preparing your audio"}
+          </div>
+          <div style={{ color: "rgba(255,255,255,0.7)", marginBottom: "20px" }}>
+            {assembleMessage || "This can take a minute or two depending on queue load."}
+          </div>
+          <button
+            className={styles.dashboardBtn}
+            onClick={() => router.push("/user/dashboard")}
+            style={{
+              padding: "0.6rem 1.5rem",
+              borderRadius: "8px",
+              cursor: "pointer",
+            }}
+          >
+            ← Back to Dashboard
+          </button>
         </div>
       </div>
     );
