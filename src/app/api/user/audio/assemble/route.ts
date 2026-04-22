@@ -152,7 +152,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(data);
   } catch (err: any) {
-    console.error('[api/assemble] Error fetching status from mixing server:', err);
+    console.log('[api/assemble] Error fetching status from mixing server:', err);
     return NextResponse.json({ error: 'Mixing server unavailable' }, { status: 502 });
   }
 }
