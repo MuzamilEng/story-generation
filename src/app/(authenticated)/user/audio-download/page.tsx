@@ -206,7 +206,12 @@ const AudioReadyContent: React.FC = () => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Don't intercept Space when user is typing in an input/textarea
       const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement)?.isContentEditable) return;
+      if (
+        tag === "INPUT" ||
+        tag === "TEXTAREA" ||
+        (e.target as HTMLElement)?.isContentEditable
+      )
+        return;
       if (e.code === "Space") {
         e.preventDefault();
         togglePlay();
@@ -263,7 +268,9 @@ const AudioReadyContent: React.FC = () => {
     const poll = async () => {
       try {
         const [statusRes, storyRes] = await Promise.all([
-          fetch(`/api/user/audio/assemble?storyId=${encodeURIComponent(storyId)}`),
+          fetch(
+            `/api/user/audio/assemble?storyId=${encodeURIComponent(storyId)}`,
+          ),
           fetch(`/api/user/stories/${storyId}`),
         ]);
 
@@ -278,7 +285,10 @@ const AudioReadyContent: React.FC = () => {
           setAssembleMessage(statusData?.message || "Preparing your audio...");
 
           if (nextState === "failed") {
-            showToast("Audio generation failed. Please try generating again.", "error");
+            showToast(
+              "Audio generation failed. Please try generating again.",
+              "error",
+            );
           }
         }
 
@@ -292,7 +302,8 @@ const AudioReadyContent: React.FC = () => {
               hasReadyNotificationSent.current = true;
               showAlert({
                 title: "Voice Generated",
-                message: "Your voice was successfully generated and your audio is ready.",
+                message:
+                  "Your voice was successfully generated and your audio is ready.",
                 buttonText: "Close",
               });
               notifyAudioReady(storyData.id, storyData.title || "Your story");
@@ -327,7 +338,7 @@ const AudioReadyContent: React.FC = () => {
           // If a soundscape was already mixed into this story, match it by r2_key
           if (story?.soundscape_audio_key && story?.combined_audio_key) {
             const matched = assets.find(
-              (sc: any) => sc.r2_key === story.soundscape_audio_key
+              (sc: any) => sc.r2_key === story.soundscape_audio_key,
             );
             if (matched) {
               setSelectedSoundscapeId(matched.id);
@@ -364,11 +375,17 @@ const AudioReadyContent: React.FC = () => {
       try {
         data = await res.json();
       } catch {
-        showToast("Something went wrong while applying background music. Please try again.", "error");
+        showToast(
+          "Something went wrong while applying background music. Please try again.",
+          "error",
+        );
         return;
       }
       if (!res.ok) {
-        showToast("Something went wrong while applying background music. Please try again.", "error");
+        showToast(
+          "Something went wrong while applying background music. Please try again.",
+          "error",
+        );
         return;
       }
       // Update local story state with new audio URL
@@ -376,7 +393,8 @@ const AudioReadyContent: React.FC = () => {
         ...prev,
         audio_url: data.audio_url,
         combined_audio_key: data.combined_audio_key,
-        soundscape_audio_key: data.soundscape_audio_key ?? prev.soundscape_audio_key,
+        soundscape_audio_key:
+          data.soundscape_audio_key ?? prev.soundscape_audio_key,
       }));
       setSelectedSoundscapeId(soundscapeId);
       // Reset player state for the new audio and request autoplay
@@ -389,7 +407,10 @@ const AudioReadyContent: React.FC = () => {
       showToast("Background music applied ✓", "success");
     } catch (err) {
       console.error("Server mix failed:", err);
-      showToast("Something went wrong while applying background music. Please try again.", "error");
+      showToast(
+        "Something went wrong while applying background music. Please try again.",
+        "error",
+      );
     } finally {
       setIsServerMixing(false);
       setMixingTrackId(null);
@@ -416,11 +437,17 @@ const AudioReadyContent: React.FC = () => {
       try {
         data = await res.json();
       } catch {
-        showToast("Something went wrong while removing background music. Please try again.", "error");
+        showToast(
+          "Something went wrong while removing background music. Please try again.",
+          "error",
+        );
         return;
       }
       if (!res.ok) {
-        showToast("Something went wrong while removing background music. Please try again.", "error");
+        showToast(
+          "Something went wrong while removing background music. Please try again.",
+          "error",
+        );
         return;
       }
       setStory((prev: any) => ({
@@ -439,7 +466,10 @@ const AudioReadyContent: React.FC = () => {
       showToast("Background music removed", "success");
     } catch (err) {
       console.error("Server unmix failed:", err);
-      showToast("Something went wrong while removing background music. Please try again.", "error");
+      showToast(
+        "Something went wrong while removing background music. Please try again.",
+        "error",
+      );
     } finally {
       setIsServerMixing(false);
       setMixingTrackId(null);
@@ -499,7 +529,12 @@ const AudioReadyContent: React.FC = () => {
   // until the entire file is buffered). The DB value was calculated server-side
   // and matches what OS players show.
   const dbDuration = story?.audio_duration_secs ?? 0;
-  const displayDuration = dbDuration > 0 ? dbDuration : (duration > 0 && isFinite(duration) ? duration : 0);
+  const displayDuration =
+    dbDuration > 0
+      ? dbDuration
+      : duration > 0 && isFinite(duration)
+        ? duration
+        : 0;
 
   // Ensure audio element volume is synced
   useEffect(() => {
@@ -585,8 +620,14 @@ const AudioReadyContent: React.FC = () => {
 
     // Accumulate skip amount and update UI immediately
     pendingSkip.current += seconds;
-    const baseTime = seekTarget.current !== null ? seekTarget.current : audioRef.current.currentTime;
-    const newTime = Math.max(0, Math.min(total, baseTime + pendingSkip.current));
+    const baseTime =
+      seekTarget.current !== null
+        ? seekTarget.current
+        : audioRef.current.currentTime;
+    const newTime = Math.max(
+      0,
+      Math.min(total, baseTime + pendingSkip.current),
+    );
     setCurrentTime(newTime);
     setIsBuffering(true);
 
@@ -596,7 +637,7 @@ const AudioReadyContent: React.FC = () => {
       pendingSkip.current = 0;
       if (!audioRef.current) return;
       seekTarget.current = newTime;
-      audioRef.current.src = story?.audio_url || '';
+      audioRef.current.src = story?.audio_url || "";
       audioRef.current.load();
     }, 300);
   };
@@ -650,7 +691,9 @@ const AudioReadyContent: React.FC = () => {
       // progress bar never exceeds 100% even if the browser's internal
       // duration is shorter than reality.
       const raw = audioRef.current.currentTime;
-      setCurrentTime(displayDuration > 0 ? Math.min(raw, displayDuration) : raw);
+      setCurrentTime(
+        displayDuration > 0 ? Math.min(raw, displayDuration) : raw,
+      );
       const d = audioRef.current.duration;
       if (d && isFinite(d) && d > 0 && d !== duration) {
         setDuration(d);
@@ -702,8 +745,23 @@ const AudioReadyContent: React.FC = () => {
   if (isLoading) {
     return (
       <div className={styles.container}>
-        <div style={{ padding: "100px", textAlign: "center" }}>
-          Preparing your story...
+        <div className={styles.genWrapper}>
+          <div className={styles.genCard}>
+            <div className={styles.genPulseRing}>
+              <div className={styles.genWave}>
+                <span />
+                <span />
+                <span />
+                <span />
+                <span />
+                <span />
+                <span />
+              </div>
+            </div>
+            <div className={styles.genTitle}>
+              Preparing your <em>story</em>…
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -720,30 +778,135 @@ const AudioReadyContent: React.FC = () => {
   }
 
   if (!story?.audio_url) {
+    const isFailed = assembleStatus === "failed";
+    const isQueued = assembleStatus === "queued";
+    const isProcessing = !isFailed && !isQueued;
+
+    // Step progress based on assembleStatus / assembleMessage
+    const stepLabels = [
+      "Queued & waiting",
+      "Generating your voice",
+      "Mixing with soundscape",
+      "Finalizing audio",
+    ];
+    const activeIdx = isFailed
+      ? -1
+      : isQueued
+        ? 0
+        : assembleMessage?.toLowerCase().includes("mix")
+          ? 2
+          : assembleMessage?.toLowerCase().includes("final")
+            ? 3
+            : 1;
+
     return (
       <div className={styles.container}>
-        <div style={{ padding: "100px", textAlign: "center" }}>
-          <div style={{ fontSize: "1.25rem", marginBottom: "12px" }}>
-            {assembleStatus === "queued"
-              ? "Your audio is queued"
-              : assembleStatus === "failed"
-                ? "Audio generation failed"
-                : "We are preparing your audio"}
+        <div
+          className={`${styles.genWrapper} ${isFailed ? styles.genFailed : ""}`}
+        >
+          <div className={styles.genCard}>
+            {/* Animated waveform with pulsing ring */}
+            {!isFailed && (
+              <div className={styles.genPulseRing}>
+                <div className={styles.genWave}>
+                  <span />
+                  <span />
+                  <span />
+                  <span />
+                  <span />
+                  <span />
+                  <span />
+                </div>
+              </div>
+            )}
+
+            {/* Failed icon */}
+            {isFailed && (
+              <svg
+                width="48"
+                height="48"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="#e5786d"
+                strokeWidth="1.5"
+              >
+                <circle cx="12" cy="12" r="10" />
+                <line x1="15" y1="9" x2="9" y2="15" />
+                <line x1="9" y1="9" x2="15" y2="15" />
+              </svg>
+            )}
+
+            <div className={styles.genTitle}>
+              {isFailed ? (
+                <>
+                  Audio generation <em>failed</em>
+                </>
+              ) : isQueued ? (
+                <>
+                  Your story is <em>in the queue</em>
+                </>
+              ) : (
+                <>
+                  Crafting your <em>audio story</em>
+                </>
+              )}
+            </div>
+
+            <div className={styles.genStatusText}>
+              {isFailed
+                ? "Something went wrong. You can try generating again from your story page."
+                : assembleMessage ||
+                  "This can take a minute or two — we're turning your vision into sound."}
+            </div>
+
+            {/* Step indicators (not shown on failure) */}
+            {!isFailed && (
+              <div className={styles.genSteps}>
+                {stepLabels.map((label, i) => {
+                  const status =
+                    i < activeIdx ? "done" : i === activeIdx ? "active" : "";
+                  return (
+                    <div
+                      key={i}
+                      className={`${styles.genStep} ${status ? styles[status] : ""}`}
+                    >
+                      <div className={styles.genStepIcon}>
+                        {status === "done" ? (
+                          <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="3"
+                          >
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        ) : status === "active" ? (
+                          <div className={styles.genDot} />
+                        ) : null}
+                      </div>
+                      {label}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {isFailed && (
+              <button
+                className={styles.genRetryBtn}
+                onClick={() => router.back()}
+              >
+                ← Go back & retry
+              </button>
+            )}
+
+            <button
+              className={styles.genBackLink}
+              onClick={() => router.push("/user/dashboard")}
+            >
+              ← Back to Dashboard
+            </button>
           </div>
-          <div style={{ color: "rgba(255,255,255,0.7)", marginBottom: "20px" }}>
-            {assembleMessage || "This can take a minute or two depending on queue load."}
-          </div>
-          <button
-            className={styles.dashboardBtn}
-            onClick={() => router.push("/user/dashboard")}
-            style={{
-              padding: "0.6rem 1.5rem",
-              borderRadius: "8px",
-              cursor: "pointer",
-            }}
-          >
-            ← Back to Dashboard
-          </button>
         </div>
       </div>
     );
@@ -945,7 +1108,8 @@ const AudioReadyContent: React.FC = () => {
                           style={{
                             width: "40%",
                             height: "100%",
-                            background: "linear-gradient(90deg, #6ECF7A, #A8E6A1)",
+                            background:
+                              "linear-gradient(90deg, #6ECF7A, #A8E6A1)",
                             borderRadius: "1px",
                             animation: "bufferSlide 1.2s ease-in-out infinite",
                           }}
@@ -969,7 +1133,9 @@ const AudioReadyContent: React.FC = () => {
                       <button
                         className={styles.ctrlPlay}
                         onClick={togglePlay}
-                        aria-label={isBuffering ? "Loading" : isPlaying ? "Pause" : "Play"}
+                        aria-label={
+                          isBuffering ? "Loading" : isPlaying ? "Pause" : "Play"
+                        }
                         style={{
                           position: "relative",
                         }}
@@ -1053,7 +1219,8 @@ const AudioReadyContent: React.FC = () => {
                             background: "#fff",
                             boxShadow: "0 1px 4px rgba(0,0,0,0.4)",
                             zIndex: 2,
-                            transition: "left 0.5s linear, width 0.15s, height 0.15s",
+                            transition:
+                              "left 0.5s linear, width 0.15s, height 0.15s",
                             opacity: currentTime > 0 ? 1 : 0,
                           }}
                         />
@@ -1117,261 +1284,265 @@ const AudioReadyContent: React.FC = () => {
             {/* Hidden audio element for previewing soundscapes */}
             <audio ref={previewAudioRef} preload="none" />
 
-            {availableSoundscapes.length > 0 && (() => {
-              const selectedTrack = availableSoundscapes.find(
-                (sc: any) => sc.id === selectedSoundscapeId
-              );
-              const hasBackground = !!story?.combined_audio_key;
-
-              // ── Background IS applied: show selected track + Change/Remove ──
-              if (hasBackground && selectedTrack) {
-                return (
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "10px",
-                      padding: "0.1rem 0",
-                    }}
-                  >
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div
-                        style={{
-                          fontSize: "0.62rem",
-                          color: "rgba(255,255,255,0.4)",
-                          textTransform: "uppercase",
-                          letterSpacing: "0.1em",
-                          marginBottom: "3px",
-                        }}
-                      >
-                        Background Music
-                      </div>
-                      <div
-                        style={{
-                          fontSize: "0.82rem",
-                          fontWeight: 500,
-                          color: "var(--accent)",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "6px",
-                        }}
-                      >
-                        🎵 {selectedTrack.title}
-                        {selectedTrack.mood && (
-                          <span
-                            style={{
-                              fontSize: "0.62rem",
-                              color: "rgba(255,255,255,0.4)",
-                              fontWeight: 400,
-                            }}
-                          >
-                            · {selectedTrack.mood}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
-                      <button
-                        onClick={() => setShowBgPicker(true)}
-                        disabled={isServerMixing}
-                        style={{
-                          background: "rgba(255,255,255,0.06)",
-                          border: "1px solid var(--border)",
-                          borderRadius: "8px",
-                          padding: "0.45rem 0.9rem",
-                          fontSize: "0.72rem",
-                          color: "var(--accent)",
-                          cursor: isServerMixing ? "default" : "pointer",
-                          opacity: isServerMixing ? 0.5 : 1,
-                          fontFamily: "var(--sans)",
-                          fontWeight: 500,
-                          whiteSpace: "nowrap",
-                          transition: "all 0.2s",
-                        }}
-                      >
-                        Change
-                      </button>
-                      <button
-                        onClick={() => handleServerUnmix()}
-                        disabled={isServerMixing}
-                        style={{
-                          background: "rgba(255,255,255,0.06)",
-                          border: "1px solid var(--border)",
-                          borderRadius: "8px",
-                          padding: "0.45rem 0.9rem",
-                          fontSize: "0.72rem",
-                          color: "rgba(255,255,255,0.5)",
-                          cursor: isServerMixing ? "default" : "pointer",
-                          opacity: isServerMixing ? 0.5 : 1,
-                          fontFamily: "var(--sans)",
-                          fontWeight: 500,
-                          whiteSpace: "nowrap",
-                          transition: "all 0.2s",
-                        }}
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  </div>
+            {availableSoundscapes.length > 0 &&
+              (() => {
+                const selectedTrack = availableSoundscapes.find(
+                  (sc: any) => sc.id === selectedSoundscapeId,
                 );
-              }
+                const hasBackground = !!story?.combined_audio_key;
 
-              // ── No background set: show all tracks inline ──
-              return (
-                <div style={{ width: "100%" }}>
-                  <div
-                    style={{
-                      fontSize: "0.62rem",
-                      color: "rgba(255,255,255,0.4)",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.1em",
-                      marginBottom: "8px",
-                    }}
-                  >
-                    Select Background Music
-                  </div>
-                  <div
-                    style={{
-                      fontSize: "0.68rem",
-                      color: "rgba(255,255,255,0.45)",
-                      marginBottom: "10px",
-                      lineHeight: "1.5",
-                    }}
-                  >
-                    Every track is layered with Theta binaural beats (4–8 Hz).
-                    🎧 Best with headphones.
-                  </div>
-                  <div
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "6px",
-                    }}
-                  >
-                    {availableSoundscapes.map((sc: any) => {
-                      const isPreviewing = previewingId === sc.id;
-                      const isMixingThis = mixingTrackId === sc.id;
-                      return (
+                // ── Background IS applied: show selected track + Change/Remove ──
+                if (hasBackground && selectedTrack) {
+                  return (
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "10px",
+                        padding: "0.1rem 0",
+                      }}
+                    >
+                      <div style={{ flex: 1, minWidth: 0 }}>
                         <div
-                          key={sc.id}
                           style={{
+                            fontSize: "0.62rem",
+                            color: "rgba(255,255,255,0.4)",
+                            textTransform: "uppercase",
+                            letterSpacing: "0.1em",
+                            marginBottom: "3px",
+                          }}
+                        >
+                          Background Music
+                        </div>
+                        <div
+                          style={{
+                            fontSize: "0.82rem",
+                            fontWeight: 500,
+                            color: "var(--accent)",
                             display: "flex",
-                            alignItems: "flex-start",
-                            borderRadius: "10px",
-                            overflow: "hidden",
+                            alignItems: "center",
+                            gap: "6px",
+                          }}
+                        >
+                          🎵 {selectedTrack.title}
+                          {selectedTrack.mood && (
+                            <span
+                              style={{
+                                fontSize: "0.62rem",
+                                color: "rgba(255,255,255,0.4)",
+                                fontWeight: 400,
+                              }}
+                            >
+                              · {selectedTrack.mood}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div
+                        style={{ display: "flex", gap: "6px", flexShrink: 0 }}
+                      >
+                        <button
+                          onClick={() => setShowBgPicker(true)}
+                          disabled={isServerMixing}
+                          style={{
+                            background: "rgba(255,255,255,0.06)",
                             border: "1px solid var(--border)",
-                            background: "rgba(255,255,255,0.04)",
+                            borderRadius: "8px",
+                            padding: "0.45rem 0.9rem",
+                            fontSize: "0.72rem",
+                            color: "var(--accent)",
+                            cursor: isServerMixing ? "default" : "pointer",
+                            opacity: isServerMixing ? 0.5 : 1,
+                            fontFamily: "var(--sans)",
+                            fontWeight: 500,
+                            whiteSpace: "nowrap",
                             transition: "all 0.2s",
                           }}
                         >
-                          {/* Preview */}
-                          <button
-                            onClick={() => togglePreview(sc)}
+                          Change
+                        </button>
+                        <button
+                          onClick={() => handleServerUnmix()}
+                          disabled={isServerMixing}
+                          style={{
+                            background: "rgba(255,255,255,0.06)",
+                            border: "1px solid var(--border)",
+                            borderRadius: "8px",
+                            padding: "0.45rem 0.9rem",
+                            fontSize: "0.72rem",
+                            color: "rgba(255,255,255,0.5)",
+                            cursor: isServerMixing ? "default" : "pointer",
+                            opacity: isServerMixing ? 0.5 : 1,
+                            fontFamily: "var(--sans)",
+                            fontWeight: 500,
+                            whiteSpace: "nowrap",
+                            transition: "all 0.2s",
+                          }}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  );
+                }
+
+                // ── No background set: show all tracks inline ──
+                return (
+                  <div style={{ width: "100%" }}>
+                    <div
+                      style={{
+                        fontSize: "0.62rem",
+                        color: "rgba(255,255,255,0.4)",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.1em",
+                        marginBottom: "8px",
+                      }}
+                    >
+                      Select Background Music
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "0.68rem",
+                        color: "rgba(255,255,255,0.45)",
+                        marginBottom: "10px",
+                        lineHeight: "1.5",
+                      }}
+                    >
+                      Every track is layered with Theta binaural beats (4–8 Hz).
+                      🎧 Best with headphones.
+                    </div>
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "6px",
+                      }}
+                    >
+                      {availableSoundscapes.map((sc: any) => {
+                        const isPreviewing = previewingId === sc.id;
+                        const isMixingThis = mixingTrackId === sc.id;
+                        return (
+                          <div
+                            key={sc.id}
                             style={{
-                              background: "none",
-                              border: "none",
-                              borderRight: "1px solid var(--border)",
-                              padding: "10px 10px",
-                              cursor: "pointer",
-                              color: isPreviewing
-                                ? "var(--accent)"
-                                : "rgba(255,255,255,0.5)",
-                              fontSize: "0.85rem",
                               display: "flex",
-                              alignItems: "center",
-                              transition: "color 0.2s",
-                              flexShrink: 0,
-                            }}
-                            title={isPreviewing ? "Stop preview" : "Preview"}
-                          >
-                            {isPreviewing ? "⏸" : "▶"}
-                          </button>
-                          {/* Track info + apply */}
-                          <button
-                            onClick={() => {
-                              if (isServerMixing) return;
-                              if (previewAudioRef.current) {
-                                previewAudioRef.current.pause();
-                                setPreviewingId(null);
-                              }
-                              handleServerMix(sc.id);
-                            }}
-                            disabled={isServerMixing}
-                            style={{
-                              background: "none",
-                              border: "none",
-                              padding: "8px 12px",
-                              cursor: isServerMixing ? "default" : "pointer",
-                              opacity: isServerMixing ? 0.6 : 1,
-                              textAlign: "left",
-                              flex: 1,
-                              minWidth: 0,
+                              alignItems: "flex-start",
+                              borderRadius: "10px",
+                              overflow: "hidden",
+                              border: "1px solid var(--border)",
+                              background: "rgba(255,255,255,0.04)",
+                              transition: "all 0.2s",
                             }}
                           >
-                            <div
+                            {/* Preview */}
+                            <button
+                              onClick={() => togglePreview(sc)}
                               style={{
+                                background: "none",
+                                border: "none",
+                                borderRight: "1px solid var(--border)",
+                                padding: "10px 10px",
+                                cursor: "pointer",
+                                color: isPreviewing
+                                  ? "var(--accent)"
+                                  : "rgba(255,255,255,0.5)",
+                                fontSize: "0.85rem",
                                 display: "flex",
                                 alignItems: "center",
-                                gap: "6px",
-                                marginBottom: "2px",
+                                transition: "color 0.2s",
+                                flexShrink: 0,
+                              }}
+                              title={isPreviewing ? "Stop preview" : "Preview"}
+                            >
+                              {isPreviewing ? "⏸" : "▶"}
+                            </button>
+                            {/* Track info + apply */}
+                            <button
+                              onClick={() => {
+                                if (isServerMixing) return;
+                                if (previewAudioRef.current) {
+                                  previewAudioRef.current.pause();
+                                  setPreviewingId(null);
+                                }
+                                handleServerMix(sc.id);
+                              }}
+                              disabled={isServerMixing}
+                              style={{
+                                background: "none",
+                                border: "none",
+                                padding: "8px 12px",
+                                cursor: isServerMixing ? "default" : "pointer",
+                                opacity: isServerMixing ? 0.6 : 1,
+                                textAlign: "left",
+                                flex: 1,
+                                minWidth: 0,
                               }}
                             >
-                              <span
-                                style={{
-                                  fontSize: "0.76rem",
-                                  fontWeight: 500,
-                                  color: "var(--ink)",
-                                  display: "inline-flex",
-                                  alignItems: "center",
-                                  gap: "6px",
-                                }}
-                              >
-                                {sc.title}
-                                {isMixingThis && (
-                                  <span
-                                    style={{
-                                      display: "inline-block",
-                                      width: 12,
-                                      height: 12,
-                                      border: "2px solid rgba(255,255,255,0.15)",
-                                      borderTop: "2px solid var(--accent)",
-                                      borderRadius: "50%",
-                                      animation: "spin 0.8s linear infinite",
-                                      flexShrink: 0,
-                                    }}
-                                  />
-                                )}
-                              </span>
-                            </div>
-                            {sc.mood && (
                               <div
                                 style={{
-                                  fontSize: "0.62rem",
-                                  color: "rgba(255,255,255,0.4)",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: "6px",
                                   marginBottom: "2px",
                                 }}
                               >
-                                {sc.mood}
+                                <span
+                                  style={{
+                                    fontSize: "0.76rem",
+                                    fontWeight: 500,
+                                    color: "var(--ink)",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: "6px",
+                                  }}
+                                >
+                                  {sc.title}
+                                  {isMixingThis && (
+                                    <span
+                                      style={{
+                                        display: "inline-block",
+                                        width: 12,
+                                        height: 12,
+                                        border:
+                                          "2px solid rgba(255,255,255,0.15)",
+                                        borderTop: "2px solid var(--accent)",
+                                        borderRadius: "50%",
+                                        animation: "spin 0.8s linear infinite",
+                                        flexShrink: 0,
+                                      }}
+                                    />
+                                  )}
+                                </span>
                               </div>
-                            )}
-                            {sc.description && (
-                              <div
-                                style={{
-                                  fontSize: "0.6rem",
-                                  color: "rgba(255,255,255,0.28)",
-                                }}
-                              >
-                                {sc.description}
-                              </div>
-                            )}
-                          </button>
-                        </div>
-                      );
-                    })}
+                              {sc.mood && (
+                                <div
+                                  style={{
+                                    fontSize: "0.62rem",
+                                    color: "rgba(255,255,255,0.4)",
+                                    marginBottom: "2px",
+                                  }}
+                                >
+                                  {sc.mood}
+                                </div>
+                              )}
+                              {sc.description && (
+                                <div
+                                  style={{
+                                    fontSize: "0.6rem",
+                                    color: "rgba(255,255,255,0.28)",
+                                  }}
+                                >
+                                  {sc.description}
+                                </div>
+                              )}
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              );
-            })()}
+                );
+              })()}
           </div>
         </div>
 
@@ -1523,9 +1694,7 @@ const AudioReadyContent: React.FC = () => {
                           flexShrink: 0,
                         }}
                         title={
-                          isPreviewing
-                            ? "Stop preview"
-                            : "Preview track (45s)"
+                          isPreviewing ? "Stop preview" : "Preview track (45s)"
                         }
                       >
                         {isPreviewing ? "⏸" : "▶"}

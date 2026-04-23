@@ -413,6 +413,59 @@ const Toast: React.FC<ToastProps> = ({ message, visible }) => (
   </div>
 );
 
+// Generating Overlay Component
+interface GeneratingOverlayProps {
+  visible: boolean;
+  step: number; // 1=rewriting, 2=voice, 3=cloning, 4=assembling
+}
+
+const GeneratingOverlay: React.FC<GeneratingOverlayProps> = ({
+  visible,
+  step,
+}) => {
+  if (!visible) return null;
+
+  const steps = [
+    { id: 1, label: "Rewriting your story..." },
+    { id: 2, label: "Preparing voice recording..." },
+    { id: 3, label: "Refreshing voice clone..." },
+    { id: 4, label: "Assembling your audio story..." },
+  ];
+
+  return (
+    <div className={styles.generatingOverlay}>
+      <div className={styles.generatingCard}>
+        <div className={styles.generatingPulse}>
+          <span />
+          <span />
+          <span />
+          <div className={styles.generatingPulseDot} />
+        </div>
+        <div className={styles.generatingTitle}>
+          Crafting your <em>audio story</em>
+        </div>
+        <div className={styles.generatingSub}>
+          Please wait while we generate your personalized audio. This may take a
+          moment.
+        </div>
+        <div className={styles.generatingSteps}>
+          {steps.map((s) => (
+            <div
+              key={s.id}
+              className={`${styles.generatingStep} ${
+                step === s.id ? styles.active : step > s.id ? styles.done : ""
+              }`}
+            >
+              <div className={styles.generatingStepDot} />
+              {s.label}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // Main Component
 const StoryDetail: React.FC = () => {
   const router = useRouter();
@@ -537,7 +590,9 @@ const StoryDetail: React.FC = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["story", id] });
-      showToast("🎵 New audio version queued. We'll update this page when it is ready.");
+      showToast(
+        "🎵 New audio version queued. We'll update this page when it is ready.",
+      );
       setShowRegen(false);
       setActiveRegenStep(null);
     },
@@ -772,6 +827,15 @@ const StoryDetail: React.FC = () => {
           )} */}
         </main>
 
+        <GeneratingOverlay
+          visible={
+            regenerateMutation.isPending ||
+            cloneVoiceMutation.isPending ||
+            assembleAudioMutation.isPending ||
+            (activeRegenStep !== null && activeRegenStep > 0)
+          }
+          step={activeRegenStep ?? 0}
+        />
         <Toast message={toast.message} visible={toast.visible} />
       </div>
     </>

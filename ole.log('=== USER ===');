@@ -1,0 +1,5 @@
+            id             |        email        |    full_name    |    plan    |    voice_model_id    |       created_at        | story_id | title | status | has_audio | audio_duration_secs | story_created 
+---------------------------+---------------------+-----------------+------------+----------------------+-------------------------+----------+-------+--------+-----------+---------------------+---------------
+ cmoael3zo0003js05v0m14koh | muriodain@gmail.com | Maryse Uriodain | manifester | hm6dZnYTZRI6QTUpsEZD | 2026-04-22 18:45:47.508 |          |       |        | f         |                     | 
+(1 row)
+

@@ -1,52 +1,44 @@
-import { google } from "googleapis";
+import nodemailer from "nodemailer";
 
 const {
-  GMAIL_CLIENT_ID,
-  GMAIL_CLIENT_SECRET,
-  GMAIL_REFRESH_TOKEN,
-  GMAIL_USER, // Gmail account used for sending (OAuth2 authenticated)
-  NOTIFICATION_EMAIL, // Where notifications go (Michael's actual inbox)
+  SMTP_HOST,
+  SMTP_PORT,
+  SMTP_USER,
+  SMTP_PASS,
+  SMTP_FROM,
+  NOTIFICATION_EMAIL,
 } = process.env;
 
-function getGmailClient() {
-  if (!GMAIL_CLIENT_ID || !GMAIL_CLIENT_SECRET || !GMAIL_REFRESH_TOKEN || !GMAIL_USER) {
-    throw new Error("Gmail OAuth2 env vars are not configured.");
+function getTransporter() {
+  if (!SMTP_HOST || !SMTP_PORT || !SMTP_USER || !SMTP_PASS) {
+    throw new Error("SMTP env vars (SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS) are not configured.");
   }
 
-  const oauth2Client = new google.auth.OAuth2(
-    GMAIL_CLIENT_ID,
-    GMAIL_CLIENT_SECRET,
-    "https://developers.google.com/oauthplayground"
-  );
-
-  oauth2Client.setCredentials({ refresh_token: GMAIL_REFRESH_TOKEN });
-
-  return google.gmail({ version: "v1", auth: oauth2Client });
+  return nodemailer.createTransport({
+    host: SMTP_HOST,
+    port: Number(SMTP_PORT),
+    secure: false, // STARTTLS
+    auth: {
+      user: SMTP_USER,
+      pass: SMTP_PASS,
+    },
+    tls: {
+      ciphers: "SSLv3",
+      rejectUnauthorized: false,
+    },
+  });
 }
 
-function buildRawEmail(to: string, subject: string, htmlBody: string): string {
-  const boundary = "boundary_" + Date.now();
-  const rawParts = [
-    `From: "Michael at ManifestMyStory" <${GMAIL_USER}>`,
-    `To: ${to}`,
-    `Subject: ${subject}`,
-    `MIME-Version: 1.0`,
-    `Content-Type: multipart/alternative; boundary="${boundary}"`,
-    ``,
-    `--${boundary}`,
-    `Content-Type: text/html; charset="UTF-8"`,
-    `Content-Transfer-Encoding: base64`,
-    ``,
-    Buffer.from(htmlBody).toString("base64"),
-    ``,
-    `--${boundary}--`,
-  ];
+const fromAddress = () => `"Michael at ManifestMyStory" <${SMTP_FROM || SMTP_USER}>`;
 
-  return Buffer.from(rawParts.join("\r\n"))
-    .toString("base64")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
+async function sendEmail(to: string, subject: string, html: string) {
+  const transporter = getTransporter();
+  await transporter.sendMail({
+    from: fromAddress(),
+    to,
+    subject,
+    html,
+  });
 }
 
 /* ── Shared email theme wrapper — all styles inlined for Gmail ── */
@@ -109,7 +101,6 @@ ${previewHidden}
 
 /* ── Welcome email sent to new waitlist signups ─────────── */
 export async function sendWaitlistWelcomeEmail(to: string, firstName: string, memberNumber: number) {
-  const gmail = getGmailClient();
   const siteUrl = process.env.NEXTAUTH_URL || "https://manifestmystory.com";
   const displayName = firstName || "Founding Member";
 
@@ -192,7 +183,7 @@ export async function sendWaitlistWelcomeEmail(to: string, firstName: string, me
     </div>
 
     <div style="text-align:center;margin-top:4px;">
-      <a href="mailto:${GMAIL_USER}?subject=Beta%20Test%20-%20I'm%20In" style="display:inline-block;background:#C9A84C;color:#0e0e0e;font-family:'Inter',Helvetica,Arial,sans-serif;font-size:13px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;text-decoration:none;padding:16px 36px;border-radius:4px;">Yes — I want to beta test</a>
+      <a href="mailto:${SMTP_FROM || SMTP_USER}?subject=Beta%20Test%20-%20I'm%20In" style="display:inline-block;background:#C9A84C;color:#0e0e0e;font-family:'Inter',Helvetica,Arial,sans-serif;font-size:13px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;text-decoration:none;padding:16px 36px;border-radius:4px;">Yes — I want to beta test</a>
       <div style="font-size:12px;color:#6e6b63;margin-top:10px;font-weight:300;">Reply to this email or click above. We'll be in touch with next steps.</div>
     </div>
   </div>
@@ -239,12 +230,7 @@ export async function sendWaitlistWelcomeEmail(to: string, firstName: string, me
     unsubscribeEmail: to,
   });
 
-  const raw = buildRawEmail(to, `${displayName}, you're Founding Member #${memberNumber}`, html);
-
-  await gmail.users.messages.send({
-    userId: "me",
-    requestBody: { raw },
-  });
+  await sendEmail(to, `${displayName}, you're Founding Member #${memberNumber}`, html);
 }
 
 /* ── Notification to Michael when a beta user submits feedback ── */
@@ -253,7 +239,6 @@ export async function sendFeedbackNotification(
   userEmail: string,
   responses: Record<string, unknown>,
 ) {
-  const gmail = getGmailClient();
 
   const summaryRows = Object.entries(responses)
     .map(([key, value]) => {
@@ -286,21 +271,15 @@ export async function sendFeedbackNotification(
     footerNote: `This notification was sent to ${NOTIFICATION_EMAIL || userEmail}.`,
   });
 
-  const raw = buildRawEmail(
+  await sendEmail(
     NOTIFICATION_EMAIL || userEmail,
     `New Beta Feedback from ${userName}`,
     html,
   );
-
-  await gmail.users.messages.send({
-    userId: "me",
-    requestBody: { raw },
-  });
 }
 
 /* ── Beta welcome email (Day 1) — sends access code ─────── */
 export async function sendBetaWelcomeEmail(to: string, firstName: string, accessCode: string) {
-  const gmail = getGmailClient();
   const siteUrl = process.env.NEXTAUTH_URL || "https://manifestmystory.com";
   const displayName = firstName || "Beta Tester";
   const unsubUrl = `${siteUrl}/api/waitlist/unsubscribe?email=${encodeURIComponent(to)}`;
@@ -392,13 +371,11 @@ export async function sendBetaWelcomeEmail(to: string, firstName: string, access
 </td></tr></table>
 </body></html>`;
 
-  const raw = buildRawEmail(to, `${displayName}, you're in. Your access code is inside.`, html);
-  await gmail.users.messages.send({ userId: "me", requestBody: { raw } });
+  await sendEmail(to, `${displayName}, you're in. Your access code is inside.`, html);
 }
 
 /* ── Beta Day 2 email — first impressions survey ─────────── */
 export async function sendBetaDay2Email(to: string, firstName: string, surveyUrl: string) {
-  const gmail = getGmailClient();
   const siteUrl = process.env.NEXTAUTH_URL || "https://manifestmystory.com";
   const displayName = firstName || "Beta Tester";
   const unsubUrl = `${siteUrl}/api/waitlist/unsubscribe?email=${encodeURIComponent(to)}`;
@@ -472,13 +449,11 @@ export async function sendBetaDay2Email(to: string, firstName: string, surveyUrl
 </td></tr></table>
 </body></html>`;
 
-  const raw = buildRawEmail(to, `${displayName}, we want to hear what happened.`, html);
-  await gmail.users.messages.send({ userId: "me", requestBody: { raw } });
+  await sendEmail(to, `${displayName}, we want to hear what happened.`, html);
 }
 
 /* ── Beta Day 7 email — pricing pulse survey ─────────────── */
 export async function sendBetaDay7Email(to: string, firstName: string, surveyUrl: string) {
-  const gmail = getGmailClient();
   const siteUrl = process.env.NEXTAUTH_URL || "https://manifestmystory.com";
   const displayName = firstName || "Beta Tester";
   const unsubUrl = `${siteUrl}/api/waitlist/unsubscribe?email=${encodeURIComponent(to)}`;
@@ -542,6 +517,5 @@ export async function sendBetaDay7Email(to: string, firstName: string, surveyUrl
 </td></tr></table>
 </body></html>`;
 
-  const raw = buildRawEmail(to, `${displayName}, seven nights in — what is it worth to you?`, html);
-  await gmail.users.messages.send({ userId: "me", requestBody: { raw } });
+  await sendEmail(to, `${displayName}, seven nights in — what is it worth to you?`, html);
 }

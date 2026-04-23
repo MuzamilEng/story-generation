@@ -905,3 +905,326 @@
         justify-content: center;
     }
 }
+
+/* ─── AUDIO GENERATING LOADER ─── */
+.genWrapper {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    animation: genFadeIn 0.5s ease-out;
+}
+
+@keyframes genFadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+.genCard {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.75rem;
+    padding: 3rem 3.5rem;
+    border-radius: 20px;
+    background: rgba(30, 28, 24, 0.85);
+    border: 1px solid rgba(141, 191, 122, 0.12);
+    box-shadow:
+        0 24px 64px rgba(0, 0, 0, 0.4),
+        0 0 80px rgba(141, 191, 122, 0.04);
+    text-align: center;
+    animation: genCardSlide 0.6s ease-out;
+    max-width: 420px;
+    width: 100%;
+}
+
+@keyframes genCardSlide {
+    from {
+        opacity: 0;
+        transform: translateY(24px) scale(0.96);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Animated waveform bars */
+.genWave {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    height: 48px;
+}
+
+.genWave span {
+    display: block;
+    width: 4px;
+    border-radius: 4px;
+    background: #8DBF7A;
+    animation: genWaveBar 1.2s ease-in-out infinite;
+}
+
+.genWave span:nth-child(1) {
+    height: 12px;
+    animation-delay: 0s;
+}
+
+.genWave span:nth-child(2) {
+    height: 24px;
+    animation-delay: 0.15s;
+}
+
+.genWave span:nth-child(3) {
+    height: 36px;
+    animation-delay: 0.3s;
+}
+
+.genWave span:nth-child(4) {
+    height: 48px;
+    animation-delay: 0.45s;
+}
+
+.genWave span:nth-child(5) {
+    height: 36px;
+    animation-delay: 0.6s;
+}
+
+.genWave span:nth-child(6) {
+    height: 24px;
+    animation-delay: 0.75s;
+}
+
+.genWave span:nth-child(7) {
+    height: 12px;
+    animation-delay: 0.9s;
+}
+
+@keyframes genWaveBar {
+
+    0%,
+    100% {
+        transform: scaleY(0.4);
+        opacity: 0.5;
+    }
+
+    50% {
+        transform: scaleY(1);
+        opacity: 1;
+    }
+}
+
+/* Pulsing ring behind waveform */
+.genPulseRing {
+    position: relative;
+    width: 80px;
+    height: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.genPulseRing::before,
+.genPulseRing::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 2px solid rgba(141, 191, 122, 0.35);
+    animation: genRingPulse 2s ease-out infinite;
+}
+
+.genPulseRing::after {
+    animation-delay: 1s;
+}
+
+@keyframes genRingPulse {
+    0% {
+        transform: scale(0.5);
+        opacity: 1;
+    }
+
+    100% {
+        transform: scale(1.5);
+        opacity: 0;
+    }
+}
+
+.genTitle {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 1.4rem;
+    font-weight: 300;
+    color: #f0ece3;
+    line-height: 1.35;
+}
+
+.genTitle em {
+    color: #8DBF7A;
+    font-style: italic;
+}
+
+.genStatusText {
+    font-size: 0.85rem;
+    font-weight: 300;
+    color: #9e9a91;
+    line-height: 1.5;
+    max-width: 320px;
+}
+
+/* Progress steps */
+.genSteps {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    width: 100%;
+    max-width: 260px;
+}
+
+.genStep {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    font-size: 0.8rem;
+    font-weight: 400;
+    color: #5a5750;
+    transition: color 0.35s, transform 0.35s;
+}
+
+.genStep.active {
+    color: #8DBF7A;
+    transform: translateX(2px);
+}
+
+.genStep.done {
+    color: #c5c0b6;
+}
+
+.genStepIcon {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    border: 1.5px solid #3a3a3a;
+    transition: border-color 0.35s, background 0.35s;
+}
+
+.genStep.active .genStepIcon {
+    border-color: #8DBF7A;
+    background: rgba(141, 191, 122, 0.15);
+    animation: genStepPulse 1.5s ease-in-out infinite;
+}
+
+.genStep.done .genStepIcon {
+    border-color: #8DBF7A;
+    background: #8DBF7A;
+}
+
+.genStepIcon svg {
+    width: 10px;
+    height: 10px;
+}
+
+.genStep.done .genStepIcon svg {
+    stroke: #1e1c18;
+}
+
+@keyframes genStepPulse {
+
+    0%,
+    100% {
+        box-shadow: 0 0 0 0 rgba(141, 191, 122, 0.3);
+    }
+
+    50% {
+        box-shadow: 0 0 0 6px rgba(141, 191, 122, 0);
+    }
+}
+
+/* Dot indicator inside active step icon */
+.genDot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #8DBF7A;
+    animation: genDotBlink 1s ease-in-out infinite;
+}
+
+@keyframes genDotBlink {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.3;
+    }
+}
+
+/* Back to dashboard link */
+.genBackLink {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin-top: 0.5rem;
+    font-size: 0.78rem;
+    font-weight: 400;
+    color: #6e6b63;
+    text-decoration: none;
+    transition: color 0.2s;
+    cursor: pointer;
+    background: none;
+    border: none;
+    font-family: var(--sans);
+}
+
+.genBackLink:hover {
+    color: #8DBF7A;
+}
+
+/* Failed state */
+.genFailed .genTitle {
+    color: #e5786d;
+}
+
+.genRetryBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.55rem 1.3rem;
+    border-radius: 8px;
+    border: 1px solid rgba(229, 120, 109, 0.3);
+    background: rgba(229, 120, 109, 0.08);
+    color: #e5786d;
+    font-size: 0.82rem;
+    font-weight: 500;
+    font-family: var(--sans);
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+}
+
+.genRetryBtn:hover {
+    background: rgba(229, 120, 109, 0.15);
+    border-color: rgba(229, 120, 109, 0.5);
+}
+
+@media (max-width: 520px) {
+    .genCard {
+        padding: 2rem 1.5rem;
+        margin: 0 1rem;
+    }
+
+    .genTitle {
+        font-size: 1.2rem;
+    }
+}

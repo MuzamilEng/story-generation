@@ -677,7 +677,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
       if (
         trimmed.startsWith("•") ||
         trimmed.startsWith("-") ||
-        trimmed.startsWith("*") ||
+        (trimmed.startsWith("*") && !trimmed.startsWith("**")) ||
         trimmed.startsWith("□") ||
         trimmed.startsWith("☐") ||
         trimmed.startsWith("◻") ||
@@ -848,6 +848,9 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
             (trimmed.startsWith("-") &&
               trimmed.length < 150 &&
               !trimmed.startsWith("---")) ||
+            (trimmed.startsWith("*") &&
+              !trimmed.startsWith("**") &&
+              trimmed.length < 150) ||
             (/^\d+[\.\)]\s/.test(trimmed) && trimmed.length < 150)
           );
         })
@@ -1294,9 +1297,7 @@ const GoalDiscovery: React.FC = () => {
         if (newFinalText) {
           const cleaned = newFinalText.replace(/([a-z])([A-Z])/g, "$1 $2");
           setVoiceAccumulatedText((prev) => {
-            const updated = prev
-              ? prev + " " + cleaned
-              : cleaned;
+            const updated = prev ? prev + " " + cleaned : cleaned;
             voiceAccumulatedRef.current = updated;
             return updated;
           });
@@ -1354,33 +1355,30 @@ const GoalDiscovery: React.FC = () => {
   }, []);
 
   // Refine transcribed voice text via LLM
-  const refineVoiceText = useCallback(
-    async (rawText: string) => {
-      if (!rawText.trim()) return;
-      setIsProcessingVoice(true);
-      try {
-        const currentTopic = activeTopicIdRef.current;
-        const topicObj = TOPICS.find((t) => t.id === currentTopic);
-        const response = await fetch("/api/user/chat/refine-voice", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            text: rawText,
-            context: topicObj ? topicObj.label : currentTopic,
-          }),
-        });
-        if (!response.ok) throw new Error("Refine API failed");
-        const data = await response.json();
-        setInputValue(data.text || rawText.trim());
-      } catch (error) {
-        console.error("Voice refinement failed, using raw text:", error);
-        setInputValue(rawText.trim());
-      } finally {
-        setIsProcessingVoice(false);
-      }
-    },
-    [],
-  );
+  const refineVoiceText = useCallback(async (rawText: string) => {
+    if (!rawText.trim()) return;
+    setIsProcessingVoice(true);
+    try {
+      const currentTopic = activeTopicIdRef.current;
+      const topicObj = TOPICS.find((t) => t.id === currentTopic);
+      const response = await fetch("/api/user/chat/refine-voice", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: rawText,
+          context: topicObj ? topicObj.label : currentTopic,
+        }),
+      });
+      if (!response.ok) throw new Error("Refine API failed");
+      const data = await response.json();
+      setInputValue(data.text || rawText.trim());
+    } catch (error) {
+      console.error("Voice refinement failed, using raw text:", error);
+      setInputValue(rawText.trim());
+    } finally {
+      setIsProcessingVoice(false);
+    }
+  }, []);
 
   const toggleVoice = useCallback(() => {
     if (!recognitionRef.current) return;
@@ -2420,7 +2418,13 @@ const GoalDiscovery: React.FC = () => {
             <button
               className={`${styles.aiBtn} ${isAiAnswering ? styles.aiBtnActive : ""}`}
               onClick={handleAiAnswer}
-              disabled={isWaiting || isComplete || isAiAnswering || isListening || isProcessingVoice}
+              disabled={
+                isWaiting ||
+                isComplete ||
+                isAiAnswering ||
+                isListening ||
+                isProcessingVoice
+              }
               title={
                 isAiAnswering
                   ? "Generating answer…"
@@ -2432,7 +2436,13 @@ const GoalDiscovery: React.FC = () => {
             <button
               className={styles.sendBtn}
               onClick={handleSend}
-              disabled={!inputValue.trim() || isWaiting || isComplete || isListening || isProcessingVoice}
+              disabled={
+                !inputValue.trim() ||
+                isWaiting ||
+                isComplete ||
+                isListening ||
+                isProcessingVoice
+              }
             >
               <SendIcon />
             </button>

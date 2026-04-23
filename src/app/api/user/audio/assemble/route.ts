@@ -54,6 +54,16 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify({ storyId, userId: session.user.id }),
     });
 
+    const contentType = upstream.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      const text = await upstream.text();
+      console.error(`[api/assemble] Mixing server returned non-JSON (${upstream.status}):`, text.slice(0, 200));
+      return NextResponse.json(
+        { error: 'Mixing server returned an unexpected response. Check MIXING_SERVER_URL.' },
+        { status: 502 }
+      );
+    }
+
     const data = await upstream.json();
 
     if (!upstream.ok) {
@@ -70,7 +80,6 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Keep legacy behavior expected by callers while signaling queue mode.
     return NextResponse.json({
       success: true,
       queued: !!data.queued,
@@ -130,6 +139,16 @@ export async function GET(req: NextRequest) {
         },
       }
     );
+
+    const contentType = upstream.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      const text = await upstream.text();
+      console.error(`[api/assemble GET] Mixing server returned non-JSON (${upstream.status}):`, text.slice(0, 200));
+      return NextResponse.json(
+        { error: 'Mixing server returned an unexpected response. Check MIXING_SERVER_URL.' },
+        { status: 502 }
+      );
+    }
 
     const data = await upstream.json();
 
