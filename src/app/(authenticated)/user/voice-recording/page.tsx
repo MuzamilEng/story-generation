@@ -1082,7 +1082,7 @@ const VoiceRecordingContent: React.FC = () => {
             </div>
           </div>
 
-          <div className={styles.sampleScript}>
+          <div className={`${styles.sampleScript} ${styles.desktopScript}`}>
             <div className={styles.sampleScriptLabel}>🎙 Before you record</div>
             <p style={{ fontSize: "0.78rem", color: "var(--ink-muted)", lineHeight: 1.6, marginBottom: "10px" }}>
               Read this passage the way you'd read the most important sentences
@@ -1109,6 +1109,30 @@ const VoiceRecordingContent: React.FC = () => {
 
         {/* CENTER COLUMN - RECORDER */}
         <div className={styles.centerCol}>
+          <div className={`${styles.sampleScript} ${styles.mobileScript}`}>
+            <div className={styles.sampleScriptLabel}>🎙 Before you record</div>
+            <p style={{ fontSize: "0.78rem", color: "var(--ink-muted)", lineHeight: 1.6, marginBottom: "10px" }}>
+              Read this passage the way you'd read the most important sentences
+              of your life. Clear. Present. Strong enough to be trusted — gentle
+              enough to hear yourself fall asleep to.
+            </p>
+            <p style={{ fontSize: "0.72rem", color: "var(--ink-faint)", lineHeight: 1.5, marginBottom: "12px" }}>
+              Your voice will be used for both your evening story (played as you
+              fall asleep) and your morning story (played as you wake up). A
+              neutral, present, grounded recording works for both. Don't make it
+              sleepy. Don't make it performative. Just make it true.
+            </p>
+            <div className={styles.sampleScriptLabel}>📖 Read this script</div>
+            <p>
+              I wake each morning with a quiet sense of purpose — knowing
+              exactly who I am and where I'm headed. My days are filled with
+              meaningful work, deep connection, and the kind of joy that doesn't
+              need a reason. I am healthy, free, and fully alive to the beauty
+              of the life I've built. Everything I once dreamed of is now simply
+              the life I live.
+            </p>
+          </div>
+
           {/* SAVED VOICES LIST */}
           {!isLoadingSaved && savedVoices.length > 0 && (
             <SavedVoicesList
