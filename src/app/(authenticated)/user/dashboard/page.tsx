@@ -464,6 +464,10 @@ const Dashboard: React.FC = () => {
       .substring(0, 2)
       .toUpperCase() || "U";
   const firstName = userName.split(" ")[0] || "User";
+  const isBetaUser = Boolean(session?.user?.isBetaUser);
+  const betaPlanName = session?.user?.plan
+    ? `${session.user.plan.charAt(0).toUpperCase()}${session.user.plan.slice(1)} Beta`
+    : "Beta Plan";
 
   useEffect(() => {
     document.title = "ManifestMyStory — My Dashboard";
@@ -884,9 +888,12 @@ const Dashboard: React.FC = () => {
     <div className={styles.mmsWrap}>
       {/* TOP LINE */}
       <div className={styles.topline}>
-        <p className={styles.toplineH1}>
-          Welcome back, <em>{firstName}</em>.
-        </p>
+        <div className={styles.toplineTitleWrap}>
+          <p className={styles.toplineH1}>
+            Welcome back, <em>{firstName}</em>.
+          </p>
+          {isBetaUser && <span className={styles.betaPlanTag}>{betaPlanName}</span>}
+        </div>
         <div className={styles.topStats}>
           <span><b>{stats?.metrics?.stories_ever || 0}</b> stories</span>
           <span><b>{stats?.metrics?.total_plays || 0}</b> plays</span>

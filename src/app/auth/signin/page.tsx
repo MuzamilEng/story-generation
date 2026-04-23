@@ -70,6 +70,7 @@ const SignIn: React.FC = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const nextUrl = searchParams.get('callbackUrl') || searchParams.get('next') || '/user/dashboard';
+  const authErrorParam = searchParams.get('error');
 
   const { data: session, status: authStatus } = useSession();
 
@@ -103,6 +104,7 @@ const SignIn: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [showAlert, setShowAlert] = useState(false);
+  const [alertMessage, setAlertMessage] = useState('Incorrect email or password. Please try again.');
 
   const [formData, setFormData] = useState<SignInFormData>({
     email: '',
@@ -115,6 +117,13 @@ const SignIn: React.FC = () => {
     email: false,
     password: false
   });
+
+  useEffect(() => {
+    if (authErrorParam === 'ACCOUNT_DISABLED') {
+      setAlertMessage('Your account has been deactivated. Please contact admin.');
+      setShowAlert(true);
+    }
+  }, [authErrorParam]);
 
   // Email validation regex
   const isValidEmail = (email: string): boolean => {
@@ -153,6 +162,7 @@ const SignIn: React.FC = () => {
 
     setIsLoading(true);
     setShowAlert(false);
+    setAlertMessage('Incorrect email or password. Please try again.');
 
     try {
       const result = await signIn('credentials', {
@@ -162,6 +172,11 @@ const SignIn: React.FC = () => {
       });
 
       if (result?.error) {
+        if (result.error.includes('ACCOUNT_DISABLED')) {
+          setAlertMessage('Your account has been deactivated. Please contact admin.');
+        } else {
+          setAlertMessage('Incorrect email or password. Please try again.');
+        }
         setShowAlert(true);
         setIsLoading(false);
       } else {
@@ -261,7 +276,7 @@ const SignIn: React.FC = () => {
               {/* ALERT */}
               <div className={`${styles.alertErr} ${showAlert ? styles.show : ''}`}>
                 <WarningIcon />
-                <span>Incorrect email or password. Please try again.</span>
+                <span>{alertMessage}</span>
               </div>
 
               <div className={styles.formCard}>

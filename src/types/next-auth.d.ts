@@ -6,6 +6,7 @@ declare module "next-auth" {
       id?: string;
       role?: string;
       plan?: string;
+      isActive?: boolean;
       stripeCurrentPeriodEnd?: string | Date;
       stripeCustomerId?: string;
       stripeSubscriptionId?: string;
@@ -17,6 +18,7 @@ declare module "next-auth" {
     id: string;
     role: string;
     plan?: string;
+    isActive?: boolean;
     stripeCurrentPeriodEnd?: string | Date | null;
     stripeCustomerId?: string | null;
     stripeSubscriptionId?: string | null;
@@ -29,6 +31,7 @@ declare module "next-auth/jwt" {
     id?: string;
     role?: string;
     plan?: string;
+    isActive?: boolean;
     stripeCurrentPeriodEnd?: string;
     stripeCustomerId?: string;
     stripeSubscriptionId?: string;

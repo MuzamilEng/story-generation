@@ -2,6 +2,31 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { getToken } from 'next-auth/jwt'
 
+function clearAuthCookies(response: NextResponse) {
+    const cookieNames = [
+        'next-auth.session-token',
+        '__Secure-next-auth.session-token',
+        'authjs.session-token',
+        '__Secure-authjs.session-token',
+        'next-auth.callback-url',
+        '__Secure-next-auth.callback-url',
+        'authjs.callback-url',
+        '__Secure-authjs.callback-url',
+        'next-auth.csrf-token',
+        '__Secure-next-auth.csrf-token',
+        'authjs.csrf-token',
+        '__Secure-authjs.csrf-token',
+    ]
+
+    cookieNames.forEach((cookieName) => {
+        response.cookies.set(cookieName, '', {
+            maxAge: 0,
+            path: '/',
+            expires: new Date(0),
+        })
+    })
+}
+
 export async function proxy(request: NextRequest) {
     const { pathname } = request.nextUrl
 
@@ -75,6 +100,15 @@ export async function proxy(request: NextRequest) {
 
     // 4. Handle Authenticated Users
     if (token) {
+        if ((token as any).isActive === false) {
+            const signinUrl = new URL('/auth/signin', request.url)
+            signinUrl.searchParams.set('error', 'ACCOUNT_DISABLED')
+
+            const response = NextResponse.redirect(signinUrl)
+            clearAuthCookies(response)
+            return response
+        }
+
         const userRole = token.role || 'USER';
         console.log('[AUTH] User authenticated as:', userRole);
 

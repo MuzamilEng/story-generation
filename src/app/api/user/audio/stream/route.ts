@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { UserRole } from '@/lib/roles';
 import { S3Client, GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
 import { prisma } from '@/lib/prisma';
 import { getStoryFilename } from '@/lib/story-utils';
@@ -77,7 +78,10 @@ export async function GET(req: NextRequest) {
         }
 
         // Security: Ensure the key belongs to the user OR is a system/soundscape asset
-        const isUserAsset = key.startsWith(`user_${session.user.id}/`);
+        const isAdmin = session.user.role === UserRole.ADMIN;
+        const isUserOwnedAsset = key.startsWith(`user_${session.user.id}/`);
+        const isAnyUserAssetForAdmin = isAdmin && key.startsWith('user_');
+        const isUserAsset = isUserOwnedAsset || isAnyUserAssetForAdmin;
         const isSystemAsset = key.startsWith('system/');
         const isSoundscapeAsset = key.startsWith('soundscapes/');
 

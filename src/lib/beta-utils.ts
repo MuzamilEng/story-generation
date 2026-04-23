@@ -15,3 +15,15 @@ export function betaTypeToPlan(type: string): Plan {
     // Legacy/default: treat unknown types as amplifier (existing behaviour)
     return "amplifier";
 }
+
+export function betaTypeToDurationMonths(type: string): number {
+    const normalised = type.toLowerCase();
+    const match = normalised.match(/_(\d+)_months?/);
+
+    if (!match) {
+        return 2;
+    }
+
+    const parsed = Number(match[1]);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 2;
+}

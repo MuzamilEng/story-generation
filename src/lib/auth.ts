@@ -6,6 +6,8 @@ import { compare } from "bcryptjs"
 import { prisma } from "./prisma"
 import { betaTypeToPlan } from "./beta-utils"
 
+const ACCOUNT_DISABLED_ERROR = "ACCOUNT_DISABLED"
+
 export const authOptions: NextAuthOptions = {
   // ✅ MUST include secret
   secret: process.env.NEXTAUTH_SECRET,
@@ -41,6 +43,11 @@ export const authOptions: NextAuthOptions = {
           return null
         }
 
+        if (!user.isActive) {
+          console.log('[AUTH] Inactive account blocked:', credentials.email)
+          throw new Error(ACCOUNT_DISABLED_ERROR)
+        }
+
         if (!user.password_hash) {
           console.log('[AUTH] User has no password (OAuth user):', credentials.email)
           return null
@@ -67,6 +74,7 @@ export const authOptions: NextAuthOptions = {
           name: user.name,
           role: user.role || 'USER',
           plan: user.plan || 'free',
+          isActive: user.isActive,
           image: user.image,
         }
       }
@@ -85,6 +93,7 @@ export const authOptions: NextAuthOptions = {
         token.id = user.id
         token.role = user.role || 'USER'
         token.plan = (user as any).plan || 'free'
+        token.isActive = (user as any).isActive ?? true
         token.email = user.email
         // Record when we last fetched fresh data from the DB so we can throttle
         // subsequent lookups. Without this, a DB query runs on every single API
@@ -98,13 +107,11 @@ export const authOptions: NextAuthOptions = {
         token.lastDbRefresh = 0 // Force next block to refresh from DB
       }
 
-      // ✅ Refresh token from database at most once per minute on subsequent requests.
-      // Previously this ran on every request, causing a DB hit per API call and
-      // leaving token.id silently stale whenever the query failed.
+      // Refresh token from database on each request so account deactivation
+      // propagates quickly across devices.
       if (token.email && !user) {
         const now = Math.floor(Date.now() / 1000)
-        const lastRefresh = (token.lastDbRefresh as number) || 0
-        const shouldRefresh = now - lastRefresh > 60 // throttle to once per 60 s
+        const shouldRefresh = true
 
         if (shouldRefresh) {
           try {
@@ -123,12 +130,21 @@ export const authOptions: NextAuthOptions = {
               const activeBetaCodes = (dbUser as any).betaCodes || [];
               const hasActiveBeta = activeBetaCodes.length > 0;
               const betaPlan = hasActiveBeta ? betaTypeToPlan(activeBetaCodes[0].betaCode?.type || activeBetaCodes[0].type || 'amplifier_2_months') : null;
+              token.isActive = dbUser.isActive !== false
               token.role = dbUser.role || 'USER'
               token.id = dbUser.id
               token.plan = betaPlan || dbUser.plan || 'free'
               token.isBetaUser = hasActiveBeta;
               token.stripeCurrentPeriodEnd = dbUser.stripeCurrentPeriodEnd ? dbUser.stripeCurrentPeriodEnd.toISOString() : undefined
               token.stripeSubscriptionId = dbUser.stripeSubscriptionId || undefined
+
+              if (dbUser.isActive === false) {
+                token.id = undefined
+                token.role = 'USER'
+                token.plan = 'free'
+                token.isBetaUser = false
+              }
+
               token.lastDbRefresh = now
             } else {
               token.id = undefined
@@ -146,6 +162,7 @@ export const authOptions: NextAuthOptions = {
 
     async session({ session, token }) {
       if (token && session.user) {
+        session.user.isActive = (token.isActive as boolean) !== false
         session.user.id = token.id as string
         session.user.role = (token.role as string) || 'USER'
         session.user.plan = (token.plan as string) || 'free'
@@ -162,6 +179,18 @@ export const authOptions: NextAuthOptions = {
 
     async signIn({ user, account, profile }) {
       console.log('[AUTH] SignIn attempt:', user.email, 'Provider:', account?.provider)
+
+      if (user?.email) {
+        const dbUser = await prisma.user.findUnique({
+          where: { email: user.email },
+          select: { isActive: true },
+        })
+
+        if (dbUser && !dbUser.isActive) {
+          return `/auth/signin?error=${ACCOUNT_DISABLED_ERROR}`
+        }
+      }
+
       return true
     },
 
