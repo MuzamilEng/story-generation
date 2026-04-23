@@ -1240,6 +1240,7 @@ const GoalDiscovery: React.FC = () => {
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const recognitionRef = useRef<any>(null);
+  const hasTriedSnapshotPrefillRef = useRef(false);
   // Whether we should auto-restart recognition on session end (timeout/pause)
   const voiceIntentActiveRef = useRef<boolean>(false);
   // State-backed accumulated transcript — the ONLY source of truth for voice text.
@@ -1258,6 +1259,38 @@ const GoalDiscovery: React.FC = () => {
   useEffect(() => {
     voiceAccumulatedRef.current = voiceAccumulatedText;
   }, [voiceAccumulatedText]);
+
+  // Prefill intake answers for authenticated users who want to edit and regenerate.
+  useEffect(() => {
+    if (!isHydrated) return;
+    if (authStatus !== "authenticated") return;
+    if (hasTriedSnapshotPrefillRef.current) return;
+    if (messagesRef.current.length > 0) return;
+    if (Object.keys(capturedGoals || {}).length > 0) return;
+
+    hasTriedSnapshotPrefillRef.current = true;
+
+    (async () => {
+      try {
+        const res = await fetch("/api/user/intake-snapshot?includeAnswers=1", {
+          cache: "no-store",
+        });
+        if (!res.ok) return;
+
+        const data = await res.json();
+        const answers = data?.answers;
+        if (!answers || typeof answers !== "object" || Array.isArray(answers)) {
+          return;
+        }
+
+        setCapturedGoals(answers);
+        setIsComplete(true);
+        setIntakeStage("chat");
+      } catch (error) {
+        console.error("Failed to prefill intake answers:", error);
+      }
+    })();
+  }, [authStatus, capturedGoals, isHydrated, setCapturedGoals]);
 
   useEffect(() => {
     const SR =

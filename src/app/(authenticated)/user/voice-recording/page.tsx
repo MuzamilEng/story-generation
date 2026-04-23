@@ -291,9 +291,23 @@ const SavedVoicesList: React.FC<SavedVoicesListProps> = ({
       audio.play().then(() => {
         setPlayingId(voice.id);
       }).catch(e => {
-        console.error("Playback failed", e);
-        showToast("Playback failed in this browser.", "error");
-        setPlayingId(null);
+        console.error("Playback failed, retrying compatibility stream", e);
+
+        const compatUrl = voice.sample_url.includes("?")
+          ? `${voice.sample_url}&compat=1`
+          : `${voice.sample_url}?compat=1`;
+
+        audio.pause();
+        audio.src = compatUrl;
+        audio.load();
+
+        audio.play().then(() => {
+          setPlayingId(voice.id);
+        }).catch((compatError) => {
+          console.error("Compatibility playback failed", compatError);
+          showToast("Playback failed in this browser.", "error");
+          setPlayingId(null);
+        });
       });
       audio.onended = () => setPlayingId(null);
     }
