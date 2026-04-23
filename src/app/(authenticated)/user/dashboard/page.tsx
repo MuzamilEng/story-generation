@@ -454,6 +454,21 @@ const Dashboard: React.FC = () => {
   const { data: session, update } = useSession();
   const { clearStore } = useStoryStore();
 
+  const handleNewStory = async () => {
+    clearStore();
+    localStorage.removeItem("mms_chat_session");
+    sessionStorage.removeItem("capturedGoals");
+    sessionStorage.removeItem("storyLength");
+
+    try {
+      await fetch("/api/user/intake-snapshot", { method: "DELETE" });
+    } catch (error) {
+      console.error("Failed to clear intake snapshot:", error);
+    }
+
+    router.push("/user/goal-intake-ai?fresh=1");
+  };
+
   const userName = session?.user?.name || "User";
   const userEmail = session?.user?.email || "user@example.com";
   const userInitials =
@@ -931,7 +946,7 @@ const Dashboard: React.FC = () => {
         <div className={styles.toolSpacer} />
         <button
           className={styles.toolLink}
-          onClick={() => { clearStore(); router.push("/user/goal-intake-ai"); }}
+          onClick={handleNewStory}
         >
           + New story · {stats?.limits ? `${stats.limits.total - stats.limits.used} left` : "..."}
         </button>

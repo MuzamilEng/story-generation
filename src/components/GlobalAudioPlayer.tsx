@@ -28,6 +28,7 @@ export default function GlobalAudioPlayer() {
     bufferedPct,
     pendingAutoplay,
     registerControls,
+    setStory,
     setPendingAutoplay,
     _setIsPlaying,
     _setCurrentTime,
@@ -174,6 +175,13 @@ export default function GlobalAudioPlayer() {
     pos !== null
       ? { left: pos.x, top: pos.y }
       : { right: 20, bottom: 80 };
+
+  const handleClosePlayer = () => {
+    audioRef.current?.pause();
+    setPendingAutoplay(false);
+    setStory(null);
+    setPos(null);
+  };
 
   return (
     <>
@@ -352,6 +360,39 @@ export default function GlobalAudioPlayer() {
               }}
             >
               Open ↗
+            </button>
+
+            <button
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={handleClosePlayer}
+              title="Close player"
+              aria-label="Close player"
+              style={{
+                width: 28,
+                height: 28,
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background: "rgba(255,255,255,0.06)",
+                border: "1px solid rgba(255,255,255,0.08)",
+                color: "rgba(255,255,255,0.6)",
+                cursor: "pointer",
+                borderRadius: 999,
+                flexShrink: 0,
+              }}
+            >
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+              >
+                <path d="M18 6 6 18" />
+                <path d="m6 6 12 12" />
+              </svg>
             </button>
           </div>
 

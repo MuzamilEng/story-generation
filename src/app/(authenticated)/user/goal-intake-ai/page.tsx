@@ -6,7 +6,7 @@ import React, {
   useCallback,
   useMemo,
 } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import styles from "../../../styles/GoalDiscovery.module.css";
 import Link from "next/link";
@@ -125,6 +125,61 @@ const LIFE_AREAS = [
     color: "#6E8A7B",
   },
 ];
+
+const LIFE_AREA_LABELS = LIFE_AREAS.reduce<Record<string, string>>(
+  (acc, area) => {
+    acc[area.id] = area.label;
+    return acc;
+  },
+  {},
+);
+
+function getSelectedAreaValues(capturedGoals?: CapturedData | null): string[] {
+  const rawAreas = capturedGoals?.selectedAreas;
+  if (Array.isArray(rawAreas)) {
+    return rawAreas.map((area) => String(area).trim()).filter(Boolean);
+  }
+  if (typeof rawAreas === "string") {
+    return rawAreas
+      .split(",")
+      .map((area) => area.trim())
+      .filter(Boolean);
+  }
+  return [];
+}
+
+function getProofActionItems(actionsAfter?: string | string[]): string[] {
+  if (Array.isArray(actionsAfter)) {
+    return actionsAfter.map((item) => String(item).trim()).filter(Boolean);
+  }
+
+  if (typeof actionsAfter !== "string") return [];
+
+  return actionsAfter
+    .split(/\n\s*\n|\n(?=[•\-*])|\n(?=\d+[.)]\s)/)
+    .map((item) =>
+      item
+        .replace(/^[•\-*]\s*/, "")
+        .replace(/^\d+[.)]\s*/, "")
+        .trim(),
+    )
+    .filter(Boolean);
+}
+
+function getProofActionCoverage(capturedGoals?: CapturedData | null) {
+  const selectedAreas = getSelectedAreaValues(capturedGoals);
+  const proofActionItems = getProofActionItems(capturedGoals?.actionsAfter);
+  const requiredCount = selectedAreas.length;
+  const missingCount = Math.max(requiredCount - proofActionItems.length, 0);
+
+  return {
+    selectedAreas,
+    proofActionItems,
+    requiredCount,
+    missingCount,
+    hasCoverage: requiredCount === 0 || missingCount === 0,
+  };
+}
 
 interface GoalDiscoveryScreenProps {
   orientation: string;
@@ -461,6 +516,13 @@ const CompletionCard: React.FC<CompletionCardProps> = ({
     return !!(hasCore && hasIdentity && hasAnyGoal);
   }, [capturedGoals]);
 
+  const proofActionCoverage = useMemo(
+    () => getProofActionCoverage(capturedGoals),
+    [capturedGoals],
+  );
+  const isGenerateDisabled =
+    generating || !isReadyToGenerate || !proofActionCoverage.hasCoverage;
+
   const reviewEntries = Object.entries(capturedGoals || {}).filter(
     ([key, v]) =>
       !["selectedAreas", "orientation"].includes(key) &&
@@ -614,10 +676,10 @@ const CompletionCard: React.FC<CompletionCardProps> = ({
         <button
           className={styles.completeBtn}
           onClick={handleClick}
-          disabled={generating}
+          disabled={isGenerateDisabled}
           style={{
-            opacity: generating ? 0.5 : 1,
-            cursor: generating ? "not-allowed" : "pointer",
+            opacity: isGenerateDisabled ? 0.5 : 1,
+            cursor: isGenerateDisabled ? "not-allowed" : "pointer",
           }}
         >
           {generating ? (
@@ -632,6 +694,13 @@ const CompletionCard: React.FC<CompletionCardProps> = ({
             </>
           )}
         </button>
+
+        {!proofActionCoverage.hasCoverage && (
+          <div className={styles.betaNote}>
+            Add at least one proof action for each selected life area before
+            generating.
+          </div>
+        )}
 
         <div className={styles.betaNote}>
           Note: ManifestMyStory is currently in early access.
@@ -1089,6 +1158,7 @@ const TopicItem: React.FC<TopicItemProps> = ({
 
 const GoalDiscovery: React.FC = () => {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { showToast } = useGlobalUI();
   const { data: session, status: authStatus } = useSession();
   // Track the intake flow stage: null = orientation, 'discovery' = area selection, 'chat' = main chat
@@ -1142,9 +1212,16 @@ const GoalDiscovery: React.FC = () => {
   const [progress, setProgress] = useState<ProgressData>(
     saved?.progress ?? { pct: 0, phase: "Getting Started", covered: [] },
   );
+  const progressRef = useRef<ProgressData>(
+    saved?.progress ?? { pct: 0, phase: "Getting Started", covered: [] },
+  );
   const [activeTopicId, setActiveTopicId] = useState<string>(TOPICS[0].id);
   const activeTopicIdRef = useRef<string>(TOPICS[0].id); // Keep ref for callbacks if needed
   const [recentGoalKey, setRecentGoalKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    progressRef.current = progress;
+  }, [progress]);
 
   // Clear highlight after animation
   useEffect(() => {
@@ -1264,6 +1341,7 @@ const GoalDiscovery: React.FC = () => {
   useEffect(() => {
     if (!isHydrated) return;
     if (authStatus !== "authenticated") return;
+    if (searchParams.get("fresh") === "1") return;
     if (hasTriedSnapshotPrefillRef.current) return;
     if (messagesRef.current.length > 0) return;
     if (Object.keys(capturedGoals || {}).length > 0) return;
@@ -1290,7 +1368,7 @@ const GoalDiscovery: React.FC = () => {
         console.error("Failed to prefill intake answers:", error);
       }
     })();
-  }, [authStatus, capturedGoals, isHydrated, setCapturedGoals]);
+  }, [authStatus, capturedGoals, isHydrated, searchParams, setCapturedGoals]);
 
   useEffect(() => {
     const SR =
@@ -1597,12 +1675,13 @@ const GoalDiscovery: React.FC = () => {
           if (data.phase === "Complete" && data.pct >= 100) {
             // Only mark complete when minimum required captures are actually present
             const currentGoals = useStoryStore.getState().capturedGoals;
+            const proofActionCoverage = getProofActionCoverage(currentGoals);
             const hasMinimum =
               currentGoals?.actionsAfter &&
               String(currentGoals.actionsAfter).trim().length > 0 &&
               currentGoals?.timeframe &&
               String(currentGoals.timeframe).trim().length > 0;
-            if (hasMinimum) {
+            if (hasMinimum && proofActionCoverage.hasCoverage) {
               setIsComplete(true);
             }
           }
@@ -1769,6 +1848,10 @@ const GoalDiscovery: React.FC = () => {
     async (userMessage?: string) => {
       if (isWaiting) return;
 
+      const wasCollectingProofActions =
+        activeTopicIdRef.current === "actionsAfter" ||
+        progressRef.current.phase === "Proof Actions";
+
       const currentHistory = [...messagesRef.current];
       if (userMessage) {
         const userMsg: Message = { role: "user", content: userMessage };
@@ -1807,6 +1890,17 @@ const GoalDiscovery: React.FC = () => {
 
         const data = await response.json();
         const rawText = data.text || "";
+        let taggedProgress: ProgressData | null = null;
+        const progressMatch = rawText.match(
+          /(?:PROGRESS|PROG):?\s*(?:```json)?\s*(\{[\s\S]*?\})\s*(?:```)?/i,
+        );
+        if (progressMatch) {
+          try {
+            taggedProgress = JSON.parse(progressMatch[1]) as ProgressData;
+          } catch (error) {
+            console.error("Error parsing progress JSON in sendToAI:", error);
+          }
+        }
 
         // 1. Process metadata and get cleaned text for display
         const uiText = parseResponse(rawText);
@@ -1819,10 +1913,48 @@ const GoalDiscovery: React.FC = () => {
         };
         setMessages((prev) => [...prev, assistantMsg]);
 
+        const updatedGoals = useStoryStore.getState().capturedGoals;
+        const proofActionCoverage = getProofActionCoverage(updatedGoals);
+        const advancedPastProofActions =
+          wasCollectingProofActions &&
+          taggedProgress !== null &&
+          taggedProgress.topic !== "actionsAfter" &&
+          taggedProgress.phase !== "Proof Actions";
+
+        if (
+          advancedPastProofActions &&
+          !proofActionCoverage.hasCoverage &&
+          proofActionCoverage.requiredCount > 0
+        ) {
+          const selectedAreaLabels = proofActionCoverage.selectedAreas
+            .map((area) => LIFE_AREA_LABELS[area] || area)
+            .join(", ");
+
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: "assistant",
+              content:
+                proofActionCoverage.missingCount === 1
+                  ? `Before we move on, I still need one more proof moment so every selected life area is anchored in your story (${selectedAreaLabels}). What's one more specific real-world moment that tells you this is fully real?`
+                  : `Before we move on, I still need ${proofActionCoverage.missingCount} more proof moments so every selected life area is anchored in your story (${selectedAreaLabels}). What's another specific real-world moment that tells you this is fully real?`,
+            },
+          ]);
+          setProgress((prev) => ({
+            ...prev,
+            phase: "Proof Actions",
+            topic: "actionsAfter",
+          }));
+          setActiveTopicId("actionsAfter");
+          activeTopicIdRef.current = "actionsAfter";
+        }
+
         // Auto-show completion card after AI replies to the Evening & Close message
         if (triggerCompleteAfterResponseRef.current) {
           triggerCompleteAfterResponseRef.current = false;
-          setIsComplete(true);
+          if (proofActionCoverage.hasCoverage) {
+            setIsComplete(true);
+          }
         }
       } catch (error) {
         console.error("Error calling AI:", error);
@@ -1858,6 +1990,24 @@ const GoalDiscovery: React.FC = () => {
     },
     [isWaiting, parseResponse],
   );
+
+    const proofActionCoverage = useMemo(
+      () => getProofActionCoverage(capturedGoals),
+      [capturedGoals],
+    );
+    const visibleTopicIds = useMemo(
+      () =>
+        SIDEBAR_GROUPS.filter((group) =>
+          isSidebarGroupVisible(group, capturedGoals),
+        ).flatMap((group) => group.topicIds),
+      [capturedGoals],
+    );
+    const canFinishIntake = useMemo(
+      () =>
+        visibleTopicIds.every((id) => respondedTopics.includes(id)) &&
+        proofActionCoverage.hasCoverage,
+      [proofActionCoverage.hasCoverage, respondedTopics, visibleTopicIds],
+    );
 
   const handleSend = useCallback(() => {
     if (!inputValue.trim() || isWaiting) return;
@@ -2284,27 +2434,21 @@ const GoalDiscovery: React.FC = () => {
           {/* Sidebar finish button - only active when all required fields captured */}
           {!isComplete &&
             (() => {
-              // Collect all visible topic IDs from visible sidebar groups
-              const visibleTopicIds = SIDEBAR_GROUPS.filter((g) =>
-                isSidebarGroupVisible(g, capturedGoals),
-              ).flatMap((g) => g.topicIds);
-              const allTopicsResponded = visibleTopicIds.every((id) =>
-                respondedTopics.includes(id),
-              );
               return (
                 <button
                   className={styles.finishEarlyBtn}
                   onClick={() => {
+                    if (!canFinishIntake) return;
                     setIsComplete(true);
                   }}
-                  // disabled={!allTopicsResponded}
+                  disabled={!canFinishIntake}
                   title={
-                    allTopicsResponded
+                    canFinishIntake
                       ? "Click here whenever you feel ready to see your story"
-                      : "Complete all topics before generating your story"
+                      : "Complete every selected topic and capture proof actions for all selected life areas before generating your story"
                   }
                   style={
-                    !allTopicsResponded
+                    !canFinishIntake
                       ? { opacity: 0.5, cursor: "not-allowed" }
                       : {}
                   }
@@ -2506,7 +2650,16 @@ const GoalDiscovery: React.FC = () => {
           <div className={styles.mobileFinishBar}>
             <button
               className={styles.mobileFinishBtn}
-              onClick={() => setIsComplete(true)}
+              onClick={() => {
+                if (!canFinishIntake) return;
+                setIsComplete(true);
+              }}
+              disabled={!canFinishIntake}
+              style={
+                !canFinishIntake
+                  ? { opacity: 0.5, cursor: "not-allowed" }
+                  : {}
+              }
             >
               <span>Finish & Generate →</span>
             </button>

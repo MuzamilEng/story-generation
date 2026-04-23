@@ -68,6 +68,21 @@ const Header: React.FC = () => {
   const pathname = usePathname();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+
+  const handleNewStory = async () => {
+    clearStore();
+    localStorage.removeItem("mms_chat_session");
+    sessionStorage.removeItem("capturedGoals");
+    sessionStorage.removeItem("storyLength");
+
+    try {
+      await fetch("/api/user/intake-snapshot", { method: "DELETE" });
+    } catch (error) {
+      console.error("Failed to clear intake snapshot:", error);
+    }
+
+    window.location.href = "/user/goal-intake-ai?fresh=1";
+  };
   const [isVisible, setIsVisible] = useState(true);
   const [exploreOpen, setExploreOpen] = useState(false);
   const exploreTimeout = useRef<NodeJS.Timeout | null>(null);
@@ -290,10 +305,7 @@ const Header: React.FC = () => {
             <>
               <div
                 className={styles.newStoryBtn}
-                onClick={() => {
-                  clearStore();
-                  window.location.href = "/user/goal-intake-ai";
-                }}
+                onClick={handleNewStory}
                 style={{ cursor: "pointer" }}
               >
                 <PlusIcon />

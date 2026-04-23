@@ -54,3 +54,25 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }
+
+/**
+ * DELETE /api/user/intake-snapshot
+ * Remove the user's saved intake snapshot for a fresh start.
+ */
+export async function DELETE() {
+    try {
+        const session = await getServerSession(authOptions);
+        if (!session?.user?.id) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        await (prisma as any).intakeSnapshot.deleteMany({
+            where: { userId: session.user.id },
+        });
+
+        return NextResponse.json({ ok: true });
+    } catch (error) {
+        console.error('[INTAKE_SNAPSHOT_DELETE]', error);
+        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    }
+}

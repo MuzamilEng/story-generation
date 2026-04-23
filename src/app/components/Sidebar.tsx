@@ -1,9 +1,10 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import styles from "../styles/Sidebar.module.css";
+import { useStoryStore } from "@/store/useStoryStore";
 
 /* ── Icons ─────────────────────────────────────────────────────────── */
 const HomeIcon = () => (
@@ -97,8 +98,26 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ isLandingPage = false }) => {
   const { data: session } = useSession();
+  const { clearStore } = useStoryStore();
   const pathname = usePathname();
+  const router = useRouter();
   const [open, setOpen] = useState(false);
+
+  const handleNewStory = async () => {
+    clearStore();
+    localStorage.removeItem("mms_chat_session");
+    sessionStorage.removeItem("capturedGoals");
+    sessionStorage.removeItem("storyLength");
+
+    try {
+      await fetch("/api/user/intake-snapshot", { method: "DELETE" });
+    } catch (error) {
+      console.error("Failed to clear intake snapshot:", error);
+    }
+
+    setOpen(false);
+    router.push("/user/goal-intake-ai?fresh=1");
+  };
 
   const isFlowPage = [
     "/user/goal-intake-ai",
@@ -276,21 +295,32 @@ const Sidebar: React.FC<SidebarProps> = ({ isLandingPage = false }) => {
 
         {/* New Story CTA */}
         <div className={styles.newStoryWrap}>
-          <Link
-            href={
-              isLandingPage && session
-                ? "/user/dashboard"
-                : "/user/goal-intake-ai"
-            }
-            className={styles.newStoryBtn}
-          >
-            <PlusIcon />
-            {isLandingPage
-              ? session
-                ? "My Dashboard"
-                : "Create My Story — Free"
-              : "New Story"}
-          </Link>
+          {isLandingPage || !session ? (
+            <Link
+              href={
+                isLandingPage && session
+                  ? "/user/dashboard"
+                  : "/user/goal-intake-ai"
+              }
+              className={styles.newStoryBtn}
+            >
+              <PlusIcon />
+              {isLandingPage
+                ? session
+                  ? "My Dashboard"
+                  : "Create My Story — Free"
+                : "New Story"}
+            </Link>
+          ) : (
+            <button
+              type="button"
+              className={styles.newStoryBtn}
+              onClick={handleNewStory}
+            >
+              <PlusIcon />
+              New Story
+            </button>
+          )}
         </div>
 
         {/* Nav */}
