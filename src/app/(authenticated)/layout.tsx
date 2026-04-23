@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import UserHeader from "../components/UserHeader";
 import Sidebar from "../components/Sidebar";
 import PlanExpiredBanner from "../components/PlanExpiredBanner";
+import GlobalAudioPlayer from "../../components/GlobalAudioPlayer";
 
 export default function UserLayout({
   children,
@@ -49,6 +50,8 @@ export default function UserLayout({
         {children}
       </main>
 
+      {/* Global persistent audio player — survives navigation */}
+      <GlobalAudioPlayer />
 
       {/* Give content room to breathe below the fixed hamburger on mobile */}
       <style>{`

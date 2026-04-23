@@ -3,6 +3,14 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { promises as fs } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { randomUUID } from 'crypto';
+import ffmpeg from 'fluent-ffmpeg';
+import ffmpegPath from '@ffmpeg-installer/ffmpeg';
+
+ffmpeg.setFfmpegPath(ffmpegPath.path);
 
 const s3 = new S3Client({
     region: 'us-east-1',
@@ -25,6 +33,44 @@ function mimeToExt(mime: string): string {
 }
 
 const MAX_SAVED_VOICES = 5;
+
+function isSafariFriendlyMime(mime: string): boolean {
+    const lower = (mime || '').toLowerCase();
+    return (
+        lower.includes('mp4') ||
+        lower.includes('m4a') ||
+        lower.includes('aac') ||
+        lower.includes('mpeg') ||
+        lower.includes('mp3') ||
+        lower.includes('wav')
+    );
+}
+
+async function convertToM4a(inputBuffer: Buffer): Promise<Buffer> {
+    const id = randomUUID();
+    const inPath = join(tmpdir(), `voice-in-${id}.webm`);
+    const outPath = join(tmpdir(), `voice-out-${id}.m4a`);
+
+    await fs.writeFile(inPath, inputBuffer);
+
+    try {
+        await new Promise<void>((resolve, reject) => {
+            ffmpeg(inPath)
+                .audioCodec('aac')
+                .audioBitrate('128k')
+                .outputOptions(['-movflags +faststart'])
+                .toFormat('ipod')
+                .on('end', () => resolve())
+                .on('error', (err) => reject(err))
+                .save(outPath);
+        });
+
+        return await fs.readFile(outPath);
+    } finally {
+        await fs.unlink(inPath).catch(() => { });
+        await fs.unlink(outPath).catch(() => { });
+    }
+}
 
 /**
  * POST /api/user/audio/save-voice
@@ -61,16 +107,33 @@ export async function POST(req: NextRequest) {
         const duration = durationStr ? parseInt(durationStr, 10) : null;
 
         const mimeType = raw.type || '';
-        const ext = mimeToExt(mimeType);
+        let finalBuffer = Buffer.from(await raw.arrayBuffer());
+        let finalMimeType = mimeType || 'audio/webm';
+        let ext = mimeToExt(finalMimeType);
+
+        // Safari does not reliably play WebM/Ogg voice recordings.
+        // Normalize those uploads to AAC/M4A at save-time.
+        if (!isSafariFriendlyMime(finalMimeType)) {
+            try {
+                finalBuffer = await convertToM4a(finalBuffer);
+                finalMimeType = 'audio/mp4';
+                ext = 'm4a';
+            } catch (conversionError) {
+                console.error('[save-voice] Conversion to m4a failed:', conversionError);
+                return NextResponse.json(
+                    { error: 'This recording format is not supported for playback. Please re-record and try again.' },
+                    { status: 400 }
+                );
+            }
+        }
 
         // Upload to R2
         const sampleKey = `user_${user.id}/voice_sample_${Date.now()}.${ext}`;
-        const audioBuffer = Buffer.from(await raw.arrayBuffer());
         await s3.send(new PutObjectCommand({
             Bucket: BUCKET,
             Key: sampleKey,
-            Body: audioBuffer,
-            ContentType: raw.type || 'audio/webm',
+            Body: finalBuffer,
+            ContentType: finalMimeType,
         }));
 
         const sampleUrl = `/api/user/audio/stream?key=${encodeURIComponent(sampleKey)}`;

@@ -917,7 +917,7 @@ const Dashboard: React.FC = () => {
           </div>
         )}
         <div className={styles.toolSep} />
-        <button className={styles.toolLink} onClick={() => { clearStore(); router.push("/user/goal-intake-ai"); }}>Edit intake ✎</button>
+        <button className={styles.toolLink} onClick={() => { router.push("/user/goal-intake-ai"); }}>Edit intake ✎</button>
         <div className={styles.toolSep} />
         <span className={styles.reminderPill}>☀ 6:30 AM</span>
         <span className={styles.reminderPill}>☾ 10:00 PM</span>

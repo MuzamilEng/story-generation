@@ -1579,12 +1579,12 @@ const AccountSettings: React.FC = () => {
               </div>
             </div>
 
-            <DangerRow
+            {/* <DangerRow
               label="Delete all stories"
               subtitle="Permanently removes all stories and audio files. Your account stays active."
               buttonText="Delete All Stories"
               onConfirm={handleDeleteStories}
-            />
+            /> */}
 
             <DangerRow
               label="Delete account"

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import styles from "../../../styles/AudioReady.module.css";
 import { useStoryStore } from "@/store/useStoryStore";
+import { useAudioPlayerStore } from "@/store/useAudioPlayerStore";
 import { useGlobalUI } from "@/components/ui/global-ui-context";
 import { notifyAudioReady } from "@/lib/browser-notifications";
 import FeedbackPopup from "@/components/FeedbackPopup";
@@ -126,23 +127,13 @@ const AudioReadyContent: React.FC = () => {
 
   const [story, setStory] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [volume, setVolume] = useState(85);
   const [showDownloadPrompt, setShowDownloadPrompt] = useState(false);
-  const [isBuffering, setIsBuffering] = useState(false);
-  const [bufferedPct, setBufferedPct] = useState(0);
   const [assembleStatus, setAssembleStatus] = useState<
     "queued" | "processing" | "failed" | "completed" | null
   >(null);
   const [assembleMessage, setAssembleMessage] = useState("");
 
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const pendingAutoplay = useRef(false);
   const hasReadyNotificationSent = useRef(false);
-  const progressBarRef = useRef<HTMLDivElement>(null);
-  const seekTarget = useRef<number | null>(null);
 
   const [isServerMixing, setIsServerMixing] = useState(false);
   const [mixingTrackId, setMixingTrackId] = useState<string | null>(null);
@@ -156,6 +147,23 @@ const AudioReadyContent: React.FC = () => {
 
   const { clearStore } = useStoryStore();
   const [showFeedback, setShowFeedback] = useState(false);
+
+  // Global audio player store
+  const {
+    isPlaying,
+    currentTime,
+    duration,
+    volume,
+    isBuffering,
+    bufferedPct,
+    setStory: setGlobalAudio,
+    play: globalPlay,
+    pause: globalPause,
+    togglePlay: globalTogglePlay,
+    seek: globalSeek,
+    setVolume: globalSetVolume,
+    setPendingAutoplay,
+  } = useAudioPlayerStore();
 
   useEffect(() => {
     const checkFeedback = async () => {
@@ -214,12 +222,12 @@ const AudioReadyContent: React.FC = () => {
         return;
       if (e.code === "Space") {
         e.preventDefault();
-        togglePlay();
+        useAudioPlayerStore.getState().togglePlay();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isPlaying]);
+  }, []);
 
   useEffect(() => {
     document.title = "ManifestMyStory — Your Audio is Ready";
@@ -251,6 +259,9 @@ const AudioReadyContent: React.FC = () => {
           const data = await res.json();
           setStory(data);
           hasReadyNotificationSent.current = !!data?.audio_url;
+          if (data?.audio_url) {
+            setGlobalAudio(data);
+          }
         }
       } catch (err) {
         console.error("Failed to fetch story", err);
@@ -259,7 +270,7 @@ const AudioReadyContent: React.FC = () => {
       }
     };
     fetchStory();
-  }, [storyId]);
+  }, [storyId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!storyId || !story || story?.audio_url) return;
@@ -296,6 +307,7 @@ const AudioReadyContent: React.FC = () => {
           const storyData = await storyRes.json();
           if (storyData?.audio_url) {
             setStory(storyData);
+            setGlobalAudio(storyData);
             setAssembleStatus("completed");
             setAssembleMessage("Your audio is ready.");
             if (!hasReadyNotificationSent.current) {
@@ -358,10 +370,7 @@ const AudioReadyContent: React.FC = () => {
     setIsServerMixing(true);
     setMixingTrackId(soundscapeId);
     // Stop current playback while mixing
-    if (audioRef.current) {
-      audioRef.current.pause();
-    }
-    setIsPlaying(false);
+    globalPause();
     try {
       const res = await fetch("/api/user/audio/mix", {
         method: "POST",
@@ -389,20 +398,18 @@ const AudioReadyContent: React.FC = () => {
         return;
       }
       // Update local story state with new audio URL
-      setStory((prev: any) => ({
+      const updatedStory = (prev: any) => ({
         ...prev,
         audio_url: data.audio_url,
         combined_audio_key: data.combined_audio_key,
         soundscape_audio_key:
           data.soundscape_audio_key ?? prev.soundscape_audio_key,
-      }));
+      });
+      setStory((prev: any) => updatedStory(prev));
       setSelectedSoundscapeId(soundscapeId);
-      // Reset player state for the new audio and request autoplay
-      setIsPlaying(false);
-      setCurrentTime(0);
-      setIsBuffering(true);
-      setBufferedPct(0);
-      pendingAutoplay.current = true;
+      // Register the new audio URL globally and request autoplay
+      setPendingAutoplay(true);
+      setGlobalAudio(updatedStory(story));
       setShowBgPicker(false);
       showToast("Background music applied ✓", "success");
     } catch (err) {
@@ -423,10 +430,7 @@ const AudioReadyContent: React.FC = () => {
     setIsServerMixing(true);
     setMixingTrackId("unmix");
     // Stop current playback while unmixing
-    if (audioRef.current) {
-      audioRef.current.pause();
-    }
-    setIsPlaying(false);
+    globalPause();
     try {
       const res = await fetch("/api/user/audio/unmix", {
         method: "POST",
@@ -450,18 +454,12 @@ const AudioReadyContent: React.FC = () => {
         );
         return;
       }
-      setStory((prev: any) => ({
-        ...prev,
-        audio_url: data.audio_url,
-        combined_audio_key: null,
-      }));
+      const updatedStory = { ...story, audio_url: data.audio_url, combined_audio_key: null };
+      setStory(updatedStory);
       setSelectedSoundscapeId(null);
-      // Reset player state for the new audio and request autoplay
-      setIsPlaying(false);
-      setCurrentTime(0);
-      setIsBuffering(true);
-      setBufferedPct(0);
-      pendingAutoplay.current = true;
+      // Register the new audio URL globally and request autoplay
+      setPendingAutoplay(true);
+      setGlobalAudio(updatedStory);
       setShowBgPicker(false);
       showToast("Background music removed", "success");
     } catch (err) {
@@ -525,9 +523,6 @@ const AudioReadyContent: React.FC = () => {
   }, [isServerMixing]);
 
   // Always use DB-stored duration as the authoritative source.
-  // Browser-reported duration from VBR MP3s is unreliable (often too short
-  // until the entire file is buffered). The DB value was calculated server-side
-  // and matches what OS players show.
   const dbDuration = story?.audio_duration_secs ?? 0;
   const displayDuration =
     dbDuration > 0
@@ -535,11 +530,6 @@ const AudioReadyContent: React.FC = () => {
       : duration > 0 && isFinite(duration)
         ? duration
         : 0;
-
-  // Ensure audio element volume is synced
-  useEffect(() => {
-    if (audioRef.current) audioRef.current.volume = volume / 100;
-  }, [volume]);
 
   const formatTime = (seconds: number): string => {
     const h = Math.floor(seconds / 3600);
@@ -562,144 +552,59 @@ const AudioReadyContent: React.FC = () => {
     }
   };
 
-  const handlePlay = () => {
-    setIsPlaying(true);
-    if (currentTime < 1) recordEvent("play");
-  };
-
-  const handlePause = () => {
-    setIsPlaying(false);
-  };
-
   const togglePlay = () => {
-    if (!audioRef.current) return;
-    if (isPlaying) {
-      audioRef.current.pause();
-    } else {
-      setIsBuffering(true);
-      audioRef.current.play().catch((err) => {
-        console.error("Playback failed:", err);
-        setIsBuffering(false);
-      });
-    }
+    if (!isPlaying && currentTime < 1) recordEvent("play");
+    globalTogglePlay();
   };
 
   // Handle autoplay from dashboard/stories
   useEffect(() => {
     const autoplay = searchParams.get("autoplay");
-    if (autoplay === "true" && story && audioRef.current && !isPlaying) {
-      // Short delay to ensure audio is ready
+    if (autoplay === "true" && story?.audio_url && !isPlaying) {
       const timer = setTimeout(() => {
-        togglePlay();
-      }, 500);
+        globalPlay();
+      }, 600);
       return () => clearTimeout(timer);
     }
-  }, [story, audioRef.current]);
+  }, [story?.audio_url]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // When user was playing before a skip/seek, auto-resume once buffered
-  const wasPlayingBeforeSeek = useRef(false);
+  // Debounced skip with burst accumulation
+  const wasPlayingBeforeSkip = useRef(false);
   const skipTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingSkip = useRef<number>(0);
+  const pendingSkipAmt = useRef(0);
+  const pageSeekTarget = useRef<number | null>(null);
 
   const skip = (seconds: number) => {
-    if (!audioRef.current) return;
     const total = displayDuration;
     if (!total || total <= 0) return;
+    const s = useAudioPlayerStore.getState();
 
-    // On first skip in a burst, save play state and pause
     if (skipTimer.current === null) {
-      wasPlayingBeforeSeek.current = isPlaying;
-      if (isPlaying) {
-        audioRef.current.pause();
-      }
-      setIsPlaying(false);
-      pendingSkip.current = 0;
+      wasPlayingBeforeSkip.current = s.isPlaying;
+      if (s.isPlaying) globalPause();
+      pendingSkipAmt.current = 0;
     } else {
       clearTimeout(skipTimer.current);
     }
 
-    // Accumulate skip amount and update UI immediately
-    pendingSkip.current += seconds;
-    const baseTime =
-      seekTarget.current !== null
-        ? seekTarget.current
-        : audioRef.current.currentTime;
-    const newTime = Math.max(
-      0,
-      Math.min(total, baseTime + pendingSkip.current),
-    );
-    setCurrentTime(newTime);
-    setIsBuffering(true);
+    pendingSkipAmt.current += seconds;
+    const base = pageSeekTarget.current !== null ? pageSeekTarget.current : s.currentTime;
+    const newTime = Math.max(0, Math.min(total, base + pendingSkipAmt.current));
+    pageSeekTarget.current = newTime;
+    // Update store UI immediately
+    useAudioPlayerStore.setState({ currentTime: newTime, isBuffering: true });
 
-    // Debounce: wait 300ms for rapid clicks to settle, then fire one API call
     skipTimer.current = setTimeout(() => {
       skipTimer.current = null;
-      pendingSkip.current = 0;
-      if (!audioRef.current) return;
-      seekTarget.current = newTime;
-      audioRef.current.src = story?.audio_url || "";
-      audioRef.current.load();
+      pendingSkipAmt.current = 0;
+      const t = pageSeekTarget.current!;
+      pageSeekTarget.current = null;
+      globalSeek(t, wasPlayingBeforeSkip.current);
     }, 300);
   };
 
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newVol = parseInt(e.target.value);
-    setVolume(newVol);
-    if (audioRef.current) {
-      audioRef.current.volume = newVol / 100;
-    }
-  };
-
-  const updateBuffered = () => {
-    if (!audioRef.current) return;
-    const buf = audioRef.current.buffered;
-    if (buf.length > 0 && displayDuration > 0) {
-      const end = buf.end(buf.length - 1);
-      setBufferedPct(Math.min(100, (end / displayDuration) * 100));
-    }
-  };
-
-  const handleMetadata = () => {
-    if (audioRef.current) {
-      const d = audioRef.current.duration;
-      if (d && isFinite(d) && d > 0) {
-        setDuration(d);
-      }
-      updateBuffered();
-
-      // If we have a pending seek target (from skip/drag/click), seek to it now
-      if (seekTarget.current !== null) {
-        const target = seekTarget.current;
-        seekTarget.current = null;
-        audioRef.current.currentTime = target;
-        // onSeeked will handle resume
-      } else if (pendingAutoplay.current) {
-        // Auto-play after mix/unmix swapped the audio source
-        pendingAutoplay.current = false;
-        audioRef.current.play().catch(() => {});
-        setIsPlaying(true);
-        setIsBuffering(false);
-      } else {
-        setIsBuffering(false);
-      }
-    }
-  };
-
-  const handleTimeUpdate = () => {
-    if (audioRef.current) {
-      // Use displayDuration (from DB) to clamp currentTime so the
-      // progress bar never exceeds 100% even if the browser's internal
-      // duration is shorter than reality.
-      const raw = audioRef.current.currentTime;
-      setCurrentTime(
-        displayDuration > 0 ? Math.min(raw, displayDuration) : raw,
-      );
-      const d = audioRef.current.duration;
-      if (d && isFinite(d) && d > 0 && d !== duration) {
-        setDuration(d);
-      }
-      updateBuffered();
-    }
+    globalSetVolume(parseInt(e.target.value));
   };
 
   const handleDownload = (type: "mixed" | "voice" = "mixed") => {
@@ -1032,57 +937,9 @@ const AudioReadyContent: React.FC = () => {
             <div style={{ marginTop: "2rem", marginBottom: "0.5rem" }}>
               {story?.audio_url && (
                 <>
-                  {/* Hidden audio element — drives playback, no native controls.
-                      key={story.audio_url} forces React to remount when the URL
-                      changes (e.g. after server mix/unmix) so the browser actually
-                      loads the new file. */}
-                  <audio
-                    key={story.audio_url}
-                    ref={audioRef}
-                    src={story.audio_url}
-                    preload="auto"
-                    onPlay={handlePlay}
-                    onPause={handlePause}
-                    onLoadedMetadata={handleMetadata}
-                    onDurationChange={handleMetadata}
-                    onTimeUpdate={handleTimeUpdate}
-                    onProgress={updateBuffered}
-                    onCanPlay={() => {
-                      // Only clear buffering if we're not waiting for a seek
-                      if (seekTarget.current === null) {
-                        setIsBuffering(false);
-                      }
-                    }}
-                    onWaiting={() => setIsBuffering(true)}
-                    onSeeking={() => setIsBuffering(true)}
-                    onSeeked={() => {
-                      setIsBuffering(false);
-                      // Resume playback if user was playing before skip/seek
-                      if (wasPlayingBeforeSeek.current && audioRef.current) {
-                        wasPlayingBeforeSeek.current = false;
-                        setIsBuffering(true);
-                        audioRef.current.play().catch(() => {
-                          setIsBuffering(false);
-                        });
-                      }
-                    }}
-                    onPlaying={() => setIsBuffering(false)}
-                    onEnded={() => {
-                      setIsPlaying(false);
-                      setIsBuffering(false);
-                      wasPlayingBeforeSeek.current = false;
-                    }}
-                    onError={(e) => {
-                      console.error("Main audio error:", e);
-                      setIsBuffering(false);
-                      showToast(
-                        "Failed to load audio. Please refresh or try another browser.",
-                        "error",
-                      );
-                    }}
-                    crossOrigin="anonymous"
-                    playsInline
-                  />
+                  {/* Audio element lives in GlobalAudioPlayer (layout) so it
+                      persists across navigation. Controls here talk to the
+                      global audio player store. */}
 
                   {/* Custom controls UI */}
                   <div
@@ -1175,7 +1032,6 @@ const AudioReadyContent: React.FC = () => {
                     </div>
                     <div className={styles.progressRow}>
                       <div
-                        ref={progressBarRef}
                         className={styles.progressBar}
                         style={{
                           position: "relative",
