@@ -134,16 +134,267 @@ const LIFE_AREA_LABELS = LIFE_AREAS.reduce<Record<string, string>>(
   {},
 );
 
+const LIFE_AREA_KEYWORDS: Record<string, string[]> = {
+  wealth: [
+    "wealth",
+    "money",
+    "income",
+    "abundance",
+    "financial",
+    "finance",
+    "cash",
+    "bank",
+    "salary",
+    "paid",
+    "payment",
+    "revenue",
+    "sales",
+    "client",
+    "business",
+    "invest",
+    "investing",
+    "prosper",
+  ],
+  health: [
+    "health",
+    "healthy",
+    "body",
+    "fitness",
+    "fit",
+    "strong",
+    "strength",
+    "energy",
+    "energetic",
+    "vital",
+    "vitality",
+    "sleep",
+    "rest",
+    "heal",
+    "healing",
+    "workout",
+    "exercise",
+    "gym",
+    "wellness",
+  ],
+  love: [
+    "love",
+    "romance",
+    "relationship",
+    "partner",
+    "marriage",
+    "husband",
+    "wife",
+    "dating",
+    "intimacy",
+    "connection",
+  ],
+  family: [
+    "family",
+    "parent",
+    "parenting",
+    "mother",
+    "mom",
+    "father",
+    "dad",
+    "child",
+    "children",
+    "kid",
+    "kids",
+    "home",
+  ],
+  purpose: [
+    "purpose",
+    "career",
+    "work",
+    "job",
+    "business",
+    "calling",
+    "mission",
+    "impact",
+    "office",
+    "team",
+    "leader",
+    "leadership",
+    "promotion",
+    "client",
+  ],
+  spirituality: [
+    "spiritual",
+    "spirituality",
+    "inner",
+    "peace",
+    "aligned",
+    "alignment",
+    "god",
+    "source",
+    "prayer",
+    "meditation",
+    "meditate",
+    "soul",
+  ],
+  growth: [
+    "growth",
+    "grow",
+    "mindset",
+    "confidence",
+    "discipline",
+    "clarity",
+    "learning",
+    "skill",
+    "skills",
+    "expand",
+    "expansion",
+    "becoming",
+  ],
+};
+
+const PROOF_ACTION_STOP_WORDS = new Set([
+  "about",
+  "after",
+  "again",
+  "also",
+  "always",
+  "because",
+  "before",
+  "being",
+  "feels",
+  "feeling",
+  "fully",
+  "have",
+  "into",
+  "just",
+  "life",
+  "more",
+  "really",
+  "seeing",
+  "still",
+  "that",
+  "their",
+  "them",
+  "then",
+  "there",
+  "these",
+  "they",
+  "this",
+  "those",
+  "through",
+  "want",
+  "with",
+  "your",
+]);
+
+function normalizeAreaValue(area: string): string {
+  const trimmed = String(area).trim();
+  const lower = trimmed.toLowerCase();
+
+  if (lower.includes("wealth") || lower.includes("abundance")) return "wealth";
+  if (lower.includes("health") || lower.includes("vitality")) return "health";
+  if (lower.includes("love") || lower.includes("relationship")) return "love";
+  if (lower.includes("family") || lower.includes("parent")) return "family";
+  if (lower.includes("purpose") || lower.includes("career")) return "purpose";
+  if (lower.includes("spirit") || lower.includes("inner life")) {
+    return "spirituality";
+  }
+  if (lower.includes("growth")) return "growth";
+
+  return trimmed;
+}
+
+function stemProofToken(token: string): string {
+  if (token.length <= 4) return token;
+
+  return token
+    .replace(/(ing|edly|edly|ed|es|s)$/i, "")
+    .replace(/(tion|ment|ness)$/i, "");
+}
+
+function tokenizeProofText(text: string): string[] {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .map((token) => stemProofToken(token.trim()))
+    .filter(
+      (token) =>
+        token.length >= 3 && !PROOF_ACTION_STOP_WORDS.has(token),
+    );
+}
+
+function getAreaMatchTerms(
+  area: string,
+  capturedGoals?: CapturedData | null,
+): Set<string> {
+  const normalizedArea = normalizeAreaValue(area);
+  const terms = new Set<string>(
+    (LIFE_AREA_KEYWORDS[normalizedArea] || []).map((keyword) =>
+      stemProofToken(keyword.toLowerCase()),
+    ),
+  );
+
+  tokenizeProofText(LIFE_AREA_LABELS[normalizedArea] || area).forEach((token) => {
+    terms.add(token);
+  });
+
+  const areaValue = capturedGoals?.[normalizedArea];
+  const areaText = Array.isArray(areaValue)
+    ? areaValue.join(" ")
+    : typeof areaValue === "string"
+      ? areaValue
+      : "";
+
+  tokenizeProofText(areaText).forEach((token) => {
+    if (token.length >= 4) {
+      terms.add(token);
+    }
+  });
+
+  return terms;
+}
+
+function proofItemMatchesArea(
+  proofItem: string,
+  area: string,
+  capturedGoals?: CapturedData | null,
+): boolean {
+  const normalizedArea = normalizeAreaValue(area);
+  const proofTokens = new Set(tokenizeProofText(proofItem));
+  const matchTerms = Array.from(getAreaMatchTerms(normalizedArea, capturedGoals));
+  const keywordTerms = (LIFE_AREA_KEYWORDS[normalizedArea] || []).map((keyword) =>
+    stemProofToken(keyword.toLowerCase()),
+  );
+  const overlapCount = matchTerms.filter((term) => proofTokens.has(term)).length;
+
+  if (keywordTerms.some((term) => proofTokens.has(term))) {
+    return true;
+  }
+
+  if (LIFE_AREA_LABELS[normalizedArea]) {
+    return overlapCount >= 2;
+  }
+
+  return overlapCount >= 1;
+}
+
 function getSelectedAreaValues(capturedGoals?: CapturedData | null): string[] {
   const rawAreas = capturedGoals?.selectedAreas;
   if (Array.isArray(rawAreas)) {
-    return rawAreas.map((area) => String(area).trim()).filter(Boolean);
+    return Array.from(
+      new Set(
+        rawAreas
+          .map((area) => normalizeAreaValue(String(area)))
+          .filter(Boolean),
+      ),
+    );
   }
   if (typeof rawAreas === "string") {
-    return rawAreas
-      .split(",")
-      .map((area) => area.trim())
-      .filter(Boolean);
+    return Array.from(
+      new Set(
+        rawAreas
+          .split(",")
+          .map((area) => normalizeAreaValue(area))
+          .filter(Boolean),
+      ),
+    );
   }
   return [];
 }
@@ -170,12 +421,23 @@ function getProofActionCoverage(capturedGoals?: CapturedData | null) {
   const selectedAreas = getSelectedAreaValues(capturedGoals);
   const proofActionItems = getProofActionItems(capturedGoals?.actionsAfter);
   const requiredCount = selectedAreas.length;
-  const missingCount = Math.max(requiredCount - proofActionItems.length, 0);
+  const coveredAreas = selectedAreas.filter((area) =>
+    proofActionItems.some((item) =>
+      proofItemMatchesArea(item, area, capturedGoals),
+    ),
+  );
+  const missingAreas = selectedAreas.filter(
+    (area) => !coveredAreas.includes(area),
+  );
+  const missingCount = missingAreas.length;
 
   return {
     selectedAreas,
     proofActionItems,
     requiredCount,
+    coveredAreas,
+    missingAreas,
+    missingAreaLabels: missingAreas.map((area) => LIFE_AREA_LABELS[area] || area),
     missingCount,
     hasCoverage: requiredCount === 0 || missingCount === 0,
   };
@@ -698,7 +960,8 @@ const CompletionCard: React.FC<CompletionCardProps> = ({
         {!proofActionCoverage.hasCoverage && (
           <div className={styles.betaNote}>
             Add at least one proof action for each selected life area before
-            generating.
+            generating. Still missing: {proofActionCoverage.missingAreaLabels.join(", ")}
+            .
           </div>
         )}
 
@@ -1926,8 +2189,7 @@ const GoalDiscovery: React.FC = () => {
           !proofActionCoverage.hasCoverage &&
           proofActionCoverage.requiredCount > 0
         ) {
-          const selectedAreaLabels = proofActionCoverage.selectedAreas
-            .map((area) => LIFE_AREA_LABELS[area] || area)
+          const missingAreaLabels = proofActionCoverage.missingAreaLabels
             .join(", ");
 
           setMessages((prev) => [
@@ -1936,8 +2198,8 @@ const GoalDiscovery: React.FC = () => {
               role: "assistant",
               content:
                 proofActionCoverage.missingCount === 1
-                  ? `Before we move on, I still need one more proof moment so every selected life area is anchored in your story (${selectedAreaLabels}). What's one more specific real-world moment that tells you this is fully real?`
-                  : `Before we move on, I still need ${proofActionCoverage.missingCount} more proof moments so every selected life area is anchored in your story (${selectedAreaLabels}). What's another specific real-world moment that tells you this is fully real?`,
+                  ? `Before we move on, I still need one proof moment for ${missingAreaLabels} so that area is anchored in your story. What's one specific real-world moment that shows this is already real there?`
+                  : `Before we move on, I still need proof moments for ${missingAreaLabels} so every selected life area is anchored in your story. What's another specific real-world moment that shows this is already real?`,
             },
           ]);
           setProgress((prev) => ({
