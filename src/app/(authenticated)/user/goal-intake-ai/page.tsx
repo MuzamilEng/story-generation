@@ -946,10 +946,10 @@ const CompletionCard: React.FC<CompletionCardProps> = ({
         <button
           className={styles.completeBtn}
           onClick={handleClick}
-          disabled={generating}
+          disabled={isGenerateDisabled}
           style={{
-            opacity: generating ? 0.5 : 1,
-            cursor: generating ? "not-allowed" : "pointer",
+            opacity: isGenerateDisabled ? 0.5 : 1,
+            cursor: isGenerateDisabled ? "not-allowed" : "pointer",
           }}
         >
           {generating ? (
@@ -2710,7 +2710,15 @@ const GoalDiscovery: React.FC = () => {
                   onClick={() => {
                     setIsComplete(true);
                   }}
-                  title="Click here whenever you feel ready to see your story"
+                  disabled={!canFinishIntake}
+                  style={
+                    !canFinishIntake ? { opacity: 0.5, cursor: "not-allowed" } : {}
+                  }
+                  title={
+                    canFinishIntake
+                      ? "Click here whenever you feel ready to see your story"
+                      : "Complete all chat steps before generating"
+                  }
                 >
                   <span>Ready to see your story?</span>
                   <strong>Finish & Generate →</strong>
