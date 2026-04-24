@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { appLog } from "@/lib/app-logger";
 
 export async function POST(req: NextRequest) {
   try {
@@ -42,6 +43,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ valid: true, source: "legacy" });
   } catch (error) {
     console.error("[BETA_VALIDATE_ERROR]", error);
+    appLog({ level: "error", source: "api/beta/validate", message: `Beta validate error: ${error instanceof Error ? error.message : error}` });
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

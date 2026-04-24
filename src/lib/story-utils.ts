@@ -385,9 +385,19 @@ The induction is written in second person — "you" — as if the listener's own
 
 Once the vision begins (Block B), switch fully and permanently to first person — "I" and "my" — for the rest of the story.
 
+━━━ INDUCTION LENGTH FLOOR — NON-NEGOTIABLE (ISSUE #11 FIX) ━━━
+The induction is neurological scaffolding. It MUST NOT be compressed to save word count. The subconscious benefits from the extra time in the induction before the visualized scene arrives.
+MINIMUM INDUCTION LENGTH: ${userTier === 'activator' ? '280' : (userTier === 'manifester' ? '320' : '370')} words. If your induction draft falls below this floor, expand the breath work, body scan, or staircase steps — do NOT skip ahead to the vision.
+STRUCTURAL REQUIREMENTS (all mandatory):
+- Breath work: At least 2-3 sentences of deliberate breath awareness before any body scan
+- Body scan: Sequential release through shoulders, jaw, behind the eyes, back of the neck — paced, not rushed
+- Staircase countdown: DISTINCT sensory imagery for EACH numbered step (not compressed groups like "seven... six... five..."). Each number gets its own sentence with a unique sensory detail
+- The listener must spend meaningful time in the induction state before ANY scene reveals
+BENCHMARK: "Ten. The first step down. Warmth moving up through the soles of your feet. Nine. Deeper now. The sounds of the day growing faint. Eight. Every thought dissolving, like mist burning off a hillside at sunrise." — EACH step has its own imagery, its own pace, its own breath.
+
 THE INDUCTION MUST FOLLOW THIS PRECISE SEQUENCE:
-1. BREATH AWARENESS: Invite the listener to simply notice they are already breathing. Effortless. Natural. Already happening. "The breath is already happening. You don't have to do a single thing."
-2. BODY GROUNDING: Weight of the body against the surface beneath. Sinking deeper. Jaw softens. Shoulders release.
+1. BREATH AWARENESS: Invite the listener to simply notice they are already breathing. Effortless. Natural. Already happening. "Notice that you are already breathing. You don't have to do a single thing to make it happen. The breath is already happening." Include at least 2-3 sentences of breath observation before moving on.
+2. BODY GROUNDING: Weight of the body against the surface beneath. Sinking deeper. Jaw softens. Shoulders release. Move SEQUENTIALLY through the body — shoulders first, then jaw, then behind the eyes, then the back of the neck. Each body part gets its own sentence. Do not rush.
 3. ONE LONG BREATH: A single long breath in — hold gently at the top — and as they breathe out, every muscle from crown to sole... simply lets go.
 4. DEEPENING THROUGH LANGUAGE — calibrated to orientation:
    • Spiritual → golden light, divine presence, the subconscious opening like a golden door
@@ -649,15 +659,15 @@ Use the user's exact words from goals and proof actions. Do not paraphrase. Do n
 - "my surf city Bayfront home" → scene at that specific home
 Every proof action must appear as a vivid, physical, present-tense scene. Not background. Not summary. These ARE the story.
 
-━━━ COMPLETENESS CHECK — REQUIRED BEFORE WRITING CLOSE ━━━
-Before writing the anchor or close, verify every item in actionsAfter[] and goals{} has appeared as a vivid scene.
+━━━ COMPLETENESS CHECK — REQUIRED BEFORE WRITING CLOSE (ISSUE #10 FIX) ━━━
+Before writing the anchor or close, you MUST verify that EVERY SINGLE item from the intake has appeared as a vivid scene. This is not optional. This is the most common generation failure mode.
 
-Run this check explicitly:
-- List every item in actionsAfter[]
-- Confirm each appears as a physical, present-tense scene
-- List every goal in goals{}
-- Confirm each is shown as already achieved reality
-- If any item is missing, add a scene before proceeding
+PROCEDURE — execute this check explicitly before writing Block C or Block D:
+1. Parse actionsAfter[] into individual items (each line break, bullet, or array entry is a separate item)
+2. For EACH item, confirm it has appeared as a DEDICATED physical, present-tense scene (not a passing mention)
+3. Parse each per-area goal field (wealth, health, love, family, purpose, spirituality, growth, goals)
+4. For EACH specific goal, milestone, property, trip, project, or commitment mentioned, confirm it has a scene
+5. If ANY item from steps 1-4 is missing → you MUST write a scene for it BEFORE proceeding to the close
 
 A detail mentioned in passing does NOT count as a scene.
 A scene requires:
@@ -666,11 +676,25 @@ A scene requires:
 - Emotional resonance
 - At least 3-4 sentences of dedicated attention
 
+COMMON OMISSIONS TO WATCH FOR:
+- Properties mentioned by name (e.g., "Surf City Bayfront") — each must be a scene, not just a mention
+- Specific counts (e.g., "8 acquisitions", "9 homes delivered", "15 projects") — each count must appear with its exact number
+- Forward-facing commitments (e.g., "donate to next water project", "rebook family trip") — these are proof actions, not background
+- Rental income or booking figures (e.g., "$450k booked in rentals") — must appear as a specific scene
+- Scheduled reviews or planning moments (e.g., "reviewing the schedule of 15 projects with gratitude") — the ACT of reviewing is the scene
+- Family trips and experiences — each one needs its own arrival/planning scene, not a passing reference
+
+PRIORITY RULE: If the story length constraint limits what can fit, prioritize BREADTH of coverage over DEPTH of elaboration. It is better to have 12 goals each rendered as a 3-sentence scene than 6 goals each rendered as a 6-sentence scene with 6 goals missing entirely. Every intake item must appear. Compress scene length if needed — never drop items.
+
+PROOF ACTION PRIORITY: Proof actions are more important than goals for subconscious encoding because they are sensory-specific embodiments. If you must choose what gets more scene depth, proof actions always win. A proof action must be a PHYSICAL moment — arriving, holding, seeing, signing, calling. Not a summary. The plaque arrives. The schedule is open on the desk. The donation confirmation email appears on the screen.
+
 Also verify:
 - All business/financial milestones with exact numbers
-- All named trips, purchases, and experiences
+- All named trips, purchases, and experiences — EACH as its own scene
 - All named people with specific relational depth
-If the user mentioned 8 goals, all 8 must appear. If they mentioned 3 trips, all 3 must appear as scenes.
+- All properties, homes, or locations mentioned by name
+- All commitments to future actions (donations, trips, projects)
+If the user mentioned 8 goals, all 8 must appear. If they mentioned 3 trips, all 3 must appear as scenes. If they mentioned 5 proof actions, all 5 must appear as embodied moments.
 
 ━━━ NUMERIC SPECIFICITY RULE — EQUALLY CRITICAL ━━━
 If the user provided any numbers, figures, or metrics in their goals — revenue targets, net worth, multiples, portfolio values, income numbers — you MUST use those exact figures. Do not round them. Do not generalise them.
@@ -686,6 +710,16 @@ Do NOT invent personal details that the user did not provide.
 - Never invent specific family details (e.g., don't add children or pets unless mentioned).
 - Never invent sounds or background details from a house that imply a specific family or social structure not provided by the user.
 Keep it unspecific and abstract unless the user provided the detail. Use only the named persons and details provided.
+
+━━━ GENDER-NEUTRAL DEFAULT RULE (ISSUE #12 FIX) ━━━
+When the intake does NOT specify a particular person by name or gender for a role (e.g., co-founder, business partner, assistant, mentor, coach), you MUST default to gender-neutral language.
+- Use "they/them/their" pronouns for any unspecified person
+- Do NOT assign "he/him/his" or "she/her/hers" to anyone not explicitly identified in the intake
+- Example: "My co-founder's voice on the other end — and before they say more than three words I can hear it..."
+- This applies to all roles: co-founders, partners, colleagues, investors, assistants, doctors, coaches, etc.
+- If the user named a specific person (e.g., "my co-founder Sarah"), use their implied or stated gender. If only a name is given and gender is ambiguous, default to "they."
+- NEVER assume gender from a role title ("the CEO", "my partner", "the investor")
+The user will listen to this story hundreds of times. A gender mismatch between the story and reality creates cognitive friction that undermines subconscious encoding.
 
 
 ━━━ EMBODIED REALITY RULE ━━━
@@ -831,6 +865,9 @@ After dissolution, plant 3-5 closing affirmations before sleep seeding. This is 
 Plant the user's selected identity statements VERBATIM.
 Do not rephrase, soften, or NLP-restructure them.
 If the user selected 'Everything I touch turns to gold' — plant that exact phrase. The rawness and directness is the point.
+
+⚠️ AFFIRMATION UNIQUENESS RULE (ISSUE #13 FIX):
+Each affirmation in the closing block must appear AT MOST ONCE. Before finalizing the close, scan all affirmation lines and remove any duplicates. If the same phrase (or a near-identical rephrasing) appears twice, keep only the first occurrence and replace the duplicate with a different user-selected statement that has not yet been used. The only exception is the deliberate structural repetition of "Sleep now... and receive." at the very end — that triple is intentional. All other affirmations must be unique within the close.
 
 ⚠️ SELECTION-ONLY RULE: Use ONLY affirmations from identityStatements[] and areaAffirmations{} that the user explicitly SELECTED or WROTE. These arrays contain only confirmed user selections. Never add statements the user did not select — even if they were generated as options during intake.
 

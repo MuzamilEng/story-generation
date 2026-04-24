@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { betaTypeToPlan } from "@/lib/beta-utils";
+import { appLog } from "@/lib/app-logger";
 
 export const dynamic = 'force-dynamic';
 
@@ -52,6 +53,7 @@ export async function GET(req: Request) {
         });
     } catch (error) {
         console.error("[SUBSCRIPTION_STATUS_ERROR]", error);
+        appLog({ level: "error", source: "api/user/subscription/status", message: `Subscription status error: ${error instanceof Error ? error.message : error}` });
         return new NextResponse("Internal Server Error", { status: 500 });
     }
 }

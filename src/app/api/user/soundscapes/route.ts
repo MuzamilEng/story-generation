@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { appLog } from '@/lib/app-logger';
 
 // Track metadata from the ManifestMyStory Music Track Guide
 // Keyed by lowercase title prefix for fuzzy matching against DB titles
@@ -85,6 +86,7 @@ export async function GET(req: NextRequest) {
         });
     } catch (error: any) {
         console.error('[user_soundscapes_get] error:', error);
+        appLog({ level: "error", source: "api/user/soundscapes", message: `Soundscapes list error: ${error.message || error}` });
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }

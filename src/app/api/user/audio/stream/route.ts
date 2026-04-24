@@ -11,6 +11,7 @@ import { join } from 'path';
 import { randomUUID } from 'crypto';
 import ffmpeg from 'fluent-ffmpeg';
 import ffmpegPath from '@ffmpeg-installer/ffmpeg';
+import { appLog } from '@/lib/app-logger';
 
 ffmpeg.setFfmpegPath(ffmpegPath.path);
 
@@ -62,11 +63,13 @@ async function convertBufferToM4a(inputBuffer: Buffer, inputExt: string): Promis
 // Audio streaming route for R2 assets
 
 export async function GET(req: NextRequest) {
+    let sessionUserId: string | undefined;
     try {
         const session = await getServerSession(authOptions);
         if (!session || !session.user) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
+        sessionUserId = session.user.id;
 
         const { searchParams } = new URL(req.url);
         const key = searchParams.get('key');
@@ -207,6 +210,7 @@ export async function GET(req: NextRequest) {
              return NextResponse.json({ error: 'Range not satisfiable' }, { status: 416 });
         }
         console.error('API /api/user/audio/stream error:', e);
+        appLog({ level: "error", source: "api/user/audio/stream", message: `Audio stream error: ${e.message || e}`, userId: sessionUserId });
         return NextResponse.json({ error: e.message || 'Internal Server Error' }, { status: 500 });
     }
 

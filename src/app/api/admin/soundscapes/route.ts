@@ -8,6 +8,7 @@ import { writeFileSync, readFileSync, mkdirSync, rmSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { randomUUID } from 'crypto';
+import { appLog } from '@/lib/app-logger';
 
 const s3 = new S3Client({
     region: 'us-east-1',
@@ -122,6 +123,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: true, asset });
     } catch (error: any) {
         console.error('[soundscapes_post] error:', error);
+        appLog({ level: "error", source: "api/admin/soundscapes", message: `Soundscape upload error: ${error.message || error}` });
         return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
     }
 }

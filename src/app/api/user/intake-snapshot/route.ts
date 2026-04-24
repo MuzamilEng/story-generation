@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { appLog } from '@/lib/app-logger';
 
 /**
  * GET /api/user/intake-snapshot
@@ -51,6 +52,7 @@ export async function GET(req: NextRequest) {
         });
     } catch (error) {
         console.error('[INTAKE_SNAPSHOT_GET]', error);
+        appLog({ level: "error", source: "api/user/intake-snapshot", message: `Intake snapshot GET error: ${error instanceof Error ? error.message : error}` });
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }
@@ -73,6 +75,7 @@ export async function DELETE() {
         return NextResponse.json({ ok: true });
     } catch (error) {
         console.error('[INTAKE_SNAPSHOT_DELETE]', error);
+        appLog({ level: "error", source: "api/user/intake-snapshot", message: `Intake snapshot DELETE error: ${error instanceof Error ? error.message : error}` });
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }

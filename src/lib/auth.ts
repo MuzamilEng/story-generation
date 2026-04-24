@@ -5,6 +5,7 @@ import GoogleProvider from "next-auth/providers/google"
 import { compare } from "bcryptjs"
 import { prisma } from "./prisma"
 import { betaTypeToPlan } from "./beta-utils"
+import { appLog } from "./app-logger"
 
 const ACCOUNT_DISABLED_ERROR = "ACCOUNT_DISABLED"
 
@@ -45,6 +46,7 @@ export const authOptions: NextAuthOptions = {
 
         if (!user.isActive) {
           console.log('[AUTH] Inactive account blocked:', credentials.email)
+          appLog({ level: 'warn', source: 'auth/login', message: `Blocked inactive account: ${credentials.email}` });
           throw new Error(ACCOUNT_DISABLED_ERROR)
         }
 
@@ -61,6 +63,7 @@ export const authOptions: NextAuthOptions = {
         }
 
         console.log('[AUTH] Login successful for:', user.email, 'Role:', user.role)
+        appLog({ level: 'info', source: 'auth/login', message: `User signed in: ${user.email}`, userId: user.id, meta: { role: user.role, plan: user.plan } });
 
         // Update last login
         await prisma.user.update({

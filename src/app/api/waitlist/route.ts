@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendWaitlistWelcomeEmail } from "@/lib/email";
+import { appLog } from "@/lib/app-logger";
 
 export async function POST(req: NextRequest) {
   try {
@@ -38,6 +39,8 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    appLog({ level: "info", source: "api/waitlist", message: `Waitlist signup: ${sanitizedEmail}` });
+
     // Send welcome email (non-blocking — don't fail the request if email fails)
     sendWaitlistWelcomeEmail(sanitizedEmail, sanitizedName).catch((err) =>
       console.error("[WAITLIST_EMAIL_ERROR]", err)
@@ -46,6 +49,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("[WAITLIST_ERROR]", error);
+    appLog({ level: "error", source: "api/waitlist", message: `Waitlist error: ${error instanceof Error ? error.message : error}` });
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

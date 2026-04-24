@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { UserRole } from "@/lib/roles";
+import { appLog } from "@/lib/app-logger";
 
 export async function GET(request: NextRequest) {
   try {
@@ -128,6 +129,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ users: serializedUsers, total, page, limit, totalPages: Math.ceil(total / limit) });
   } catch (error) {
     console.error("Error fetching users:", error);
+    appLog({ level: "error", source: "api/admin/users", message: `Admin users fetch error: ${error instanceof Error ? error.message : error}` });
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

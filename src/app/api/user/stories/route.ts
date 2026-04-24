@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getStoryTitle } from '@/lib/story-utils'
 import type { StoryType } from '@/lib/story-utils'
+import { appLog } from '@/lib/app-logger'
 
 export async function POST(req: NextRequest) {
     try {
@@ -68,9 +69,12 @@ export async function POST(req: NextRequest) {
             }
         });
 
+        appLog({ level: 'info', source: 'user/stories', message: `Story created: ${systemTitle}`, userId: session.user.id, meta: { storyId: story.id, type, length: length || 'medium' } });
+
         return NextResponse.json({ storyId: story.id })
     } catch (error) {
         console.error('[STORY_POST]', error)
+        appLog({ level: 'error', source: 'user/stories', message: `Story creation failed: ${(error as Error).message}`, userId: undefined });
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
     }
 }

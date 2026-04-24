@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { sendFeedbackNotification } from "@/lib/email";
+import { appLog } from "@/lib/app-logger";
 
 export async function POST(req: NextRequest) {
   try {
@@ -44,11 +45,17 @@ export async function POST(req: NextRequest) {
       responses
     )
       .then(() => console.log("[FEEDBACK_EMAIL] Sent successfully"))
-      .catch((err) => console.error("[FEEDBACK_EMAIL_ERROR]", err.message, err.code, err));
+      .catch((err) => {
+        console.error("[FEEDBACK_EMAIL_ERROR]", err.message, err.code, err);
+        appLog({ level: "error", source: "api/feedback", message: `Feedback email notification failed: ${err.message}`, userId: session.user.id });
+      });
+
+    appLog({ level: "info", source: "api/feedback", message: `Feedback submitted`, userId: session.user.id });
 
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("[FEEDBACK_ERROR]", error);
+    appLog({ level: "error", source: "api/feedback", message: `Feedback submit error: ${error instanceof Error ? error.message : error}` });
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
@@ -90,6 +97,7 @@ export async function GET() {
     return NextResponse.json({ shouldShowSurvey });
   } catch (error) {
     console.error("[FEEDBACK_CHECK_ERROR]", error);
+    appLog({ level: "error", source: "api/feedback", message: `Feedback check error: ${error instanceof Error ? error.message : error}` });
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

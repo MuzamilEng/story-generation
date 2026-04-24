@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/prisma";
+import { appLog } from "@/lib/app-logger";
 
 export async function GET(req: Request) {
     try {
@@ -36,6 +37,7 @@ export async function GET(req: Request) {
         return NextResponse.json(billingRecords);
     } catch (error) {
         console.error("[BILLING_HISTORY_ERROR]", error);
+        appLog({ level: "error", source: "api/user/subscription/history", message: `Billing history error: ${error instanceof Error ? error.message : error}` });
         return new NextResponse("Internal Server Error", { status: 500 });
     }
 }

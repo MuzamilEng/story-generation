@@ -6,6 +6,7 @@ import { invokeWithFallback } from '@/lib/langchain';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { buildMorningStoryPrompt, normalizeGoals, getStoryTitle, Tier } from '@/lib/story-utils';
 import { betaTypeToPlan } from '@/lib/beta-utils';
+import { appLog } from '@/lib/app-logger';
 
 const MORNING_SYSTEM_MESSAGE = `You are a master manifestation story writer, NLP practitioner, and morning activation specialist. Your sole purpose is to write a deeply personal, sensory-rich, first-person MORNING story for ManifestMyStory.com.
 
@@ -54,11 +55,13 @@ Short outputs (fewer than ${Math.round(targetWc * 0.9)} words) are considered a 
  * No new intake required — uses the IntakeSnapshot saved from night story approval.
  */
 export async function POST(req: NextRequest) {
+    let sessionUserId: string | undefined;
     try {
         const session = await getServerSession(authOptions);
         if (!session?.user?.id) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
+        sessionUserId = session.user.id;
 
         const userId = session.user.id;
 
@@ -218,6 +221,8 @@ export async function POST(req: NextRequest) {
             },
         });
 
+        appLog({ level: "info", source: "api/user/stories/morning", message: `Morning story generated (${storyText.trim().split(/\s+/).length} words)`, userId: sessionUserId, meta: { storyId: story.id, wordCount: storyText.trim().split(/\s+/).length, tier: userTier } });
+
         return NextResponse.json({
             storyId: story.id,
             storyText,
@@ -227,6 +232,7 @@ export async function POST(req: NextRequest) {
         });
     } catch (error: any) {
         console.error('[MORNING_STORY]', error);
+        appLog({ level: "error", source: "api/user/stories/morning", message: `Morning story generation failed: ${error.message || error}`, userId: sessionUserId, meta: { stack: error.stack } });
         return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
     }
 }

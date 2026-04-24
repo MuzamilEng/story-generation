@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { UserRole } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
+import { appLog } from "@/lib/app-logger";
 
 export async function GET(req: NextRequest) {
     try {
@@ -18,6 +19,7 @@ export async function GET(req: NextRequest) {
         return NextResponse.json(codes);
     } catch (error) {
         console.error("[BETA_CODES_GET]", error);
+        appLog({ level: "error", source: "api/admin/beta-codes", message: `Beta codes GET error: ${error instanceof Error ? error.message : error}` });
         return NextResponse.json({ error: "Internal Error" }, { status: 500 });
     }
 }
@@ -48,6 +50,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(newCode);
     } catch (error: any) {
         console.error("[BETA_CODES_POST]", error);
+        appLog({ level: "error", source: "api/admin/beta-codes", message: `Beta codes POST error: ${error.message || error}` });
         if (error.code === "P2002") {
             return NextResponse.json({ error: "Code already exists" }, { status: 400 });
         }

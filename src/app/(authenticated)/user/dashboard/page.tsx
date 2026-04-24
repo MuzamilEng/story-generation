@@ -616,7 +616,7 @@ const Dashboard: React.FC = () => {
       const res = await fetch("/api/user/audio/save-voice");
       if (!res.ok) return [];
       const data = await res.json();
-      return data.voices || [];
+      return Array.isArray(data.voices) ? data.voices : [];
     },
     enabled: !!session,
   });
@@ -867,7 +867,8 @@ const Dashboard: React.FC = () => {
   const [selectedStoryId, setSelectedStoryId] = useState<string | null>(null);
   const heroStory = stories.find((s) => s.status === "audio_ready" && s.audio_url);
   const libraryStories = stories.filter((s) => s !== heroStory);
-  const defaultVoice = savedVoices.find((v) => v.is_default) || savedVoices[0] || null;
+  const voiceList = Array.isArray(savedVoices) ? savedVoices : [];
+  const defaultVoice = voiceList.find((v) => v.is_default) || voiceList[0] || null;
 
   const handleRowClick = (storyId: string) => {
     setSelectedStoryId((prev) => (prev === storyId ? null : storyId));

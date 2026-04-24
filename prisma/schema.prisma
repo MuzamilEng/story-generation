@@ -396,3 +396,19 @@ enum EventType {
   download
   sample_play
 }
+
+model AppLog {
+  id        String   @id @default(cuid())
+  level     String   @db.VarChar(10) // info, warn, error
+  source    String   @db.VarChar(100) // e.g. "api/user/story/generate"
+  message   String
+  meta      Json?
+  userId    String?  @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([level])
+  @@index([source])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("app_logs")
+}

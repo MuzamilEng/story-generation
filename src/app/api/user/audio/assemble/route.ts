@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { checkPlanGating } from '@/lib/plan-gating';
+import { appLog } from '@/lib/app-logger';
 
 export const maxDuration = 60;
 export const runtime = 'nodejs';
@@ -80,6 +81,8 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    appLog({ level: 'info', source: 'user/audio/assemble', message: `Audio assembly ${data.queued ? 'queued' : 'completed'}`, userId: session.user.id, meta: { storyId, jobId: data.jobId } });
+
     return NextResponse.json({
       success: true,
       queued: !!data.queued,
@@ -90,6 +93,7 @@ export async function POST(req: NextRequest) {
     });
   } catch (err: any) {
     console.error('[api/assemble] Error calling mixing server:', err);
+    appLog({ level: 'error', source: 'user/audio/assemble', message: `Mixing server error: ${err.message}`, userId: session.user.id, meta: { storyId } });
     return NextResponse.json({ error: 'Mixing server unavailable' }, { status: 502 });
   }
 }
@@ -172,6 +176,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(data);
   } catch (err: any) {
     console.log('[api/assemble] Error fetching status from mixing server:', err);
+    appLog({ level: "error", source: "api/user/audio/assemble", message: `Mixing server status check failed: ${err.message || err}` });
     return NextResponse.json({ error: 'Mixing server unavailable' }, { status: 502 });
   }
 }

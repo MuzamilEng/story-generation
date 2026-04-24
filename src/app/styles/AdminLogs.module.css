@@ -1,0 +1,447 @@
+.logsPage {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  color: #fff;
+}
+
+.header {
+  margin-bottom: 4px;
+}
+
+.title {
+  font-family: 'Fraunces', serif;
+  font-size: 2.4rem;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 8px;
+}
+
+.subtitle {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+/* ─── Toolbar ─── */
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.toolbarRight {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.filterSelect,
+.searchInput {
+  padding: 8px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+  font-size: 0.85rem;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.filterSelect:focus,
+.searchInput:focus {
+  border-color: #52b788;
+}
+
+.searchInput {
+  flex: 1;
+  min-width: 200px;
+}
+
+.liveToggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.liveToggle:hover {
+  border-color: #52b788;
+}
+
+.liveToggleActive {
+  border-color: #52b788;
+  background: rgba(82, 183, 136, 0.12);
+}
+
+.liveDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #888;
+}
+
+.liveDotActive {
+  background: #52b788;
+  box-shadow: 0 0 6px #52b788;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* ─── Log Table ─── */
+.tableWrap {
+  overflow-x: auto;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.table th {
+  text-align: left;
+  padding: 12px 16px;
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(255, 255, 255, 0.5);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  white-space: nowrap;
+}
+
+.table td {
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  vertical-align: top;
+}
+
+.table tr:last-child td {
+  border-bottom: none;
+}
+
+.table tr {
+  transition: background 0.15s;
+}
+
+.table tr:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.newRow {
+  animation: highlightNew 2s ease-out;
+}
+
+@keyframes highlightNew {
+  0% { background: rgba(82, 183, 136, 0.15); }
+  100% { background: transparent; }
+}
+
+/* ─── Level Badges ─── */
+.badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.badgeInfo {
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+}
+
+.badgeWarn {
+  background: rgba(251, 191, 36, 0.15);
+  color: #fbbf24;
+}
+
+.badgeError {
+  background: rgba(248, 113, 113, 0.15);
+  color: #f87171;
+}
+
+/* ─── Message Cell ─── */
+.messageCell {
+  max-width: 420px;
+  word-break: break-word;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.sourceCell {
+  color: rgba(255, 255, 255, 0.55);
+  font-family: monospace;
+  font-size: 0.78rem;
+}
+
+.timeCell {
+  white-space: nowrap;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 0.78rem;
+}
+
+.userCell {
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.metaToggle {
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.55);
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.metaToggle:hover {
+  border-color: #52b788;
+  color: #fff;
+}
+
+.metaBlock {
+  margin-top: 6px;
+  padding: 8px 10px;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 8px;
+  font-family: monospace;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.6);
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+/* ─── Pagination ─── */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.pageNumbers {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pageNumBtn {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pageNumBtn:hover {
+  border-color: #52b788;
+  color: #fff;
+  background: rgba(82, 183, 136, 0.08);
+}
+
+.pageNumActive {
+  background: rgba(82, 183, 136, 0.18);
+  border-color: #52b788;
+  color: #52b788;
+  font-weight: 600;
+}
+
+.pageDots {
+  color: rgba(255, 255, 255, 0.25);
+  font-size: 0.85rem;
+  padding: 0 2px;
+}
+
+.pageBtn {
+  padding: 8px 18px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.pageBtn:hover:not(:disabled) {
+  border-color: #52b788;
+  background: rgba(82, 183, 136, 0.1);
+}
+
+.pageBtn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.pageInfo {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* ─── States ─── */
+.loadingWrap {
+  display: flex;
+  justify-content: center;
+  padding: 60px 0;
+}
+
+.spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(255, 255, 255, 0.1);
+  border-top-color: #52b788;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.empty {
+  text-align: center;
+  padding: 60px 0;
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 0.9rem;
+}
+
+/* ─── Responsive ─── */
+@media (max-width: 768px) {
+  .title {
+    font-size: 1.6rem;
+  }
+
+  .toolbar {
+    flex-direction: column;
+  }
+
+  .toolbarRight {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .filterSelect,
+  .searchInput,
+  .liveToggle {
+    width: 100%;
+  }
+
+  .table th,
+  .table td {
+    padding: 8px 10px;
+  }
+
+  .messageCell {
+    max-width: 200px;
+  }
+
+  .checkCol {
+    display: none;
+  }
+
+  .actionsCol {
+    display: none;
+  }
+}
+
+/* ─── Checkbox & Selection ─── */
+.checkCol {
+  width: 36px;
+  text-align: center;
+}
+
+.checkbox {
+  width: 15px;
+  height: 15px;
+  accent-color: #52b788;
+  cursor: pointer;
+}
+
+.selectedRow {
+  background: rgba(82, 183, 136, 0.06) !important;
+}
+
+/* ─── Delete Buttons ─── */
+.deleteBtn {
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(248, 113, 113, 0.25);
+  background: rgba(248, 113, 113, 0.08);
+  color: #f87171;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.deleteBtn:hover:not(:disabled) {
+  background: rgba(248, 113, 113, 0.18);
+  border-color: #f87171;
+}
+
+.deleteBtn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.deleteBtnSelected {
+  background: rgba(248, 113, 113, 0.15);
+  border-color: #f87171;
+  font-weight: 500;
+}
+
+.actionsCol {
+  width: 40px;
+  text-align: center;
+}
+
+.rowDeleteBtn {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.2);
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+  transition: all 0.15s;
+  line-height: 1;
+}
+
+.rowDeleteBtn:hover:not(:disabled) {
+  color: #f87171;
+  background: rgba(248, 113, 113, 0.12);
+}
+
+.rowDeleteBtn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}

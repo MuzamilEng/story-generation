@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/prisma";
+import { appLog } from "@/lib/app-logger";
 
 export const dynamic = "force-dynamic";
 
@@ -141,6 +142,7 @@ export async function POST(req: Request) {
                             `[PLAN_EXPIRY] Invoice payment failed for user ${user.id}:`,
                             payError.message
                         );
+                        appLog({ level: "error", source: "api/user/subscription/check-expiration", message: `Invoice payment failed for user ${user.id}: ${payError.message}`, userId: user.id });
                     }
 
                     // Payment failed — downgrade to Explorer
@@ -181,6 +183,7 @@ export async function POST(req: Request) {
                     `[PLAN_EXPIRY] Stripe API error for user ${user.id}:`,
                     stripeError.message
                 );
+                appLog({ level: "error", source: "api/user/subscription/check-expiration", message: `Stripe API error for user ${user.id}: ${stripeError.message}`, userId: user.id });
 
                 // Stripe API itself failed — downgrade to be safe
                 await downgradeToExplorer(user.id);
@@ -209,6 +212,7 @@ export async function POST(req: Request) {
         });
     } catch (error: any) {
         console.error("[CHECK_EXPIRATION_ERROR]", error);
+        appLog({ level: "error", source: "api/user/subscription/check-expiration", message: `Check expiration error: ${error.message || error}` });
         return NextResponse.json(
             { error: "Internal Server Error" },
             { status: 500 }

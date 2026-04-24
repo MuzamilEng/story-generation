@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { betaTypeToPlan } from "@/lib/beta-utils";
+import { appLog } from "@/lib/app-logger";
 
 export async function POST(req: NextRequest) {
     try {
@@ -122,9 +123,12 @@ export async function POST(req: NextRequest) {
             })
         ]);
 
+        appLog({ level: "info", source: "api/beta/redeem", message: `Beta code redeemed`, userId, meta: { codeId: betaCode.id, expiresAt: twoMonthsFromNow } });
+
         return NextResponse.json({ success: true, expiresAt: twoMonthsFromNow });
     } catch (error) {
         console.error("[BETA_REDEEM_ERROR]", error);
+        appLog({ level: "error", source: "api/beta/redeem", message: `Beta redeem error: ${error instanceof Error ? error.message : error}` });
         return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
     }
 }

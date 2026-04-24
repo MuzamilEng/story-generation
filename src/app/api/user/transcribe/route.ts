@@ -3,6 +3,7 @@ import { pipeline } from "@xenova/transformers";
 import { writeFile, unlink } from "fs/promises";
 import { join } from "path";
 import { tmpdir } from "os";
+import { appLog } from "@/lib/app-logger";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -51,6 +52,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ text: result.text?.trim() || "" });
   } catch (error: any) {
     console.error("Transcription error:", error);
+    appLog({ level: "error", source: "api/user/transcribe", message: `Transcription error: ${error?.message || error}` });
     return NextResponse.json(
       { error: error?.message || "Transcription failed" },
       { status: 500 },

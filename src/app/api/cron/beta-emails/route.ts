@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendBetaDay2Email, sendBetaDay7Email } from "@/lib/email";
+import { appLog } from "@/lib/app-logger";
 
 const CRON_SECRET = process.env.CRON_SECRET;
 
@@ -57,6 +58,7 @@ export async function GET(req: NextRequest) {
         results.day2Sent++;
       } catch (err) {
         console.error(`[CRON] Day 2 email failed for ${signup.email}:`, err);
+        appLog({ level: "error", source: "cron/beta-emails", message: `Day 2 email failed for ${signup.email}: ${err instanceof Error ? err.message : err}` });
         results.day2Errors++;
       }
     }
@@ -87,14 +89,17 @@ export async function GET(req: NextRequest) {
         results.day7Sent++;
       } catch (err) {
         console.error(`[CRON] Day 7 email failed for ${signup.email}:`, err);
+        appLog({ level: "error", source: "cron/beta-emails", message: `Day 7 email failed for ${signup.email}: ${err instanceof Error ? err.message : err}` });
         results.day7Errors++;
       }
     }
 
     console.log("[CRON] Beta emails complete:", results);
+    appLog({ level: "info", source: "cron/beta-emails", message: `Cron beta emails complete: Day2 sent=${results.day2Sent} errors=${results.day2Errors}, Day7 sent=${results.day7Sent} errors=${results.day7Errors}`, meta: results });
     return NextResponse.json({ success: true, ...results });
   } catch (error) {
     console.error("[CRON_BETA_EMAILS_ERROR]", error);
+    appLog({ level: "error", source: "cron/beta-emails", message: `Cron beta emails error: ${error instanceof Error ? error.message : error}` });
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { appLog } from "@/lib/app-logger";
 
 export async function POST(req: NextRequest) {
   try {
@@ -61,6 +62,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("[BETA_SURVEY_SUBMIT_ERROR]", error);
+    appLog({ level: "error", source: "api/beta/survey", message: `Beta survey submit error: ${error instanceof Error ? error.message : error}` });
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

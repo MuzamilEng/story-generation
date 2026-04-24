@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { UserRole } from "@/lib/roles";
 import { Plan } from "@prisma/client";
 import { betaTypeToPlan } from "@/lib/beta-utils";
+import { appLog } from "@/lib/app-logger";
 
 export async function PATCH(
   request: NextRequest,
@@ -218,6 +219,7 @@ export async function PATCH(
     return NextResponse.json({ user: serializedUser });
   } catch (error) {
     console.error("Error updating user:", error);
+    appLog({ level: "error", source: "api/admin/users", message: `Admin user update error: ${error instanceof Error ? error.message : error}` });
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
@@ -255,6 +257,7 @@ export async function DELETE(
     return NextResponse.json({ message: "User deleted successfully" });
   } catch (error) {
     console.error("Error deleting user:", error);
+    appLog({ level: "error", source: "api/admin/users", message: `Admin user delete error: ${error instanceof Error ? error.message : error}` });
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

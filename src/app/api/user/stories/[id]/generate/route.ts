@@ -6,6 +6,7 @@ import { invokeWithFallback } from '@/lib/langchain'
 import { HumanMessage, SystemMessage } from "@langchain/core/messages"
 import { buildStoryPrompt, buildMorningStoryPrompt, normalizeGoals, getStoryTitle } from '@/lib/story-utils'
 import { betaTypeToPlan } from '@/lib/beta-utils'
+import { appLog } from '@/lib/app-logger'
 
 import { Tier } from '@/lib/story-utils'
 
@@ -96,12 +97,14 @@ export async function POST(
     req: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
+    let sessionUserId: string | undefined;
     try {
         const { id: storyId } = await params;
         const session = await getServerSession(authOptions)
         if (!session || !session.user) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
+        sessionUserId = session.user.id;
 
         const body = await req.json().catch(() => ({}));
         const instruction = body.instruction;
@@ -170,7 +173,7 @@ export async function POST(
         let nightStoryText: string | undefined;
         if (storyType === 'morning') {
             const latestNight = await prisma.story.findFirst({
-                where: { userId, story_type: 'night', story_text_draft: { not: null } },
+                where: { userId: session.user.id, story_type: 'night', story_text_draft: { not: null } },
                 orderBy: { createdAt: 'desc' },
                 select: { story_text_draft: true },
             });
@@ -285,6 +288,8 @@ export async function POST(
             },
         })
 
+        appLog({ level: "info", source: "api/user/stories/generate", message: `Story generated: ${storyType} story (${storyText.trim().split(/\s+/).length} words)`, userId: sessionUserId, meta: { storyId: updatedStory.id, storyType, wordCount: storyText.trim().split(/\s+/).length, tier: userTier, instruction: instruction ? true : false } });
+
         return NextResponse.json({
             storyId: updatedStory.id,
             storyText: updatedStory.story_text_draft,
@@ -292,6 +297,7 @@ export async function POST(
         })
     } catch (error) {
         console.error('[STORY_GENERATE]', error)
+        appLog({ level: "error", source: "api/user/stories/generate", message: `Story generation failed: ${error instanceof Error ? error.message : error}`, userId: sessionUserId, meta: { stack: error instanceof Error ? error.stack : undefined } });
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
     }
 }

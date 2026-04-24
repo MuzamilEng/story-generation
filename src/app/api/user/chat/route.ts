@@ -4,13 +4,16 @@ import { authOptions } from '@/lib/auth';
 import { invokeWithFallback } from '@/lib/langchain';
 import { SYSTEM_PROMPT } from '@/app/types/goal-discovery';
 import { HumanMessage, SystemMessage, AIMessage } from "@langchain/core/messages";
+import { appLog } from '@/lib/app-logger';
 
 export async function POST(req: NextRequest) {
+    let sessionUserId: string | undefined;
     try {
         const session = await getServerSession(authOptions);
         if (!session || !session.user) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
+        sessionUserId = session.user.id;
 
         const { messages } = await req.json();
 
@@ -101,9 +104,12 @@ Do NOT skip to Phase 4 (Story Anchors/Tone). Do NOT move past Proof Actions unti
 
         const response = await invokeWithFallback(langchainMessages, { primaryRetries: 2 });
 
+        appLog({ level: "info", source: "api/user/chat", message: `Chat response generated`, userId: sessionUserId });
+
         return NextResponse.json({ text: response.content });
     } catch (error: any) {
         console.error('Error in LangChain chat API:', error);
+        appLog({ level: "error", source: "api/user/chat", message: `Chat API error: ${error.message || error}`, userId: sessionUserId, meta: { stack: error.stack } });
         return NextResponse.json({ error: error.message || 'Error occurred' }, { status: 500 });
     }
 }

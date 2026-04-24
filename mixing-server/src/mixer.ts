@@ -14,7 +14,7 @@ const MIX_MP3_BITRATE = '96k';
 const ENHANCE_MP3_BITRATE = '56k';
 
 interface MixOptions {
-  /** Buffer of the primary voice / narration MP3 */
+  /** Buffer of the primary voice / narration (WAV or MP3) */
   voiceBuffer: Buffer;
   /** Buffer of the background soundscape MP3 (optional — skip if not selected) */
   backgroundBuffer?: Buffer | null;
@@ -22,6 +22,8 @@ interface MixOptions {
   backgroundVolume?: number;
   /** Whether to layer binaural theta beats (4–8 Hz) under the audio */
   binauralEnabled?: boolean;
+  /** If true, apply voice enhancement filters inline (skip separate enhance step) */
+  enhanceVoice?: boolean;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -124,6 +126,7 @@ export async function mixAudio(opts: MixOptions): Promise<Buffer> {
     backgroundBuffer,
     backgroundVolume = 0.15,
     binauralEnabled = false,
+    enhanceVoice = false,
   } = opts;
 
   const hasBackground = !!(backgroundBuffer && backgroundBuffer.length > 0);
@@ -136,7 +139,7 @@ export async function mixAudio(opts: MixOptions): Promise<Buffer> {
   const tmpDir = path.join(os.tmpdir(), `mix-${randomUUID()}`);
   fs.mkdirSync(tmpDir, { recursive: true });
 
-  const voicePath = path.join(tmpDir, 'voice.mp3');
+  const voicePath = path.join(tmpDir, enhanceVoice ? 'voice.wav' : 'voice.mp3');
   fs.writeFileSync(voicePath, voiceBuffer);
 
   let bgPath: string | null = null;
@@ -207,15 +210,21 @@ export async function mixAudio(opts: MixOptions): Promise<Buffer> {
     const BG_UNDER_LINEAR   = 0.126 * totalInputs;   // -18 dB (under narration)
     const BINAURAL_LINEAR   = 0.079 * totalInputs;   // -22 dB
 
+    // Voice enhancement filters applied inline when enhanceVoice is true
+    // This avoids a separate FFmpeg pass (saves 30–60s on long narrations)
+    const voiceEnhanceChain = enhanceVoice
+      ? 'highpass=f=70,lowpass=f=14500,acompressor=threshold=-18dB:ratio=2.8:attack=20:release=220:makeup=3,dynaudnorm=f=150:g=15:p=0.95:m=10,alimiter=limit=0.95,'
+      : '';
+
     // Voice — delayed by 5 s pre-roll (or passthrough if no background)
     if (hasBackground) {
       const delayMs = BG_LEAD_SECS * 1000;
       filters.push(
-        `[0:a]adelay=${delayMs}|${delayMs},volume=${VOICE_LINEAR}[voice_delayed]`
+        `[0:a]${voiceEnhanceChain}adelay=${delayMs}|${delayMs},volume=${VOICE_LINEAR}[voice_delayed]`
       );
       mixLabels.push('[voice_delayed]');
     } else {
-      filters.push(`[0:a]aresample=44100,volume=${VOICE_LINEAR}[voice_out]`);
+      filters.push(`[0:a]${voiceEnhanceChain}aresample=44100,volume=${VOICE_LINEAR}[voice_out]`);
       mixLabels.push('[voice_out]');
     }
     mixCount++;
@@ -283,6 +292,7 @@ export async function mixAudio(opts: MixOptions): Promise<Buffer> {
       .complexFilter(filters)
       .outputOptions([
         '-map', '[out]',
+        '-threads', '0',
         '-ac',  '2',          // stereo
         '-ar',  '32000',      // lower sample rate is enough for ambient + speech
         '-b:a', MIX_MP3_BITRATE,
@@ -291,6 +301,11 @@ export async function mixAudio(opts: MixOptions): Promise<Buffer> {
       .output(outPath)
       .on('start', (cmdLine) => {
         console.log('[mixer] FFmpeg command:', cmdLine);
+      })
+      .on('progress', (p) => {
+        if (p?.timemark) {
+          console.log(`[mixer] FFmpeg progress: ${p.timemark}`);
+        }
       })
       .on('end', () => {
         try {
@@ -312,12 +327,15 @@ export async function mixAudio(opts: MixOptions): Promise<Buffer> {
 /**
  * Enhance a narration track for a more polished, professional spoken-voice sound.
  *
- * Processing chain:
+ * Processing chain (optimized for TTS — no denoise or two-pass loudnorm needed):
  * - highpass/lowpass: remove rumble + overly harsh top-end
- * - afftdn: light broadband denoise
  * - acompressor: smooth dynamics for stable narration level
- * - loudnorm: podcast-style integrated loudness target
  * - alimiter: protect peaks and prevent clipping
+ *
+ * Removed for speed:
+ * - afftdn: TTS audio is clean, no background noise to remove (~30% of time)
+ * - loudnorm: two-pass filter, extremely slow. acompressor + alimiter already
+ *   handle dynamics. Replaced with single-pass dynaudnorm for gentle leveling.
  */
 export async function enhanceNarrationVoice(voiceBuffer: Buffer): Promise<Buffer> {
   const tmpDir = path.join(os.tmpdir(), `enhance-${randomUUID()}`);
@@ -331,15 +349,16 @@ export async function enhanceNarrationVoice(voiceBuffer: Buffer): Promise<Buffer
     const inputBytes = voiceBuffer.length;
     ffmpeg()
       .input(inPath)
+      .inputOptions(['-threads', '0'])
       .audioFilters([
         'highpass=f=70',
         'lowpass=f=14500',
-        'afftdn=nf=-24',
         'acompressor=threshold=-18dB:ratio=2.8:attack=20:release=220:makeup=3',
-        'loudnorm=I=-16:LRA=8:TP=-1.5',
+        'dynaudnorm=f=150:g=15:p=0.95:m=10',
         'alimiter=limit=0.95',
       ])
       .outputOptions([
+        '-threads', '0',
         '-ac', '1',
         '-ar', '24000',
         '-b:a', ENHANCE_MP3_BITRATE,
@@ -348,6 +367,11 @@ export async function enhanceNarrationVoice(voiceBuffer: Buffer): Promise<Buffer
       .output(outPath)
       .on('start', (cmdLine) => {
         console.log('[enhance] FFmpeg command:', cmdLine);
+      })
+      .on('progress', (p) => {
+        if (p?.timemark) {
+          console.log(`[enhance] FFmpeg progress: ${p.timemark}`);
+        }
       })
       .on('end', () => {
         try {

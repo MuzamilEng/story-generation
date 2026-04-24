@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { UserRole } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
+import { appLog } from "@/lib/app-logger";
 import { betaTypeToDurationMonths, betaTypeToPlan } from "@/lib/beta-utils";
 
 export async function PATCH(
@@ -110,6 +111,7 @@ export async function PATCH(
         });
     } catch (error) {
         console.error("[BETA_CODES_PATCH]", error);
+        appLog({ level: "error", source: "api/admin/beta-codes", message: `Beta codes PATCH error: ${error instanceof Error ? error.message : error}` });
         return NextResponse.json({ error: "Internal Error" }, { status: 500 });
     }
 }
@@ -183,6 +185,7 @@ export async function DELETE(
         });
     } catch (error) {
         console.error("[BETA_CODES_DELETE]", error);
+        appLog({ level: "error", source: "api/admin/beta-codes", message: `Beta codes DELETE error: ${error instanceof Error ? error.message : error}` });
         return NextResponse.json({ error: "Internal Error" }, { status: 500 });
     }
 }

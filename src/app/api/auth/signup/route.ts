@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { hash } from "bcryptjs"
 import { prisma } from "@/lib/prisma"
 import { betaTypeToPlan } from "@/lib/beta-utils"
+import { appLog } from "@/lib/app-logger"
 
 export async function POST(request: NextRequest) {
   try {
@@ -147,12 +148,15 @@ export async function POST(request: NextRequest) {
     // Return user without password
     const { password_hash: _, ...userWithoutPassword } = user as any;
 
+    appLog({ level: "info", source: "auth/signup", message: `New user signed up: ${email}`, userId: user.id, meta: { plan: user.plan } });
+
     return NextResponse.json({
       message: "User created successfully",
       user: userWithoutPassword
     })
   } catch (error) {
     console.error("Signup error:", error)
+    appLog({ level: "error", source: "auth/signup", message: `Signup failed: ${(error as Error).message}` });
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

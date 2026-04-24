@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendBetaWelcomeEmail } from "@/lib/email";
+import { appLog } from "@/lib/app-logger";
 
 const MAX_SPOTS = 500;
 const CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
@@ -84,11 +85,17 @@ export async function POST(req: NextRequest) {
           data: { email_day1_sent_at: new Date() },
         })
       )
-      .catch((err) => console.error("[BETA_WELCOME_EMAIL_ERROR]", err));
+      .catch((err) => {
+        console.error("[BETA_WELCOME_EMAIL_ERROR]", err);
+        appLog({ level: "error", source: "api/beta/signup", message: `Beta welcome email failed: ${err.message || err}`, meta: { email } });
+      });
+
+    appLog({ level: "info", source: "api/beta/signup", message: `Beta signup: ${email}`, meta: { referral } });
 
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("[BETA_SIGNUP_ERROR]", error);
+    appLog({ level: "error", source: "api/beta/signup", message: `Beta signup error: ${error instanceof Error ? error.message : error}` });
     return NextResponse.json({ error: "server_error" }, { status: 500 });
   }
 }

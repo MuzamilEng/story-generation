@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { UserRole } from "@/lib/roles";
+import { appLog } from "@/lib/app-logger";
 
 export async function DELETE(
   _request: Request,
@@ -31,6 +32,7 @@ export async function DELETE(
     return NextResponse.json({ message: "Story deleted successfully" });
   } catch (error) {
     console.error("Error deleting user story:", error);
+    appLog({ level: "error", source: "api/admin/users/stories", message: `Admin story delete error: ${error instanceof Error ? error.message : error}` });
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

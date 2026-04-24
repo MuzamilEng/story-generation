@@ -9,6 +9,7 @@ import AdminLogoutButton from "./AdminLogoutButton";
 const navItems = [
   { href: "/admin", label: "Dashboard", icon: "📊", exact: true },
   { href: "/admin/users", label: "User Management", icon: "👥" },
+  { href: "/admin/logs", label: "App Logs", icon: "📜" },
   { href: "/admin/beta", label: "Beta Signups", icon: "📋", exact: true },
   { href: "/admin/beta/surveys", label: "Beta Surveys", icon: "📊" },
   { href: "/admin/system-audio", label: "System Audio", icon: "🔊" },

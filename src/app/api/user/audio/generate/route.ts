@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { appLog } from '@/lib/app-logger';
 
 const s3Client = new S3Client({
     region: 'us-east-1',
@@ -180,10 +181,13 @@ export async function POST(req: NextRequest) {
             },
         });
 
+        appLog({ level: 'info', source: 'user/audio/generate', message: `Audio generated (${durationSecs}s)`, userId: user.id, meta: { storyId: story.id, durationSecs } });
+
         return NextResponse.json({ success: true, audioUrl: streamUrl, storyId: story.id, duration: durationSecs });
 
     } catch (e: any) {
         console.error('API /api/user/audio/generate error:', e);
+        appLog({ level: 'error', source: 'user/audio/generate', message: `Audio generation failed: ${e.message}`, userId: undefined });
         return NextResponse.json({ error: e.message || 'Internal Server Error' }, { status: 500 });
     }
 }

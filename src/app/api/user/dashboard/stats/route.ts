@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { appLog } from '@/lib/app-logger';
 
 export async function GET(req: NextRequest) {
     try {
@@ -96,6 +97,7 @@ export async function GET(req: NextRequest) {
 
     } catch (error) {
         console.error('[DASHBOARD_STATS_GET]', error);
+        appLog({ level: "error", source: "api/user/dashboard/stats", message: `Dashboard stats error: ${error instanceof Error ? error.message : error}` });
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }

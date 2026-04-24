@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { appLog } from '@/lib/app-logger';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -80,6 +81,7 @@ export async function POST(req: NextRequest) {
             finalBuf = await fs.readFile(tmpOutput);
         } catch (err) {
             console.error('[system-audio] ffmpeg conversion failed:', err);
+            appLog({ level: "error", source: "api/admin/system-audio", message: `ffmpeg audio conversion failed: ${err instanceof Error ? err.message : err}` });
             return NextResponse.json(
                 { error: 'Audio conversion failed. Please try uploading an MP3 file directly.' },
                 { status: 400 },

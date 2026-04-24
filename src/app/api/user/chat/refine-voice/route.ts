@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { openai } from "@/lib/openai";
+import { appLog } from "@/lib/app-logger";
 
 export async function POST(req: NextRequest) {
   try {
@@ -51,6 +52,7 @@ Return ONLY the cleaned transcript, nothing else.`;
     return NextResponse.json({ text: refined });
   } catch (error: any) {
     console.error("Voice refinement error:", error);
+    appLog({ level: "error", source: "api/user/chat/refine-voice", message: `Voice refinement error: ${error?.message || error}` });
     return NextResponse.json(
       { error: error?.message || "Refinement failed" },
       { status: 500 },

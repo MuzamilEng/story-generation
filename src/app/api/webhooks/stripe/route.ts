@@ -5,6 +5,7 @@ import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/prisma";
 import { getPlanByPriceId } from "@/lib/plans";
 import { Plan } from "@prisma/client";
+import { appLog } from "@/lib/app-logger";
 
 export async function POST(req: Request) {
     const body = await req.text();
@@ -22,6 +23,7 @@ export async function POST(req: Request) {
         console.log(`[STRIPE_WEBHOOK] Received event: ${event.type}`);
     } catch (error: any) {
         console.error(`[STRIPE_WEBHOOK_ERROR] ${error.message}`);
+        appLog({ level: "error", source: "api/webhooks/stripe", message: `Webhook signature verification failed: ${error.message}` });
         return new NextResponse(`Webhook Error: ${error.message}`, { status: 400 });
     }
 
@@ -31,6 +33,7 @@ export async function POST(req: Request) {
 
         if (!session?.metadata?.userId) {
             console.error("[STRIPE_WEBHOOK] No userId in metadata");
+            appLog({ level: "error", source: "api/webhooks/stripe", message: "No userId in checkout session metadata", meta: { sessionId: session.id } });
             return new NextResponse("User id is required", { status: 400 });
         }
 
@@ -91,6 +94,7 @@ export async function POST(req: Request) {
             }
         }
         console.log(`[STRIPE_WEBHOOK] User ${session.metadata.userId} updated successfully via checkout`);
+        appLog({ level: "info", source: "api/webhooks/stripe", message: `Checkout completed: ${session.mode} payment`, userId: session.metadata.userId, meta: { sessionId: session.id, mode: session.mode } });
     }
 
     if (event.type === "invoice.payment_succeeded") {
@@ -149,8 +153,10 @@ export async function POST(req: Request) {
                 console.log(`[STRIPE_WEBHOOK] Invoice payment for user ${user.id}: Beta access removed/verified clean`);
             }
             console.log(`[STRIPE_WEBHOOK] User ${user.email} updated successfully via invoice`);
+            appLog({ level: "info", source: "api/webhooks/stripe", message: `Invoice payment succeeded`, userId: user.id, meta: { invoiceId: invoice.id, plan: planId } });
         } else {
             console.warn(`[STRIPE_WEBHOOK] No user found for customer ${customerId}`);
+            appLog({ level: "warn", source: "api/webhooks/stripe", message: `No user found for customer ${customerId}` });
         }
     }
 
@@ -171,6 +177,7 @@ export async function POST(req: Request) {
             },
         });
         console.log(`[STRIPE_WEBHOOK] User reverted to free plan. Soundscape & binaural disabled.`);
+        appLog({ level: "warn", source: "api/webhooks/stripe", message: `Subscription deleted — user reverted to free`, meta: { subscriptionId: subscription.id } });
     }
 
     if (event.type === "customer.subscription.updated") {
@@ -241,6 +248,7 @@ export async function POST(req: Request) {
                 console.log(
                     `[STRIPE_WEBHOOK] User ${user.id} downgraded. Soundscape & binaural disabled.`
                 );
+                appLog({ level: "error", source: "api/webhooks/stripe", message: `Payment failed (attempt ${attemptCount}) — user downgraded to Explorer`, userId: user.id, meta: { invoiceId: invoice.id, attemptCount } });
             } else {
                 console.log(
                     `[STRIPE_WEBHOOK] Payment attempt ${attemptCount} failed for user ${user.id}. Stripe will retry.`

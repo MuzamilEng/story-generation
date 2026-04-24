@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { betaTypeToPlan } from '@/lib/beta-utils'
+import { appLog } from '@/lib/app-logger'
 
 export async function GET(req: NextRequest) {
     try {
@@ -61,6 +62,7 @@ export async function GET(req: NextRequest) {
         return NextResponse.json(responseData)
     } catch (error) {
         console.error('[SETTINGS_GET]', error)
+        appLog({ level: "error", source: "api/user/settings", message: `Settings GET error: ${error instanceof Error ? error.message : error}` });
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
     }
 }
@@ -127,6 +129,7 @@ export async function PATCH(req: NextRequest) {
         return NextResponse.json(updatedUser)
     } catch (error) {
         console.error('[SETTINGS_PATCH]', error)
+        appLog({ level: "error", source: "api/user/settings", message: `Settings PATCH error: ${error instanceof Error ? error.message : error}` });
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
     }
 }
@@ -145,9 +148,12 @@ export async function DELETE(req: NextRequest) {
             where: { id: session.user.id }
         })
 
+        appLog({ level: "warn", source: "api/user/settings", message: `Account deleted by user`, userId: session.user.id });
+
         return NextResponse.json({ message: 'Account deleted' })
     } catch (error) {
         console.error('[SETTINGS_DELETE]', error)
+        appLog({ level: "error", source: "api/user/settings", message: `Account deletion error: ${error instanceof Error ? error.message : error}` });
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
     }
 }

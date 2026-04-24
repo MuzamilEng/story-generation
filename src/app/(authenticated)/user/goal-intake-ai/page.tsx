@@ -946,10 +946,10 @@ const CompletionCard: React.FC<CompletionCardProps> = ({
         <button
           className={styles.completeBtn}
           onClick={handleClick}
-          disabled={isGenerateDisabled}
+          disabled={generating}
           style={{
-            opacity: isGenerateDisabled ? 0.5 : 1,
-            cursor: isGenerateDisabled ? "not-allowed" : "pointer",
+            opacity: generating ? 0.5 : 1,
+            cursor: generating ? "not-allowed" : "pointer",
           }}
         >
           {generating ? (
@@ -2708,20 +2708,9 @@ const GoalDiscovery: React.FC = () => {
                 <button
                   className={styles.finishEarlyBtn}
                   onClick={() => {
-                    if (!canFinishIntake) return;
                     setIsComplete(true);
                   }}
-                  disabled={!canFinishIntake}
-                  title={
-                    canFinishIntake
-                      ? "Click here whenever you feel ready to see your story"
-                      : "Complete every selected topic and capture proof actions for all selected life areas before generating your story"
-                  }
-                  style={
-                    !canFinishIntake
-                      ? { opacity: 0.5, cursor: "not-allowed" }
-                      : {}
-                  }
+                  title="Click here whenever you feel ready to see your story"
                 >
                   <span>Ready to see your story?</span>
                   <strong>Finish & Generate →</strong>
@@ -2921,7 +2910,6 @@ const GoalDiscovery: React.FC = () => {
             <button
               className={styles.mobileFinishBtn}
               onClick={() => {
-                if (!canFinishIntake) return;
                 setIsComplete(true);
               }}
               disabled={!canFinishIntake}

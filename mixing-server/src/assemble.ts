@@ -2,14 +2,14 @@ import { prisma } from './prisma';
 import { downloadFromR2, uploadToR2, deleteFromR2 } from './r2';
 import { mixAudio, enhanceNarrationVoice } from './mixer';
 
-const CHUNK_CHARS = 1200;
+const CHUNK_CHARS = 2500;
 const MAX_TTS_CONCURRENCY = Math.max(1, Number(process.env.TTS_CHUNK_CONCURRENCY ?? 2) || 2);
 const CROSSFADE_MS = 30;
 const INTRO_END_MARKER = '[INTRO_END]';
 const FISH_MAX_RETRIES = Math.max(0, Number(process.env.FISH_TTS_MAX_RETRIES ?? 4) || 4);
-const FISH_BASE_BACKOFF_MS = Math.max(50, Number(process.env.FISH_TTS_BASE_BACKOFF_MS ?? 700) || 700);
-const FISH_MAX_BACKOFF_MS = Math.max(FISH_BASE_BACKOFF_MS, Number(process.env.FISH_TTS_MAX_BACKOFF_MS ?? 12000) || 12000);
-const FISH_MIN_INTERVAL_MS = Math.max(0, Number(process.env.FISH_TTS_MIN_INTERVAL_MS ?? 350) || 350);
+const FISH_BASE_BACKOFF_MS = Math.max(50, Number(process.env.FISH_TTS_BASE_BACKOFF_MS ?? 1200) || 1200);
+const FISH_MAX_BACKOFF_MS = Math.max(FISH_BASE_BACKOFF_MS, Number(process.env.FISH_TTS_MAX_BACKOFF_MS ?? 15000) || 15000);
+const FISH_MIN_INTERVAL_MS = Math.max(0, Number(process.env.FISH_TTS_MIN_INTERVAL_MS ?? 500) || 500);
 
 let fishRequestGate: Promise<void> = Promise.resolve();
 let fishNextAllowedAt = 0;
@@ -195,34 +195,7 @@ async function fetchAdminAudio(segmentKey: 'induction' | 'guide_close'): Promise
   }
 }
 
-async function generateFreeTTS(text: string): Promise<Buffer | null> {
-  const providers = [
-    async () => {
-      const url = `https://api.streamelements.com/kappa/v2/speech?voice=Brian&text=${encodeURIComponent(text)}`;
-      const res = await fetch(url);
-      if (!res.ok) return null;
-      const buf = Buffer.from(await res.arrayBuffer());
-      return buf.length > 500 ? buf : null;
-    },
-    async () => {
-      const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(text)}&tl=en&client=tw-ob`;
-      const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
-      if (!res.ok) return null;
-      const buf = Buffer.from(await res.arrayBuffer());
-      return buf.length > 500 ? buf : null;
-    },
-  ];
 
-  for (const fetchAudio of providers) {
-    try {
-      const buf = await fetchAudio();
-      if (buf) return buf;
-    } catch {
-      // try next provider
-    }
-  }
-  return null;
-}
 
 async function generateFishAudioTTS(voiceId: string, text: string): Promise<Buffer | null> {
   const key = process.env.FISH_AUDIO_API;
@@ -281,13 +254,16 @@ async function generateFishAudioTTS(voiceId: string, text: string): Promise<Buff
         FISH_MAX_BACKOFF_MS,
         FISH_BASE_BACKOFF_MS * Math.pow(2, attempt - 1)
       );
-      const jitter = Math.floor(Math.random() * 250);
+      // Scale jitter with attempt to spread out thundering-herd retries
+      const jitter = Math.floor(Math.random() * (500 + attempt * 300));
       const delayMs = Math.max(retryAfterMs ?? 0, expBackoff + jitter);
 
       console.warn(
         `[TTS] Fish Audio ${res.status} retry ${attempt}/${maxAttempts - 1} after ${delayMs}ms`
       );
       await sleep(delayMs);
+      // Re-enter the rate gate so retries don't all fire at once
+      await waitForFishSlot();
     }
 
     return null;
@@ -414,15 +390,12 @@ export async function assembleStoryAudio(storyId: string, userId: string): Promi
   }
 
   const fishAudioVoiceId = (user.voice_model_id ?? '') as string;
-  let selectedVoiceId: string | null = null;
-  let ttsProvider: 'fishaudio' | 'free' = 'free';
+  const selectedVoiceId = (process.env.FISH_AUDIO_API && fishAudioVoiceId) ? fishAudioVoiceId : null;
+  const userHasClonedVoice = !!selectedVoiceId;
 
-  if (process.env.FISH_AUDIO_API && fishAudioVoiceId) {
-    selectedVoiceId = fishAudioVoiceId;
-    ttsProvider = 'fishaudio';
+  if (!selectedVoiceId) {
+    throw new Error('Fish Audio API key or voice model not configured');
   }
-
-  const userHasClonedVoice = ttsProvider !== 'free' && !!selectedVoiceId;
 
   const storyType = (story as any).story_type || 'night';
   let induction: Buffer | null = null;
@@ -448,17 +421,11 @@ export async function assembleStoryAudio(storyId: string, userId: string): Promi
         if (idx >= chunks.length) return;
 
         const chunk = chunks[idx];
-        let buf: Buffer | null = null;
 
         console.log(`[assemble] ${label} chunk ${idx + 1}/${chunks.length} worker=${workerId}`);
 
-        if (ttsProvider === 'fishaudio') {
-          buf = await generateFishAudioTTS(selectedVoiceId!, chunk);
-          if (!buf) throw new Error(`Voice generation failed on ${label} chunk ${idx + 1}`);
-        } else {
-          buf = await generateFreeTTS(chunk);
-          if (!buf) throw new Error(`Free TTS failed on ${label} chunk ${idx + 1}`);
-        }
+        const buf = await generateFishAudioTTS(selectedVoiceId!, chunk);
+        if (!buf) throw new Error(`Voice generation failed on ${label} chunk ${idx + 1}`);
 
         buffers[idx] = buf;
       }
@@ -472,14 +439,13 @@ export async function assembleStoryAudio(storyId: string, userId: string): Promi
   const fullText = String(rawText);
   const { intro: introText, storyBody: storyBodyText } = splitIntroFromStory(fullText);
 
-  let introBuffers: Buffer[] = [];
-  if (introText && introText.trim().length > 0) {
-    if (!induction) {
-      introBuffers = await generateTTSForText(introText, 'intro');
-    }
-  }
+  // Generate intro + story TTS in parallel instead of sequentially
+  const needsIntroTTS = !!(introText && introText.trim().length > 0 && !induction);
+  const [introBuffers, storyBuffers] = await Promise.all([
+    needsIntroTTS ? generateTTSForText(introText, 'intro') : Promise.resolve([] as Buffer[]),
+    generateTTSForText(storyBodyText, 'story'),
+  ]);
 
-  const storyBuffers = await generateTTSForText(storyBodyText, 'story');
   if (storyBuffers.length === 0) throw new Error('Failed to generate any audio');
 
   const parts: Buffer[] = [];
@@ -487,46 +453,32 @@ export async function assembleStoryAudio(storyId: string, userId: string): Promi
   else if (introBuffers.length > 0) parts.push(...introBuffers);
   parts.push(...storyBuffers);
 
-  const assembled = ttsProvider === 'fishaudio' ? joinWavChunksWithCrossfade(parts) : Buffer.concat(parts);
+  console.log(`[assemble] Crossfading ${parts.length} WAV parts...`);
+  const assembled = joinWavChunksWithCrossfade(parts);
 
-  const bytesPerSecond = ttsProvider === 'fishaudio' ? 88200 : 16000;
+  const bytesPerSecond = 88200;
   const duration = Math.round(assembled.byteLength / bytesPerSecond);
-
-  const assembledExt = ttsProvider === 'fishaudio' ? 'wav' : 'mp3';
-  const assembledMime = ttsProvider === 'fishaudio' ? 'audio/wav' : 'audio/mpeg';
-
-  const rawKey = `user_${user.id}/story_${story.id}_final_${ts}.${assembledExt}`;
-  await uploadToR2(rawKey, assembled, assembledMime);
-
-  let voiceOnlyKey = rawKey;
-  let voiceOnlyBuffer = assembled;
-  let audioMime = assembledMime;
-
-  if (userHasClonedVoice) {
-    const enhancedBuffer = await enhanceNarrationVoice(assembled);
-    const enhancedKey = `user_${user.id}/stories/${story.id}/voice_enhanced_${Date.now()}.mp3`;
-    await uploadToR2(enhancedKey, enhancedBuffer, 'audio/mpeg');
-    voiceOnlyKey = enhancedKey;
-    voiceOnlyBuffer = enhancedBuffer;
-    audioMime = 'audio/mpeg';
-  }
-
-  // Best-effort cleanup of intermediate raw key when enhancement created a replacement.
-  if (voiceOnlyKey !== rawKey) {
-    await deleteFromR2(rawKey);
-  }
-
-  let finalAudioKey = voiceOnlyKey;
-  let finalAudioUrl = `/api/user/audio/stream?key=${encodeURIComponent(finalAudioKey)}`;
-  let mixedWithSoundscape = false;
+  console.log(`[assemble] Crossfade done — ~${duration}s of audio (${Math.round(assembled.byteLength / 1024)}KB WAV)`);
 
   const userSoundscape = user.soundscape;
   const userBinaural = !!(user as any).binaural_enabled;
   const hasSoundscapeSelected = userSoundscape && userSoundscape !== 'none';
+  const needsMix = hasSoundscapeSelected || userBinaural;
 
-  if (hasSoundscapeSelected || userBinaural) {
+  let voiceOnlyKey: string;
+  let voiceOnlyBuffer: Buffer;
+  let finalAudioKey: string;
+  let finalAudioUrl: string;
+  let mixedWithSoundscape = false;
+
+  if (needsMix) {
+    // ── SINGLE-PASS: enhance + mix in one FFmpeg command ──
+    // Skip the separate enhance step — voice filters are applied inline inside mixAudio.
+    // This saves an entire FFmpeg encode/decode cycle (30–60s on long narrations).
+    console.log(`[assemble] Single-pass mode: enhance + mix together`);
+    console.log(`[assemble] Mixing: soundscape=${userSoundscape || 'none'} binaural=${userBinaural}`);
+
     let soundscapeAsset: any = null;
-
     if (hasSoundscapeSelected) {
       soundscapeAsset = await prisma.soundscapeAsset.findFirst({
         where: { isActive: true, title: { contains: userSoundscape, mode: 'insensitive' } },
@@ -540,18 +492,37 @@ export async function assembleStoryAudio(storyId: string, userId: string): Promi
 
     let bgBuffer: Buffer | null = null;
     if (soundscapeAsset?.r2_key) {
+      console.log(`[assemble] Downloading soundscape from R2: ${soundscapeAsset.r2_key}`);
       bgBuffer = await downloadFromR2(soundscapeAsset.r2_key);
+      console.log(`[assemble] Soundscape downloaded (${Math.round((bgBuffer?.byteLength ?? 0) / 1024)}KB)`);
     }
 
+    console.log(`[assemble] Running combined enhance+mix (FFmpeg)...`);
+    const mixStart = Date.now();
     const mixedBuffer = await mixAudio({
-      voiceBuffer: voiceOnlyBuffer,
+      voiceBuffer: assembled,
       backgroundBuffer: bgBuffer,
       backgroundVolume: 0.15,
       binauralEnabled: userBinaural,
+      enhanceVoice: true,
     });
+    console.log(`[assemble] Enhance+mix done in ${((Date.now() - mixStart) / 1000).toFixed(1)}s (${Math.round(mixedBuffer.byteLength / 1024)}KB MP3)`);
+
+    // Also produce a voice-only enhanced version for the player
+    console.log(`[assemble] Enhancing voice-only track (FFmpeg)...`);
+    const enhanceStart = Date.now();
+    voiceOnlyBuffer = await enhanceNarrationVoice(assembled);
+    console.log(`[assemble] Voice-only enhance done in ${((Date.now() - enhanceStart) / 1000).toFixed(1)}s`);
+
+    voiceOnlyKey = `user_${user.id}/stories/${story.id}/voice_enhanced_${Date.now()}.mp3`;
 
     const mixedKey = `user_${story.userId}/stories/${story.id}/combined_${Date.now()}.mp3`;
-    await uploadToR2(mixedKey, mixedBuffer, 'audio/mpeg');
+    console.log(`[assemble] Uploading voice + mixed to R2...`);
+    await Promise.all([
+      uploadToR2(voiceOnlyKey, voiceOnlyBuffer, 'audio/mpeg'),
+      uploadToR2(mixedKey, mixedBuffer, 'audio/mpeg'),
+    ]);
+    console.log(`[assemble] Uploads done`);
 
     if (story.combined_audio_key && story.combined_audio_key !== mixedKey) {
       await deleteFromR2(story.combined_audio_key);
@@ -568,6 +539,20 @@ export async function assembleStoryAudio(storyId: string, userId: string): Promi
         soundscape_audio_key: soundscapeAsset?.r2_key ?? null,
       },
     });
+  } else {
+    // ── VOICE-ONLY: just enhance, no mixing needed ──
+    console.log(`[assemble] Enhancing narration voice (FFmpeg)...`);
+    const enhanceStart = Date.now();
+    voiceOnlyBuffer = await enhanceNarrationVoice(assembled);
+    console.log(`[assemble] Enhance done in ${((Date.now() - enhanceStart) / 1000).toFixed(1)}s (${Math.round(voiceOnlyBuffer.byteLength / 1024)}KB MP3)`);
+
+    voiceOnlyKey = `user_${user.id}/stories/${story.id}/voice_enhanced_${Date.now()}.mp3`;
+    console.log(`[assemble] Uploading enhanced voice to R2...`);
+    await uploadToR2(voiceOnlyKey, voiceOnlyBuffer, 'audio/mpeg');
+    console.log(`[assemble] Upload done: ${voiceOnlyKey}`);
+
+    finalAudioKey = voiceOnlyKey;
+    finalAudioUrl = `/api/user/audio/stream?key=${encodeURIComponent(finalAudioKey)}`;
   }
 
   await prisma.story.update({
@@ -582,7 +567,7 @@ export async function assembleStoryAudio(storyId: string, userId: string): Promi
     },
   });
 
-  console.log(`[assemble] Completed story=${story.id} key=${finalAudioKey} mime=${audioMime}`);
+  console.log(`[assemble] Completed story=${story.id} key=${finalAudioKey} mime=audio/mpeg`);
 
   return {
     success: true,
@@ -594,7 +579,7 @@ export async function assembleStoryAudio(storyId: string, userId: string): Promi
       hasTTSIntro: introBuffers.length > 0,
       hasUserVoice: userHasClonedVoice,
       introSource: induction ? 'admin' : (introBuffers.length > 0 ? 'tts' : 'none'),
-      storySource: userHasClonedVoice ? 'cloned' : 'tts',
+      storySource: 'cloned',
       mixedWithSoundscape,
     },
   };

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { invokeWithFallback } from '@/lib/langchain';
 import { HumanMessage, SystemMessage, AIMessage } from "@langchain/core/messages";
+import { appLog } from '@/lib/app-logger';
 
 const AUTO_ANSWER_SYSTEM_PROMPT = `You are role-playing as a young individual (early-to-mid 20s) who is going through a personal-growth intake conversation with a guide named Maya. You must generate a realistic, thoughtful, and natural-sounding answer to Maya's latest question.
 
@@ -55,6 +56,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ text });
     } catch (error: any) {
         console.error('Error in auto-answer API:', error);
+        appLog({ level: "error", source: "api/user/chat/auto-answer", message: `Auto-answer error: ${error.message || error}` });
         return NextResponse.json({ error: error.message || 'Error occurred' }, { status: 500 });
     }
 }
