@@ -1,5 +1,6 @@
 "use client";
 import React, {
+  Suspense,
   useState,
   useEffect,
   useRef,
@@ -315,8 +316,7 @@ function tokenizeProofText(text: string): string[] {
     .split(/\s+/)
     .map((token) => stemProofToken(token.trim()))
     .filter(
-      (token) =>
-        token.length >= 3 && !PROOF_ACTION_STOP_WORDS.has(token),
+      (token) => token.length >= 3 && !PROOF_ACTION_STOP_WORDS.has(token),
     );
 }
 
@@ -331,9 +331,11 @@ function getAreaMatchTerms(
     ),
   );
 
-  tokenizeProofText(LIFE_AREA_LABELS[normalizedArea] || area).forEach((token) => {
-    terms.add(token);
-  });
+  tokenizeProofText(LIFE_AREA_LABELS[normalizedArea] || area).forEach(
+    (token) => {
+      terms.add(token);
+    },
+  );
 
   const areaValue = capturedGoals?.[normalizedArea];
   const areaText = Array.isArray(areaValue)
@@ -358,11 +360,15 @@ function proofItemMatchesArea(
 ): boolean {
   const normalizedArea = normalizeAreaValue(area);
   const proofTokens = new Set(tokenizeProofText(proofItem));
-  const matchTerms = Array.from(getAreaMatchTerms(normalizedArea, capturedGoals));
-  const keywordTerms = (LIFE_AREA_KEYWORDS[normalizedArea] || []).map((keyword) =>
-    stemProofToken(keyword.toLowerCase()),
+  const matchTerms = Array.from(
+    getAreaMatchTerms(normalizedArea, capturedGoals),
   );
-  const overlapCount = matchTerms.filter((term) => proofTokens.has(term)).length;
+  const keywordTerms = (LIFE_AREA_KEYWORDS[normalizedArea] || []).map(
+    (keyword) => stemProofToken(keyword.toLowerCase()),
+  );
+  const overlapCount = matchTerms.filter((term) =>
+    proofTokens.has(term),
+  ).length;
 
   if (keywordTerms.some((term) => proofTokens.has(term))) {
     return true;
@@ -437,7 +443,9 @@ function getProofActionCoverage(capturedGoals?: CapturedData | null) {
     requiredCount,
     coveredAreas,
     missingAreas,
-    missingAreaLabels: missingAreas.map((area) => LIFE_AREA_LABELS[area] || area),
+    missingAreaLabels: missingAreas.map(
+      (area) => LIFE_AREA_LABELS[area] || area,
+    ),
     missingCount,
     hasCoverage: requiredCount === 0 || missingCount === 0,
   };
@@ -960,8 +968,8 @@ const CompletionCard: React.FC<CompletionCardProps> = ({
         {!proofActionCoverage.hasCoverage && (
           <div className={styles.betaNote}>
             Add at least one proof action for each selected life area before
-            generating. Still missing: {proofActionCoverage.missingAreaLabels.join(", ")}
-            .
+            generating. Still missing:{" "}
+            {proofActionCoverage.missingAreaLabels.join(", ")}.
           </div>
         )}
 
@@ -2189,8 +2197,8 @@ const GoalDiscovery: React.FC = () => {
           !proofActionCoverage.hasCoverage &&
           proofActionCoverage.requiredCount > 0
         ) {
-          const missingAreaLabels = proofActionCoverage.missingAreaLabels
-            .join(", ");
+          const missingAreaLabels =
+            proofActionCoverage.missingAreaLabels.join(", ");
 
           setMessages((prev) => [
             ...prev,
@@ -2253,23 +2261,23 @@ const GoalDiscovery: React.FC = () => {
     [isWaiting, parseResponse],
   );
 
-    const proofActionCoverage = useMemo(
-      () => getProofActionCoverage(capturedGoals),
-      [capturedGoals],
-    );
-    const visibleTopicIds = useMemo(
-      () =>
-        SIDEBAR_GROUPS.filter((group) =>
-          isSidebarGroupVisible(group, capturedGoals),
-        ).flatMap((group) => group.topicIds),
-      [capturedGoals],
-    );
-    const canFinishIntake = useMemo(
-      () =>
-        visibleTopicIds.every((id) => respondedTopics.includes(id)) &&
-        proofActionCoverage.hasCoverage,
-      [proofActionCoverage.hasCoverage, respondedTopics, visibleTopicIds],
-    );
+  const proofActionCoverage = useMemo(
+    () => getProofActionCoverage(capturedGoals),
+    [capturedGoals],
+  );
+  const visibleTopicIds = useMemo(
+    () =>
+      SIDEBAR_GROUPS.filter((group) =>
+        isSidebarGroupVisible(group, capturedGoals),
+      ).flatMap((group) => group.topicIds),
+    [capturedGoals],
+  );
+  const canFinishIntake = useMemo(
+    () =>
+      visibleTopicIds.every((id) => respondedTopics.includes(id)) &&
+      proofActionCoverage.hasCoverage,
+    [proofActionCoverage.hasCoverage, respondedTopics, visibleTopicIds],
+  );
 
   const handleSend = useCallback(() => {
     if (!inputValue.trim() || isWaiting) return;
@@ -2918,9 +2926,7 @@ const GoalDiscovery: React.FC = () => {
               }}
               disabled={!canFinishIntake}
               style={
-                !canFinishIntake
-                  ? { opacity: 0.5, cursor: "not-allowed" }
-                  : {}
+                !canFinishIntake ? { opacity: 0.5, cursor: "not-allowed" } : {}
               }
             >
               <span>Finish & Generate →</span>
@@ -2932,4 +2938,10 @@ const GoalDiscovery: React.FC = () => {
   );
 };
 
-export default GoalDiscovery;
+export default function GoalDiscoveryPage() {
+  return (
+    <Suspense>
+      <GoalDiscovery />
+    </Suspense>
+  );
+}
