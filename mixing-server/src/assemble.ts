@@ -13,9 +13,7 @@ const INTRO_END_MARKER = '[INTRO_END]';
 const FISH_MAX_RETRIES = Math.max(0, Number(process.env.FISH_TTS_MAX_RETRIES ?? 3) || 3);
 const FISH_BASE_BACKOFF_MS = Math.max(50, Number(process.env.FISH_TTS_BASE_BACKOFF_MS ?? 1000) || 1000);
 const FISH_MAX_BACKOFF_MS = Math.max(FISH_BASE_BACKOFF_MS, Number(process.env.FISH_TTS_MAX_BACKOFF_MS ?? 10000) || 10000);
-// Max parallel Fish requests per job (tune via env)
 const FISH_CONCURRENCY = Math.max(1, Number(process.env.FISH_TTS_CONCURRENCY ?? 5) || 5);
-// Target chars per chunk — smaller = faster Fish response per request
 const CHUNK_CHARS = Math.max(200, Number(process.env.FISH_CHUNK_CHARS ?? 700) || 700);
 
 function sleep(ms: number): Promise<void> {
@@ -31,7 +29,6 @@ function parseRetryAfterMs(retryAfterHeader: string | null): number | null {
   return null;
 }
 
-// Simple semaphore — allows N concurrent Fish requests without a global serial gate
 function makeSemaphore(n: number) {
   let running = 0;
   const queue: (() => void)[] = [];
@@ -48,14 +45,11 @@ function makeSemaphore(n: number) {
   };
 }
 
-// Split story text into sentence-boundary chunks of ~CHUNK_CHARS each
 function splitIntoChunks(text: string, maxChars = CHUNK_CHARS): string[] {
   if (text.length <= maxChars) return [text];
-
   const parts = text.split(/(?<=[.!?])\s+/);
   const chunks: string[] = [];
   let current = '';
-
   for (const part of parts) {
     const candidate = current ? current + ' ' + part : part;
     if (candidate.length > maxChars && current) {
@@ -69,35 +63,26 @@ function splitIntoChunks(text: string, maxChars = CHUNK_CHARS): string[] {
   return chunks.length ? chunks : [text];
 }
 
-// Convert a WAV buffer to MP3 using FFmpeg (fallback when Fish returns WAV)
 async function wavBufferToMp3(wavBuffer: Buffer): Promise<Buffer> {
   const tmpDir = path.join(os.tmpdir(), `fish-conv-${randomUUID()}`);
   fs.mkdirSync(tmpDir, { recursive: true });
   const inPath = path.join(tmpDir, 'in.wav');
   const outPath = path.join(tmpDir, 'out.mp3');
   fs.writeFileSync(inPath, wavBuffer);
-
   return new Promise<Buffer>((resolve, reject) => {
     ffmpeg()
       .input(inPath)
       .outputOptions(['-q:a', '4', '-ac', '1', '-ar', '24000', '-codec:a', 'libmp3lame'])
       .output(outPath)
       .on('end', () => {
-        try {
-          const result = fs.readFileSync(outPath);
-          fs.rmSync(tmpDir, { recursive: true, force: true });
-          resolve(result);
-        } catch (e) { reject(e); }
+        try { const r = fs.readFileSync(outPath); fs.rmSync(tmpDir, { recursive: true, force: true }); resolve(r); }
+        catch (e) { reject(e); }
       })
-      .on('error', (err) => {
-        try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
-        reject(err);
-      })
+      .on('error', (err) => { try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {} reject(err); })
       .run();
   });
 }
 
-// Detect WAV by magic bytes — Fish sometimes returns WAV even when MP3 is requested
 function isWav(buf: Buffer): boolean {
   return buf.length >= 12 && buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WAVE';
 }
@@ -105,36 +90,28 @@ function isWav(buf: Buffer): boolean {
 async function concatMp3Buffers(parts: Buffer[]): Promise<Buffer> {
   if (parts.length === 0) return Buffer.alloc(0);
   if (parts.length === 1) return parts[0];
-
   const tmpDir = path.join(os.tmpdir(), `fish-concat-${randomUUID()}`);
   fs.mkdirSync(tmpDir, { recursive: true });
-
   try {
     const listFilePath = path.join(tmpDir, 'list.txt');
     const listLines: string[] = [];
-
     for (let i = 0; i < parts.length; i++) {
       const partPath = path.join(tmpDir, `part-${i}.mp3`);
       fs.writeFileSync(partPath, parts[i]);
-      const safePath = partPath.replace(/'/g, "'\\''");
-      listLines.push(`file '${safePath}'`);
+      listLines.push(`file '${partPath.replace(/'/g, "'\\''")}'`);
     }
-
     fs.writeFileSync(listFilePath, listLines.join('\n') + '\n');
     const outPath = path.join(tmpDir, 'joined.mp3');
-
     await new Promise<void>((resolve, reject) => {
       ffmpeg()
         .input(listFilePath)
         .inputOptions(['-f', 'concat', '-safe', '0'])
-        // Re-encode once to guarantee decoder compatibility across concatenated chunks.
         .outputOptions(['-codec:a', 'libmp3lame', '-q:a', '4', '-ac', '1', '-ar', '24000'])
         .output(outPath)
         .on('end', () => resolve())
         .on('error', (err) => reject(err))
         .run();
     });
-
     return fs.readFileSync(outPath);
   } finally {
     try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
@@ -146,19 +123,15 @@ async function getAudioDurationSecs(audioBuffer: Buffer, ext: 'mp3' | 'wav'): Pr
   fs.mkdirSync(tmpDir, { recursive: true });
   const audioPath = path.join(tmpDir, `audio.${ext}`);
   fs.writeFileSync(audioPath, audioBuffer);
-
   try {
-    const duration = await new Promise<number>((resolve, reject) => {
+    return await new Promise<number>((resolve, reject) => {
       ffmpeg.ffprobe(audioPath, (err, metadata) => {
         if (err) return reject(err);
         const seconds = Number(metadata?.format?.duration ?? 0);
-        if (!Number.isFinite(seconds) || seconds <= 0) {
-          return reject(new Error('Invalid audio duration'));
-        }
-        resolve(seconds);
+        if (!Number.isFinite(seconds) || seconds <= 0) return reject(new Error('Invalid audio duration'));
+        resolve(Math.round(seconds));
       });
     });
-    return Math.round(duration);
   } finally {
     try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
   }
@@ -166,33 +139,22 @@ async function getAudioDurationSecs(audioBuffer: Buffer, ext: 'mp3' | 'wav'): Pr
 
 function splitIntroFromStory(fullText: string): { intro: string; storyBody: string } {
   const idx = fullText.indexOf(INTRO_END_MARKER);
-  if (idx === -1) {
-    return { intro: '', storyBody: fullText.trim() };
-  }
+  if (idx === -1) return { intro: '', storyBody: fullText.trim() };
   return {
     intro: fullText.slice(0, idx).trim(),
     storyBody: fullText.slice(idx + INTRO_END_MARKER.length).trim(),
   };
 }
 
-
-
-// Generate audio for a single chunk using Fish Audio.
-// sem is acquired by the caller before this runs so concurrency is controlled outside.
 async function generateFishAudioTTS(voiceId: string, text: string): Promise<Buffer | null> {
   const key = process.env.FISH_AUDIO_API;
   if (!key || !voiceId) return null;
-
   try {
     const maxAttempts = FISH_MAX_RETRIES + 1;
-
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       const res = await fetch('https://api.fish.audio/v1/tts', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${key}`,
-        },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
         body: JSON.stringify({
           text,
           reference_id: voiceId.startsWith('mock_') ? '7ef4660e505a41d9966d58546de54201' : voiceId,
@@ -212,33 +174,26 @@ async function generateFishAudioTTS(voiceId: string, text: string): Promise<Buff
           prosody: { speed: 0.9, volume: 0, normalize_loudness: true },
         }),
       });
-
       if (res.ok) {
         const buf = Buffer.from(await res.arrayBuffer());
-        // Fish can return WAV even when MP3 is requested — convert if needed
         if (isWav(buf)) {
           console.warn('[TTS] Fish returned WAV despite mp3 request — converting with FFmpeg');
           return await wavBufferToMp3(buf);
         }
         return buf;
       }
-
       const errBody = await res.text().catch(() => '');
       const retryAfterMs = parseRetryAfterMs(res.headers.get('retry-after'));
       const shouldRetry = res.status === 429 || res.status >= 500;
-
       if (!shouldRetry || attempt >= maxAttempts) {
         console.error(`[TTS] Fish Audio ${res.status}: ${errBody}`);
         return null;
       }
-
       const expBackoff = Math.min(FISH_MAX_BACKOFF_MS, FISH_BASE_BACKOFF_MS * Math.pow(2, attempt - 1));
-      const jitter = Math.floor(Math.random() * 500);
-      const delayMs = Math.max(retryAfterMs ?? 0, expBackoff + jitter);
+      const delayMs = Math.max(retryAfterMs ?? 0, expBackoff + Math.floor(Math.random() * 500));
       console.warn(`[TTS] Fish Audio ${res.status} retry ${attempt}/${maxAttempts - 1} after ${delayMs}ms`);
       await sleep(delayMs);
     }
-
     return null;
   } catch (e) {
     console.error('[TTS] generateFishAudioTTS threw:', e);
@@ -246,14 +201,11 @@ async function generateFishAudioTTS(voiceId: string, text: string): Promise<Buff
   }
 }
 
-// Generate all chunks in parallel (up to FISH_CONCURRENCY at a time) and concat MP3 buffers
 async function generateParallel(voiceId: string, text: string): Promise<Buffer> {
   const chunks = splitIntoChunks(text);
   console.log(`[assemble] Splitting into ${chunks.length} chunk(s) (~${CHUNK_CHARS} chars each), concurrency=${FISH_CONCURRENCY}`);
-
   const sem = makeSemaphore(FISH_CONCURRENCY);
   const buffers = new Array<Buffer>(chunks.length);
-
   await Promise.all(chunks.map(async (chunk, i) => {
     await sem.acquire();
     try {
@@ -265,7 +217,6 @@ async function generateParallel(voiceId: string, text: string): Promise<Buffer> 
       sem.release();
     }
   }));
-
   return concatMp3Buffers(buffers);
 }
 
@@ -288,32 +239,53 @@ export async function assembleStoryAudio(storyId: string, userId: string): Promi
   const [user, story] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
-      select: {
-        id: true,
-        voice_model_id: true,
-        soundscape: true,
-        binaural_enabled: true,
-      },
+      select: { id: true, voice_model_id: true, soundscape: true, binaural_enabled: true },
     }),
     prisma.story.findUnique({ where: { id: storyId } }),
   ]);
 
-  if (!user || !story || story.userId !== user.id) {
-    throw new Error('Story not found');
-  }
+  if (!user || !story || story.userId !== user.id) throw new Error('Story not found');
 
   const fishAudioVoiceId = (user.voice_model_id ?? '') as string;
   const selectedVoiceId = (process.env.FISH_AUDIO_API && fishAudioVoiceId) ? fishAudioVoiceId : null;
   const userHasClonedVoice = !!selectedVoiceId;
 
-  if (!selectedVoiceId) {
-    throw new Error('Fish Audio API key or voice model not configured');
+  if (!selectedVoiceId) throw new Error('Fish Audio API key or voice model not configured');
+
+  const approvedText = String((story as any).story_text_approved || '');
+  const draftText    = String((story as any).story_text_draft    || '');
+
+  // Build the full text for Fish (intro + body, [INTRO_END] tag removed).
+  //
+  // story_text_draft  = full LLM output, always has intro + [INTRO_END] + body
+  // story_text_approved = user-edited version; frontends may save only the body
+  //                       (stripping the intro), so approved text can be body-only.
+  //
+  // Rules:
+  //  1. approved has [INTRO_END]  → complete, strip tag and use it
+  //  2. approved exists, no marker → body-only; prepend intro rescued from draft
+  //  3. no approved text           → use full draft
+  let textForFish = '';
+
+  if (approvedText) {
+    if (approvedText.includes(INTRO_END_MARKER)) {
+      textForFish = approvedText.replace(/\[INTRO_END\]/g, '').trim();
+      console.log(`[assemble] Using full approved text (intro+body), ${textForFish.length} chars`);
+    } else {
+      const { intro: draftIntro } = splitIntroFromStory(draftText);
+      if (draftIntro) {
+        textForFish = (draftIntro + '\n\n' + approvedText).trim();
+        console.log(`[assemble] Prepended draft intro (${draftIntro.length} chars) to approved body (${approvedText.length} chars) → ${textForFish.length} total chars`);
+      } else {
+        textForFish = approvedText.trim();
+        console.log(`[assemble] No intro in draft — using approved body only, ${textForFish.length} chars`);
+      }
+    }
+  } else {
+    textForFish = draftText.replace(/\[INTRO_END\]/g, '').trim();
+    console.log(`[assemble] Using full draft text (intro+body), ${textForFish.length} chars`);
   }
 
-  const rawText = (story as any).story_text_approved || (story as any).story_text_draft || '';
-  const fullText = String(rawText);
-    const { storyBody: storyBodyText } = splitIntroFromStory(fullText);
-    const textForFish = storyBodyText.trim();
   if (!textForFish) throw new Error('Story text is empty');
 
   console.log(`[assemble] Generating Fish audio (${textForFish.length} chars)`);
