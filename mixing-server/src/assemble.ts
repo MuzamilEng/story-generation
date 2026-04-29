@@ -249,17 +249,6 @@ async function getAudioDurationSecs(audioBuffer: Buffer, ext: 'mp3' | 'wav'): Pr
   }
 }
 
-function splitIntroFromStory(fullText: string): { intro: string; storyBody: string } {
-  const idx = fullText.indexOf(INTRO_END_MARKER);
-  if (idx === -1) {
-    return { intro: '', storyBody: fullText.trim() };
-  }
-  return {
-    intro: fullText.slice(0, idx).trim(),
-    storyBody: fullText.slice(idx + INTRO_END_MARKER.length).trim(),
-  };
-}
-
 // Strip the [INTRO_END] marker but keep both intro and story text
 function stripMarkers(fullText: string): string {
   return fullText.replace(INTRO_END_MARKER, ' ').trim();
@@ -313,9 +302,8 @@ async function generateFishAudioTTS(voiceId: string, text: string): Promise<Buff
           chunk_length: 250,
           min_chunk_length: 100,
           repetition_penalty: 1.05,
-          max_new_tokens: 2048,
+          max_new_tokens: 0,
           condition_on_previous_chunks: true,
-          early_stop_threshold: 0.8,
           prosody: { speed: 0.78, volume: 0, normalize_loudness: true },
         }),
       });
