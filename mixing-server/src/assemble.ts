@@ -15,8 +15,8 @@ const FISH_BASE_BACKOFF_MS = Math.max(50, Number(process.env.FISH_TTS_BASE_BACKO
 const FISH_MAX_BACKOFF_MS = Math.max(FISH_BASE_BACKOFF_MS, Number(process.env.FISH_TTS_MAX_BACKOFF_MS ?? 10000) || 10000);
 // Max parallel Fish requests per job (tune via env)
 const FISH_CONCURRENCY = Math.max(1, Number(process.env.FISH_TTS_CONCURRENCY ?? 5) || 5);
-// Target chars per chunk — smaller = faster Fish response per request
-const CHUNK_CHARS = Math.max(200, Number(process.env.FISH_CHUNK_CHARS ?? 700) || 700);
+// Target chars per chunk — larger chunks preserve prosody context for natural speech
+const CHUNK_CHARS = Math.max(200, Number(process.env.FISH_CHUNK_CHARS ?? 1200) || 1200);
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -141,6 +141,91 @@ async function concatMp3Buffers(parts: Buffer[]): Promise<Buffer> {
   }
 }
 
+// Post-process TTS audio for warm, calm bedtime narration quality
+async function postProcessNarration(inputBuffer: Buffer): Promise<Buffer> {
+  const tmpDir = path.join(os.tmpdir(), `fish-post-${randomUUID()}`);
+  fs.mkdirSync(tmpDir, { recursive: true });
+  const inPath = path.join(tmpDir, 'in.mp3');
+  const outPath = path.join(tmpDir, 'out.mp3');
+  fs.writeFileSync(inPath, inputBuffer);
+
+  return new Promise<Buffer>((resolve, reject) => {
+    ffmpeg()
+      .input(inPath)
+      .audioFilters([
+        // Warmth EQ: boost low-mids (200-400Hz), soften harsh highs above 6kHz
+        'equalizer=f=300:t=h:w=200:g=3',
+        'equalizer=f=7000:t=h:w=3000:g=-4',
+        // Gentle compressor: smooth volume spikes for calm narration
+        'acompressor=threshold=-20dB:ratio=3:attack=80:release=400:knee=6:makeup=2',
+        // Loudness normalization to -16 LUFS (comfortable night listening)
+        'loudnorm=I=-16:TP=-1.5:LRA=11',
+        // Gentle fade-in (1.5s) and fade-out (2.5s)
+        'afade=t=in:st=0:d=1.5',
+      ])
+      .outputOptions([
+        '-codec:a', 'libmp3lame',
+        '-q:a', '2',   // Higher quality VBR
+        '-ac', '1',
+        '-ar', '44100',
+      ])
+      .output(outPath)
+      .on('end', () => {
+        try {
+          const result = fs.readFileSync(outPath);
+          fs.rmSync(tmpDir, { recursive: true, force: true });
+          resolve(result);
+        } catch (e) { reject(e); }
+      })
+      .on('error', (err) => {
+        console.error('[postProcess] FFmpeg error, returning original audio:', err.message);
+        try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+        // Fallback: return unprocessed audio rather than failing the whole job
+        resolve(inputBuffer);
+      })
+      .run();
+  });
+}
+
+// Apply fade-out to the last N seconds (must run as separate pass after loudnorm)
+async function applyFadeOut(inputBuffer: Buffer, fadeSecs = 2.5): Promise<Buffer> {
+  const tmpDir = path.join(os.tmpdir(), `fish-fade-${randomUUID()}`);
+  fs.mkdirSync(tmpDir, { recursive: true });
+  const inPath = path.join(tmpDir, 'in.mp3');
+  const outPath = path.join(tmpDir, 'out.mp3');
+  fs.writeFileSync(inPath, inputBuffer);
+
+  // Get duration first
+  const duration = await new Promise<number>((resolve, reject) => {
+    ffmpeg.ffprobe(inPath, (err, metadata) => {
+      if (err) return reject(err);
+      resolve(Number(metadata?.format?.duration ?? 0));
+    });
+  });
+
+  if (!Number.isFinite(duration) || duration <= fadeSecs) return inputBuffer;
+
+  return new Promise<Buffer>((resolve, reject) => {
+    ffmpeg()
+      .input(inPath)
+      .audioFilters([`afade=t=out:st=${(duration - fadeSecs).toFixed(2)}:d=${fadeSecs}`])
+      .outputOptions(['-codec:a', 'libmp3lame', '-q:a', '2', '-ac', '1', '-ar', '44100'])
+      .output(outPath)
+      .on('end', () => {
+        try {
+          const result = fs.readFileSync(outPath);
+          fs.rmSync(tmpDir, { recursive: true, force: true });
+          resolve(result);
+        } catch (e) { reject(e); }
+      })
+      .on('error', (err) => {
+        try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+        resolve(inputBuffer);
+      })
+      .run();
+  });
+}
+
 async function getAudioDurationSecs(audioBuffer: Buffer, ext: 'mp3' | 'wav'): Promise<number> {
   const tmpDir = path.join(os.tmpdir(), `fish-duration-${randomUUID()}`);
   fs.mkdirSync(tmpDir, { recursive: true });
@@ -175,6 +260,28 @@ function splitIntroFromStory(fullText: string): { intro: string; storyBody: stri
   };
 }
 
+// Strip the [INTRO_END] marker but keep both intro and story text
+function stripMarkers(fullText: string): string {
+  return fullText.replace(INTRO_END_MARKER, ' ').trim();
+}
+
+// Remove breath/sigh/inhale cues that TTS vocalizes unnaturally;
+// replace with ellipses for natural pacing.
+function sanitizeForTTS(text: string): string {
+  return text
+    // Remove bracketed stage directions: [inhale], [exhale], [deep breath], [sigh], [pause], etc.
+    .replace(/\[\s*(?:inhale|exhale|deep\s*breath|breath|sigh|pause|long\s*pause)\s*\]/gi, '...')
+    // Remove parenthesized variants: (deep breath), (sigh), etc.
+    .replace(/\(\s*(?:inhale|exhale|deep\s*breath|breath|sigh|pause|long\s*pause)\s*\)/gi, '...')
+    // Remove standalone cues on their own line: "deep breath", "sigh...", "*sigh*"
+    .replace(/^\s*\*?(?:deep\s*breath|sigh|inhale|exhale)\*?[.…]*\s*$/gim, '...')
+    // Collapse multiple consecutive ellipses/whitespace into a single pause
+    .replace(/(?:\.{3,}|…)(?:\s*(?:\.{3,}|…))*/g, '...')
+    // Collapse multiple blank lines into one
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 
 
 // Generate audio for a single chunk using Fish Audio.
@@ -201,15 +308,15 @@ async function generateFishAudioTTS(voiceId: string, text: string): Promise<Buff
           sample_rate: 44100,
           normalize: true,
           latency: 'normal',
-          temperature: 0.8,
-          top_p: 0.8,
-          chunk_length: 300,
-          min_chunk_length: 80,
-          repetition_penalty: 1.2,
+          temperature: 0.65,
+          top_p: 0.85,
+          chunk_length: 250,
+          min_chunk_length: 100,
+          repetition_penalty: 1.05,
           max_new_tokens: 2048,
           condition_on_previous_chunks: true,
-          early_stop_threshold: 1.0,
-          prosody: { speed: 0.9, volume: 0, normalize_loudness: true },
+          early_stop_threshold: 0.8,
+          prosody: { speed: 0.78, volume: 0, normalize_loudness: true },
         }),
       });
 
@@ -312,13 +419,18 @@ export async function assembleStoryAudio(storyId: string, userId: string): Promi
 
   const rawText = (story as any).story_text_approved || (story as any).story_text_draft || '';
   const fullText = String(rawText);
-    const { storyBody: storyBodyText } = splitIntroFromStory(fullText);
-    const textForFish = storyBodyText.trim();
+  // Include the full text (intro + story) — only strip the [INTRO_END] marker
+  const textForFish = sanitizeForTTS(stripMarkers(fullText));
   if (!textForFish) throw new Error('Story text is empty');
 
   console.log(`[assemble] Generating Fish audio (${textForFish.length} chars)`);
-  const fishAudioBuffer = await generateParallel(selectedVoiceId, textForFish);
-  if (!fishAudioBuffer || fishAudioBuffer.length === 0) throw new Error('Failed to generate Fish audio');
+  const rawFishBuffer = await generateParallel(selectedVoiceId, textForFish);
+  if (!rawFishBuffer || rawFishBuffer.length === 0) throw new Error('Failed to generate Fish audio');
+
+  console.log(`[assemble] Post-processing audio for warm narration quality...`);
+  const processedBuffer = await postProcessNarration(rawFishBuffer);
+  const fishAudioBuffer = await applyFadeOut(processedBuffer);
+  console.log(`[assemble] Post-processing done (${rawFishBuffer.length} → ${fishAudioBuffer.length} bytes)`);
 
   const duration = await getAudioDurationSecs(fishAudioBuffer, 'mp3');
   const rawAudioKey = `user_${user.id}/stories/${story.id}/fish_raw_${Date.now()}.mp3`;
