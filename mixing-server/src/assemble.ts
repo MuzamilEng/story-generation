@@ -417,9 +417,22 @@ export async function assembleStoryAudio(storyId: string, userId: string): Promi
 
   const rawText = (story as any).story_text_approved || (story as any).story_text_draft || '';
   const fullText = String(rawText);
+
+  // Debug: log which field was used and whether intro marker exists
+  const usedField = (story as any).story_text_approved ? 'story_text_approved' : 'story_text_draft';
+  const hasIntroMarker = fullText.includes('[INTRO_END]');
+  const introPreview = fullText.slice(0, 200).replace(/\n/g, ' ');
+  console.log(`[assemble] Text source: ${usedField} (${fullText.length} chars), hasIntroMarker=${hasIntroMarker}`);
+  console.log(`[assemble] First 200 chars: "${introPreview}"`);
+
   // Include the full text (intro + story) — only strip the [INTRO_END] marker
   const textForFish = sanitizeForTTS(stripMarkers(fullText));
   if (!textForFish) throw new Error('Story text is empty');
+
+  // Verify intro text survived sanitization
+  const fishPreview = textForFish.slice(0, 200).replace(/\n/g, ' ');
+  console.log(`[assemble] After sanitize (${textForFish.length} chars): "${fishPreview}"`);
+
 
   console.log(`[assemble] Generating Fish audio (${textForFish.length} chars)`);
   const rawFishBuffer = await generateParallel(selectedVoiceId, textForFish);
