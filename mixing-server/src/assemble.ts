@@ -254,16 +254,26 @@ function stripMarkers(fullText: string): string {
   return fullText.replace(INTRO_END_MARKER, ' ').trim();
 }
 
-// Remove breath/sigh/inhale cues that TTS vocalizes unnaturally;
-// replace with ellipses for natural pacing.
+// Remove all story markers and breath/sigh cues that TTS would vocalize literally;
+// replace with natural pauses (ellipses) or remove entirely.
 function sanitizeForTTS(text: string): string {
   return text
-    // Remove bracketed stage directions: [inhale], [exhale], [deep breath], [sigh], [pause], etc.
+    // Remove all [PAUSE_SHORT] markers → short pause
+    .replace(/\[\s*PAUSE_SHORT\s*\]/gi, '... ')
+    // Remove all [PAUSE_LONG] markers → longer pause
+    .replace(/\[\s*PAUSE_LONG\s*\]/gi, '...... ')
+    // Remove all [PACE: ...] markers entirely
+    .replace(/\[\s*PACE\s*:\s*\w+\s*\]/gi, '')
+    // Remove bracketed stage directions: [inhale], [exhale], [deep breath], [sigh], etc.
     .replace(/\[\s*(?:inhale|exhale|deep\s*breath|breath|sigh|pause|long\s*pause)\s*\]/gi, '...')
     // Remove parenthesized variants: (deep breath), (sigh), etc.
     .replace(/\(\s*(?:inhale|exhale|deep\s*breath|breath|sigh|pause|long\s*pause)\s*\)/gi, '...')
     // Remove standalone cues on their own line: "deep breath", "sigh...", "*sigh*"
     .replace(/^\s*\*?(?:deep\s*breath|sigh|inhale|exhale)\*?[.…]*\s*$/gim, '...')
+    // Remove section dividers: · · · or variations
+    .replace(/[·•]\s*[·•]\s*[·•]/g, '...')
+    // Catch any remaining unknown [UPPERCASE_MARKER] tags
+    .replace(/\[[A-Z_]+(?:\s*:\s*[A-Z_]+)?\]/g, '')
     // Collapse multiple consecutive ellipses/whitespace into a single pause
     .replace(/(?:\.{3,}|…)(?:\s*(?:\.{3,}|…))*/g, '...')
     // Collapse multiple blank lines into one
