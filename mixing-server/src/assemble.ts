@@ -312,7 +312,7 @@ async function generateFishAudioTTS(voiceId: string, text: string): Promise<Buff
           chunk_length: 250,
           min_chunk_length: 100,
           repetition_penalty: 1.05,
-          max_new_tokens: 0,
+          max_new_tokens: 4096,
           condition_on_previous_chunks: true,
           prosody: { speed: 0.78, volume: 0, normalize_loudness: true },
         }),
@@ -362,9 +362,13 @@ async function generateParallel(voiceId: string, text: string): Promise<Buffer> 
   await Promise.all(chunks.map(async (chunk, i) => {
     await sem.acquire();
     try {
-      console.log(`[assemble] chunk ${i + 1}/${chunks.length} (${chunk.length} chars)`);
+      console.log(`[assemble] chunk ${i + 1}/${chunks.length} (${chunk.length} chars): "${chunk.slice(0, 60)}..."`);
       const buf = await generateFishAudioTTS(voiceId, chunk);
-      if (!buf) throw new Error(`Fish audio failed for chunk ${i + 1}`);
+      if (!buf || buf.length < 1000) {
+        console.error(`[assemble] chunk ${i + 1} returned ${buf?.length ?? 0} bytes — too small, likely truncated`);
+        throw new Error(`Fish audio failed for chunk ${i + 1} (${buf?.length ?? 0} bytes)`);
+      }
+      console.log(`[assemble] chunk ${i + 1} done: ${buf.length} bytes`);
       buffers[i] = buf;
     } finally {
       sem.release();
