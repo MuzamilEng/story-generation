@@ -790,8 +790,7 @@ const CompletionCard: React.FC<CompletionCardProps> = ({
     () => getProofActionCoverage(capturedGoals),
     [capturedGoals],
   );
-  const isGenerateDisabled =
-    generating || !isReadyToGenerate || !proofActionCoverage.hasCoverage;
+  const isGenerateDisabled = generating;
 
   const reviewEntries = Object.entries(capturedGoals || {}).filter(
     ([key, v]) =>
@@ -965,13 +964,13 @@ const CompletionCard: React.FC<CompletionCardProps> = ({
           )}
         </button>
 
-        {!proofActionCoverage.hasCoverage && (
+        {/* {!proofActionCoverage.hasCoverage && (
           <div className={styles.betaNote}>
             Add at least one proof action for each selected life area before
             generating. Still missing:{" "}
             {proofActionCoverage.missingAreaLabels.join(", ")}.
           </div>
-        )}
+        )} */}
 
         <div className={styles.betaNote}>
           Note: ManifestMyStory is currently in early access.
@@ -1589,6 +1588,11 @@ const GoalDiscovery: React.FC = () => {
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const recognitionRef = useRef<any>(null);
   const hasTriedSnapshotPrefillRef = useRef(false);
+  const isEditMode =
+    searchParams.get("fresh") !== "1" &&
+    !saved?.messages?.length &&
+    !saved?.isComplete;
+  const [isPrefillPending, setIsPrefillPending] = useState(isEditMode);
   // Whether we should auto-restart recognition on session end (timeout/pause)
   const voiceIntentActiveRef = useRef<boolean>(false);
   // State-backed accumulated transcript — the ONLY source of truth for voice text.
@@ -1612,12 +1616,25 @@ const GoalDiscovery: React.FC = () => {
   useEffect(() => {
     if (!isHydrated) return;
     if (authStatus !== "authenticated") return;
-    if (searchParams.get("fresh") === "1") return;
-    if (hasTriedSnapshotPrefillRef.current) return;
-    if (messagesRef.current.length > 0) return;
-    if (Object.keys(capturedGoals || {}).length > 0) return;
+    if (searchParams.get("fresh") === "1") {
+      setIsPrefillPending(false);
+      return;
+    }
+    if (hasTriedSnapshotPrefillRef.current) {
+      setIsPrefillPending(false);
+      return;
+    }
+    if (messagesRef.current.length > 0) {
+      setIsPrefillPending(false);
+      return;
+    }
+    if (Object.keys(capturedGoals || {}).length > 0) {
+      setIsPrefillPending(false);
+      return;
+    }
 
     hasTriedSnapshotPrefillRef.current = true;
+    setIsPrefillPending(true);
 
     (async () => {
       try {
@@ -1637,6 +1654,8 @@ const GoalDiscovery: React.FC = () => {
         setIntakeStage("chat");
       } catch (error) {
         console.error("Failed to prefill intake answers:", error);
+      } finally {
+        setIsPrefillPending(false);
       }
     })();
   }, [authStatus, capturedGoals, isHydrated, searchParams, setCapturedGoals]);
@@ -2712,7 +2731,9 @@ const GoalDiscovery: React.FC = () => {
                   }}
                   disabled={!canFinishIntake}
                   style={
-                    !canFinishIntake ? { opacity: 0.5, cursor: "not-allowed" } : {}
+                    !canFinishIntake
+                      ? { opacity: 0.5, cursor: "not-allowed" }
+                      : {}
                   }
                   title={
                     canFinishIntake
@@ -2892,16 +2913,20 @@ const GoalDiscovery: React.FC = () => {
             </button>
           </div>
 
-          {intakeStage === "orientation" && messages.length === 0 && (
-            <OrientationScreen onStart={handleOrientationSelected} />
-          )}
-          {intakeStage === "discovery" && messages.length === 0 && (
-            <GoalDiscoveryScreen
-              orientation={pendingOrientation}
-              isPaid={isPaid}
-              onConfirm={handleGoalDiscoveryConfirm}
-            />
-          )}
+          {!isPrefillPending &&
+            intakeStage === "orientation" &&
+            messages.length === 0 && (
+              <OrientationScreen onStart={handleOrientationSelected} />
+            )}
+          {!isPrefillPending &&
+            intakeStage === "discovery" &&
+            messages.length === 0 && (
+              <GoalDiscoveryScreen
+                orientation={pendingOrientation}
+                isPaid={isPaid}
+                onConfirm={handleGoalDiscoveryConfirm}
+              />
+            )}
 
           <div className={styles.inputHint}>
             {isListening
