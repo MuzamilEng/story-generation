@@ -17,6 +17,14 @@ const FISH_MAX_BACKOFF_MS = Math.max(FISH_BASE_BACKOFF_MS, Number(process.env.FI
 const FISH_CONCURRENCY = Math.max(1, Number(process.env.FISH_TTS_CONCURRENCY ?? 5) || 5);
 // Target chars per chunk — larger chunks preserve prosody context for natural speech
 const CHUNK_CHARS = Math.max(200, Number(process.env.FISH_CHUNK_CHARS ?? 1200) || 1200);
+// 8D tuning controls (defaults target stronger travel + reduced ear fatigue)
+const EIGHT_D_PRIMARY_HZ = Math.max(0.015, Number(process.env.EIGHT_D_PRIMARY_HZ ?? 0.042) || 0.042);
+const EIGHT_D_SECONDARY_HZ = Math.max(0.03, Number(process.env.EIGHT_D_SECONDARY_HZ ?? 0.095) || 0.095);
+const EIGHT_D_PRIMARY_DEPTH = Math.min(0.99, Math.max(0.2, Number(process.env.EIGHT_D_PRIMARY_DEPTH ?? 0.94) || 0.94));
+const EIGHT_D_SECONDARY_DEPTH = Math.min(0.8, Math.max(0.05, Number(process.env.EIGHT_D_SECONDARY_DEPTH ?? 0.22) || 0.22));
+const EIGHT_D_FADE_IN_SECS = Math.max(0, Number(process.env.EIGHT_D_FADE_IN_SECS ?? 4) || 4);
+const INTRO_8D_PRIMARY_HZ = Math.max(0.01, Number(process.env.INTRO_8D_PRIMARY_HZ ?? 0.03) || 0.03);
+const INTRO_8D_PRIMARY_DEPTH = Math.min(0.85, Math.max(0.1, Number(process.env.INTRO_8D_PRIMARY_DEPTH ?? 0.5) || 0.5));
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -189,12 +197,20 @@ async function postProcessNarration(inputBuffer: Buffer): Promise<Buffer> {
 
 // Apply premium 8D binaural effect — deep immersive spatial audio
 // Maximum quality: 320kbps stereo, rich multi-layer spatial processing
-async function apply8DAudio(inputBuffer: Buffer): Promise<Buffer> {
+async function apply8DAudio(inputBuffer: Buffer, profile: 'intro' | 'story' = 'story'): Promise<Buffer> {
   const tmpDir = path.join(os.tmpdir(), `fish-8d-${randomUUID()}`);
   fs.mkdirSync(tmpDir, { recursive: true });
   const inPath = path.join(tmpDir, 'in.mp3');
   const outPath = path.join(tmpDir, 'out.mp3');
   fs.writeFileSync(inPath, inputBuffer);
+
+  const isIntro = profile === 'intro';
+  const primaryHz = isIntro ? INTRO_8D_PRIMARY_HZ : EIGHT_D_PRIMARY_HZ;
+  const primaryDepth = isIntro ? INTRO_8D_PRIMARY_DEPTH : EIGHT_D_PRIMARY_DEPTH;
+  const secondaryDepth = isIntro ? Math.min(0.12, EIGHT_D_SECONDARY_DEPTH) : EIGHT_D_SECONDARY_DEPTH;
+  const stereoWidth = isIntro ? 1.05 : 1.2;
+  const echoFilter = isIntro ? 'aecho=0.7:0.35:26|44:0.05|0.03' : 'aecho=0.75:0.4:28|52:0.08|0.04';
+  const loudnormFilter = isIntro ? 'loudnorm=I=-18:TP=-2.0:LRA=8' : 'loudnorm=I=-18:TP=-2.0:LRA=9';
 
   return new Promise<Buffer>((resolve) => {
     ffmpeg()
@@ -202,41 +218,43 @@ async function apply8DAudio(inputBuffer: Buffer): Promise<Buffer> {
       .audioFilters([
         // Convert to stereo at full sample rate
         'aformat=channel_layouts=stereo:sample_rates=48000',
-        // Layer 1: Primary slow orbit — voice circles around head (30s full cycle)
-        'apulsator=mode=sine:hz=0.033:amount=0.8:offset_l=0:offset_r=0.5',
-        // Layer 2: Medium drift — adds depth dimension (12s cycle, moderate)
-        'apulsator=mode=sine:hz=0.08:amount=0.25:offset_l=0.3:offset_r=0.8',
-        // Layer 3: Fast micro-shimmer — subtle presence/air (5s cycle, very light)
-        'apulsator=mode=sine:hz=0.2:amount=0.08:offset_l=0.5:offset_r=0.0',
-        // Binaural Haas effect: 15ms ITD for strong 3D localization
-        'adelay=0|15',
-        // Stereo widening via slight pitch shift between channels
-        'extrastereo=m=1.6',
-        // Intimate spatial reverb: early reflections for "inside your head" feel
-        'aecho=0.85:0.65:22|48:0.18|0.09',
-        // Sub-bass body: adds foundation to the spatial field
-        'equalizer=f=80:t=h:w=60:g=3',
-        // Low-mid warmth: voice body and intimacy
-        'equalizer=f=250:t=h:w=150:g=2',
-        // Presence lift: clarity without harshness
-        'equalizer=f=3000:t=h:w=1000:g=1.5',
-        // High-shelf roll-off: smooth immersive top end
-        'equalizer=f=9000:t=h:w=4000:g=-3',
-        // Final loudness normalization
-        'loudnorm=I=-16:TP=-1.5:LRA=11',
+        // Voice-friendly prep: remove rumble and tame harsh sibilance first
+        'highpass=f=55',
+        'deesser=i=0.35:m=0.6:f=0.5:s=o',
+        // Add body so narration feels warm/full instead of thin/bright
+        'equalizer=f=105:t=h:w=90:g=3.8',
+        'equalizer=f=230:t=h:w=170:g=2.4',
+        // Reduce fatiguing upper mids/highs
+        'equalizer=f=3200:t=h:w=1200:g=-2.3',
+        'equalizer=f=7600:t=h:w=3200:g=-4.8',
+        // Primary left-right orbit with stronger depth for audible travel
+        `apulsator=mode=sine:hz=${primaryHz}:amount=${primaryDepth}:offset_l=0:offset_r=0.5`,
+        // Secondary slower drift adds immersion without metallic shimmer
+        `apulsator=mode=sine:hz=${EIGHT_D_SECONDARY_HZ}:amount=${secondaryDepth}:offset_l=0.2:offset_r=0.7`,
+        // Subtle inter-aural time difference; kept modest to avoid comb harshness
+        'adelay=0|10',
+        // Keep width controlled so movement remains natural and not phasey
+        `extrastereo=m=${stereoWidth}`,
+        // Light room cue for depth without splashy reverb tails
+        echoFilter,
+        // Gentle compression and limiter for a softer, less piercing delivery
+        'acompressor=threshold=-23dB:ratio=2.2:attack=80:release=300:knee=4:makeup=1.2',
+        'alimiter=limit=0.88:level=disabled',
+        // Slightly quieter target than before to reduce ear fatigue
+        loudnormFilter,
       ])
       .outputOptions([
         '-codec:a', 'libmp3lame',
-        '-b:a', '320k',   // Maximum MP3 quality
-        '-ac', '2',        // Stereo
-        '-ar', '48000',    // Higher sample rate for detail
+        '-b:a', '320k',   // High-quality stereo master
+        '-ac', '2',       // Stereo
+        '-ar', '48000',   // Preserve spatial detail
       ])
       .output(outPath)
       .on('end', () => {
         try {
           const result = fs.readFileSync(outPath);
           fs.rmSync(tmpDir, { recursive: true, force: true });
-          console.log(`[8D] Applied premium 8D (${(inputBuffer.length / 1024 / 1024).toFixed(1)}MB → ${(result.length / 1024 / 1024).toFixed(1)}MB, 320kbps/48kHz)`);
+          console.log(`[8D] Applied ${profile} 8D (${(inputBuffer.length / 1024 / 1024).toFixed(1)}MB → ${(result.length / 1024 / 1024).toFixed(1)}MB, 320kbps/48kHz)`);
           resolve(result);
         } catch (e) { resolve(inputBuffer); }
       })
@@ -385,12 +403,13 @@ async function apply8DFadeIn(dryBuffer: Buffer, wetBuffer: Buffer, fadeSecs = 12
       .input(dryPath)
       .input(wetPath)
       .complexFilter([
+        // Force both streams to stereo to avoid channel-layout negotiation collapsing to mono.
+        `[0:a]aformat=channel_layouts=stereo,aresample=48000,afade=t=out:st=0:d=${fadeSecs}[dry]`,
+        `[1:a]aformat=channel_layouts=stereo,aresample=48000,afade=t=in:st=0:d=${fadeSecs}[wet]`,
         // Fade out the dry (centered) version over fadeSecs
-        `[0:a]afade=t=out:st=0:d=${fadeSecs}[dry]`,
         // Fade in the wet (8D) version over fadeSecs, then continue at full
-        `[1:a]afade=t=in:st=0:d=${fadeSecs}[wet]`,
-        // Mix both together — during fade period you hear the crossfade
-        `[dry][wet]amix=inputs=2:duration=longest:dropout_transition=0[out]`,
+        // Normalize mix to avoid loudness spikes during the overlap window
+        `[dry][wet]amix=inputs=2:weights='1 1':normalize=1:duration=longest:dropout_transition=0[out]`,
       ])
       .outputOptions([
         '-map', '[out]',
@@ -701,6 +720,10 @@ export async function assembleStoryAudio(storyId: string, userId: string): Promi
   if (introBusBuffer.length > 0) {
     console.log(`[assemble] Post-processing INTRO bus (centered, no 8D)...`);
     introBusBuffer = await postProcessNarration(introBusBuffer);
+    if (user.binaural_enabled) {
+      console.log('[assemble] Applying gentle 8D to INTRO bus for early left-right motion...');
+      introBusBuffer = await apply8DAudio(introBusBuffer, 'intro');
+    }
   }
 
   // Story: warm narration + 8D spatial if enabled
@@ -709,13 +732,13 @@ export async function assembleStoryAudio(storyId: string, userId: string): Promi
     const storyPostProcessed = await postProcessNarration(storyBusBuffer);
 
     if (user.binaural_enabled) {
-      console.log(`[assemble] Applying 8D binaural to STORY bus only...`);
-      const story8D = await apply8DAudio(storyPostProcessed);
+      console.log(`[assemble] Applying stronger 8D binaural to STORY bus...`);
+      const story8D = await apply8DAudio(storyPostProcessed, 'story');
 
-      // Smooth transition: crossfade from dry (centered) to wet (8D) over 12 seconds
-      console.log(`[assemble] Applying 8D fade-in crossfade (12s)...`);
+      // Smooth transition: crossfade from dry (centered) to wet (8D)
+      console.log(`[assemble] Applying 8D fade-in crossfade (${EIGHT_D_FADE_IN_SECS}s)...`);
       // Create a centered stereo version of the dry signal for crossfade
-      storyBusBuffer = await apply8DFadeIn(storyPostProcessed, story8D, 12);
+      storyBusBuffer = await apply8DFadeIn(storyPostProcessed, story8D, EIGHT_D_FADE_IN_SECS);
     } else {
       storyBusBuffer = storyPostProcessed;
     }
