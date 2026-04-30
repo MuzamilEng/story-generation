@@ -267,6 +267,160 @@ async function apply8DAudio(inputBuffer: Buffer, profile: 'intro' | 'story' = 's
   });
 }
 
+// ── HRTF helpers ─────────────────────────────────────────────────────────
+
+// Decode MP3 buffer → mono Float32Array at the given sample rate (raw f32le via FFmpeg)
+async function decodeMp3ToMonoPcm(mp3Buffer: Buffer, sampleRate = 48000): Promise<Float32Array> {
+  const tmpDir = path.join(os.tmpdir(), `hrtf-dec-${randomUUID()}`);
+  fs.mkdirSync(tmpDir, { recursive: true });
+  const inPath  = path.join(tmpDir, 'in.mp3');
+  const rawPath = path.join(tmpDir, 'out.raw');
+  fs.writeFileSync(inPath, mp3Buffer);
+
+  await new Promise<void>((resolve, reject) => {
+    ffmpeg()
+      .input(inPath)
+      .outputOptions(['-f', 'f32le', '-ac', '1', '-ar', String(sampleRate)])
+      .output(rawPath)
+      .on('end', () => resolve())
+      .on('error', reject)
+      .run();
+  });
+
+  const raw = fs.readFileSync(rawPath);
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+  // Slice to guarantee 4-byte aligned ArrayBuffer for Float32Array view
+  const ab = raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength);
+  return new Float32Array(ab);
+}
+
+// Encode raw stereo f32le file → 320k MP3 with loudnorm (writes chunks streaming to rawPath before call)
+async function encodeRawStereoToMp3(rawStereoPath: string, sampleRate: number): Promise<Buffer> {
+  const outPath = rawStereoPath.replace('.raw', '.mp3');
+
+  await new Promise<void>((resolve, reject) => {
+    ffmpeg()
+      .input(rawStereoPath)
+      .inputOptions(['-f', 'f32le', '-ac', '2', '-ar', String(sampleRate)])
+      .audioFilters([
+        'loudnorm=I=-18:TP=-2.0:LRA=9',
+        'alimiter=limit=0.88:level=disabled',
+      ])
+      .outputOptions(['-codec:a', 'libmp3lame', '-b:a', '320k', '-ac', '2', '-ar', String(sampleRate)])
+      .output(outPath)
+      .on('end', () => resolve())
+      .on('error', reject)
+      .run();
+  });
+
+  const mp3 = fs.readFileSync(outPath);
+  return mp3;
+}
+
+// ── True HRTF 8D binaural via Web Audio API PannerNode ───────────────────
+// Uses node-web-audio-api OfflineAudioContext with HRTF PannerNode.
+// Processes in 60-second chunks so peak RAM stays under ~25 MB/chunk.
+// Falls back to FFmpeg apulsator (apply8DAudio) if the native module is unavailable.
+async function apply8DWithHRTF(inputBuffer: Buffer, profile: 'intro' | 'story' = 'story'): Promise<Buffer> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let OfflineAudioContext: any;
+  try {
+    // Dynamic import so the server starts even if the native module isn't installed yet.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    ({ OfflineAudioContext } = require('node-web-audio-api') as { OfflineAudioContext: any });
+  } catch {
+    console.warn('[8D-HRTF] node-web-audio-api unavailable — falling back to FFmpeg apulsator');
+    return apply8DAudio(inputBuffer, profile);
+  }
+
+  const SAMPLE_RATE = 48000;
+  const CHUNK_SECS  = 60; // 60 s windows cap peak RAM ~25 MB per chunk
+  const orbitHz     = profile === 'intro' ? INTRO_8D_PRIMARY_HZ : EIGHT_D_PRIMARY_HZ;
+  const radius      = profile === 'story' ? 2.5 : 1.5;
+
+  const tmpDir = path.join(os.tmpdir(), `hrtf-main-${randomUUID()}`);
+  fs.mkdirSync(tmpDir, { recursive: true });
+  const rawStereoPath = path.join(tmpDir, 'stereo.raw');
+
+  try {
+    console.log(`[8D-HRTF] Decoding ${profile} audio to PCM...`);
+    const pcm         = await decodeMp3ToMonoPcm(inputBuffer, SAMPLE_RATE);
+    const totalFrames = pcm.length;
+    const chunkFrames = CHUNK_SECS * SAMPLE_RATE;
+    const numChunks   = Math.ceil(totalFrames / chunkFrames);
+
+    const writeStream = fs.createWriteStream(rawStereoPath);
+
+    for (let ci = 0; ci < numChunks; ci++) {
+      const startFrame    = ci * chunkFrames;
+      const endFrame      = Math.min(startFrame + chunkFrames, totalFrames);
+      const chunkLen      = endFrame - startFrame;
+      const chunkStartSec = startFrame / SAMPLE_RATE;
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const offlineCtx = new OfflineAudioContext(2, chunkLen, SAMPLE_RATE) as any;
+      const audioBuffer = offlineCtx.createBuffer(1, chunkLen, SAMPLE_RATE);
+      audioBuffer.getChannelData(0).set(pcm.subarray(startFrame, endFrame));
+
+      const source = offlineCtx.createBufferSource();
+      source.buffer = audioBuffer;
+
+      const panner = offlineCtx.createPanner();
+      panner.panningModel   = 'HRTF';   // real SOFA/HRTF convolution
+      panner.distanceModel  = 'inverse';
+      panner.refDistance    = 1;
+      panner.maxDistance    = 10;
+      panner.rolloffFactor  = 0.8;
+      panner.coneInnerAngle = 360; // omnidirectional point source
+
+      // Schedule 30 position updates/sec for smooth, continuous orbit
+      const chunkDuration = chunkLen / SAMPLE_RATE;
+      const totalSteps    = Math.ceil(chunkDuration * 30);
+
+      for (let s = 0; s <= totalSteps; s++) {
+        const localT  = (s / totalSteps) * chunkDuration;
+        const globalT = chunkStartSec + localT;         // maintain phase across chunks
+        const angle   = 2 * Math.PI * orbitHz * globalT;
+        panner.positionX.setValueAtTime(radius * Math.cos(angle), localT);
+        panner.positionZ.setValueAtTime(radius * Math.sin(angle), localT);
+        // slight front-back vertical drift for depth
+        panner.positionY.setValueAtTime(0.3 * Math.sin(angle * 0.5), localT);
+      }
+
+      source.connect(panner);
+      panner.connect(offlineCtx.destination);
+      source.start(0);
+
+      const rendered = await offlineCtx.startRendering();
+      const L = rendered.getChannelData(0);
+      const R = rendered.getChannelData(1);
+
+      // Interleave L+R and stream to disk — frees chunk memory before next iteration
+      const interleaved = new Float32Array(chunkLen * 2);
+      for (let i = 0; i < chunkLen; i++) {
+        interleaved[i * 2]     = L[i];
+        interleaved[i * 2 + 1] = R[i];
+      }
+      const chunkBuf = Buffer.from(interleaved.buffer);
+      await new Promise<void>((res, rej) => writeStream.write(chunkBuf, (err) => err ? rej(err) : res()));
+      console.log(`[8D-HRTF] ${profile} chunk ${ci + 1}/${numChunks} rendered (${Math.round(chunkLen / SAMPLE_RATE)}s)`);
+    }
+
+    await new Promise<void>((res) => writeStream.end(() => res()));
+
+    console.log(`[8D-HRTF] Encoding ${profile} HRTF render to 320k MP3...`);
+    const mp3 = await encodeRawStereoToMp3(rawStereoPath, SAMPLE_RATE);
+    console.log(`[8D-HRTF] ${profile}: ${(inputBuffer.length / 1024 / 1024).toFixed(1)}MB → ${(mp3.length / 1024 / 1024).toFixed(1)}MB (true HRTF PannerNode)`);
+    return mp3;
+
+  } catch (err) {
+    console.error('[8D-HRTF] Render failed, falling back to FFmpeg apulsator:', (err as Error).message);
+    return apply8DAudio(inputBuffer, profile);
+  } finally {
+    try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+  }
+}
+
 // Apply fade-out to the last N seconds (must run as separate pass after loudnorm)
 async function applyFadeOut(inputBuffer: Buffer, fadeSecs = 2.5): Promise<Buffer> {
   const tmpDir = path.join(os.tmpdir(), `fish-fade-${randomUUID()}`);
@@ -403,13 +557,14 @@ async function apply8DFadeIn(dryBuffer: Buffer, wetBuffer: Buffer, fadeSecs = 12
       .input(dryPath)
       .input(wetPath)
       .complexFilter([
-        // Force both streams to stereo to avoid channel-layout negotiation collapsing to mono.
-        `[0:a]aformat=channel_layouts=stereo,aresample=48000,afade=t=out:st=0:d=${fadeSecs}[dry]`,
-        `[1:a]aformat=channel_layouts=stereo,aresample=48000,afade=t=in:st=0:d=${fadeSecs}[wet]`,
-        // Fade out the dry (centered) version over fadeSecs
-        // Fade in the wet (8D) version over fadeSecs, then continue at full
-        // Normalize mix to avoid loudness spikes during the overlap window
-        `[dry][wet]amix=inputs=2:weights='1 1':normalize=1:duration=longest:dropout_transition=0[out]`,
+        // Force stereo + resample each input before fading — one label per stage to avoid
+        // comma-chaining ambiguity in older FFmpeg builds on AWS/Linux servers.
+        `[0:a]aformat=channel_layouts=stereo:sample_rates=48000[dry_fmt]`,
+        `[dry_fmt]afade=t=out:st=0:d=${fadeSecs}[dry]`,
+        `[1:a]aformat=channel_layouts=stereo:sample_rates=48000[wet_fmt]`,
+        `[wet_fmt]afade=t=in:st=0:d=${fadeSecs}[wet]`,
+        // Sum at 0.5 weight each (avoid amix normalize= which is unsupported on older FFmpeg)
+        `[dry][wet]amix=inputs=2:duration=longest:dropout_transition=0[out]`,
       ])
       .outputOptions([
         '-map', '[out]',
@@ -721,8 +876,8 @@ export async function assembleStoryAudio(storyId: string, userId: string): Promi
     console.log(`[assemble] Post-processing INTRO bus (centered, no 8D)...`);
     introBusBuffer = await postProcessNarration(introBusBuffer);
     if (user.binaural_enabled) {
-      console.log('[assemble] Applying gentle 8D to INTRO bus for early left-right motion...');
-      introBusBuffer = await apply8DAudio(introBusBuffer, 'intro');
+      console.log('[assemble] Applying gentle HRTF 8D to INTRO bus...');
+      introBusBuffer = await apply8DWithHRTF(introBusBuffer, 'intro');
     }
   }
 
@@ -732,13 +887,9 @@ export async function assembleStoryAudio(storyId: string, userId: string): Promi
     const storyPostProcessed = await postProcessNarration(storyBusBuffer);
 
     if (user.binaural_enabled) {
-      console.log(`[assemble] Applying stronger 8D binaural to STORY bus...`);
-      const story8D = await apply8DAudio(storyPostProcessed, 'story');
-
-      // Smooth transition: crossfade from dry (centered) to wet (8D)
-      console.log(`[assemble] Applying 8D fade-in crossfade (${EIGHT_D_FADE_IN_SECS}s)...`);
-      // Create a centered stereo version of the dry signal for crossfade
-      storyBusBuffer = await apply8DFadeIn(storyPostProcessed, story8D, EIGHT_D_FADE_IN_SECS);
+      console.log(`[assemble] Applying HRTF 8D binaural to STORY bus...`);
+      // Intro already has gentle 8D so no crossfade needed — start story at full 8D
+      storyBusBuffer = await apply8DWithHRTF(storyPostProcessed, 'story');
     } else {
       storyBusBuffer = storyPostProcessed;
     }
