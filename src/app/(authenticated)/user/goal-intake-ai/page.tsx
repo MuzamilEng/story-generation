@@ -1376,11 +1376,21 @@ function isAreaSelected(
   capturedGoals: CapturedData | null,
 ): boolean {
   const rawAreas =
-    ((capturedGoals?.selectedAreas ||
-      capturedGoals?.SELECTEDAREAS) as string[]) || [];
-  const areas = Array.isArray(rawAreas) ? rawAreas : [rawAreas];
+    capturedGoals?.selectedAreas ||
+    capturedGoals?.SELECTEDAREAS ||
+    [];
+  let areas: string[];
+  if (Array.isArray(rawAreas)) {
+    areas = rawAreas.map((a) => String(a));
+  } else if (typeof rawAreas === "string" && rawAreas.includes(",")) {
+    areas = rawAreas.split(",").map((a) => a.trim()).filter(Boolean);
+  } else {
+    areas = [String(rawAreas)];
+  }
   return areas.some((a) => {
-    const s = String(a).toLowerCase();
+    const s = a.toLowerCase();
+    const normalized = normalizeAreaValue(s);
+    if (normalized === topicId) return true;
     if (s === topicId) return true;
     if (s.includes(topicId)) return true;
     if (topicId === "spirituality" && s.includes("spirit")) return true;
@@ -2090,6 +2100,13 @@ const GoalDiscovery: React.FC = () => {
               } else {
                 merged[key] = existing || incoming;
               }
+            } else if (
+              key === "selectedAreas" &&
+              Array.isArray(merged.selectedAreas) &&
+              merged.selectedAreas.length > 0
+            ) {
+              // Never let AI CAPTURE overwrite the UI-set selectedAreas array
+              // The discovery screen already sets this correctly
             } else {
               merged[key] = value;
             }
@@ -2448,9 +2465,19 @@ const GoalDiscovery: React.FC = () => {
       const currentTopic = activeTopicIdRef.current;
 
       if (progress.phase === "Life Areas" || currentTopic === "selectedAreas") {
+        // Only update selectedAreas if the chip values are actual area IDs.
+        // After the discovery screen sets selectedAreas, subsequent chips
+        // (e.g. "I have a specific goal in mind") must NOT overwrite them.
         const areas = text.split(", ").map((a) => a.trim());
-        setCapturedGoals((prev) => ({ ...prev, selectedAreas: areas }));
-        setRecentGoalKey("selectedAreas");
+        const validAreaIds = new Set(AREA_TOPIC_IDS);
+        const areAllValidAreas = areas.every(
+          (a) => validAreaIds.has(normalizeAreaValue(a)),
+        );
+        if (areAllValidAreas) {
+          setCapturedGoals((prev) => ({ ...prev, selectedAreas: areas }));
+          setRecentGoalKey("selectedAreas");
+        }
+        // Otherwise it's a conversational chip within the area phase — don't capture as areas
       } else if (
         progress.phase === "Identity Builder" ||
         currentTopic === "identityStatements"
@@ -2661,37 +2688,39 @@ const GoalDiscovery: React.FC = () => {
       <div className={styles.main}>
         {/* Sidebar */}
         <aside className={styles.sidebar}>
-          <div className={styles.sidebarTitle}>Topics</div>
+          <div className={styles.topicListSection}>
+            <div className={styles.sidebarTitle}>Topics</div>
 
-          {SIDEBAR_GROUPS.filter((group) =>
-            isSidebarGroupVisible(group, capturedGoals),
-          ).map((group) => {
-            // A group is "active" if the current activeTopicId is one of its sub-topics
-            const isActive = group.topicIds.includes(activeTopicId);
-            // A group is "covered" if ALL its sub-topics are covered
-            const isCovered = group.topicIds.every((tid) =>
-              progress.covered.includes(tid),
-            );
-            // A group is "responded" if the user responded to at least one of its sub-topics
-            const isResponded = group.topicIds.some((tid) =>
-              respondedTopics.includes(tid),
-            );
-            // When clicked, navigate to the first sub-topic in the group
-            const navTopicId = group.topicIds[0];
-            const navLabel = group.label;
+            {SIDEBAR_GROUPS.filter((group) =>
+              isSidebarGroupVisible(group, capturedGoals),
+            ).map((group) => {
+              // A group is "active" if the current activeTopicId is one of its sub-topics
+              const isActive = group.topicIds.includes(activeTopicId);
+              // A group is "covered" if ALL its sub-topics are covered
+              const isCovered = group.topicIds.every((tid) =>
+                progress.covered.includes(tid),
+              );
+              // A group is "responded" if the user responded to at least one of its sub-topics
+              const isResponded = group.topicIds.some((tid) =>
+                respondedTopics.includes(tid),
+              );
+              // When clicked, navigate to the first sub-topic in the group
+              const navTopicId = group.topicIds[0];
+              const navLabel = group.label;
 
-            return (
-              <TopicItem
-                key={group.id}
-                id={group.id}
-                label={group.label}
-                isActive={isActive}
-                isCovered={isCovered}
-                isResponded={isResponded}
-                onClick={() => handleTopicClick(navTopicId, navLabel)}
-              />
-            );
-          })}
+              return (
+                <TopicItem
+                  key={group.id}
+                  id={group.id}
+                  label={group.label}
+                  isActive={isActive}
+                  isCovered={isCovered}
+                  isResponded={isResponded}
+                  onClick={() => handleTopicClick(navTopicId, navLabel)}
+                />
+              );
+            })}
+          </div>
           <div className={styles.capturedBox}>
             <div className={styles.capturedTitle}>Captured So Far</div>
             <div className={styles.capturedList}>
@@ -2728,7 +2757,6 @@ const GoalDiscovery: React.FC = () => {
                   return Object.entries(capturedGoals)
                     .filter(
                       ([key, v]) =>
-                        !AREA_TOPIC_IDS.includes(key) &&
                         !key.startsWith("areaAffirmations_") &&
                         v &&
                         (Array.isArray(v)

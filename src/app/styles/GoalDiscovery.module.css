@@ -98,14 +98,45 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.topicListSection {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border2) transparent;
+}
+
+.topicListSection::-webkit-scrollbar {
+    width: 5px;
+}
+
+.topicListSection::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.topicListSection::-webkit-scrollbar-thumb {
+    background: var(--border2);
+    border-radius: 4px;
+}
+
+.topicListSection::-webkit-scrollbar-thumb:hover {
+    background: var(--dim);
 }
 
 .sidebarTitle {
-    font-size: 10px;
+    font-size: 11px;
     letter-spacing: 2px;
     text-transform: uppercase;
     color: var(--dim);
-    margin-bottom: 8px;
+    margin-bottom: 4px;
+    flex-shrink: 0;
 }
 
 .topicItem {
@@ -168,12 +199,15 @@
     background: rgba(61, 107, 74, 0.05);
     border: 0.5px solid var(--border1);
     border-radius: 4px;
-    padding: 20px;
+    padding: 14px;
     display: flex;
     flex-direction: column;
-    gap: 16px;
-    max-height: 50%;
+    gap: 10px;
+    flex-shrink: 0;
+    max-height: 200px;
     overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border2) transparent;
 }
 
 .capturedTitle {
