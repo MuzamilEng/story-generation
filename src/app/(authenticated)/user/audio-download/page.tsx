@@ -276,7 +276,23 @@ const AudioReadyContent: React.FC = () => {
     if (!storyId || !story || story?.audio_url) return;
 
     let cancelled = false;
+    let pollCount = 0;
+    const MAX_POLLS = 90; // 90 × 4s = 6 min max polling window
+    const POLL_INTERVAL = 4000;
+    let consecutiveFailures = 0;
+    const MAX_CONSECUTIVE_FAILURES = 5;
+
     const poll = async () => {
+      pollCount++;
+      if (pollCount > MAX_POLLS) {
+        setAssembleStatus("failed");
+        setAssembleMessage(
+          "Audio generation is taking longer than expected. Please go back and try again.",
+        );
+        showToast("Audio generation timed out. Please try again.", "error");
+        return; // stop polling
+      }
+
       try {
         const [statusRes, storyRes] = await Promise.all([
           fetch(
@@ -295,11 +311,14 @@ const AudioReadyContent: React.FC = () => {
           setAssembleStatus(nextState);
           setAssembleMessage(statusData?.message || "Preparing your audio...");
 
+          consecutiveFailures = 0; // reset on success
+
           if (nextState === "failed") {
             showToast(
               "Audio generation failed. Please try generating again.",
               "error",
             );
+            return; // stop polling on definitive failure
           }
         }
 
@@ -320,21 +339,35 @@ const AudioReadyContent: React.FC = () => {
               });
               notifyAudioReady(storyData.id, storyData.title || "Your story");
             }
+            return; // stop polling
           }
         }
       } catch {
+        consecutiveFailures++;
         if (!cancelled) {
+          if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+            setAssembleStatus("failed");
+            setAssembleMessage(
+              "Lost connection to the server. Please check your connection and try again.",
+            );
+            return; // stop polling
+          }
           setAssembleStatus("processing");
           setAssembleMessage("Preparing your audio...");
         }
       }
+
+      // Schedule next poll if not stopped
+      if (!cancelled) {
+        pollTimer = setTimeout(poll, POLL_INTERVAL);
+      }
     };
 
+    let pollTimer: ReturnType<typeof setTimeout>;
     poll();
-    const timer = setInterval(poll, 4000);
     return () => {
       cancelled = true;
-      clearInterval(timer);
+      clearTimeout(pollTimer);
     };
   }, [storyId, story, showAlert, showToast]);
 
@@ -454,7 +487,11 @@ const AudioReadyContent: React.FC = () => {
         );
         return;
       }
-      const updatedStory = { ...story, audio_url: data.audio_url, combined_audio_key: null };
+      const updatedStory = {
+        ...story,
+        audio_url: data.audio_url,
+        combined_audio_key: null,
+      };
       setStory(updatedStory);
       setSelectedSoundscapeId(null);
       // Register the new audio URL globally and request autoplay
@@ -588,7 +625,8 @@ const AudioReadyContent: React.FC = () => {
     }
 
     pendingSkipAmt.current += seconds;
-    const base = pageSeekTarget.current !== null ? pageSeekTarget.current : s.currentTime;
+    const base =
+      pageSeekTarget.current !== null ? pageSeekTarget.current : s.currentTime;
     const newTime = Math.max(0, Math.min(total, base + pendingSkipAmt.current));
     pageSeekTarget.current = newTime;
     // Update store UI immediately
@@ -797,12 +835,56 @@ const AudioReadyContent: React.FC = () => {
             )}
 
             {isFailed && (
-              <button
-                className={styles.genRetryBtn}
-                onClick={() => router.back()}
+              <div
+                style={{
+                  display: "flex",
+                  gap: "12px",
+                  flexDirection: "column",
+                  alignItems: "center",
+                }}
               >
-                ← Go back & retry
-              </button>
+                <button
+                  className={styles.genRetryBtn}
+                  onClick={async () => {
+                    setAssembleStatus("processing");
+                    setAssembleMessage("Retrying audio generation...");
+                    try {
+                      const res = await fetch("/api/user/audio/assemble", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ storyId }),
+                      });
+                      if (res.ok) {
+                        setAssembleMessage(
+                          "Audio generation re-queued. Please wait...",
+                        );
+                        // Reset story to trigger polling
+                        setStory((prev: any) =>
+                          prev ? { ...prev, audio_url: null } : prev,
+                        );
+                      } else {
+                        setAssembleStatus("failed");
+                        setAssembleMessage(
+                          "Retry failed. Please go back and try again.",
+                        );
+                      }
+                    } catch {
+                      setAssembleStatus("failed");
+                      setAssembleMessage(
+                        "Retry failed. Please check your connection.",
+                      );
+                    }
+                  }}
+                >
+                  ↻ Retry Now
+                </button>
+                <button
+                  className={styles.genRetryBtn}
+                  onClick={() => router.back()}
+                >
+                  ← Go back & retry
+                </button>
+              </div>
             )}
 
             <button

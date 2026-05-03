@@ -10,12 +10,21 @@ import {
   initAssembleWorker,
   waitForAssembleResult,
 } from './assemble-queue';
+import { localAudioCache } from './assemble';
+import fs from 'fs';
+import path from 'path';
 
 const app = express();
 const PORT = process.env.MIXING_PORT || 4000;
 
 // ── Middleware ──────────────────────────────────────────────────────────────
-app.use(cors({ origin: process.env.FRONTEND_URL || "https://staging-manifest.vercel.app" || 'http://localhost:3000' }));
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  'https://staging-manifest.vercel.app',
+  'https://d327gwmirs7t7j.cloudfront.net',
+  'http://localhost:3000',
+].filter(Boolean) as string[];
+app.use(cors({ origin: allowedOrigins }));
 app.use(express.json());
 
 // Simple shared-secret auth to prevent unauthorized calls
@@ -42,6 +51,47 @@ function requireAuth(
 // ── Health check ───────────────────────────────────────────────────────────
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok' });
+});
+
+// ── GET /local-stream?key=... ─────────────────────────────────────────────
+// Serves audio from a local temp file while R2 upload is still in progress.
+// Called by the Next.js streaming route as a fallback when R2 returns 404.
+// Supports byte-range requests for proper seeking/duration detection.
+app.get('/local-stream', requireAuth, (req, res) => {
+  const key = String(req.query.key || '');
+  if (!key) {
+    res.status(400).json({ error: 'key is required' });
+    return;
+  }
+
+  const localPath = localAudioCache.get(key);
+  if (!localPath || !fs.existsSync(localPath)) {
+    res.status(404).json({ error: 'not_found' });
+    return;
+  }
+
+  const stat = fs.statSync(localPath);
+  const totalSize = stat.size;
+  const rangeHeader = req.headers.range;
+
+  res.setHeader('Content-Type', 'audio/mpeg');
+  res.setHeader('Accept-Ranges', 'bytes');
+  res.setHeader('Cache-Control', 'no-cache');
+
+  if (rangeHeader) {
+    const match = rangeHeader.match(/bytes=(\d+)-(\d*)/);
+    const start = match ? parseInt(match[1], 10) : 0;
+    const end = match && match[2] ? parseInt(match[2], 10) : totalSize - 1;
+    const chunkSize = end - start + 1;
+
+    res.status(206);
+    res.setHeader('Content-Range', `bytes ${start}-${end}/${totalSize}`);
+    res.setHeader('Content-Length', chunkSize);
+    fs.createReadStream(localPath, { start, end }).pipe(res);
+  } else {
+    res.setHeader('Content-Length', totalSize);
+    fs.createReadStream(localPath).pipe(res);
+  }
 });
 
 // ── POST /assemble ──────────────────────────────────────────────────────────

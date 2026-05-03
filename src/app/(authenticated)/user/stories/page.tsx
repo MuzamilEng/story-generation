@@ -204,7 +204,7 @@ const StoryCard = ({
                     ? "Processing — View Status"
                     : story.status === "awaited_voice_generation"
                       ? "Awaiting Voice — View Status"
-                    : "Resume Generation"}
+                      : "Resume Generation"}
               </>
             ) : (
               <>
@@ -245,10 +245,16 @@ export default function StoriesPage() {
   const { data: session } = useSession();
   const { showAlert } = useGlobalUI();
   const [searchTerm, setSearchTerm] = useState("");
-  const [queueStates, setQueueStates] = useState<Record<string, "queued" | "processing" | "completed" | "failed" | null>>({});
+  const [queueStates, setQueueStates] = useState<
+    Record<string, "queued" | "processing" | "completed" | "failed" | null>
+  >({});
   const notifiedReadyStoriesRef = useRef<Set<string>>(new Set());
 
-  const { data: storiesRaw = [], isLoading, refetch: refetchStories } = useQuery<Story[]>({
+  const {
+    data: storiesRaw = [],
+    isLoading,
+    refetch: refetchStories,
+  } = useQuery<Story[]>({
     queryKey: ["stories"],
     queryFn: async () => {
       const res = await fetch("/api/user/stories");
@@ -272,16 +278,41 @@ export default function StoriesPage() {
     const pending = storiesRaw.filter(
       (s) =>
         (s.status === "approved" || s.status === "awaited_voice_generation") &&
-        !s.audio_url
+        !s.audio_url,
     );
     if (pending.length === 0) return;
     let cancelled = false;
+    let pollCount = 0;
+    const MAX_POLLS = 72; // 72 × 5s = 6 min max polling window
+    const POLL_INTERVAL = 5000;
+
     const fetchStates = async () => {
+      pollCount++;
+      if (pollCount > MAX_POLLS) {
+        // Stop polling — the pending stories have likely failed silently
+        if (!cancelled) {
+          setQueueStates((prev) => {
+            const next = { ...prev };
+            for (const s of pending) {
+              if (
+                !next[s.id] ||
+                next[s.id] === "processing" ||
+                next[s.id] === "queued"
+              ) {
+                next[s.id] = "failed";
+              }
+            }
+            return next;
+          });
+        }
+        return;
+      }
+
       const results = await Promise.all(
         pending.map(async (s) => {
           try {
             const res = await fetch(
-              `/api/user/audio/assemble?storyId=${encodeURIComponent(s.id)}`
+              `/api/user/audio/assemble?storyId=${encodeURIComponent(s.id)}`,
             );
             if (!res.ok) return { id: s.id, state: null };
             const data = await res.json();
@@ -289,7 +320,7 @@ export default function StoriesPage() {
           } catch {
             return { id: s.id, state: null };
           }
-        })
+        }),
       );
       if (!cancelled) {
         setQueueStates((prev) => {
@@ -298,7 +329,9 @@ export default function StoriesPage() {
           return next;
         });
 
-        const completedStories = results.filter(({ state }) => state === "completed");
+        const completedStories = results.filter(
+          ({ state }) => state === "completed",
+        );
         if (completedStories.length > 0) {
           for (const { id } of completedStories) {
             if (notifiedReadyStoriesRef.current.has(id)) continue;
@@ -316,10 +349,18 @@ export default function StoriesPage() {
           await refetchStories();
         }
       }
+
+      // Schedule next poll if not stopped
+      if (!cancelled) {
+        pollTimer = setTimeout(fetchStates, POLL_INTERVAL);
+      }
     };
+    let pollTimer: ReturnType<typeof setTimeout>;
     fetchStates();
-    const timer = setInterval(fetchStates, 5000);
-    return () => { cancelled = true; clearInterval(timer); };
+    return () => {
+      cancelled = true;
+      clearTimeout(pollTimer);
+    };
   }, [storiesRaw, refetchStories, showAlert]);
 
   const stories = storiesRaw.map((s) => ({

@@ -64,6 +64,9 @@ async function convertBufferToM4a(inputBuffer: Buffer, inputExt: string): Promis
 
 export async function GET(req: NextRequest) {
     let sessionUserId: string | undefined;
+    const { searchParams } = new URL(req.url);
+    const key = searchParams.get('key');
+    const rangeHeader = req.headers.get('range');
     try {
         const session = await getServerSession(authOptions);
         if (!session || !session.user) {
@@ -71,8 +74,6 @@ export async function GET(req: NextRequest) {
         }
         sessionUserId = session.user.id;
 
-        const { searchParams } = new URL(req.url);
-        const key = searchParams.get('key');
         const download = searchParams.get('download') === 'true';
         const compat = searchParams.get('compat') === '1';
 
@@ -93,7 +94,6 @@ export async function GET(req: NextRequest) {
         }
 
         const bucketName = process.env.R2_BUCKET_NAME || 'manifestmystory-audio';
-        const rangeHeader = req.headers.get('range');
 
         // Robust Content-Type detection
         let contentType = 'audio/mpeg';
@@ -203,8 +203,44 @@ export async function GET(req: NextRequest) {
         });
 
     } catch (e: any) {
-        if (e.name === 'NoSuchKey') {
-             return NextResponse.json({ error: 'File not found in storage' }, { status: 404 });
+        // If R2 doesn't have the file yet, try serving from mixing server's local cache.
+        // This happens when the async R2 upload is still in progress after assembly.
+        // HeadObjectCommand throws "NotFound", GetObjectCommand throws "NoSuchKey".
+        const isNotFound = e.name === 'NoSuchKey' || e.Code === 'NoSuchKey'
+            || e.name === 'NotFound' || e.$metadata?.httpStatusCode === 404;
+        if (isNotFound) {
+            try {
+                const MIXING_SERVER = process.env.MIXING_SERVER_URL || 'http://localhost:4000';
+                const API_SECRET = process.env.MIXING_API_SECRET || '';
+                const localUrl = `${MIXING_SERVER}/local-stream?key=${encodeURIComponent(key!)}`;
+                const localHeaders: Record<string, string> = { 'x-api-secret': API_SECRET };
+                if (rangeHeader) localHeaders['range'] = rangeHeader;
+
+                const localRes = await fetch(localUrl, {
+                    headers: localHeaders,
+                    signal: AbortSignal.timeout(10000),
+                });
+
+                if (localRes.ok || localRes.status === 206) {
+                    const resHeaders = new Headers();
+                    resHeaders.set('Content-Type', localRes.headers.get('content-type') || 'audio/mpeg');
+                    resHeaders.set('Accept-Ranges', 'bytes');
+                    resHeaders.set('Cache-Control', 'no-cache');
+                    const cl = localRes.headers.get('content-length');
+                    if (cl) resHeaders.set('Content-Length', cl);
+                    const cr = localRes.headers.get('content-range');
+                    if (cr) resHeaders.set('Content-Range', cr);
+
+                    return new Response(localRes.body as any, {
+                        status: localRes.status,
+                        headers: resHeaders,
+                    });
+                }
+            } catch (localErr: any) {
+                // Local fallback failed — return original 404
+                console.warn('[stream] Local fallback failed:', localErr.message);
+            }
+            return NextResponse.json({ error: 'File not found in storage' }, { status: 404 });
         }
         if (e.name === 'InvalidRange') {
              return NextResponse.json({ error: 'Range not satisfiable' }, { status: 416 });

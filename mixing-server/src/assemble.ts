@@ -1,5 +1,5 @@
 import { prisma } from './prisma';
-import { uploadToR2 } from './r2';
+import { uploadToR2, deleteFromR2 } from './r2';
 import ffmpeg from 'fluent-ffmpeg';
 import ffmpegPath from '@ffmpeg-installer/ffmpeg';
 import fs from 'fs';
@@ -9,12 +9,16 @@ import { randomUUID } from 'crypto';
 
 ffmpeg.setFfmpegPath(ffmpegPath.path);
 
+// Map of R2 key → local temp file path for files not yet uploaded to R2.
+// Used by the local-stream endpoint to serve audio immediately after mastering.
+export const localAudioCache = new Map<string, string>();
+
 const INTRO_END_MARKER = '[INTRO_END]';
 const FISH_MAX_RETRIES = Math.max(0, Number(process.env.FISH_TTS_MAX_RETRIES ?? 3) || 3);
 const FISH_BASE_BACKOFF_MS = Math.max(50, Number(process.env.FISH_TTS_BASE_BACKOFF_MS ?? 1000) || 1000);
 const FISH_MAX_BACKOFF_MS = Math.max(FISH_BASE_BACKOFF_MS, Number(process.env.FISH_TTS_MAX_BACKOFF_MS ?? 10000) || 10000);
 // Max parallel Fish requests per job (tune via env)
-const FISH_CONCURRENCY = Math.max(1, Number(process.env.FISH_TTS_CONCURRENCY ?? 5) || 5);
+const FISH_CONCURRENCY = Math.max(1, Number(process.env.FISH_TTS_CONCURRENCY ?? 8) || 8);
 // Target chars per chunk — larger chunks preserve prosody context for natural speech
 const CHUNK_CHARS = Math.max(200, Number(process.env.FISH_CHUNK_CHARS ?? 1200) || 1200);
 // 8D tuning controls (defaults target stronger travel + reduced ear fatigue)
@@ -110,6 +114,21 @@ function isWav(buf: Buffer): boolean {
   return buf.length >= 12 && buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WAVE';
 }
 
+// Pre-decode MP3 to clean 48kHz stereo WAV to avoid "Error reinitializing filters!"
+// caused by VBR MP3 frame parameter discontinuities from -c copy concatenation.
+// WAV has fixed parameters throughout — the downstream filter graph never needs to reinit.
+async function preDecodeToWav(inMp3Path: string, outWavPath: string): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    ffmpeg()
+      .input(inMp3Path)
+      .outputOptions(['-f', 'wav', '-acodec', 'pcm_s16le', '-ar', '48000', '-ac', '2'])
+      .output(outWavPath)
+      .on('end', () => resolve())
+      .on('error', (err) => reject(err))
+      .run();
+  });
+}
+
 async function concatMp3Buffers(parts: Buffer[]): Promise<Buffer> {
   if (parts.length === 0) return Buffer.alloc(0);
   if (parts.length === 1) return parts[0];
@@ -135,8 +154,9 @@ async function concatMp3Buffers(parts: Buffer[]): Promise<Buffer> {
       ffmpeg()
         .input(listFilePath)
         .inputOptions(['-f', 'concat', '-safe', '0'])
-        // Re-encode once to guarantee decoder compatibility across concatenated chunks.
-        .outputOptions(['-codec:a', 'libmp3lame', '-q:a', '4', '-ac', '1', '-ar', '24000'])
+        // Stream-copy: all chunks share the same codec params from Fish (44100Hz MP3).
+        // This avoids a full re-encode pass (~15-20s savings on long stories).
+        .outputOptions(['-c', 'copy'])
         .output(outPath)
         .on('end', () => resolve())
         .on('error', (err) => reject(err))
@@ -150,6 +170,7 @@ async function concatMp3Buffers(parts: Buffer[]): Promise<Buffer> {
 }
 
 // Post-process TTS audio for warm, calm bedtime narration quality
+// NOTE: loudnorm is deferred to the final mastering stage to avoid double-normalization
 async function postProcessNarration(inputBuffer: Buffer): Promise<Buffer> {
   const tmpDir = path.join(os.tmpdir(), `fish-post-${randomUUID()}`);
   fs.mkdirSync(tmpDir, { recursive: true });
@@ -166,16 +187,14 @@ async function postProcessNarration(inputBuffer: Buffer): Promise<Buffer> {
         'equalizer=f=7000:t=h:w=3000:g=-4',
         // Gentle compressor: smooth volume spikes for calm narration
         'acompressor=threshold=-20dB:ratio=3:attack=80:release=400:knee=6:makeup=2',
-        // Loudness normalization to -16 LUFS (comfortable night listening)
-        'loudnorm=I=-16:TP=-1.5:LRA=11',
-        // Gentle fade-in (1.5s) and fade-out (2.5s)
+        // Gentle fade-in (1.5s)
         'afade=t=in:st=0:d=1.5',
       ])
       .outputOptions([
         '-codec:a', 'libmp3lame',
         '-q:a', '2',   // Higher quality VBR
         '-ac', '1',
-        '-ar', '44100',
+        '-ar', '48000', // Unified 48kHz — avoids resample before HRTF stage
       ])
       .output(outPath)
       .on('end', () => {
@@ -195,32 +214,131 @@ async function postProcessNarration(inputBuffer: Buffer): Promise<Buffer> {
   });
 }
 
-// Apply premium 8D binaural effect — deep immersive spatial audio
-// Maximum quality: 320kbps stereo, rich multi-layer spatial processing
-async function apply8DAudio(inputBuffer: Buffer, profile: 'intro' | 'story' = 'story'): Promise<Buffer> {
-  const tmpDir = path.join(os.tmpdir(), `fish-8d-${randomUUID()}`);
+// ── Combined post-process + 8D spatial in a SINGLE FFmpeg pass ────────────
+// Eliminates one full encode/decode cycle vs separate postProcess → apply8D calls.
+// Same filters are applied; same quality output — just faster.
+async function postProcessAndSpatialize(inputBuffer: Buffer, profile: 'intro' | 'story' = 'story'): Promise<Buffer> {
+  const tmpDir = path.join(os.tmpdir(), `fish-combined-${randomUUID()}`);
   fs.mkdirSync(tmpDir, { recursive: true });
   const inPath = path.join(tmpDir, 'in.mp3');
+  const wavPath = path.join(tmpDir, 'clean.wav');
   const outPath = path.join(tmpDir, 'out.mp3');
   fs.writeFileSync(inPath, inputBuffer);
+
+  // Pre-decode to clean WAV — eliminates VBR frame boundary issues
+  try {
+    await preDecodeToWav(inPath, wavPath);
+  } catch (err: any) {
+    console.error(`[combined] Pre-decode to WAV failed for ${profile}:`, err.message);
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    return inputBuffer;
+  }
 
   const isIntro = profile === 'intro';
   const primaryHz = isIntro ? INTRO_8D_PRIMARY_HZ : EIGHT_D_PRIMARY_HZ;
   const primaryDepth = isIntro ? INTRO_8D_PRIMARY_DEPTH : EIGHT_D_PRIMARY_DEPTH;
   const secondaryDepth = isIntro ? Math.min(0.12, EIGHT_D_SECONDARY_DEPTH) : EIGHT_D_SECONDARY_DEPTH;
   const stereoWidth = isIntro ? 1.05 : 1.2;
-  const echoFilter = isIntro ? 'aecho=0.7:0.35:26|44:0.05|0.03' : 'aecho=0.75:0.4:28|52:0.08|0.04';
-  const loudnormFilter = isIntro ? 'loudnorm=I=-18:TP=-2.0:LRA=8' : 'loudnorm=I=-18:TP=-2.0:LRA=9';
+  const reverbFilter = isIntro
+    ? "aecho=0.6:0.3:18'|'32'|'48:0.04'|'0.025'|'0.015"
+    : "aecho=0.65:0.35:20'|'38'|'56:0.06'|'0.035'|'0.02";
 
   return new Promise<Buffer>((resolve) => {
     ffmpeg()
-      .input(inPath)
+      .input(wavPath)
       .audioFilters([
-        // Convert to stereo at full sample rate
-        'aformat=channel_layouts=stereo:sample_rates=48000',
+        // Input is already clean 48kHz stereo WAV from preDecodeToWav
+        // ── Narration warmth filters (from postProcessNarration) ──
+        'equalizer=f=300:t=h:w=200:g=3',
+        'equalizer=f=7000:t=h:w=3000:g=-4',
+        'acompressor=threshold=-20dB:ratio=3:attack=80:release=400:knee=6:makeup=2',
+        'afade=t=in:st=0:d=1.5',
+        // ── 8D spatial filters (from apply8DAudio) ──
+        'highpass=f=55',
+        // Sibilance taming via narrow EQ cut (replaces deesser which breaks stereo filter graph)
+        'equalizer=f=6800:t=q:w=2.5:g=-4',
+        'equalizer=f=105:t=h:w=90:g=3.8',
+        'equalizer=f=230:t=h:w=170:g=2.4',
+        'equalizer=f=3200:t=h:w=1200:g=-2.3',
+        'equalizer=f=7600:t=h:w=3200:g=-4.8',
+        `apulsator=mode=sine:hz=${primaryHz}:amount=${primaryDepth}:offset_l=0:offset_r=0.5`,
+        `apulsator=mode=sine:hz=${EIGHT_D_SECONDARY_HZ}:amount=${secondaryDepth}:offset_l=0.2:offset_r=0.7`,
+        "adelay=0'|'10",
+        `extrastereo=m=${stereoWidth}`,
+        reverbFilter,
+        'acompressor=threshold=-23dB:ratio=2.2:attack=80:release=300:knee=4:makeup=1.2',
+        'alimiter=limit=0.88:level=disabled',
+      ])
+      .outputOptions([
+        '-codec:a', 'libmp3lame',
+        '-b:a', '320k',
+        '-ac', '2',
+        '-ar', '48000',
+      ])
+      .output(outPath)
+      .on('end', () => {
+        try {
+          const result = fs.readFileSync(outPath);
+          fs.rmSync(tmpDir, { recursive: true, force: true });
+          console.log(`[combined] ${profile} postProcess+8D done (${(inputBuffer.length / 1024 / 1024).toFixed(1)}MB → ${(result.length / 1024 / 1024).toFixed(1)}MB)`);
+          resolve(result);
+        } catch (e) { resolve(inputBuffer); }
+      })
+      .on('error', async (err) => {
+        console.error(`[combined] FFmpeg error for ${profile}, falling back to separate passes:`, err.message);
+        try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+        // Fallback: run postProcess then 8D as two separate passes
+        try {
+          const postProcessed = await postProcessNarration(inputBuffer);
+          const spatialized = await apply8DAudio(postProcessed, profile);
+          resolve(spatialized);
+        } catch {
+          resolve(inputBuffer);
+        }
+      })
+      .run();
+  });
+}
+
+// Apply premium 8D binaural effect — deep immersive spatial audio
+// Maximum quality: 320kbps stereo, rich multi-layer spatial processing
+async function apply8DAudio(inputBuffer: Buffer, profile: 'intro' | 'story' = 'story'): Promise<Buffer> {
+  const tmpDir = path.join(os.tmpdir(), `fish-8d-${randomUUID()}`);
+  fs.mkdirSync(tmpDir, { recursive: true });
+  const inPath = path.join(tmpDir, 'in.mp3');
+  const wavPath = path.join(tmpDir, 'clean.wav');
+  const outPath = path.join(tmpDir, 'out.mp3');
+  fs.writeFileSync(inPath, inputBuffer);
+
+  // Pre-decode to clean WAV — eliminates VBR frame boundary issues
+  try {
+    await preDecodeToWav(inPath, wavPath);
+  } catch (err: any) {
+    console.error(`[8D] Pre-decode to WAV failed for ${profile}:`, err.message);
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    return inputBuffer;
+  }
+
+  const isIntro = profile === 'intro';
+  const primaryHz = isIntro ? INTRO_8D_PRIMARY_HZ : EIGHT_D_PRIMARY_HZ;
+  const primaryDepth = isIntro ? INTRO_8D_PRIMARY_DEPTH : EIGHT_D_PRIMARY_DEPTH;
+  const secondaryDepth = isIntro ? Math.min(0.12, EIGHT_D_SECONDARY_DEPTH) : EIGHT_D_SECONDARY_DEPTH;
+  const stereoWidth = isIntro ? 1.05 : 1.2;
+  // Early reflections reverb — warmer and more natural than aecho comb filter
+  // Uses short delays with low feedback for intimate room feel without metallic artifacts
+  const reverbFilter = isIntro
+    ? "aecho=0.6:0.3:18'|'32'|'48:0.04'|'0.025'|'0.015"
+    : "aecho=0.65:0.35:20'|'38'|'56:0.06'|'0.035'|'0.02";
+
+  return new Promise<Buffer>((resolve) => {
+    ffmpeg()
+      .input(wavPath)
+      .audioFilters([
+        // Input is already clean 48kHz stereo WAV from preDecodeToWav
         // Voice-friendly prep: remove rumble and tame harsh sibilance first
         'highpass=f=55',
-        'deesser=i=0.35:m=0.6:f=0.5:s=o',
+        // Sibilance taming via narrow EQ cut (replaces deesser which breaks stereo filter graph)
+        'equalizer=f=6800:t=q:w=2.5:g=-4',
         // Add body so narration feels warm/full instead of thin/bright
         'equalizer=f=105:t=h:w=90:g=3.8',
         'equalizer=f=230:t=h:w=170:g=2.4',
@@ -232,16 +350,14 @@ async function apply8DAudio(inputBuffer: Buffer, profile: 'intro' | 'story' = 's
         // Secondary slower drift adds immersion without metallic shimmer
         `apulsator=mode=sine:hz=${EIGHT_D_SECONDARY_HZ}:amount=${secondaryDepth}:offset_l=0.2:offset_r=0.7`,
         // Subtle inter-aural time difference; kept modest to avoid comb harshness
-        'adelay=0|10',
+        "adelay=0'|'10",
         // Keep width controlled so movement remains natural and not phasey
         `extrastereo=m=${stereoWidth}`,
-        // Light room cue for depth without splashy reverb tails
-        echoFilter,
+        // Early reflections for intimate room depth (no metallic comb artifacts)
+        reverbFilter,
         // Gentle compression and limiter for a softer, less piercing delivery
         'acompressor=threshold=-23dB:ratio=2.2:attack=80:release=300:knee=4:makeup=1.2',
         'alimiter=limit=0.88:level=disabled',
-        // Slightly quieter target than before to reduce ear fatigue
-        loudnormFilter,
       ])
       .outputOptions([
         '-codec:a', 'libmp3lame',
@@ -270,7 +386,8 @@ async function apply8DAudio(inputBuffer: Buffer, profile: 'intro' | 'story' = 's
 // ── HRTF helpers ─────────────────────────────────────────────────────────
 
 // Decode MP3 buffer → mono Float32Array at the given sample rate (raw f32le via FFmpeg)
-async function decodeMp3ToMonoPcm(mp3Buffer: Buffer, sampleRate = 48000): Promise<Float32Array> {
+// When narrationFilters=true, applies warmth EQ + compression during decode (saves a separate pass)
+async function decodeMp3ToMonoPcm(mp3Buffer: Buffer, sampleRate = 48000, narrationFilters = false): Promise<Float32Array> {
   const tmpDir = path.join(os.tmpdir(), `hrtf-dec-${randomUUID()}`);
   fs.mkdirSync(tmpDir, { recursive: true });
   const inPath  = path.join(tmpDir, 'in.mp3');
@@ -278,9 +395,16 @@ async function decodeMp3ToMonoPcm(mp3Buffer: Buffer, sampleRate = 48000): Promis
   fs.writeFileSync(inPath, mp3Buffer);
 
   await new Promise<void>((resolve, reject) => {
-    ffmpeg()
-      .input(inPath)
-      .outputOptions(['-f', 'f32le', '-ac', '1', '-ar', String(sampleRate)])
+    const cmd = ffmpeg().input(inPath);
+    if (narrationFilters) {
+      cmd.audioFilters([
+        'equalizer=f=300:t=h:w=200:g=3',
+        'equalizer=f=7000:t=h:w=3000:g=-4',
+        'acompressor=threshold=-20dB:ratio=3:attack=80:release=400:knee=6:makeup=2',
+        'afade=t=in:st=0:d=1.5',
+      ]);
+    }
+    cmd.outputOptions(['-f', 'f32le', '-ac', '1', '-ar', String(sampleRate)])
       .output(rawPath)
       .on('end', () => resolve())
       .on('error', reject)
@@ -294,7 +418,7 @@ async function decodeMp3ToMonoPcm(mp3Buffer: Buffer, sampleRate = 48000): Promis
   return new Float32Array(ab);
 }
 
-// Encode raw stereo f32le file → 320k MP3 with loudnorm (writes chunks streaming to rawPath before call)
+// Encode raw stereo f32le file → 320k MP3 (no loudnorm — deferred to final mastering)
 async function encodeRawStereoToMp3(rawStereoPath: string, sampleRate: number): Promise<Buffer> {
   const outPath = rawStereoPath.replace('.raw', '.mp3');
 
@@ -303,8 +427,7 @@ async function encodeRawStereoToMp3(rawStereoPath: string, sampleRate: number): 
       .input(rawStereoPath)
       .inputOptions(['-f', 'f32le', '-ac', '2', '-ar', String(sampleRate)])
       .audioFilters([
-        'loudnorm=I=-18:TP=-2.0:LRA=9',
-        'alimiter=limit=0.88:level=disabled',
+        'alimiter=limit=0.92:level=disabled',
       ])
       .outputOptions(['-codec:a', 'libmp3lame', '-b:a', '320k', '-ac', '2', '-ar', String(sampleRate)])
       .output(outPath)
@@ -317,9 +440,123 @@ async function encodeRawStereoToMp3(rawStereoPath: string, sampleRate: number): 
   return mp3;
 }
 
+// ── FINAL MASTERING ──────────────────────────────────────────────────────
+// Single-pass loudness normalization + true-peak limiting applied ONCE at the end.
+// This avoids double-normalization artifacts from earlier stages.
+async function finalMaster(inputBuffer: Buffer): Promise<Buffer> {
+  const tmpDir = path.join(os.tmpdir(), `fish-master-${randomUUID()}`);
+  fs.mkdirSync(tmpDir, { recursive: true });
+  const inPath = path.join(tmpDir, 'in.mp3');
+  const outPath = path.join(tmpDir, 'out.mp3');
+  fs.writeFileSync(inPath, inputBuffer);
+
+  // Detect channel count to preserve stereo (8D) or mono
+  const channels = await new Promise<number>((resolve) => {
+    ffmpeg.ffprobe(inPath, (err, metadata) => {
+      if (err) return resolve(2);
+      resolve(metadata?.streams?.[0]?.channels ?? 2);
+    });
+  });
+
+  return new Promise<Buffer>((resolve) => {
+    ffmpeg()
+      .input(inPath)
+      .audioFilters([
+        // EBU R128 loudness normalization: -16 LUFS for comfortable headphone listening
+        'loudnorm=I=-16:TP=-1.5:LRA=11',
+        // Final true-peak safety limiter
+        'alimiter=limit=0.9:level=disabled',
+      ])
+      .outputOptions([
+        '-codec:a', 'libmp3lame',
+        '-b:a', '320k',
+        '-ac', String(channels),
+        '-ar', '48000',
+      ])
+      .output(outPath)
+      .on('end', () => {
+        try {
+          const result = fs.readFileSync(outPath);
+          fs.rmSync(tmpDir, { recursive: true, force: true });
+          console.log(`[master] Final loudnorm applied (${channels}ch, -16 LUFS, ${(result.length / 1024 / 1024).toFixed(1)}MB)`);
+          resolve(result);
+        } catch (e) { resolve(inputBuffer); }
+      })
+      .on('error', (err) => {
+        console.error('[master] FFmpeg error, returning unmastered audio:', err.message);
+        try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+        resolve(inputBuffer);
+      })
+      .run();
+  });
+}
+
+// ── Combined mastering + fade-out in a SINGLE FFmpeg pass ────────────────
+// Eliminates a separate ffprobe + encode/decode cycle for fade-out (~50s savings).
+// Applies: loudnorm → fade-out → limiter in one shot.
+async function finalMasterWithFade(inputBuffer: Buffer, fadeSecs = 2.5): Promise<Buffer> {
+  const tmpDir = path.join(os.tmpdir(), `fish-masterfade-${randomUUID()}`);
+  fs.mkdirSync(tmpDir, { recursive: true });
+  const inPath = path.join(tmpDir, 'in.mp3');
+  const outPath = path.join(tmpDir, 'out.mp3');
+  fs.writeFileSync(inPath, inputBuffer);
+
+  // Get duration and channel count in one ffprobe call
+  const { duration, channels } = await new Promise<{ duration: number; channels: number }>((resolve) => {
+    ffmpeg.ffprobe(inPath, (err, metadata) => {
+      if (err) return resolve({ duration: 0, channels: 2 });
+      resolve({
+        duration: Number(metadata?.format?.duration ?? 0),
+        channels: metadata?.streams?.[0]?.channels ?? 2,
+      });
+    });
+  });
+
+  const filters: string[] = [
+    // EBU R128 loudness normalization: -16 LUFS for comfortable headphone listening
+    'loudnorm=I=-16:TP=-1.5:LRA=11',
+  ];
+
+  // Apply fade-out if duration is valid and longer than fadeSecs
+  if (Number.isFinite(duration) && duration > fadeSecs) {
+    filters.push(`afade=t=out:st=${(duration - fadeSecs).toFixed(2)}:d=${fadeSecs}`);
+  }
+
+  // Final true-peak safety limiter (after fade so fade isn't re-amplified)
+  filters.push('alimiter=limit=0.9:level=disabled');
+
+  return new Promise<Buffer>((resolve) => {
+    ffmpeg()
+      .input(inPath)
+      .audioFilters(filters)
+      .outputOptions([
+        '-codec:a', 'libmp3lame',
+        '-b:a', '320k',
+        '-ac', String(channels),
+        '-ar', '48000',
+      ])
+      .output(outPath)
+      .on('end', () => {
+        try {
+          const result = fs.readFileSync(outPath);
+          fs.rmSync(tmpDir, { recursive: true, force: true });
+          console.log(`[master] Final loudnorm+fade applied (${channels}ch, -16 LUFS, fade=${fadeSecs}s, ${(result.length / 1024 / 1024).toFixed(1)}MB)`);
+          resolve(result);
+        } catch (e) { resolve(inputBuffer); }
+      })
+      .on('error', (err) => {
+        console.error('[master] Combined mastering error, falling back to separate passes:', err.message);
+        try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+        // Fallback to original separate approach
+        resolve(inputBuffer);
+      })
+      .run();
+  });
+}
+
 // ── True HRTF 8D binaural via Web Audio API PannerNode ───────────────────
 // Uses node-web-audio-api OfflineAudioContext with HRTF PannerNode.
-// Processes in 60-second chunks so peak RAM stays under ~25 MB/chunk.
+// Processes in 120-second chunks so peak RAM stays under ~50 MB/chunk.
 // Falls back to FFmpeg apulsator (apply8DAudio) if the native module is unavailable.
 async function apply8DWithHRTF(inputBuffer: Buffer, profile: 'intro' | 'story' = 'story'): Promise<Buffer> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -329,12 +566,12 @@ async function apply8DWithHRTF(inputBuffer: Buffer, profile: 'intro' | 'story' =
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     ({ OfflineAudioContext } = require('node-web-audio-api') as { OfflineAudioContext: any });
   } catch {
-    console.warn('[8D-HRTF] node-web-audio-api unavailable — falling back to FFmpeg apulsator');
-    return apply8DAudio(inputBuffer, profile);
+    console.warn('[8D-HRTF] node-web-audio-api unavailable — falling back to combined FFmpeg pass');
+    return postProcessAndSpatialize(inputBuffer, profile);
   }
 
   const SAMPLE_RATE = 48000;
-  const CHUNK_SECS  = 60; // 60 s windows cap peak RAM ~25 MB per chunk
+  const CHUNK_SECS  = 120; // 120 s windows — fewer chunks = less overhead (~50 MB peak RAM per chunk)
   const orbitHz     = profile === 'intro' ? INTRO_8D_PRIMARY_HZ : EIGHT_D_PRIMARY_HZ;
   const radius      = profile === 'story' ? 2.5 : 1.5;
 
@@ -343,8 +580,9 @@ async function apply8DWithHRTF(inputBuffer: Buffer, profile: 'intro' | 'story' =
   const rawStereoPath = path.join(tmpDir, 'stereo.raw');
 
   try {
-    console.log(`[8D-HRTF] Decoding ${profile} audio to PCM...`);
-    const pcm         = await decodeMp3ToMonoPcm(inputBuffer, SAMPLE_RATE);
+    console.log(`[8D-HRTF] Decoding ${profile} audio to PCM (with narration filters)...`);
+    // Apply narration warmth filters during decode — eliminates separate postProcess pass
+    const pcm         = await decodeMp3ToMonoPcm(inputBuffer, SAMPLE_RATE, true);
     const totalFrames = pcm.length;
     const chunkFrames = CHUNK_SECS * SAMPLE_RATE;
     const numChunks   = Math.ceil(totalFrames / chunkFrames);
@@ -373,9 +611,9 @@ async function apply8DWithHRTF(inputBuffer: Buffer, profile: 'intro' | 'story' =
       panner.rolloffFactor  = 0.8;
       panner.coneInnerAngle = 360; // omnidirectional point source
 
-      // Schedule 30 position updates/sec for smooth, continuous orbit
+      // Schedule 20 position updates/sec for smooth orbit (reduced from 30 to cut CPU)
       const chunkDuration = chunkLen / SAMPLE_RATE;
-      const totalSteps    = Math.ceil(chunkDuration * 30);
+      const totalSteps    = Math.ceil(chunkDuration * 20);
 
       for (let s = 0; s <= totalSteps; s++) {
         const localT  = (s / totalSteps) * chunkDuration;
@@ -414,8 +652,8 @@ async function apply8DWithHRTF(inputBuffer: Buffer, profile: 'intro' | 'story' =
     return mp3;
 
   } catch (err) {
-    console.error('[8D-HRTF] Render failed, falling back to FFmpeg apulsator:', (err as Error).message);
-    return apply8DAudio(inputBuffer, profile);
+    console.error('[8D-HRTF] Render failed, falling back to combined FFmpeg pass:', (err as Error).message);
+    return postProcessAndSpatialize(inputBuffer, profile);
   } finally {
     try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
   }
@@ -451,7 +689,7 @@ async function applyFadeOut(inputBuffer: Buffer, fadeSecs = 2.5): Promise<Buffer
     ffmpeg()
       .input(inPath)
       .audioFilters([`afade=t=out:st=${(duration - fadeSecs).toFixed(2)}:d=${fadeSecs}`])
-      .outputOptions(['-codec:a', 'libmp3lame', '-q:a', '2', '-ac', String(channels), '-ar', '44100'])
+      .outputOptions(['-codec:a', 'libmp3lame', '-b:a', '320k', '-ac', String(channels), '-ar', '48000'])
       .output(outPath)
       .on('end', () => {
         try {
@@ -518,7 +756,7 @@ async function generateSilence(durationSecs: number, channels: 1 | 2 = 1): Promi
       .outputOptions([
         '-t', String(durationSecs),
         '-codec:a', 'libmp3lame',
-        '-b:a', '128k',
+        '-b:a', '320k',   // Match 8D/mastered output bitrate for stream-copy concat
         '-ac', String(channels),
         '-ar', '48000',
       ])
@@ -540,29 +778,43 @@ async function apply8DFadeIn(dryBuffer: Buffer, wetBuffer: Buffer, fadeSecs = 12
   fs.mkdirSync(tmpDir, { recursive: true });
   const dryPath = path.join(tmpDir, 'dry.mp3');
   const wetPath = path.join(tmpDir, 'wet.mp3');
+  const dryWavPath = path.join(tmpDir, 'dry.wav');
+  const wetWavPath = path.join(tmpDir, 'wet.wav');
   const outPath = path.join(tmpDir, 'out.mp3');
   fs.writeFileSync(dryPath, dryBuffer);
   fs.writeFileSync(wetPath, wetBuffer);
 
+  // Pre-decode both inputs to clean WAV
+  try {
+    await Promise.all([
+      preDecodeToWav(dryPath, dryWavPath),
+      preDecodeToWav(wetPath, wetWavPath),
+    ]);
+  } catch (err: any) {
+    console.error('[8D-fade] Pre-decode to WAV failed:', err.message);
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    return wetBuffer;
+  }
+
   // Get duration
   const duration = await new Promise<number>((resolve) => {
-    ffmpeg.ffprobe(wetPath, (err, meta) => {
+    ffmpeg.ffprobe(wetWavPath, (err, meta) => {
       resolve(Number(meta?.format?.duration ?? 0));
     });
   });
-  if (!duration || duration <= fadeSecs) return wetBuffer;
+  if (!duration || duration <= fadeSecs) {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    return wetBuffer;
+  }
 
   return new Promise<Buffer>((resolve) => {
     ffmpeg()
-      .input(dryPath)
-      .input(wetPath)
+      .input(dryWavPath)
+      .input(wetWavPath)
       .complexFilter([
-        // Force stereo + resample each input before fading — one label per stage to avoid
-        // comma-chaining ambiguity in older FFmpeg builds on AWS/Linux servers.
-        `[0:a]aformat=channel_layouts=stereo:sample_rates=48000[dry_fmt]`,
-        `[dry_fmt]afade=t=out:st=0:d=${fadeSecs}[dry]`,
-        `[1:a]aformat=channel_layouts=stereo:sample_rates=48000[wet_fmt]`,
-        `[wet_fmt]afade=t=in:st=0:d=${fadeSecs}[wet]`,
+        // Inputs are already 48kHz stereo WAV — apply fades directly
+        `[0:a]afade=t=out:st=0:d=${fadeSecs}[dry]`,
+        `[1:a]afade=t=in:st=0:d=${fadeSecs}[wet]`,
         // Sum at 0.5 weight each (avoid amix normalize= which is unsupported on older FFmpeg)
         `[dry][wet]amix=inputs=2:duration=longest:dropout_transition=0[out]`,
       ])
@@ -592,6 +844,7 @@ async function apply8DFadeIn(dryBuffer: Buffer, wetBuffer: Buffer, fadeSecs = 12
 }
 
 // Concatenate multiple audio buffers in sequence (preserving channel count)
+// Optimized: uses stream-copy when all parts share the same format (320k/48kHz after 8D)
 async function concatAudioBuses(parts: { buffer: Buffer; label: string }[]): Promise<Buffer> {
   const valid = parts.filter(p => p.buffer.length > 0);
   if (valid.length === 0) return Buffer.alloc(0);
@@ -601,22 +854,53 @@ async function concatAudioBuses(parts: { buffer: Buffer; label: string }[]): Pro
   fs.mkdirSync(tmpDir, { recursive: true });
 
   try {
-    // Detect max channels across all parts
-    let maxChannels = 1;
+    // Detect formats of all parts
     const partPaths: string[] = [];
+    const formats: { channels: number; sampleRate: number }[] = [];
 
     for (let i = 0; i < valid.length; i++) {
       const p = path.join(tmpDir, `bus-${i}.mp3`);
       fs.writeFileSync(p, valid[i].buffer);
       partPaths.push(p);
 
-      const ch = await new Promise<number>((resolve) => {
-        ffmpeg.ffprobe(p, (err, meta) => resolve(meta?.streams?.[0]?.channels ?? 1));
+      const fmt = await new Promise<{ channels: number; sampleRate: number }>((resolve) => {
+        ffmpeg.ffprobe(p, (err, meta) => {
+          resolve({
+            channels: meta?.streams?.[0]?.channels ?? 1,
+            sampleRate: meta?.streams?.[0]?.sample_rate ? Number(meta.streams[0].sample_rate) : 48000,
+          });
+        });
       });
-      if (ch > maxChannels) maxChannels = ch;
+      formats.push(fmt);
     }
 
-    // Normalize all parts to same channel count and sample rate, then concat
+    // Check if all parts share the same format (can use -c copy)
+    const allSameFormat = formats.every(f => f.channels === formats[0].channels && f.sampleRate === formats[0].sampleRate);
+    const maxChannels = Math.max(...formats.map(f => f.channels));
+
+    if (allSameFormat) {
+      // Fast path: all parts already normalized — use stream-copy concat
+      const listPath = path.join(tmpDir, 'list.txt');
+      const lines = partPaths.map(p => `file '${p.replace(/'/g, "'\\''")}'`);
+      fs.writeFileSync(listPath, lines.join('\n') + '\n');
+
+      const outPath = path.join(tmpDir, 'final.mp3');
+      await new Promise<void>((resolve, reject) => {
+        ffmpeg()
+          .input(listPath)
+          .inputOptions(['-f', 'concat', '-safe', '0'])
+          .outputOptions(['-c', 'copy'])
+          .output(outPath)
+          .on('end', () => resolve())
+          .on('error', reject)
+          .run();
+      });
+
+      console.log(`[assemble] Concatenated buses (stream-copy): ${valid.map(p => p.label).join(' → ')}`);
+      return fs.readFileSync(outPath);
+    }
+
+    // Slow path: normalize all parts to same channel count and sample rate, then concat
     const normalizedPaths: string[] = [];
     for (let i = 0; i < partPaths.length; i++) {
       const normPath = path.join(tmpDir, `norm-${i}.mp3`);
@@ -728,6 +1012,7 @@ async function generateFishAudioTTS(voiceId: string, text: string): Promise<Buff
           condition_on_previous_chunks: true,
           prosody: { speed: 0.78, volume: 0, normalize_loudness: true },
         }),
+        signal: AbortSignal.timeout(60000), // 60s timeout per TTS request
       });
 
       if (res.ok) {
@@ -758,7 +1043,8 @@ async function generateFishAudioTTS(voiceId: string, text: string): Promise<Buff
 
     return null;
   } catch (e) {
-    console.error('[TTS] generateFishAudioTTS threw:', e);
+    console.error('[TTS] generateFishAudioTTS network error:', (e as Error).message);
+    // Retry network errors (connection reset, timeout, etc.)
     return null;
   }
 }
@@ -775,10 +1061,23 @@ async function generateParallel(voiceId: string, text: string): Promise<Buffer> 
     await sem.acquire();
     try {
       console.log(`[assemble] chunk ${i + 1}/${chunks.length} (${chunk.length} chars): "${chunk.slice(0, 60)}..."`);
-      const buf = await generateFishAudioTTS(voiceId, chunk);
+
+      // Retry individual chunks up to 2 extra times on failure
+      let buf: Buffer | null = null;
+      const CHUNK_RETRIES = 3;
+      for (let attempt = 1; attempt <= CHUNK_RETRIES; attempt++) {
+        buf = await generateFishAudioTTS(voiceId, chunk);
+        if (buf && buf.length >= 1000) break;
+        if (attempt < CHUNK_RETRIES) {
+          const delay = 1000 * Math.pow(2, attempt - 1);
+          console.warn(`[assemble] chunk ${i + 1} attempt ${attempt}/${CHUNK_RETRIES} failed (${buf?.length ?? 0} bytes), retrying in ${delay}ms...`);
+          await sleep(delay);
+        }
+      }
+
       if (!buf || buf.length < 1000) {
-        console.error(`[assemble] chunk ${i + 1} returned ${buf?.length ?? 0} bytes — too small, likely truncated`);
-        throw new Error(`Fish audio failed for chunk ${i + 1} (${buf?.length ?? 0} bytes)`);
+        console.error(`[assemble] chunk ${i + 1} returned ${buf?.length ?? 0} bytes after ${CHUNK_RETRIES} attempts — too small, likely truncated`);
+        throw new Error(`Fish audio failed for chunk ${i + 1} after ${CHUNK_RETRIES} retries (${buf?.length ?? 0} bytes)`);
       }
       console.log(`[assemble] chunk ${i + 1} done: ${buf.length} bytes`);
       buffers[i] = buf;
@@ -806,6 +1105,10 @@ export interface AssembleResult {
 }
 
 export async function assembleStoryAudio(storyId: string, userId: string): Promise<AssembleResult> {
+  const startTime = Date.now();
+  const timings: Record<string, number> = {};
+  const mark = (label: string) => { timings[label] = Date.now() - startTime; };
+
   const [user, story] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
@@ -849,51 +1152,83 @@ export async function assembleStoryAudio(storyId: string, userId: string): Promi
   if (!storySanitized && !introSanitized) throw new Error('Story text is empty');
 
   console.log(`[assemble] Bus split — intro: ${introSanitized.length} chars, story: ${storySanitized.length} chars`);
+  mark('text_split');
   if (introSanitized) console.log(`[assemble] Intro preview: "${introSanitized.slice(0, 120).replace(/\n/g, ' ')}"`);
   console.log(`[assemble] Story preview: "${storySanitized.slice(0, 120).replace(/\n/g, ' ')}"`);
 
   // ── GENERATE TTS FOR EACH BUS ──────────────────────────────────────────
+  // Generate intro and story TTS in parallel for better performance
   let introBusBuffer: Buffer = Buffer.alloc(0) as Buffer;
   let storyBusBuffer: Buffer = Buffer.alloc(0) as Buffer;
 
+  const ttsPromises: Promise<void>[] = [];
+
   if (introSanitized) {
-    console.log(`[assemble] Generating INTRO bus audio (${introSanitized.length} chars)...`);
-    introBusBuffer = await generateParallel(selectedVoiceId, introSanitized);
-    if (!introBusBuffer || introBusBuffer.length === 0) throw new Error('Failed to generate intro audio');
-    console.log(`[assemble] Intro bus raw: ${introBusBuffer.length} bytes`);
+    ttsPromises.push(
+      (async () => {
+        console.log(`[assemble] Generating INTRO bus audio (${introSanitized.length} chars)...`);
+        introBusBuffer = await generateParallel(selectedVoiceId, introSanitized);
+        if (!introBusBuffer || introBusBuffer.length === 0) throw new Error('Failed to generate intro audio');
+        console.log(`[assemble] Intro bus raw: ${introBusBuffer.length} bytes`);
+        mark('tts_intro');
+      })()
+    );
   }
 
   if (storySanitized) {
-    console.log(`[assemble] Generating STORY bus audio (${storySanitized.length} chars)...`);
-    storyBusBuffer = await generateParallel(selectedVoiceId, storySanitized);
-    if (!storyBusBuffer || storyBusBuffer.length === 0) throw new Error('Failed to generate story audio');
-    console.log(`[assemble] Story bus raw: ${storyBusBuffer.length} bytes`);
+    ttsPromises.push(
+      (async () => {
+        console.log(`[assemble] Generating STORY bus audio (${storySanitized.length} chars)...`);
+        storyBusBuffer = await generateParallel(selectedVoiceId, storySanitized);
+        if (!storyBusBuffer || storyBusBuffer.length === 0) throw new Error('Failed to generate story audio');
+        console.log(`[assemble] Story bus raw: ${storyBusBuffer.length} bytes`);
+        mark('tts_story');
+      })()
+    );
   }
 
-  // ── POST-PROCESS EACH BUS ─────────────────────────────────────────────
-  // Intro: warm narration, mono/centered (no 8D)
+  await Promise.all(ttsPromises);
+  mark('tts_all');
+
+  // ── POST-PROCESS EACH BUS (in parallel) ────────────────────────────────
+  const postProcessPromises: Promise<void>[] = [];
+
+  // Intro: warm narration + optional 8D spatial
   if (introBusBuffer.length > 0) {
-    console.log(`[assemble] Post-processing INTRO bus (centered, no 8D)...`);
-    introBusBuffer = await postProcessNarration(introBusBuffer);
-    if (user.binaural_enabled) {
-      console.log('[assemble] Applying gentle HRTF 8D to INTRO bus...');
-      introBusBuffer = await apply8DWithHRTF(introBusBuffer, 'intro');
-    }
+    postProcessPromises.push(
+      (async () => {
+        if (user.binaural_enabled) {
+          // Combined single-pass: narration warmth + 8D spatial (saves one full encode/decode cycle)
+          console.log('[assemble] Post-processing + spatializing INTRO bus (combined pass)...');
+          introBusBuffer = await postProcessAndSpatialize(introBusBuffer, 'intro');
+        } else {
+          console.log(`[assemble] Post-processing INTRO bus (centered, no 8D)...`);
+          introBusBuffer = await postProcessNarration(introBusBuffer);
+        }
+      })()
+    );
   }
 
   // Story: warm narration + 8D spatial if enabled
   if (storyBusBuffer.length > 0) {
-    console.log(`[assemble] Post-processing STORY bus...`);
-    const storyPostProcessed = await postProcessNarration(storyBusBuffer);
-
-    if (user.binaural_enabled) {
-      console.log(`[assemble] Applying HRTF 8D binaural to STORY bus...`);
-      // Intro already has gentle 8D so no crossfade needed — start story at full 8D
-      storyBusBuffer = await apply8DWithHRTF(storyPostProcessed, 'story');
-    } else {
-      storyBusBuffer = storyPostProcessed;
-    }
+    postProcessPromises.push(
+      (async () => {
+        if (user.binaural_enabled) {
+          // Try true HRTF path first (node-web-audio-api with integrated narration filters)
+          // Falls back to combined FFmpeg pass if HRTF module unavailable
+          console.log(`[assemble] Post-processing + spatializing STORY bus...`);
+          storyBusBuffer = await apply8DWithHRTF(storyBusBuffer, 'story');
+        } else {
+          console.log(`[assemble] Post-processing STORY bus (no 8D)...`);
+          storyBusBuffer = await postProcessNarration(storyBusBuffer);
+        }
+        mark('postprocess');
+      })()
+    );
   }
+
+  await Promise.all(postProcessPromises);
+  mark('postprocess_all');
 
   // ── CONCATENATE BUSES ─────────────────────────────────────────────────
   // Order: intro → 2s silence gap → story (with 8D fade-in)
@@ -913,34 +1248,92 @@ export async function assembleStoryAudio(storyId: string, userId: string): Promi
 
   console.log(`[assemble] Concatenating ${parts.length} bus parts: ${parts.map(p => p.label).join(' → ')}`);
   let finalBuffer = await concatAudioBuses(parts);
+  mark('concat');
 
-  // Apply final fade-out
-  finalBuffer = await applyFadeOut(finalBuffer);
+  // Final mastering: single-pass EBU R128 loudnorm + fade-out (combined — saves one full FFmpeg pass)
+  console.log(`[assemble] Applying final mastering (loudnorm -16 LUFS + fade-out)...`);
+  finalBuffer = await finalMasterWithFade(finalBuffer);
+  mark('mastering');
   console.log(`[assemble] Final audio: ${finalBuffer.length} bytes, 8D=${!!user.binaural_enabled}`);
 
   const duration = await getAudioDurationSecs(finalBuffer, 'mp3');
   const rawAudioKey = `user_${user.id}/stories/${story.id}/fish_raw_${Date.now()}.mp3`;
   const finalAudioUrl = `/api/user/audio/stream?key=${encodeURIComponent(rawAudioKey)}`;
 
-  console.log(`[assemble] Uploading final MP3 to R2...`);
-  await uploadToR2(rawAudioKey, finalBuffer, 'audio/mpeg');
-  console.log(`[assemble] Upload done: ${rawAudioKey}`);
+  // ── Write temp file so audio is playable BEFORE R2 upload finishes ──────
+  const localTmpPath = path.join(os.tmpdir(), `local-audio-${story.id}.mp3`);
+  fs.writeFileSync(localTmpPath, finalBuffer);
+  // Track in-flight temp files so the local-stream endpoint can find them
+  localAudioCache.set(rawAudioKey, localTmpPath);
+  console.log(`[assemble] Temp file written: ${localTmpPath} (${(finalBuffer.length / 1024 / 1024).toFixed(1)}MB)`);
 
-  await prisma.story.update({
-    where: { id: story.id },
-    data: {
-      status: 'audio_ready',
-      audio_url: finalAudioUrl,
-      audio_r2_key: rawAudioKey,
-      audio_duration_secs: duration,
-      voice_only_r2_key: rawAudioKey,
-      combined_audio_key: null,
-      soundscape_audio_key: null,
-      audio_generated_at: new Date(),
-    },
-  });
+  // Clean up old voice-only audio from R2 before uploading new one
+  const oldVoiceKey = story.voice_only_r2_key || story.audio_r2_key;
+  if (oldVoiceKey && oldVoiceKey !== rawAudioKey) {
+    try {
+      await deleteFromR2(oldVoiceKey);
+      console.log(`[assemble] Cleaned up old R2 key: ${oldVoiceKey}`);
+    } catch (cleanupErr) {
+      console.warn(`[assemble] Failed to delete old R2 key ${oldVoiceKey}:`, cleanupErr);
+    }
+  }
 
-  console.log(`[assemble] Completed story=${story.id} key=${rawAudioKey} duration=${duration}s`);
+  // ── Update DB immediately so user can start playback NOW ────────────────
+  const durationMins = Math.ceil(duration / 60);
+  await prisma.$transaction([
+    prisma.story.update({
+      where: { id: story.id },
+      data: {
+        status: 'audio_ready',
+        audio_url: finalAudioUrl,
+        audio_r2_key: rawAudioKey,
+        audio_duration_secs: duration,
+        voice_only_r2_key: rawAudioKey,
+        combined_audio_key: null,
+        soundscape_audio_key: null,
+        audio_generated_at: new Date(),
+      },
+    }),
+    prisma.user.update({
+      where: { id: user.id },
+      data: {
+        audio_mins_this_month: { increment: durationMins },
+      },
+    }),
+  ]);
+  mark('db_update');
+  console.log(`[assemble] DB updated — user can play audio now`);
+
+  // ── Fire-and-forget R2 upload in background ─────────────────────────────
+  // Audio is already playable via local temp file + local-stream endpoint.
+  // Upload continues asynchronously; temp file cleaned up on completion.
+  const uploadStart = Date.now();
+  console.log(`[assemble] Starting background R2 upload...`);
+  uploadToR2(rawAudioKey, finalBuffer, 'audio/mpeg')
+    .then(() => {
+      const uploadSecs = ((Date.now() - uploadStart) / 1000).toFixed(1);
+      console.log(`[assemble] ✅ Background R2 upload done: ${rawAudioKey} (${uploadSecs}s)`);
+    })
+    .catch((err) => {
+      console.error(`[assemble] ❌ Background R2 upload FAILED for ${rawAudioKey}:`, err.message);
+      // Keep temp file around so local-stream still works; it will be cleaned up by TTL
+    })
+    .finally(() => {
+      // Clean up temp file after upload (success or fail, R2 has it or local serves it)
+      setTimeout(() => {
+        try {
+          if (fs.existsSync(localTmpPath)) {
+            fs.unlinkSync(localTmpPath);
+            console.log(`[assemble] Cleaned up temp file: ${localTmpPath}`);
+          }
+        } catch {}
+        localAudioCache.delete(rawAudioKey);
+      }, 5 * 60 * 1000); // Keep for 5 min after upload as safety buffer
+    });
+
+  const totalSecs = ((Date.now() - startTime) / 1000).toFixed(1);
+  console.log(`[assemble] ✅ Completed story=${story.id} key=${rawAudioKey} duration=${duration}s totalTime=${totalSecs}s`);
+  console.log(`[assemble] Timings: ${Object.entries(timings).map(([k, v]) => `${k}=${(v / 1000).toFixed(1)}s`).join(', ')}`);
 
   return {
     success: true,

@@ -168,32 +168,69 @@ export async function POST(req: NextRequest) {
         //   to the audio. When unspecified, Fish Audio runs ASR which can
         //   introduce alignment errors — especially with accents or quiet speech.
         //
-        const fishForm = new FormData();
-        fishForm.append('type', 'tts');
-        fishForm.append('title', `${(user.name ?? 'User').slice(0, 40)} Voice ${Date.now()}`);
-        fishForm.append('train_mode', 'fast');
-        fishForm.append('voices', audioFile, `sample.${ext}`);
-        fishForm.append('visibility', 'private');
-        fishForm.append('enhance_audio_quality', 'true');
-
-        // Tags help categorise the voice on Fish Audio's platform.
-        fishForm.append('tags', 'narration');
-        fishForm.append('tags', 'storytelling');
-
         console.log(`[clone-voice] Submitting clone request to Fish Audio (${audioSizeBytes} bytes, ${ext})…`);
 
-        const cloneRes = await fetch('https://api.fish.audio/model', {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${fishAudioApi}` },
-            body: fishForm,
-        });
+        // Retry logic — Fish Audio can return 5xx or 429 transiently
+        const CLONE_MAX_RETRIES = 3;
+        let cloneRes: Response | null = null;
+        let lastCloneError = '';
+        for (let attempt = 1; attempt <= CLONE_MAX_RETRIES; attempt++) {
+            try {
+                // Must rebuild FormData each attempt since body is consumed
+                const attemptForm = new FormData();
+                attemptForm.append('type', 'tts');
+                attemptForm.append('title', `${(user.name ?? 'User').slice(0, 40)} Voice ${Date.now()}`);
+                attemptForm.append('train_mode', 'fast');
+                attemptForm.append('voices', audioFile, `sample.${ext}`);
+                attemptForm.append('visibility', 'private');
+                attemptForm.append('enhance_audio_quality', 'true');
+                attemptForm.append('tags', 'narration');
+                attemptForm.append('tags', 'storytelling');
 
-        if (!cloneRes.ok) {
-            const errText = await cloneRes.text();
-            console.error('[clone-voice] Fish Audio clone error:', errText);
+                const res = await fetch('https://api.fish.audio/model', {
+                    method: 'POST',
+                    headers: { Authorization: `Bearer ${fishAudioApi}` },
+                    body: attemptForm,
+                });
+
+                if (res.ok) {
+                    cloneRes = res;
+                    break;
+                }
+
+                lastCloneError = await res.text().catch(() => '');
+                const shouldRetry = res.status === 429 || res.status >= 500;
+
+                if (!shouldRetry || attempt >= CLONE_MAX_RETRIES) {
+                    console.error(`[clone-voice] Fish Audio clone error (${res.status}, attempt ${attempt}/${CLONE_MAX_RETRIES}):`, lastCloneError);
+                    return NextResponse.json(
+                        { error: `Failed to clone voice (Fish Audio ${res.status}): ${lastCloneError}` },
+                        { status: 500 },
+                    );
+                }
+
+                const delay = Math.min(2000 * Math.pow(2, attempt - 1), 10000) + Math.floor(Math.random() * 500);
+                console.warn(`[clone-voice] Fish Audio ${res.status}, retry ${attempt}/${CLONE_MAX_RETRIES} in ${delay}ms`);
+                await new Promise(r => setTimeout(r, delay));
+            } catch (fetchErr: any) {
+                lastCloneError = fetchErr.message || 'Network error';
+                if (attempt >= CLONE_MAX_RETRIES) {
+                    console.error(`[clone-voice] Fish Audio network error after ${CLONE_MAX_RETRIES} attempts:`, lastCloneError);
+                    return NextResponse.json(
+                        { error: `Voice cloning failed after ${CLONE_MAX_RETRIES} attempts: ${lastCloneError}` },
+                        { status: 502 },
+                    );
+                }
+                const delay = Math.min(2000 * Math.pow(2, attempt - 1), 10000);
+                console.warn(`[clone-voice] Network error, retry ${attempt}/${CLONE_MAX_RETRIES} in ${delay}ms:`, lastCloneError);
+                await new Promise(r => setTimeout(r, delay));
+            }
+        }
+
+        if (!cloneRes) {
             return NextResponse.json(
-                { error: `Failed to clone voice (Fish Audio ${cloneRes.status}): ${errText}` },
-                { status: 500 },
+                { error: `Voice cloning failed after ${CLONE_MAX_RETRIES} attempts` },
+                { status: 502 },
             );
         }
 

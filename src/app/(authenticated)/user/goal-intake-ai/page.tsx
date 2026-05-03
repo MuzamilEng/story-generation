@@ -1127,7 +1127,22 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
     if (customIdentity.trim()) {
       combined.push(customIdentity.trim());
     }
-    if (combined.length > 0) {
+    // Filter out placeholder chips that require follow-up (e.g., "Something else — let me write my own")
+    const filtered = combined.filter((item) => {
+      const lower = item.toLowerCase();
+      return !(
+        lower.includes("something else") ||
+        lower.includes("let me choose") ||
+        lower.includes("let me describe") ||
+        lower.includes("let me write")
+      );
+    });
+    if (filtered.length > 0) {
+      onChipClick?.(filtered.join(", "));
+      setCustomIdentity("");
+      setAddedCustomEntries([]);
+    } else if (combined.length > 0 && filtered.length === 0) {
+      // User only selected "Something else" with no custom entry — prompt for input
       onChipClick?.(combined.join(", "));
       setCustomIdentity("");
       setAddedCustomEntries([]);
@@ -2407,8 +2422,29 @@ const GoalDiscovery: React.FC = () => {
     (text: string) => {
       if (isWaiting) return;
 
-      // Real-time instant effect: Capture structured data locally immediately
+      // Detect "follow-up needed" chips — these require the user to provide
+      // additional input, so we don't capture the chip text itself as the value.
+      // The AI will ask a follow-up question and the real value will be captured
+      // either via the next user message or the AI's CAPTURE tag.
       const lowerText = text.toLowerCase();
+      const isFollowUpNeeded =
+        lowerText.includes("something else") ||
+        lowerText.includes("let me choose") ||
+        lowerText.includes("let me describe") ||
+        lowerText.includes("let me write") ||
+        lowerText.includes("let me explain") ||
+        lowerText.includes("i\u2019ll describe") ||
+        lowerText.includes("i'll describe") ||
+        lowerText.includes("other \u2014 ") ||
+        lowerText.includes("other — ");
+
+      if (isFollowUpNeeded) {
+        // Send to AI without capturing — AI will ask follow-up
+        sendToAI(text);
+        return;
+      }
+
+      // Real-time instant effect: Capture structured data locally immediately
       const currentTopic = activeTopicIdRef.current;
 
       if (progress.phase === "Life Areas" || currentTopic === "selectedAreas") {

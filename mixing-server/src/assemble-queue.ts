@@ -5,9 +5,9 @@ import { assembleStoryAudio } from './assemble';
 const QUEUE_NAME = 'assemble-audio';
 const ASSEMBLE_WORKER_CONCURRENCY = Math.max(
   1,
-  Number(process.env.ASSEMBLE_WORKER_CONCURRENCY ?? 1) || 1
+  Number(process.env.ASSEMBLE_WORKER_CONCURRENCY ?? 2) || 2
 );
-const ASSEMBLE_JOB_ATTEMPTS = Math.max(1, Number(process.env.ASSEMBLE_JOB_ATTEMPTS ?? 2) || 2);
+const ASSEMBLE_JOB_ATTEMPTS = Math.max(1, Number(process.env.ASSEMBLE_JOB_ATTEMPTS ?? 3) || 3);
 const ASSEMBLE_JOB_BACKOFF_MS = Math.max(
   250,
   Number(process.env.ASSEMBLE_JOB_BACKOFF_MS ?? 5000) || 5000
@@ -61,30 +61,80 @@ export function initAssembleWorker() {
   const worker = new Worker<AssembleJobData>(
     QUEUE_NAME,
     async (job) => {
-      await job.updateProgress({ stage: 'started', message: 'Audio job started' });
-      const result = await assembleStoryAudio(job.data.storyId, job.data.userId);
-      await job.updateProgress({ stage: 'completed', message: 'Audio is ready' });
-      return result;
+      const attemptNum = job.attemptsMade + 1;
+      const maxAttempts = ASSEMBLE_JOB_ATTEMPTS;
+      console.log(`[queue] Processing job ${job.id} (attempt ${attemptNum}/${maxAttempts}) for story=${job.data.storyId}`);
+      await job.updateProgress({ stage: 'started', message: `Audio job started (attempt ${attemptNum}/${maxAttempts})` });
+      try {
+        const result = await assembleStoryAudio(job.data.storyId, job.data.userId);
+        await job.updateProgress({ stage: 'completed', message: 'Audio is ready' });
+        return result;
+      } catch (err: any) {
+        console.error(`[queue] Job ${job.id} attempt ${attemptNum}/${maxAttempts} failed:`, err.message);
+        // Update story status to reflect failure if this is the last attempt
+        if (attemptNum >= maxAttempts) {
+          try {
+            const { prisma } = await import('./prisma');
+            await prisma.story.update({
+              where: { id: job.data.storyId },
+              data: { status: 'draft' },
+            });
+            console.log(`[queue] Story ${job.data.storyId} status reset to draft after all retries exhausted`);
+          } catch (dbErr) {
+            console.error('[queue] Failed to reset story status:', dbErr);
+          }
+        }
+        throw err;
+      }
     },
     {
       connection: workerConnection,
       concurrency: ASSEMBLE_WORKER_CONCURRENCY,
+      lockDuration: 300000,     // 5 min lock — long enough for full assembly
+      stalledInterval: 120000,  // Check for stalled jobs every 2 min
+      maxStalledCount: 2,       // Allow 1 stall recovery before failing
     }
   );
 
   worker.on('completed', (job) => {
-    console.log(`[queue] Completed ${job.id}`);
+    console.log(`[queue] Completed ${job.id} for story=${job.data.storyId}`);
   });
 
   worker.on('failed', (job, err) => {
-    console.error(`[queue] Failed ${job?.id}:`, err.message);
+    const attempts = job ? `${job.attemptsMade}/${ASSEMBLE_JOB_ATTEMPTS}` : '?';
+    console.error(`[queue] Failed ${job?.id} (${attempts} attempts):`, err.message);
+  });
+
+  worker.on('stalled', (jobId) => {
+    console.warn(`[queue] Stalled job detected: ${jobId} — worker will retry`);
+  });
+
+  worker.on('error', (err) => {
+    console.error('[queue] Worker error:', err.message);
   });
 
   assembleQueueEvents.on('error', (err) => {
     console.error('[queue] Queue events error:', err);
   });
 
-  console.log('[queue] Assemble worker initialized');
+  console.log(`[queue] Assemble worker initialized (attempts=${ASSEMBLE_JOB_ATTEMPTS}, concurrency=${ASSEMBLE_WORKER_CONCURRENCY}, lockDuration=300s, stalledInterval=120s)`);
+
+  // Check and fix Redis eviction policy — BullMQ requires noeviction to prevent data loss
+  checkRedisEvictionPolicy().catch(() => {});
+}
+
+async function checkRedisEvictionPolicy() {
+  try {
+    const info = await queueConnection.config('GET', 'maxmemory-policy');
+    const policy = Array.isArray(info) ? info[1] : null;
+    if (policy && policy !== 'noeviction') {
+      console.warn(`\n⚠️  Redis eviction policy is "${policy}". Setting to "noeviction" for BullMQ stability...`);
+      await queueConnection.config('SET', 'maxmemory-policy', 'noeviction');
+      console.log('[queue] ✅ Redis eviction policy set to "noeviction"');
+    }
+  } catch (err) {
+    console.warn('[queue] Could not check/set Redis eviction policy:', (err as Error).message);
+  }
 }
 
 export async function enqueueAssembleJob(data: AssembleJobData) {

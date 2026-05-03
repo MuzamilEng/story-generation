@@ -46,14 +46,37 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const upstream = await fetch(`${MIXING_SERVER}/assemble`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-secret': API_SECRET,
-      },
-      body: JSON.stringify({ storyId, userId: session.user.id }),
-    });
+    // Retry logic for mixing server communication
+    const ASSEMBLE_RETRIES = 3;
+    let upstream: Response | null = null;
+    let lastError = '';
+    for (let attempt = 1; attempt <= ASSEMBLE_RETRIES; attempt++) {
+      try {
+        upstream = await fetch(`${MIXING_SERVER}/assemble`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-secret': API_SECRET,
+          },
+          body: JSON.stringify({ storyId, userId: session.user.id }),
+          signal: AbortSignal.timeout(50000), // 50s timeout per attempt
+        });
+        break; // success
+      } catch (fetchErr: any) {
+        lastError = fetchErr.message || 'Network error';
+        if (attempt < ASSEMBLE_RETRIES) {
+          const delay = 1000 * Math.pow(2, attempt - 1);
+          console.warn(`[api/assemble] Mixing server attempt ${attempt}/${ASSEMBLE_RETRIES} failed: ${lastError}. Retrying in ${delay}ms...`);
+          await new Promise(r => setTimeout(r, delay));
+        }
+      }
+    }
+
+    if (!upstream) {
+      console.error(`[api/assemble] Mixing server unreachable after ${ASSEMBLE_RETRIES} attempts: ${lastError}`);
+      appLog({ level: 'error', source: 'user/audio/assemble', message: `Mixing server unreachable after ${ASSEMBLE_RETRIES} attempts: ${lastError}`, userId: session.user.id, meta: { storyId } });
+      return NextResponse.json({ error: 'Mixing server unavailable. Please try again.' }, { status: 502 });
+    }
 
     const contentType = upstream.headers.get('content-type') || '';
     if (!contentType.includes('application/json')) {
@@ -141,6 +164,7 @@ export async function GET(req: NextRequest) {
         headers: {
           'x-api-secret': API_SECRET,
         },
+        signal: AbortSignal.timeout(10000), // 10s timeout for status checks
       }
     );
 
