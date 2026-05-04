@@ -123,6 +123,32 @@ export async function POST(
             return NextResponse.json({ error: 'Story not found' }, { status: 404 })
         }
 
+        // Prevent concurrent generation — only allow if story is in an idle state
+        const allowedStatuses = ['draft', 'approved', 'audio_ready'];
+        if (!allowedStatuses.includes(story.status)) {
+            return NextResponse.json(
+                { error: 'Story generation already in progress. Please wait.' },
+                { status: 409 }
+            )
+        }
+
+        // Optimistic lock via version: bump the version immediately so a concurrent
+        // request reading the same version will fail the WHERE clause and get count=0.
+        const lockResult = await prisma.story.updateMany({
+            where: {
+                id: storyId,
+                userId: session.user.id,
+                version: story.version,
+            },
+            data: { version: story.version + 1 },
+        });
+        if (lockResult.count === 0) {
+            return NextResponse.json(
+                { error: 'Story generation already in progress. Please wait.' },
+                { status: 409 }
+            )
+        }
+
         const answers = normalizeGoals(story.goal_intake_json)
         
         // Include custom affirmations if present in DB
@@ -265,7 +291,7 @@ export async function POST(
             }
         }
 
-        // Update story and create a version
+        // Update story and create a version (reset status from 'generating' back to 'draft')
         const updatedStory = await prisma.story.update({
             where: { id: storyId },
             data: {
@@ -277,7 +303,7 @@ export async function POST(
                 },
                 versions: {
                     create: {
-                        version: story.version + 1,
+                        version: story.version + 2,
                         title: title,
                         body: storyText,
                         word_count: storyText.trim().split(/\s+/).length,
@@ -298,6 +324,39 @@ export async function POST(
     } catch (error) {
         console.error('[STORY_GENERATE]', error)
         appLog({ level: "error", source: "api/user/stories/generate", message: `Story generation failed: ${error instanceof Error ? error.message : error}`, userId: sessionUserId, meta: { stack: error instanceof Error ? error.stack : undefined } });
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
+
+        // Return user-friendly error messages based on the failure type
+        const err = error as any;
+        const status = err?.status || err?.response?.status;
+
+        if (status === 408 || err?.message?.includes('timed out')) {
+            return NextResponse.json(
+                { error: 'Story generation timed out. This can happen when our AI servers are busy. Please try again.', code: 'TIMEOUT', retryable: true },
+                { status: 504 }
+            )
+        }
+        if (status === 429) {
+            return NextResponse.json(
+                { error: 'Our AI is handling a lot of requests right now. Please wait a moment and try again.', code: 'RATE_LIMITED', retryable: true },
+                { status: 429 }
+            )
+        }
+        if (status === 529 || status === 503) {
+            return NextResponse.json(
+                { error: 'Our AI service is temporarily unavailable. Please try again in a few seconds.', code: 'SERVICE_UNAVAILABLE', retryable: true },
+                { status: 503 }
+            )
+        }
+        if (err?.message === 'Failed to generate story text') {
+            return NextResponse.json(
+                { error: 'We couldn\'t generate your story this time. Please try again.', code: 'EMPTY_RESPONSE', retryable: true },
+                { status: 502 }
+            )
+        }
+
+        return NextResponse.json(
+            { error: 'Something went wrong while generating your story. Please try again, and if the problem persists, contact support.', code: 'UNKNOWN', retryable: true },
+            { status: 500 }
+        )
     }
 }

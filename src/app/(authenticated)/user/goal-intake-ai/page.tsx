@@ -1376,14 +1376,15 @@ function isAreaSelected(
   capturedGoals: CapturedData | null,
 ): boolean {
   const rawAreas =
-    capturedGoals?.selectedAreas ||
-    capturedGoals?.SELECTEDAREAS ||
-    [];
+    capturedGoals?.selectedAreas || capturedGoals?.SELECTEDAREAS || [];
   let areas: string[];
   if (Array.isArray(rawAreas)) {
     areas = rawAreas.map((a) => String(a));
   } else if (typeof rawAreas === "string" && rawAreas.includes(",")) {
-    areas = rawAreas.split(",").map((a) => a.trim()).filter(Boolean);
+    areas = rawAreas
+      .split(",")
+      .map((a) => a.trim())
+      .filter(Boolean);
   } else {
     areas = [String(rawAreas)];
   }
@@ -2470,8 +2471,8 @@ const GoalDiscovery: React.FC = () => {
         // (e.g. "I have a specific goal in mind") must NOT overwrite them.
         const areas = text.split(", ").map((a) => a.trim());
         const validAreaIds = new Set(AREA_TOPIC_IDS);
-        const areAllValidAreas = areas.every(
-          (a) => validAreaIds.has(normalizeAreaValue(a)),
+        const areAllValidAreas = areas.every((a) =>
+          validAreaIds.has(normalizeAreaValue(a)),
         );
         if (areAllValidAreas) {
           setCapturedGoals((prev) => ({ ...prev, selectedAreas: areas }));

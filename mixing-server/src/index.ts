@@ -243,7 +243,39 @@ app.post('/mix', requireAuth, async (req, res) => {
     );
 
     // 3. Download voice (and background if selected) from R2
-    const voiceBuffer = await downloadFromR2(voiceKey);
+    //    The voice file may still be uploading to R2 (fire-and-forget from assemble).
+    //    Fall back to the local temp cache if R2 returns NoSuchKey / 404.
+    let voiceBuffer: Buffer;
+    try {
+      voiceBuffer = await downloadFromR2(voiceKey);
+    } catch (dlErr: any) {
+      const errMsg = dlErr?.message || '';
+      const httpStatus = dlErr?.$metadata?.httpStatusCode;
+      const isNotFound =
+        httpStatus === 404 ||
+        errMsg.includes('NoSuchKey') ||
+        errMsg.includes('specified key does not exist');
+
+      if (isNotFound) {
+        // Try local cache — assemble writes here before R2 upload starts
+        const localPath = localAudioCache.get(voiceKey);
+        if (localPath && fs.existsSync(localPath)) {
+          console.log(`[mix] R2 not ready for ${voiceKey}, using local cache: ${localPath}`);
+          voiceBuffer = fs.readFileSync(localPath);
+        } else {
+          console.error(`[mix] Voice file not found in R2 or local cache: ${voiceKey}`);
+          res.status(409).json({
+            error: 'Your voice audio is still being uploaded. Please wait a few seconds and try again.',
+            code: 'AUDIO_NOT_READY',
+            retryable: true,
+          });
+          return;
+        }
+      } else {
+        throw dlErr;
+      }
+    }
+
     if (soundscape) {
       bgBuffer = await downloadFromR2(soundscape.r2_key);
     }
@@ -297,7 +329,20 @@ app.post('/mix', requireAuth, async (req, res) => {
     });
   } catch (err: any) {
     console.error('[mix] Error:', err);
-    res.status(500).json({ error: err.message || 'Mixing failed' });
+    const errMsg = err?.message || '';
+    if (errMsg.includes('specified key does not exist') || errMsg.includes('NoSuchKey')) {
+      res.status(409).json({
+        error: 'Your audio is still being uploaded. Please wait a few seconds and try again.',
+        code: 'AUDIO_NOT_READY',
+        retryable: true,
+      });
+    } else {
+      res.status(500).json({
+        error: 'Something went wrong while mixing your audio. Please try again.',
+        code: 'MIX_FAILED',
+        retryable: true,
+      });
+    }
   }
 });
 

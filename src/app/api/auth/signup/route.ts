@@ -6,7 +6,7 @@ import { appLog } from "@/lib/app-logger"
 
 export async function POST(request: NextRequest) {
   try {
-    const { name, email, password, betaCode, role } = await request.json()
+    const { name, email, password, betaCode } = await request.json()
 
     if (!name || !email || !password) {
       return NextResponse.json(
@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
             name: name,
             email,
             password_hash: hashedPassword,
-            role: (role === "ADMIN" ? "ADMIN" : "USER") as any,
+            role: "USER" as any,
             is_beta: true,
             beta_source: "signup",
             plan: "manifester",
@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
             name: name,
             email,
             password_hash: hashedPassword,
-            role: (role === "ADMIN" ? "ADMIN" : "USER") as any,
+            role: "USER" as any,
             is_beta: true,
             beta_source: upperCode,
             plan: betaPlan,

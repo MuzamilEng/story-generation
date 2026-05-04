@@ -1,5 +1,5 @@
 "use client";
-import React, { useRef, useEffect, useState } from "react";
+import React, { useRef, useEffect, useState, useCallback } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAudioPlayerStore } from "@/store/useAudioPlayerStore";
 
@@ -59,6 +59,19 @@ export default function GlobalAudioPlayer() {
 
   const shouldResumeAfterSeek = useRef(false);
   const displayDurationRef = useRef(0);
+  const [audioError, setAudioError] = useState(false);
+  const retryCount = useRef(0);
+  const MAX_AUTO_RETRIES = 2;
+
+  const retryAudio = useCallback(() => {
+    if (!audioRef.current || !story?.audio_url) return;
+    setAudioError(false);
+    sa.current._setIsBuffering(true);
+    // Force reload by resetting src with a cache-busting param
+    const sep = story.audio_url.includes("?") ? "&" : "?";
+    audioRef.current.src = `${story.audio_url}${sep}_r=${Date.now()}`;
+    audioRef.current.load();
+  }, [story?.audio_url]);
 
   const displayDuration =
     (story?.audio_duration_secs ?? 0) > 0
@@ -77,9 +90,7 @@ export default function GlobalAudioPlayer() {
       play: () => {
         if (!audioRef.current) return;
         sa.current._setIsBuffering(true);
-        audioRef.current
-          .play()
-          .catch(() => sa.current._setIsBuffering(false));
+        audioRef.current.play().catch(() => sa.current._setIsBuffering(false));
       },
       pause: () => audioRef.current?.pause(),
       seek: (t: number, resume = false) => {
@@ -162,7 +173,7 @@ export default function GlobalAudioPlayer() {
     if (buf.length > 0 && displayDurationRef.current > 0) {
       const end = buf.end(buf.length - 1);
       sa.current._setBufferedPct(
-        Math.min(100, (end / displayDurationRef.current) * 100)
+        Math.min(100, (end / displayDurationRef.current) * 100),
       );
     }
   };
@@ -172,9 +183,7 @@ export default function GlobalAudioPlayer() {
   if (!story) return null;
 
   const positionStyle: React.CSSProperties =
-    pos !== null
-      ? { left: pos.x, top: pos.y }
-      : { right: 20, bottom: 80 };
+    pos !== null ? { left: pos.x, top: pos.y } : { right: 20, bottom: 80 };
 
   const handleClosePlayer = () => {
     audioRef.current?.pause();
@@ -221,6 +230,8 @@ export default function GlobalAudioPlayer() {
         onProgress={updateBuffered}
         onCanPlay={() => {
           sa.current._setIsBuffering(false);
+          setAudioError(false);
+          retryCount.current = 0;
         }}
         onWaiting={() => sa.current._setIsBuffering(true)}
         onSeeking={() => sa.current._setIsBuffering(true)}
@@ -241,7 +252,21 @@ export default function GlobalAudioPlayer() {
           sa.current._setIsPlaying(false);
           sa.current._setIsBuffering(false);
         }}
-        onError={() => sa.current._setIsBuffering(false)}
+        onError={() => {
+          sa.current._setIsBuffering(false);
+          sa.current._setIsPlaying(false);
+          console.warn("[audio] Playback error for:", story.audio_url);
+          // Auto-retry a couple of times (handles transient R2/network issues)
+          if (retryCount.current < MAX_AUTO_RETRIES) {
+            retryCount.current++;
+            console.log(
+              `[audio] Auto-retry ${retryCount.current}/${MAX_AUTO_RETRIES}...`,
+            );
+            setTimeout(() => retryAudio(), 1500 * retryCount.current);
+          } else {
+            setAudioError(true);
+          }
+        }}
         crossOrigin="anonymous"
         playsInline
         style={{ display: "none" }}
@@ -403,7 +428,7 @@ export default function GlobalAudioPlayer() {
               const rect = e.currentTarget.getBoundingClientRect();
               const pct = Math.max(
                 0,
-                Math.min(1, (e.clientX - rect.left) / rect.width)
+                Math.min(1, (e.clientX - rect.left) / rect.width),
               );
               const t = pct * displayDuration;
               useAudioPlayerStore
@@ -472,120 +497,153 @@ export default function GlobalAudioPlayer() {
             }}
             onMouseDown={(e) => e.stopPropagation()}
           >
-            {/* Skip back 15s */}
-            <button
-              onClick={() => {
-                const s = useAudioPlayerStore.getState();
-                s.seek(Math.max(0, s.currentTime - 15), s.isPlaying);
-              }}
-              style={miniBtnStyle}
-              title="Rewind 15s"
-            >
-              <svg
-                width="17"
-                height="17"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <polyline points="1 4 1 10 7 10" />
-                <path d="M3.51 15a9 9 0 1 0 .49-4.95" />
-                <text
-                  x="8"
-                  y="16"
-                  fontSize="7"
-                  fill="currentColor"
-                  stroke="none"
-                >
-                  15
-                </text>
-              </svg>
-            </button>
-
-            {/* Play / Pause */}
-            <button
-              onClick={() => useAudioPlayerStore.getState().togglePlay()}
-              style={{
-                ...miniBtnStyle,
-                width: 40,
-                height: 40,
-                borderRadius: "50%",
-                background: "linear-gradient(135deg, #6ECF7A, #A8E6A1)",
-                color: "#111",
-                flexShrink: 0,
-              }}
-              title={isPlaying ? "Pause" : "Play"}
-            >
-              {isBuffering ? (
+            {audioError ? (
+              /* Error recovery UI */
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <span
                   style={{
-                    display: "inline-block",
-                    width: 14,
-                    height: 14,
-                    border: "2px solid rgba(0,0,0,0.15)",
-                    borderTop: "2px solid #111",
-                    borderRadius: "50%",
-                    animation: "spin 0.7s linear infinite",
+                    fontSize: "0.68rem",
+                    color: "rgba(255,100,100,0.85)",
                   }}
-                />
-              ) : isPlaying ? (
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
                 >
-                  <rect x="6" y="4" width="4" height="16" />
-                  <rect x="14" y="4" width="4" height="16" />
-                </svg>
-              ) : (
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
+                  Failed to load audio
+                </span>
+                <button
+                  onClick={() => {
+                    retryCount.current = 0;
+                    retryAudio();
+                  }}
+                  style={{
+                    ...miniBtnStyle,
+                    padding: "4px 10px",
+                    fontSize: "0.65rem",
+                    background: "rgba(110,207,122,0.15)",
+                    border: "1px solid rgba(110,207,122,0.3)",
+                    borderRadius: 6,
+                    color: "#6ECF7A",
+                  }}
                 >
-                  <polygon points="5,3 19,12 5,21" />
-                </svg>
-              )}
-            </button>
+                  Retry
+                </button>
+              </div>
+            ) : (
+              <>
+                {/* Skip back 15s */}
+                <button
+                  onClick={() => {
+                    const s = useAudioPlayerStore.getState();
+                    s.seek(Math.max(0, s.currentTime - 15), s.isPlaying);
+                  }}
+                  style={miniBtnStyle}
+                  title="Rewind 15s"
+                >
+                  <svg
+                    width="17"
+                    height="17"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <polyline points="1 4 1 10 7 10" />
+                    <path d="M3.51 15a9 9 0 1 0 .49-4.95" />
+                    <text
+                      x="8"
+                      y="16"
+                      fontSize="7"
+                      fill="currentColor"
+                      stroke="none"
+                    >
+                      15
+                    </text>
+                  </svg>
+                </button>
 
-            {/* Skip forward 15s */}
-            <button
-              onClick={() => {
-                const s = useAudioPlayerStore.getState();
-                const dur =
-                  displayDuration ||
-                  s.story?.audio_duration_secs ||
-                  s.duration ||
-                  9999;
-                s.seek(Math.min(dur, s.currentTime + 15), s.isPlaying);
-              }}
-              style={miniBtnStyle}
-              title="Forward 15s"
-            >
-              <svg
-                width="17"
-                height="17"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <polyline points="23 4 23 10 17 10" />
-                <path d="M20.49 15a9 9 0 1 1-.49-4.95" />
-                <text
-                  x="8"
-                  y="16"
-                  fontSize="7"
-                  fill="currentColor"
-                  stroke="none"
+                {/* Play / Pause */}
+                <button
+                  onClick={() => useAudioPlayerStore.getState().togglePlay()}
+                  style={{
+                    ...miniBtnStyle,
+                    width: 40,
+                    height: 40,
+                    borderRadius: "50%",
+                    background: "linear-gradient(135deg, #6ECF7A, #A8E6A1)",
+                    color: "#111",
+                    flexShrink: 0,
+                  }}
+                  title={isPlaying ? "Pause" : "Play"}
                 >
-                  15
-                </text>
-              </svg>
-            </button>
+                  {isBuffering ? (
+                    <span
+                      style={{
+                        display: "inline-block",
+                        width: 14,
+                        height: 14,
+                        border: "2px solid rgba(0,0,0,0.15)",
+                        borderTop: "2px solid #111",
+                        borderRadius: "50%",
+                        animation: "spin 0.7s linear infinite",
+                      }}
+                    />
+                  ) : isPlaying ? (
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                    >
+                      <rect x="6" y="4" width="4" height="16" />
+                      <rect x="14" y="4" width="4" height="16" />
+                    </svg>
+                  ) : (
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                    >
+                      <polygon points="5,3 19,12 5,21" />
+                    </svg>
+                  )}
+                </button>
+
+                {/* Skip forward 15s */}
+                <button
+                  onClick={() => {
+                    const s = useAudioPlayerStore.getState();
+                    const dur =
+                      displayDuration ||
+                      s.story?.audio_duration_secs ||
+                      s.duration ||
+                      9999;
+                    s.seek(Math.min(dur, s.currentTime + 15), s.isPlaying);
+                  }}
+                  style={miniBtnStyle}
+                  title="Forward 15s"
+                >
+                  <svg
+                    width="17"
+                    height="17"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <polyline points="23 4 23 10 17 10" />
+                    <path d="M20.49 15a9 9 0 1 1-.49-4.95" />
+                    <text
+                      x="8"
+                      y="16"
+                      fontSize="7"
+                      fill="currentColor"
+                      stroke="none"
+                    >
+                      15
+                    </text>
+                  </svg>
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}

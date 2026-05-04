@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { model } from '@/lib/langchain'
+import { invokeWithFallback } from '@/lib/langchain'
 import { normalizeGoals } from '@/lib/story-utils'
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 
@@ -82,7 +82,7 @@ Return the result in exactly this format:
 [Full Story Text]
 `;
 
-        const response = await model.invoke([
+        const response = await invokeWithFallback([
             new SystemMessage('You are a gifted manifestation and memoir story writer.'),
             new HumanMessage(refinementPrompt)
         ]);

@@ -59,21 +59,37 @@ if (isAnthropic && isAzure) {
  * Invoke the primary model with automatic retry + fallback to secondary models.
  * Retryable statuses: 529 (overloaded), 503 (unavailable), 429 (rate limit).
  * Tries primary up to `primaryRetries` times, then each fallback once.
+ * Each individual call is bounded by `timeoutMs` (default 120s).
  */
 export async function invokeWithFallback(
     messages: any[],
-    opts: { primaryRetries?: number } = {}
+    opts: { primaryRetries?: number; timeoutMs?: number } = {}
 ): Promise<any> {
-    const { primaryRetries = 2 } = opts;
+    const { primaryRetries = 2, timeoutMs = 120000 } = opts;
     const isRetryable = (err: any) => {
         const s = err?.status || err?.response?.status;
         return s === 529 || s === 503 || s === 429;
     };
 
+    const invokeWithTimeout = async (m: any) => {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        try {
+            return await m.invoke(messages, { signal: controller.signal });
+        } catch (err: any) {
+            if (err.name === 'AbortError' || controller.signal.aborted) {
+                throw Object.assign(new Error(`LLM call timed out after ${timeoutMs / 1000}s`), { status: 408 });
+            }
+            throw err;
+        } finally {
+            clearTimeout(timer);
+        }
+    };
+
     // Try primary with retries
     for (let attempt = 1; attempt <= primaryRetries; attempt++) {
         try {
-            return await (model as any).invoke(messages);
+            return await invokeWithTimeout(model);
         } catch (err: any) {
             if (isRetryable(err) && attempt < primaryRetries) {
                 const delay = Math.min(1000 * Math.pow(2, attempt - 1), 8000) + Math.random() * 500;
@@ -92,7 +108,7 @@ export async function invokeWithFallback(
     for (let i = 0; i < fallbackModels.length; i++) {
         try {
             console.log(`[LangChain] Using fallback model ${i + 1}/${fallbackModels.length}`);
-            return await (fallbackModels[i] as any).invoke(messages);
+            return await invokeWithTimeout(fallbackModels[i]);
         } catch (err: any) {
             console.error(`[LangChain] Fallback model ${i + 1} failed:`, err?.status || err?.message);
             if (i === fallbackModels.length - 1) throw err;

@@ -404,53 +404,70 @@ const AudioReadyContent: React.FC = () => {
     setMixingTrackId(soundscapeId);
     // Stop current playback while mixing
     globalPause();
+
+    const MAX_RETRIES = 2;
+    let lastError =
+      "Something went wrong while applying background music. Please try again.";
+
     try {
-      const res = await fetch("/api/user/audio/mix", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          storyId: story.id,
-          soundscapeId,
-        }),
-      });
-      let data;
-      try {
-        data = await res.json();
-      } catch {
-        showToast(
-          "Something went wrong while applying background music. Please try again.",
-          "error",
-        );
-        return;
+      for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+        try {
+          const res = await fetch("/api/user/audio/mix", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              storyId: story.id,
+              soundscapeId,
+            }),
+          });
+          let data;
+          try {
+            data = await res.json();
+          } catch {
+            showToast(
+              "Something went wrong while applying background music. Please try again.",
+              "error",
+            );
+            return;
+          }
+          if (!res.ok) {
+            lastError = data.error || lastError;
+            // Auto-retry if the server says the audio is still uploading
+            if (data.retryable && attempt < MAX_RETRIES) {
+              console.warn(
+                `[mix] Attempt ${attempt + 1} failed: ${data.code}. Retrying...`,
+              );
+              await new Promise((r) => setTimeout(r, 3000 * (attempt + 1)));
+              continue;
+            }
+            showToast(lastError, "error");
+            return;
+          }
+          // Update local story state with new audio URL
+          const updatedStory = (prev: any) => ({
+            ...prev,
+            audio_url: data.audio_url,
+            combined_audio_key: data.combined_audio_key,
+            soundscape_audio_key:
+              data.soundscape_audio_key ?? prev.soundscape_audio_key,
+          });
+          setStory((prev: any) => updatedStory(prev));
+          setSelectedSoundscapeId(soundscapeId);
+          // Register the new audio URL globally and request autoplay
+          setPendingAutoplay(true);
+          setGlobalAudio(updatedStory(story));
+          setShowBgPicker(false);
+          showToast("Background music applied ✓", "success");
+          return; // Success — exit
+        } catch (err) {
+          console.error("Server mix failed:", err);
+          if (attempt < MAX_RETRIES) {
+            await new Promise((r) => setTimeout(r, 3000 * (attempt + 1)));
+            continue;
+          }
+          showToast(lastError, "error");
+        }
       }
-      if (!res.ok) {
-        showToast(
-          "Something went wrong while applying background music. Please try again.",
-          "error",
-        );
-        return;
-      }
-      // Update local story state with new audio URL
-      const updatedStory = (prev: any) => ({
-        ...prev,
-        audio_url: data.audio_url,
-        combined_audio_key: data.combined_audio_key,
-        soundscape_audio_key:
-          data.soundscape_audio_key ?? prev.soundscape_audio_key,
-      });
-      setStory((prev: any) => updatedStory(prev));
-      setSelectedSoundscapeId(soundscapeId);
-      // Register the new audio URL globally and request autoplay
-      setPendingAutoplay(true);
-      setGlobalAudio(updatedStory(story));
-      setShowBgPicker(false);
-      showToast("Background music applied ✓", "success");
-    } catch (err) {
-      console.error("Server mix failed:", err);
-      showToast(
-        "Something went wrong while applying background music. Please try again.",
-        "error",
-      );
     } finally {
       setIsServerMixing(false);
       setMixingTrackId(null);

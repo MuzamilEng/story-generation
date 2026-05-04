@@ -537,13 +537,33 @@ const StoryDetail: React.FC = () => {
   const regenerateMutation = useMutation({
     mutationFn: async (instruction: string) => {
       setActiveRegenStep(1);
-      const res = await fetch(`/api/user/stories/${id}/generate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ instruction }),
-      });
-      if (!res.ok) throw new Error("Failed to regenerate story");
-      return res.json();
+
+      const MAX_RETRIES = 2;
+      let lastError = "Failed to rewrite story";
+
+      for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+        const res = await fetch(`/api/user/stories/${id}/generate`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ instruction }),
+        });
+        const data = await res.json();
+
+        if (res.ok && data.storyText) {
+          return data;
+        }
+
+        lastError = data.error || "Failed to rewrite story";
+
+        if (data.retryable && attempt < MAX_RETRIES) {
+          await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+          continue;
+        }
+
+        break;
+      }
+
+      throw new Error(lastError);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["story", id] });
@@ -554,8 +574,8 @@ const StoryDetail: React.FC = () => {
         router.push(`/user/voice-recording?storyId=${id}`);
       }, 1200);
     },
-    onError: () => {
-      showToast("❌ Failed to rewrite story");
+    onError: (err: Error) => {
+      showToast(`❌ ${err.message}`);
       setActiveRegenStep(null);
     },
   });

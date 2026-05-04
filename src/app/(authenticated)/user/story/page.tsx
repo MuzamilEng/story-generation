@@ -412,27 +412,51 @@ const StoryContent: React.FC = () => {
       await new Promise((r) => setTimeout(r, 1200));
     }
 
-    try {
-      const res = await fetch(`/api/user/stories/${id}/generate`, {
-        method: "POST",
-      });
-      const data = await res.json();
-      if (data.storyText) {
-        setStoryText(data.storyText);
-      } else if (data.error) {
-        setGenError(data.error);
+    const MAX_RETRIES = 2;
+    let lastError: string | null = null;
+
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const res = await fetch(`/api/user/stories/${id}/generate`, {
+          method: "POST",
+        });
+        const data = await res.json();
+
+        if (data.storyText) {
+          setStoryText(data.storyText);
+          if (data.title) setStoryTitle(data.title);
+          setIsGenerating(false);
+          return; // Success — exit
+        }
+
+        // Server returned an error
+        lastError =
+          data.error || "Something went wrong while generating your story.";
+
+        // Only retry if the server says it's retryable and we have attempts left
+        if (data.retryable && attempt < MAX_RETRIES) {
+          console.warn(
+            `[STORY] Generation attempt ${attempt + 1} failed: ${data.code}. Retrying...`,
+          );
+          await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+          continue;
+        }
+
+        break; // Non-retryable or out of retries
+      } catch (e: any) {
+        console.error("Generation failed", e);
+        lastError =
+          "A network error occurred. Please check your connection and try again.";
+        if (attempt < MAX_RETRIES) {
+          await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+          continue;
+        }
+        break;
       }
-      if (data.title) {
-        setStoryTitle(data.title);
-      }
-    } catch (e: any) {
-      console.error("Generation failed", e);
-      setGenError(
-        e.message || "Something went wrong while generating your story.",
-      );
-    } finally {
-      setIsGenerating(false);
     }
+
+    setGenError(lastError);
+    setIsGenerating(false);
   }, []);
 
   const saveAndGenerate = useCallback(

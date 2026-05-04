@@ -1306,20 +1306,14 @@ export async function assembleStoryAudio(storyId: string, userId: string): Promi
 
   // ── Fire-and-forget R2 upload in background ─────────────────────────────
   // Audio is already playable via local temp file + local-stream endpoint.
-  // Upload continues asynchronously; temp file cleaned up on completion.
+  // Upload continues asynchronously with retries; temp file only cleaned up on success.
   const uploadStart = Date.now();
   console.log(`[assemble] Starting background R2 upload...`);
   uploadToR2(rawAudioKey, finalBuffer, 'audio/mpeg')
     .then(() => {
       const uploadSecs = ((Date.now() - uploadStart) / 1000).toFixed(1);
       console.log(`[assemble] ✅ Background R2 upload done: ${rawAudioKey} (${uploadSecs}s)`);
-    })
-    .catch((err) => {
-      console.error(`[assemble] ❌ Background R2 upload FAILED for ${rawAudioKey}:`, err.message);
-      // Keep temp file around so local-stream still works; it will be cleaned up by TTL
-    })
-    .finally(() => {
-      // Clean up temp file after upload (success or fail, R2 has it or local serves it)
+      // Upload succeeded — safe to schedule temp file cleanup
       setTimeout(() => {
         try {
           if (fs.existsSync(localTmpPath)) {
@@ -1329,6 +1323,20 @@ export async function assembleStoryAudio(storyId: string, userId: string): Promi
         } catch {}
         localAudioCache.delete(rawAudioKey);
       }, 5 * 60 * 1000); // Keep for 5 min after upload as safety buffer
+    })
+    .catch((err) => {
+      console.error(`[assemble] ❌ Background R2 upload FAILED for ${rawAudioKey} after retries:`, err.message);
+      // Keep temp file for 2 hours so local-stream can still serve it
+      // This gives operators time to investigate or the user to download
+      setTimeout(() => {
+        try {
+          if (fs.existsSync(localTmpPath)) {
+            fs.unlinkSync(localTmpPath);
+            console.log(`[assemble] Cleaned up temp file (post-failure TTL): ${localTmpPath}`);
+          }
+        } catch {}
+        localAudioCache.delete(rawAudioKey);
+      }, 2 * 60 * 60 * 1000); // 2 hours
     });
 
   const totalSecs = ((Date.now() - startTime) / 1000).toFixed(1);

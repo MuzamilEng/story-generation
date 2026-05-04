@@ -1,6 +1,7 @@
 import IORedis from 'ioredis';
 import { Job, Queue, QueueEvents, Worker } from 'bullmq';
 import { assembleStoryAudio } from './assemble';
+import { prisma } from './prisma';
 
 const QUEUE_NAME = 'assemble-audio';
 const ASSEMBLE_WORKER_CONCURRENCY = Math.max(
@@ -53,6 +54,7 @@ function storyJobId(storyId: string) {
 }
 
 let workerInitialized = false;
+let assembleWorker: Worker<AssembleJobData> | null = null;
 
 export function initAssembleWorker() {
   if (workerInitialized) return;
@@ -74,7 +76,6 @@ export function initAssembleWorker() {
         // Update story status to reflect failure if this is the last attempt
         if (attemptNum >= maxAttempts) {
           try {
-            const { prisma } = await import('./prisma');
             await prisma.story.update({
               where: { id: job.data.storyId },
               data: { status: 'draft' },
@@ -96,13 +97,20 @@ export function initAssembleWorker() {
     }
   );
 
+  assembleWorker = worker;
+
   worker.on('completed', (job) => {
     console.log(`[queue] Completed ${job.id} for story=${job.data.storyId}`);
   });
 
   worker.on('failed', (job, err) => {
     const attempts = job ? `${job.attemptsMade}/${ASSEMBLE_JOB_ATTEMPTS}` : '?';
+    const isFinal = job ? job.attemptsMade >= ASSEMBLE_JOB_ATTEMPTS : false;
     console.error(`[queue] Failed ${job?.id} (${attempts} attempts):`, err.message);
+    // Log permanent failures to DB for admin visibility
+    if (isFinal && job) {
+      logJobFailure(job.data.storyId, job.data.userId, err.message).catch(() => {});
+    }
   });
 
   worker.on('stalled', (jobId) => {
@@ -121,6 +129,9 @@ export function initAssembleWorker() {
 
   // Check and fix Redis eviction policy — BullMQ requires noeviction to prevent data loss
   checkRedisEvictionPolicy().catch(() => {});
+
+  // Register graceful shutdown handlers
+  registerShutdownHandlers();
 }
 
 async function checkRedisEvictionPolicy() {
@@ -225,9 +236,70 @@ export async function getAssembleStoryStatus(storyId: string): Promise<{
 }
 
 export async function waitForAssembleResult(job: Job<AssembleJobData>, timeoutMs = 1000) {
-  const result = await Promise.race([
-    job.waitUntilFinished(assembleQueueEvents),
-    new Promise((resolve) => setTimeout(() => resolve(null), timeoutMs)),
-  ]);
-  return result;
+  try {
+    const result = await Promise.race([
+      job.waitUntilFinished(assembleQueueEvents).catch(() => null),
+      new Promise((resolve) => setTimeout(() => resolve(null), timeoutMs)),
+    ]);
+    return result;
+  } catch {
+    return null;
+  }
+}
+
+/** Log a permanent job failure to the AppLog table for admin dashboard visibility */
+async function logJobFailure(storyId: string, userId: string, reason: string) {
+  try {
+    await prisma.appLog.create({
+      data: {
+        level: 'error',
+        source: 'assemble-queue',
+        message: `Audio assembly permanently failed after ${ASSEMBLE_JOB_ATTEMPTS} attempts: ${reason}`,
+        userId,
+        meta: { storyId, reason } as any,
+      },
+    });
+    console.log(`[queue] Failure logged to AppLog for story=${storyId}`);
+  } catch (err) {
+    console.error('[queue] Failed to log job failure to AppLog:', err);
+  }
+}
+
+/** Graceful shutdown — close worker, queue, and Redis connections cleanly */
+let shutdownInProgress = false;
+
+function registerShutdownHandlers() {
+  const shutdown = async (signal: string) => {
+    if (shutdownInProgress) return;
+    shutdownInProgress = true;
+    console.log(`\n[queue] ${signal} received — shutting down gracefully...`);
+
+    try {
+      // Close worker first — lets active jobs finish current step, then stops taking new ones
+      if (assembleWorker) {
+        console.log('[queue] Closing worker (waiting for active jobs to finish)...');
+        await assembleWorker.close();
+        console.log('[queue] Worker closed');
+      }
+
+      // Close queue and events
+      await assembleQueue.close();
+      await assembleQueueEvents.close();
+      console.log('[queue] Queue and events closed');
+
+      // Close Redis connections
+      queueConnection.disconnect();
+      workerConnection.disconnect();
+      eventsConnection.disconnect();
+      console.log('[queue] Redis connections closed');
+    } catch (err) {
+      console.error('[queue] Error during shutdown:', err);
+    }
+
+    // Give a moment for cleanup, then exit
+    setTimeout(() => process.exit(0), 500);
+  };
+
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 }

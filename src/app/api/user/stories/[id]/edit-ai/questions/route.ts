@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { model } from '@/lib/langchain'
+import { invokeWithFallback } from '@/lib/langchain'
 import { normalizeGoals } from '@/lib/story-utils'
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 
@@ -52,7 +52,7 @@ Do not include any preamble, analysis, or wrap-up. JSON format only.
 Example: ["Question 1", "Question 2"]
 `;
 
-        const response = await model.invoke([
+        const response = await invokeWithFallback([
             new SystemMessage('You are a professional story editor specializing in manifestation narratives.'),
             new HumanMessage(analysisPrompt)
         ]);

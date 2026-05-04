@@ -288,12 +288,22 @@ const StoryCard: React.FC<StoryCardProps> = ({
       <div className={styles.storyCardTop}>
         {isDraft && <div className={styles.draftBadge}>{getDraftReason()}</div>}
         <div className={styles.storyCardEyebrow}>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
-            <span style={{ width: "14px", height: "14px", display: "inline-flex", color: story.story_type === "morning" ? "#e8a838" : "#8b9dc3" }}>
+          <span
+            style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
+          >
+            <span
+              style={{
+                width: "14px",
+                height: "14px",
+                display: "inline-flex",
+                color: story.story_type === "morning" ? "#e8a838" : "#8b9dc3",
+              }}
+            >
               {story.story_type === "morning" ? <SunIcon /> : <MoonIcon />}
             </span>
             Generated{" "}
-            {story.createdAt instanceof Date && !isNaN(story.createdAt.getTime())
+            {story.createdAt instanceof Date &&
+            !isNaN(story.createdAt.getTime())
               ? format(story.createdAt, "MMM d, yyyy")
               : "Recently"}
           </span>
@@ -342,7 +352,7 @@ const StoryCard: React.FC<StoryCardProps> = ({
                     ? "Processing — View Status"
                     : story.status === "awaited_voice_generation"
                       ? "Awaiting Voice — View Status"
-                    : "Resume Generation"}
+                      : "Resume Generation"}
               </>
             ) : (
               <>
@@ -499,40 +509,44 @@ const Dashboard: React.FC = () => {
     };
   }, []);
 
-  const [queueStates, setQueueStates] = useState<Record<string, "queued" | "processing" | "completed" | "failed" | null>>({});
+  const [queueStates, setQueueStates] = useState<
+    Record<string, "queued" | "processing" | "completed" | "failed" | null>
+  >({});
   const notifiedReadyStoriesRef = useRef<Set<string>>(new Set());
 
-  const { data: storiesRaw = [], isLoading: isLoadingStories, refetch: refetchStories } = useQuery<Story[]>(
-    {
-      queryKey: ["stories"],
-      queryFn: async () => {
-        const res = await fetch("/api/user/stories");
-        if (!res.ok) throw new Error("Failed to fetch stories");
-        const data = await res.json();
-        return data.map((s: any) => ({
-          id: s.id,
-          title: s.title || "My Manifestation Story",
-          excerpt: s.excerpt || "",
-          story_text_draft: s.story_text_draft,
-          story_text_approved: s.story_text_approved,
-          createdAt: new Date(s.createdAt),
-          duration: s.audio_duration_secs
-            ? `${Math.floor(s.audio_duration_secs / 60)} min ${s.audio_duration_secs % 60} sec`
-            : s.word_count
-              ? `~${Math.ceil(s.word_count / 150)} min read`
-              : "—",
-          plays: s.play_count || 0,
-          downloads: s.download_count || 0,
-          audio_url: s.audio_url,
-          voice_only_url: s.voice_only_url,
-          status: s.status,
-          story_type: s.story_type || "night",
-          story_number: s.story_number || 1,
-        }));
-      },
-      enabled: !!session,
+  const {
+    data: storiesRaw = [],
+    isLoading: isLoadingStories,
+    refetch: refetchStories,
+  } = useQuery<Story[]>({
+    queryKey: ["stories"],
+    queryFn: async () => {
+      const res = await fetch("/api/user/stories");
+      if (!res.ok) throw new Error("Failed to fetch stories");
+      const data = await res.json();
+      return data.map((s: any) => ({
+        id: s.id,
+        title: s.title || "My Manifestation Story",
+        excerpt: s.excerpt || "",
+        story_text_draft: s.story_text_draft,
+        story_text_approved: s.story_text_approved,
+        createdAt: new Date(s.createdAt),
+        duration: s.audio_duration_secs
+          ? `${Math.floor(s.audio_duration_secs / 60)} min ${s.audio_duration_secs % 60} sec`
+          : s.word_count
+            ? `~${Math.ceil(s.word_count / 150)} min read`
+            : "—",
+        plays: s.play_count || 0,
+        downloads: s.download_count || 0,
+        audio_url: s.audio_url,
+        voice_only_url: s.voice_only_url,
+        status: s.status,
+        story_type: s.story_type || "night",
+        story_number: s.story_number || 1,
+      }));
     },
-  );
+    enabled: !!session,
+  });
 
   // For approved stories without audio, poll the assemble queue status
   // so we can show "Queued" / "Processing" instead of "Awaiting Voice".
@@ -540,7 +554,7 @@ const Dashboard: React.FC = () => {
     const pending = storiesRaw.filter(
       (s) =>
         (s.status === "approved" || s.status === "awaited_voice_generation") &&
-        !s.audio_url
+        !s.audio_url,
     );
     if (pending.length === 0) return;
 
@@ -551,7 +565,7 @@ const Dashboard: React.FC = () => {
         pending.map(async (s) => {
           try {
             const res = await fetch(
-              `/api/user/audio/assemble?storyId=${encodeURIComponent(s.id)}`
+              `/api/user/audio/assemble?storyId=${encodeURIComponent(s.id)}`,
             );
             if (!res.ok) return { id: s.id, state: null };
             const data = await res.json();
@@ -559,7 +573,7 @@ const Dashboard: React.FC = () => {
           } catch {
             return { id: s.id, state: null };
           }
-        })
+        }),
       );
       if (!cancelled) {
         setQueueStates((prev) => {
@@ -568,7 +582,9 @@ const Dashboard: React.FC = () => {
           return next;
         });
 
-        const completedStories = results.filter(({ state }) => state === "completed");
+        const completedStories = results.filter(
+          ({ state }) => state === "completed",
+        );
         if (completedStories.length > 0) {
           for (const { id } of completedStories) {
             if (notifiedReadyStoriesRef.current.has(id)) continue;
@@ -590,7 +606,10 @@ const Dashboard: React.FC = () => {
 
     fetchStates();
     const timer = setInterval(fetchStates, 5000);
-    return () => { cancelled = true; clearInterval(timer); };
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
   }, [storiesRaw, refetchStories, showAlert]);
 
   // Merge queue states into story objects
@@ -610,7 +629,16 @@ const Dashboard: React.FC = () => {
   });
 
   // Fetch saved voice samples for "My Voice" section
-  const { data: savedVoices = [] } = useQuery<{ id: string; label: string; duration_s: number | null; is_default: boolean; created_at: string; sample_url: string }[]>({
+  const { data: savedVoices = [] } = useQuery<
+    {
+      id: string;
+      label: string;
+      duration_s: number | null;
+      is_default: boolean;
+      created_at: string;
+      sample_url: string;
+    }[]
+  >({
     queryKey: ["saved-voices"],
     queryFn: async () => {
       const res = await fetch("/api/user/audio/save-voice");
@@ -629,7 +657,7 @@ const Dashboard: React.FC = () => {
   const handleSelectVoice = async (voiceId: string) => {
     // Optimistic update
     queryClient.setQueryData<typeof savedVoices>(["saved-voices"], (old) =>
-      (old || []).map((v) => ({ ...v, is_default: v.id === voiceId }))
+      (old || []).map((v) => ({ ...v, is_default: v.id === voiceId })),
     );
     try {
       await fetch("/api/user/audio/save-voice", {
@@ -650,9 +678,12 @@ const Dashboard: React.FC = () => {
   // Morning story generation state
   const [isGeneratingMorning, setIsGeneratingMorning] = useState(false);
 
-  const hasNightStory = stories.some((s) => (s.story_type || "night") === "night");
+  const hasNightStory = stories.some(
+    (s) => (s.story_type || "night") === "night",
+  );
   const hasMorningStory = stories.some((s) => s.story_type === "morning");
-  const showMorningPrompt = hasNightStory && !hasMorningStory && !isGeneratingMorning;
+  const showMorningPrompt =
+    hasNightStory && !hasMorningStory && !isGeneratingMorning;
 
   const handleGenerateMorningStory = async () => {
     setIsGeneratingMorning(true);
@@ -679,7 +710,7 @@ const Dashboard: React.FC = () => {
 
   const handleRenameVoice = async (id: string, newLabel: string) => {
     queryClient.setQueryData<typeof savedVoices>(["saved-voices"], (old) =>
-      (old || []).map((v) => (v.id === id ? { ...v, label: newLabel } : v))
+      (old || []).map((v) => (v.id === id ? { ...v, label: newLabel } : v)),
     );
     setEditingVoiceId(null);
     try {
@@ -702,7 +733,7 @@ const Dashboard: React.FC = () => {
       danger: true,
       onConfirm: async () => {
         queryClient.setQueryData<typeof savedVoices>(["saved-voices"], (old) =>
-          (old || []).filter((v) => v.id !== voiceId)
+          (old || []).filter((v) => v.id !== voiceId),
         );
         try {
           await fetch("/api/user/audio/save-voice", {
@@ -841,7 +872,8 @@ const Dashboard: React.FC = () => {
     if (story.status === "draft") {
       router.push(`/user/story?id=${story.id}`);
     } else if (
-      (story.status === "approved" || story.status === "awaited_voice_generation") &&
+      (story.status === "approved" ||
+        story.status === "awaited_voice_generation") &&
       !story.audio_url
     ) {
       if (
@@ -862,13 +894,15 @@ const Dashboard: React.FC = () => {
     router.push(`/user/audio-download?storyId=${story.id}`);
   };
 
-
   // V13 Layout State
   const [selectedStoryId, setSelectedStoryId] = useState<string | null>(null);
-  const heroStory = stories.find((s) => s.status === "audio_ready" && s.audio_url);
+  const heroStory = stories.find(
+    (s) => s.status === "audio_ready" && s.audio_url,
+  );
   const libraryStories = stories.filter((s) => s !== heroStory);
   const voiceList = Array.isArray(savedVoices) ? savedVoices : [];
-  const defaultVoice = voiceList.find((v) => v.is_default) || voiceList[0] || null;
+  const defaultVoice =
+    voiceList.find((v) => v.is_default) || voiceList[0] || null;
 
   const handleRowClick = (storyId: string) => {
     setSelectedStoryId((prev) => (prev === storyId ? null : storyId));
@@ -908,12 +942,20 @@ const Dashboard: React.FC = () => {
           <p className={styles.toplineH1}>
             Welcome back, <em>{firstName}</em>.
           </p>
-          {isBetaUser && <span className={styles.betaPlanTag}>{betaPlanName}</span>}
+          {isBetaUser && (
+            <span className={styles.betaPlanTag}>{betaPlanName}</span>
+          )}
         </div>
         <div className={styles.topStats}>
-          <span><b>{stats?.metrics?.stories_ever || 0}</b> stories</span>
-          <span><b>{stats?.metrics?.total_plays || 0}</b> plays</span>
-          <span><b>{stats?.metrics?.total_downloads || 0}</b> downloads</span>
+          <span>
+            <b>{stats?.metrics?.stories_ever || 0}</b> stories
+          </span>
+          <span>
+            <b>{stats?.metrics?.total_plays || 0}</b> plays
+          </span>
+          <span>
+            <b>{stats?.metrics?.total_downloads || 0}</b> downloads
+          </span>
           <div className={styles.streakInline}>
             <div className={styles.streakDotsInline}>
               {[...Array(6)].map((_, i) => (
@@ -931,25 +973,47 @@ const Dashboard: React.FC = () => {
         {defaultVoice ? (
           <div className={styles.toolItem}>
             <div className={styles.voiceMini} />
-            <span>Voice · {defaultVoice.duration_s ? `${Math.floor(defaultVoice.duration_s / 60)}:${String(Math.round(defaultVoice.duration_s) % 60).padStart(2, "0")}` : "—"}</span>
-            <button className={styles.toolLink} onClick={() => router.push("/user/voice-recording")}>Re-record</button>
+            <span>
+              Voice ·{" "}
+              {defaultVoice.duration_s
+                ? `${Math.floor(defaultVoice.duration_s / 60)}:${String(Math.round(defaultVoice.duration_s) % 60).padStart(2, "0")}`
+                : "—"}
+            </span>
+            <button
+              className={styles.toolLink}
+              onClick={() => router.push("/user/voice-recording")}
+            >
+              Re-record
+            </button>
           </div>
         ) : (
           <div className={styles.toolItem}>
-            <button className={styles.toolLink} onClick={() => router.push("/user/voice-recording")}>+ Record voice</button>
+            <button
+              className={styles.toolLink}
+              onClick={() => router.push("/user/voice-recording")}
+            >
+              + Record voice
+            </button>
           </div>
         )}
         <div className={styles.toolSep} />
-        <button className={styles.toolLink} onClick={() => { router.push("/user/goal-intake-ai"); }}>Edit intake ✎</button>
+        <button
+          className={styles.toolLink}
+          onClick={() => {
+            router.push("/user/goal-intake-ai?edit=1");
+          }}
+        >
+          Edit intake ✎
+        </button>
         <div className={styles.toolSep} />
         <span className={styles.reminderPill}>☀ 6:30 AM</span>
         <span className={styles.reminderPill}>☾ 10:00 PM</span>
         <div className={styles.toolSpacer} />
-        <button
-          className={styles.toolLink}
-          onClick={handleNewStory}
-        >
-          + New story · {stats?.limits ? `${stats.limits.total - stats.limits.used} left` : "..."}
+        <button className={styles.toolLink} onClick={handleNewStory}>
+          + New story ·{" "}
+          {stats?.limits
+            ? `${stats.limits.total - stats.limits.used} left`
+            : "..."}
         </button>
       </div>
 
@@ -965,15 +1029,31 @@ const Dashboard: React.FC = () => {
           </button>
           <div className={styles.heroInfo}>
             <div className={styles.heroKicker}>
-              {heroStory.story_type === "morning" ? "☀" : "☾"} Today&rsquo;s story
+              {heroStory.story_type === "morning" ? "☀" : "☾"} Today&rsquo;s
+              story
             </div>
             <div className={styles.heroTitle}>{heroStory.title}</div>
             <div className={styles.heroMeta}>{heroStory.duration}</div>
           </div>
           <div className={styles.heroActions}>
-            <button className={styles.mmsBtn} onClick={() => handleEnhance(heroStory)}>♫ Enhance</button>
-            <button className={styles.mmsBtn} onClick={() => handleDownload(heroStory)}>↓ Download</button>
-            <button className={styles.mmsBtn} onClick={() => handleRead(heroStory)}>👁 Read</button>
+            <button
+              className={styles.mmsBtn}
+              onClick={() => handleEnhance(heroStory)}
+            >
+              ♫ Enhance
+            </button>
+            <button
+              className={styles.mmsBtn}
+              onClick={() => handleDownload(heroStory)}
+            >
+              ↓ Download
+            </button>
+            <button
+              className={styles.mmsBtn}
+              onClick={() => handleRead(heroStory)}
+            >
+              👁 Read
+            </button>
             <button
               className={`${styles.mmsBtn} ${styles.mmsBtnIconOnly}`}
               onClick={() => handleDeleteStory(heroStory)}
@@ -990,7 +1070,8 @@ const Dashboard: React.FC = () => {
         <div className={styles.morningPrompt}>
           <span className={styles.morningPromptIcon}>☀</span>
           <div className={styles.morningPromptText}>
-            <strong>Start your mornings the same way</strong> — Generate your Morning Story from the same vision.
+            <strong>Start your mornings the same way</strong> — Generate your
+            Morning Story from the same vision.
           </div>
           <button
             className={styles.mmsBtn}
@@ -1030,9 +1111,18 @@ const Dashboard: React.FC = () => {
       {/* LIBRARY LIST */}
       <div className={styles.storyList}>
         {isLoadingStories ? (
-          <div style={{ opacity: 0.7, padding: "1rem 0.75rem" }}>Loading your stories...</div>
+          <div style={{ opacity: 0.7, padding: "1rem 0.75rem" }}>
+            Loading your stories...
+          </div>
         ) : libraryStories.length === 0 && !heroStory ? (
-          <div style={{ padding: "2rem", textAlign: "center", color: "var(--ink-faint)", fontSize: "0.85rem" }}>
+          <div
+            style={{
+              padding: "2rem",
+              textAlign: "center",
+              color: "var(--ink-faint)",
+              fontSize: "0.85rem",
+            }}
+          >
             No stories yet. Create your first story to get started.
           </div>
         ) : (
@@ -1054,7 +1144,10 @@ const Dashboard: React.FC = () => {
               >
                 <button
                   className={styles.roundPlay}
-                  onClick={(e) => { e.stopPropagation(); handlePlayStory(story); }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handlePlayStory(story);
+                  }}
                   aria-label={isDraft ? "Resume generation" : "Play story"}
                 >
                   {isDraft ? "↻" : "▶"}
@@ -1071,15 +1164,16 @@ const Dashboard: React.FC = () => {
                             : story.queueState === "processing"
                               ? "Processing"
                               : "Awaiting voice generation"
-                        : story.queueState === "queued"
-                          ? "Queued"
-                          : story.queueState === "processing"
-                            ? "Processing"
-                            : "Awaiting voice"}
+                          : story.queueState === "queued"
+                            ? "Queued"
+                            : story.queueState === "processing"
+                              ? "Processing"
+                              : "Awaiting voice"}
                     </span>
                   )}
                   <div className={styles.storyRowDate}>
-                    {story.createdAt instanceof Date && !isNaN(story.createdAt.getTime())
+                    {story.createdAt instanceof Date &&
+                    !isNaN(story.createdAt.getTime())
                       ? format(story.createdAt, "MMM d")
                       : "Recently"}
                   </div>
@@ -1087,7 +1181,13 @@ const Dashboard: React.FC = () => {
                 <div className={styles.storyRowActions}>
                   {isDraft ? (
                     <>
-                      <button className={styles.mmsBtn} onClick={(e) => { e.stopPropagation(); handlePlayStory(story); }}>
+                      <button
+                        className={styles.mmsBtn}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handlePlayStory(story);
+                        }}
+                      >
                         {story.status === "draft"
                           ? "Resume generation"
                           : story.status === "awaited_voice_generation"
@@ -1096,15 +1196,18 @@ const Dashboard: React.FC = () => {
                               : story.queueState === "processing"
                                 ? "Processing — View status"
                                 : "Awaiting Voice — View status"
-                          : story.queueState === "queued"
-                            ? "Queued — View status"
-                            : story.queueState === "processing"
-                              ? "Processing — View status"
-                              : "Resume generation"}
+                            : story.queueState === "queued"
+                              ? "Queued — View status"
+                              : story.queueState === "processing"
+                                ? "Processing — View status"
+                                : "Resume generation"}
                       </button>
                       <button
                         className={`${styles.mmsBtn} ${styles.mmsBtnIconOnly}`}
-                        onClick={(e) => { e.stopPropagation(); handleDeleteStory(story); }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteStory(story);
+                        }}
                         aria-label="Delete story"
                       >
                         🗑
@@ -1112,12 +1215,39 @@ const Dashboard: React.FC = () => {
                     </>
                   ) : (
                     <>
-                      <button className={styles.mmsBtn} onClick={(e) => { e.stopPropagation(); handleEnhance(story); }}>♫ Enhance</button>
-                      <button className={styles.mmsBtn} onClick={(e) => { e.stopPropagation(); handleDownload(story); }}>↓ Download</button>
-                      <button className={styles.mmsBtn} onClick={(e) => { e.stopPropagation(); handleRead(story); }}>👁 Read</button>
+                      <button
+                        className={styles.mmsBtn}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEnhance(story);
+                        }}
+                      >
+                        ♫ Enhance
+                      </button>
+                      <button
+                        className={styles.mmsBtn}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDownload(story);
+                        }}
+                      >
+                        ↓ Download
+                      </button>
+                      <button
+                        className={styles.mmsBtn}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRead(story);
+                        }}
+                      >
+                        👁 Read
+                      </button>
                       <button
                         className={`${styles.mmsBtn} ${styles.mmsBtnIconOnly}`}
-                        onClick={(e) => { e.stopPropagation(); handleDeleteStory(story); }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteStory(story);
+                        }}
                         aria-label="Delete story"
                       >
                         🗑
@@ -1125,7 +1255,11 @@ const Dashboard: React.FC = () => {
                     </>
                   )}
                 </div>
-                {!isSelected && <span className={styles.storyChevron} aria-hidden="true">›</span>}
+                {!isSelected && (
+                  <span className={styles.storyChevron} aria-hidden="true">
+                    ›
+                  </span>
+                )}
               </div>
             );
           })
@@ -1138,8 +1272,11 @@ const Dashboard: React.FC = () => {
           {activities.length > 0 ? (
             <>
               Last activity · <b>{activities[0]?.storyTitle}</b> ·{" "}
-              {activities[0]?.timestamp instanceof Date && !isNaN(activities[0].timestamp.getTime())
-                ? formatDistanceToNow(activities[0].timestamp, { addSuffix: false })
+              {activities[0]?.timestamp instanceof Date &&
+              !isNaN(activities[0].timestamp.getTime())
+                ? formatDistanceToNow(activities[0].timestamp, {
+                    addSuffix: false,
+                  })
                 : "recently"}{" "}
               ago
             </>
@@ -1148,7 +1285,12 @@ const Dashboard: React.FC = () => {
           )}
         </span>
         {activities.length > 0 && (
-          <button className={styles.activityToggle} onClick={() => router.push("/user/stories")}>See all →</button>
+          <button
+            className={styles.activityToggle}
+            onClick={() => router.push("/user/stories")}
+          >
+            See all →
+          </button>
         )}
       </div>
     </div>
