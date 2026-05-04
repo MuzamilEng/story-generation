@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { checkPlanGating } from '@/lib/plan-gating';
 import { appLog } from '@/lib/app-logger';
+import { audioAssembleLimiter, rateLimitResponse } from '@/lib/rate-limit';
 
 export const maxDuration = 60;
 export const runtime = 'nodejs';
@@ -23,6 +24,10 @@ export async function POST(req: NextRequest) {
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+  // Rate limit: 3 requests/min per user
+  const rl = audioAssembleLimiter.check(`user:${session.user.id}`);
+  if (!rl.allowed) return rateLimitResponse(rl.retryAfterMs);
 
   const planCheck = await checkPlanGating(session.user.id, 'generate_audio');
   if (!planCheck.allowed) {
@@ -46,6 +51,17 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    // Mark story as awaited_voice_generation BEFORE calling mixing server.
+    // This ensures the status is trackable even if the mixing server or Redis
+    // fails mid-job. A recovery cron (/api/cron/recover-stuck) will detect
+    // stories stuck in this state for >30 minutes and reset them.
+    if (story.status !== 'audio_ready') {
+      await prisma.story.update({
+        where: { id: storyId },
+        data: { status: 'awaited_voice_generation' as any },
+      });
+    }
+
     // Retry logic for mixing server communication
     const ASSEMBLE_RETRIES = 3;
     let upstream: Response | null = null;
@@ -75,6 +91,11 @@ export async function POST(req: NextRequest) {
     if (!upstream) {
       console.error(`[api/assemble] Mixing server unreachable after ${ASSEMBLE_RETRIES} attempts: ${lastError}`);
       appLog({ level: 'error', source: 'user/audio/assemble', message: `Mixing server unreachable after ${ASSEMBLE_RETRIES} attempts: ${lastError}`, userId: session.user.id, meta: { storyId } });
+      // Reset status so user can retry — don't leave stuck in awaited_voice_generation
+      await prisma.story.update({
+        where: { id: storyId },
+        data: { status: 'approved' as any },
+      }).catch(() => {});
       return NextResponse.json({ error: 'Mixing server unavailable. Please try again.' }, { status: 502 });
     }
 
@@ -91,17 +112,15 @@ export async function POST(req: NextRequest) {
     const data = await upstream.json();
 
     if (!upstream.ok) {
+      // Mixing server rejected — reset status so user can retry
+      await prisma.story.update({
+        where: { id: storyId },
+        data: { status: 'approved' as any },
+      }).catch(() => {});
       return NextResponse.json(
         { error: data.error || 'Failed to queue audio assembly' },
         { status: upstream.status }
       );
-    }
-
-    if (!data.completed && story.status !== 'audio_ready') {
-      await prisma.story.update({
-        where: { id: storyId },
-        data: { status: 'awaited_voice_generation' as any },
-      });
     }
 
     appLog({ level: 'info', source: 'user/audio/assemble', message: `Audio assembly ${data.queued ? 'queued' : 'completed'}`, userId: session.user.id, meta: { storyId, jobId: data.jobId } });

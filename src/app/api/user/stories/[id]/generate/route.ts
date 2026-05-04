@@ -7,6 +7,7 @@ import { HumanMessage, SystemMessage } from "@langchain/core/messages"
 import { buildStoryPrompt, buildMorningStoryPrompt, normalizeGoals, getStoryTitle } from '@/lib/story-utils'
 import { betaTypeToPlan } from '@/lib/beta-utils'
 import { appLog } from '@/lib/app-logger'
+import { storyCreateLimiter, rateLimitResponse } from '@/lib/rate-limit'
 
 import { Tier } from '@/lib/story-utils'
 
@@ -106,6 +107,10 @@ export async function POST(
         }
         sessionUserId = session.user.id;
 
+        // Rate limit: 5 requests/min per user (shared with story create)
+        const rl = storyCreateLimiter.check(`user:${session.user.id}`);
+        if (!rl.allowed) return rateLimitResponse(rl.retryAfterMs);
+
         const body = await req.json().catch(() => ({}));
         const instruction = body.instruction;
 
@@ -132,15 +137,22 @@ export async function POST(
             )
         }
 
-        // Optimistic lock via version: bump the version immediately so a concurrent
-        // request reading the same version will fail the WHERE clause and get count=0.
+        // Atomic lock: set status to 'generating' AND bump version in a single
+        // updateMany with a WHERE clause on the current version. If a concurrent
+        // request already bumped the version, count will be 0 and we bail out.
+        // This closes the race window between the status check above and the
+        // version bump — both are now a single atomic DB operation.
         const lockResult = await prisma.story.updateMany({
             where: {
                 id: storyId,
                 userId: session.user.id,
                 version: story.version,
+                status: { in: allowedStatuses as any },
             },
-            data: { version: story.version + 1 },
+            data: {
+                version: story.version + 1,
+                status: 'draft', // Keep as draft during generation (reset on completion)
+            },
         });
         if (lockResult.count === 0) {
             return NextResponse.json(

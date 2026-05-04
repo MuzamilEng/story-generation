@@ -5,6 +5,7 @@ import { invokeWithFallback } from '@/lib/langchain';
 import { SYSTEM_PROMPT } from '@/app/types/goal-discovery';
 import { HumanMessage, SystemMessage, AIMessage } from "@langchain/core/messages";
 import { appLog } from '@/lib/app-logger';
+import { chatLimiter, rateLimitResponse } from '@/lib/rate-limit';
 
 export async function POST(req: NextRequest) {
     let sessionUserId: string | undefined;
@@ -14,6 +15,10 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
         sessionUserId = session.user.id;
+
+        // Rate limit: 20 requests/min per user
+        const rl = chatLimiter.check(`user:${session.user.id}`);
+        if (!rl.allowed) return rateLimitResponse(rl.retryAfterMs);
 
         const { messages } = await req.json();
 

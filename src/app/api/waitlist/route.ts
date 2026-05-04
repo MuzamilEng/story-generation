@@ -2,9 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendWaitlistWelcomeEmail } from "@/lib/email";
 import { appLog } from "@/lib/app-logger";
+import { waitlistLimiter, getRateLimitKey, rateLimitResponse } from '@/lib/rate-limit';
 
 export async function POST(req: NextRequest) {
   try {
+    // Rate limit: 3 requests per 5 min per IP
+    const rl = waitlistLimiter.check(getRateLimitKey(req));
+    if (!rl.allowed) return rateLimitResponse(rl.retryAfterMs);
+
     const { firstName, email } = await req.json();
 
     if (!firstName || typeof firstName !== "string" || firstName.trim().length === 0) {

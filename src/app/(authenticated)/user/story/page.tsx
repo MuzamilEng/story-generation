@@ -401,7 +401,13 @@ const StoryContent: React.FC = () => {
     document.head.appendChild(fontLink);
   }, []);
 
+  const generateInFlight = useRef(false);
+
   const generate = useCallback(async (id: string) => {
+    // Prevent double-click / concurrent invocations
+    if (generateInFlight.current) return;
+    generateInFlight.current = true;
+
     setIsGenerating(true);
     setGenError(null);
     setActiveStep(0);
@@ -426,6 +432,7 @@ const StoryContent: React.FC = () => {
           setStoryText(data.storyText);
           if (data.title) setStoryTitle(data.title);
           setIsGenerating(false);
+          generateInFlight.current = false;
           return; // Success — exit
         }
 
@@ -457,6 +464,7 @@ const StoryContent: React.FC = () => {
 
     setGenError(lastError);
     setIsGenerating(false);
+    generateInFlight.current = false;
   }, []);
 
   const saveAndGenerate = useCallback(

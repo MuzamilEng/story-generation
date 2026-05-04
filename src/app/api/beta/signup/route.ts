@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendBetaWelcomeEmail } from "@/lib/email";
 import { appLog } from "@/lib/app-logger";
+import { betaSignupLimiter, getRateLimitKey, rateLimitResponse } from '@/lib/rate-limit';
 
 const MAX_SPOTS = 500;
 const CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
@@ -14,6 +15,10 @@ function generateAccessCode(): string {
 
 export async function POST(req: NextRequest) {
   try {
+    // Rate limit: 5 requests per 5 min per IP
+    const rl = betaSignupLimiter.check(getRateLimitKey(req));
+    if (!rl.allowed) return rateLimitResponse(rl.retryAfterMs);
+
     const body = await req.json();
     const firstName = (body.firstName ?? "").trim();
     const email = (body.email ?? "").trim().toLowerCase();

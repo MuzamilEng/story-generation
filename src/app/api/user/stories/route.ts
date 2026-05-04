@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { getStoryTitle } from '@/lib/story-utils'
 import type { StoryType } from '@/lib/story-utils'
 import { appLog } from '@/lib/app-logger'
+import { storyCreateLimiter, rateLimitResponse } from '@/lib/rate-limit'
 
 export async function POST(req: NextRequest) {
     try {
@@ -12,6 +13,10 @@ export async function POST(req: NextRequest) {
         if (!session || !session.user) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
+
+        // Rate limit: 5 requests/min per user
+        const rl = storyCreateLimiter.check(`user:${session.user.id}`);
+        if (!rl.allowed) return rateLimitResponse(rl.retryAfterMs);
 
         const body = await req.json()
         const { goals, title, length, storyType } = body

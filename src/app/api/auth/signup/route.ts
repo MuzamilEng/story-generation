@@ -3,9 +3,14 @@ import { hash } from "bcryptjs"
 import { prisma } from "@/lib/prisma"
 import { betaTypeToPlan } from "@/lib/beta-utils"
 import { appLog } from "@/lib/app-logger"
+import { signupLimiter, getRateLimitKey, rateLimitResponse } from '@/lib/rate-limit'
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limit: 5 requests per 5 min per IP
+    const rl = signupLimiter.check(getRateLimitKey(request));
+    if (!rl.allowed) return rateLimitResponse(rl.retryAfterMs);
+
     const { name, email, password, betaCode } = await request.json()
 
     if (!name || !email || !password) {

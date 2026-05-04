@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { appLog } from '@/lib/app-logger';
+import { audioGenerateLimiter, rateLimitResponse } from '@/lib/rate-limit';
 
 const s3Client = new S3Client({
     region: 'us-east-1',
@@ -33,6 +34,10 @@ export async function POST(req: NextRequest) {
         if (!session || !session.user) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
+
+        // Rate limit: 3 requests/min per user
+        const rl = audioGenerateLimiter.check(`user:${session.user.id}`);
+        if (!rl.allowed) return rateLimitResponse(rl.retryAfterMs);
 
         const formData = await req.formData();
         const audioFile = formData.get('audio') as Blob | null;
