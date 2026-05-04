@@ -1003,14 +1003,14 @@ async function generateFishAudioTTS(voiceId: string, text: string): Promise<Buff
           sample_rate: 44100,
           normalize: true,
           latency: 'normal',
-          temperature: 0.65,
-          top_p: 0.85,
+          temperature: 0.78,
+          top_p: 0.92,
           chunk_length: 250,
           min_chunk_length: 100,
           repetition_penalty: 1.05,
           max_new_tokens: 4096,
           condition_on_previous_chunks: true,
-          prosody: { speed: 0.78, volume: 0, normalize_loudness: true },
+          prosody: { speed: 0.92, volume: 0, normalize_loudness: true },
         }),
         signal: AbortSignal.timeout(60000), // 60s timeout per TTS request
       });

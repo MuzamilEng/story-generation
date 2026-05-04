@@ -1620,17 +1620,17 @@ const GoalDiscovery: React.FC = () => {
   const [isPrefillPending, setIsPrefillPending] = useState(isEditMode);
   // Whether we should auto-restart recognition on session end (timeout/pause)
   const voiceIntentActiveRef = useRef<boolean>(false);
-  // State-backed accumulated transcript — the ONLY source of truth for voice text.
-  // Uses functional updates (prev => prev + new) so it never loses context,
-  // even when Chrome restarts recognition sessions on breath/pause in production.
+  // Whether the browser is Safari (needs special handling for speech recognition)
+  const isSafariRef = useRef<boolean>(false);
+  // ── Voice accumulation via React state (single source of truth) ──
+  // All text from COMPLETED recognition sessions lives here. Never lost on restart.
   const [voiceAccumulatedText, setVoiceAccumulatedText] = useState<string>("");
-  // Ref mirror of voiceAccumulatedText — for reading inside event handler closures
-  // (can't read state directly in useEffect([]) callbacks)
+  // Ref mirror for reading inside event handlers (state isn't readable in closures)
   const voiceAccumulatedRef = useRef<string>("");
-  // Track how many results in the current session are already committed to state
-  const voiceCommittedCountRef = useRef<number>(0);
-  // Latest interim (non-final) text from current session — committed on session end
-  const voiceInterimRef = useRef<string>("");
+  // Text from the CURRENT (in-progress) recognition session — not yet committed to state
+  const currentSessionTextRef = useRef<string>("");
+  // Live preview shown to user during recording
+  const [voiceLivePreview, setVoiceLivePreview] = useState<string>("");
 
   // Keep ref mirror in sync with state
   useEffect(() => {
@@ -1693,75 +1693,72 @@ const GoalDiscovery: React.FC = () => {
     if (SR) {
       setVoiceSupported(true);
       const recognition = new SR();
-      recognition.continuous = true;
+      const isSafari =
+        /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+      isSafariRef.current = isSafari;
+
+      // Safari ignores continuous:true — it stops after each utterance.
+      // We manually restart in onend for both browsers.
+      recognition.continuous = !isSafari;
       recognition.interimResults = true;
       recognition.lang = "en-US";
 
       recognition.onresult = (event: any) => {
-        // Process only NEW finalized results that haven't been committed yet.
-        // Each finalized result is appended to state via functional update,
-        // so even if Chrome restarts recognition, previous text is safe in state.
-        let newFinalText = "";
-        let currentInterim = "";
-
+        // Build the FULL text from this session's results (all of them).
+        // This is the simplest approach — just concatenate everything the API
+        // gives us for the current session. On restart, results reset anyway.
+        let sessionText = "";
         for (let i = 0; i < event.results.length; i++) {
-          if (event.results[i].isFinal) {
-            if (i >= voiceCommittedCountRef.current) {
-              const text = event.results[i][0].transcript;
-              newFinalText += (newFinalText ? " " : "") + text;
-              voiceCommittedCountRef.current = i + 1;
-            }
-          } else {
-            currentInterim = event.results[i][0].transcript;
-          }
+          sessionText += event.results[i][0].transcript;
         }
+        // Store current session text in ref
+        currentSessionTextRef.current = sessionText.trim();
 
-        // Store latest interim for committing on session end
-        voiceInterimRef.current = currentInterim;
-
-        // Append ONLY new finalized text to accumulated state (never rebuilds from scratch)
-        if (newFinalText) {
-          const cleaned = newFinalText.replace(/([a-z])([A-Z])/g, "$1 $2");
-          setVoiceAccumulatedText((prev) => {
-            const updated = prev ? prev + " " + cleaned : cleaned;
-            voiceAccumulatedRef.current = updated;
-            return updated;
-          });
-        }
+        // Live preview = committed state text + current session text
+        const preview = (
+          voiceAccumulatedRef.current +
+          (currentSessionTextRef.current
+            ? " " + currentSessionTextRef.current
+            : "")
+        ).trim();
+        setVoiceLivePreview(preview);
       };
 
       recognition.onerror = (event: any) => {
         console.error("Speech recognition error:", event.error);
-        // On non-fatal errors, don't kill the session
         if (event.error === "no-speech" || event.error === "aborted") return;
         voiceIntentActiveRef.current = false;
         setIsListening(false);
       };
 
       recognition.onend = () => {
-        // Auto-restart on timeout/pause if user hasn't explicitly stopped
+        // Commit current session text to state (the safe place).
+        // Once in state, this text can NEVER be lost by the Web Speech API.
+        const sessionText = currentSessionTextRef.current.trim();
+        if (sessionText) {
+          setVoiceAccumulatedText((prev) => {
+            const updated = prev ? prev + " " + sessionText : sessionText;
+            voiceAccumulatedRef.current = updated;
+            setVoiceLivePreview(updated);
+            return updated;
+          });
+        }
+        // Clear current session ref for the next session
+        currentSessionTextRef.current = "";
+
+        // Restart if user hasn't clicked stop
         if (voiceIntentActiveRef.current) {
-          // Commit any remaining interim text to state — these words won't be
-          // re-recognized in the new session, so they'd be lost otherwise.
-          const leftover = voiceInterimRef.current.trim();
-          if (leftover) {
-            const cleaned = leftover.replace(/([a-z])([A-Z])/g, "$1 $2");
-            setVoiceAccumulatedText((prev) => {
-              const updated = prev ? prev + " " + cleaned : cleaned;
-              voiceAccumulatedRef.current = updated;
-              return updated;
-            });
-          }
-          // Reset per-session tracking for the new recognition session
-          voiceInterimRef.current = "";
-          voiceCommittedCountRef.current = 0;
-          try {
-            recognition.start();
-          } catch {
-            // Already started or other error — just mark as stopped
-            voiceIntentActiveRef.current = false;
-            setIsListening(false);
-          }
+          // Small delay for Safari to release the mic
+          const delay = isSafari ? 300 : 50;
+          setTimeout(() => {
+            if (!voiceIntentActiveRef.current) return; // user stopped during delay
+            try {
+              recognition.start();
+            } catch {
+              voiceIntentActiveRef.current = false;
+              setIsListening(false);
+            }
+          }, delay);
           return;
         }
         setIsListening(false);
@@ -1809,41 +1806,40 @@ const GoalDiscovery: React.FC = () => {
   const toggleVoice = useCallback(() => {
     if (!recognitionRef.current) return;
     if (isListening) {
-      // User explicitly stops — don't auto-restart
+      // User explicitly stops
       voiceIntentActiveRef.current = false;
       recognitionRef.current.stop();
       setIsListening(false);
-      // Stop recording timer
       if (recordingTimerRef.current) {
         clearInterval(recordingTimerRef.current);
         recordingTimerRef.current = null;
       }
       setRecordingSeconds(0);
-      // Build final text: accumulated state + any trailing interim
-      const leftover = voiceInterimRef.current.trim();
-      let finalText = voiceAccumulatedRef.current;
-      if (leftover) {
-        const cleaned = leftover.replace(/([a-z])([A-Z])/g, "$1 $2");
-        finalText = finalText ? finalText + " " + cleaned : cleaned;
+
+      // Read ALL text: state (previous sessions) + current session ref.
+      // No delay needed — state already has all previous sessions committed.
+      // Current session text is in the ref (set synchronously by onresult).
+      const previousText = voiceAccumulatedRef.current;
+      const currentText = currentSessionTextRef.current.trim();
+      const fullText = (previousText + (currentText ? " " + currentText : "")).trim();
+
+      if (fullText) {
+        refineVoiceText(fullText);
       }
-      finalText = finalText.trim();
-      if (finalText) {
-        refineVoiceText(finalText);
-      }
+
       // Reset all voice state
       setVoiceAccumulatedText("");
       voiceAccumulatedRef.current = "";
-      voiceInterimRef.current = "";
-      voiceCommittedCountRef.current = 0;
+      currentSessionTextRef.current = "";
+      setVoiceLivePreview("");
     } else {
-      // Clear previous transcript and start fresh
+      // Start fresh
       setVoiceAccumulatedText("");
       voiceAccumulatedRef.current = "";
-      voiceInterimRef.current = "";
-      voiceCommittedCountRef.current = 0;
+      currentSessionTextRef.current = "";
+      setVoiceLivePreview("");
       voiceIntentActiveRef.current = true;
       setRecordingSeconds(0);
-      // Start recording timer
       recordingTimerRef.current = setInterval(() => {
         setRecordingSeconds((s) => s + 1);
       }, 1000);
@@ -2305,8 +2301,8 @@ const GoalDiscovery: React.FC = () => {
         // Reset voice state for next turn (#2, #14)
         setVoiceAccumulatedText("");
         voiceAccumulatedRef.current = "";
-        voiceInterimRef.current = "";
-        voiceCommittedCountRef.current = 0;
+        currentSessionTextRef.current = "";
+        setVoiceLivePreview("");
       }
     },
     [isWaiting, parseResponse],
@@ -2347,8 +2343,8 @@ const GoalDiscovery: React.FC = () => {
     // Reset voice state for next turn
     setVoiceAccumulatedText("");
     voiceAccumulatedRef.current = "";
-    voiceInterimRef.current = "";
-    voiceCommittedCountRef.current = 0;
+    currentSessionTextRef.current = "";
+    setVoiceLivePreview("");
 
     // Preemptive local capture for specific topics to ensure the UI feels responsive
     // even if the AI fails to send a CAPTURE tag.
@@ -2893,12 +2889,20 @@ const GoalDiscovery: React.FC = () => {
           <div className={styles.inputArea}>
             {isListening ? (
               <div className={styles.recordingOverlay}>
-                <div className={styles.recordingWave}>
-                  {Array.from({ length: 10 }).map((_, i) => (
-                    <div key={i} className={styles.recordingBar} />
-                  ))}
-                </div>
-                <span className={styles.recordingLabel}>Recording…</span>
+                {voiceLivePreview ? (
+                  <div className={styles.recordingTranscript}>
+                    {voiceLivePreview}
+                  </div>
+                ) : (
+                  <div className={styles.recordingWave}>
+                    {Array.from({ length: 10 }).map((_, i) => (
+                      <div key={i} className={styles.recordingBar} />
+                    ))}
+                  </div>
+                )}
+                <span className={styles.recordingLabel}>
+                  {voiceLivePreview ? "Listening… click mic to stop & refine" : "Listening…"}
+                </span>
                 <span className={styles.recordingTimer}>
                   {Math.floor(recordingSeconds / 60)
                     .toString()

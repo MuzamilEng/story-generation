@@ -113,9 +113,9 @@ function generateBinauralWav(filePath: string, durationSecs: number): void {
  *
  * Volume design (dB levels from spec):
  *   - Voice:              -3 dB  (0.708 linear — clean and present)
- *   - Background (under):  -18 dB (0.126 linear — subtle, ambient)
- *   - Background (solo):   -12 dB (0.25 linear — slightly louder, no voice)
- *   - Background (fade):   -12 dB → -60 dB over last 5 s of outro
+ *   - Background (under):  -15 dB (0.178 linear — warm, present ambient)
+ *   - Background (solo):   -10 dB (0.316 linear — fuller, emotional atmosphere)
+ *   - Background (fade):   -10 dB → -60 dB over last 5 s of outro
  *   - Binaural:            -22 dB (0.079 linear — felt more than heard)
  *
  * Returns the mixed result as an MP3 Buffer.
@@ -206,8 +206,8 @@ export async function mixAudio(opts: MixOptions): Promise<Buffer> {
 
     // dB-to-linear conversion targets (pre-compensated for amix N-division)
     const VOICE_LINEAR      = 0.708 * totalInputs;  // -3 dB
-    const BG_SOLO_LINEAR    = 0.251 * totalInputs;   // -12 dB (intro & outro)
-    const BG_UNDER_LINEAR   = 0.126 * totalInputs;   // -18 dB (under narration)
+    const BG_SOLO_LINEAR    = 0.316 * totalInputs;   // -10 dB (intro & outro — fuller, emotional)
+    const BG_UNDER_LINEAR   = 0.178 * totalInputs;   // -15 dB (under narration — warm, present)
     const BINAURAL_LINEAR   = 0.079 * totalInputs;   // -22 dB
 
     // Voice enhancement filters applied inline when enhanceVoice is true

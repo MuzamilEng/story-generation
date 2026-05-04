@@ -1,0 +1,295 @@
+================================================================================
+  PRODUCTION READINESS AUDIT — ManifestMyStory Platform
+  Date: 4 May 2026
+================================================================================
+
+SUMMARY: 3 Critical | 7 High | 6 Medium | 4 Low = 20 Total Issues
+
+
+================================================================================
+  CRITICAL ISSUES (3) — Must fix before production
+================================================================================
+
+[C-1] MIXING SERVER AUTH BYPASS WHEN ENV VAR MISSING
+  File: mixing-server/src/index.ts (line ~40)
+  Risk: If MIXING_API_SECRET env var is missing or empty, the requireAuth
+        middleware calls next() and skips all authentication. The entire
+        mixing server (audio generation, story text, user data) becomes
+        publicly accessible with zero auth.
+  Fix:  Fail hard on startup if MIXING_API_SECRET is not set:
+          if (!process.env.MIXING_API_SECRET) {
+            throw new Error('MIXING_API_SECRET is required');
+          }
+
+[C-2] NO API RATE LIMITING ON ANY ENDPOINT
+  File: All API routes under src/app/api/
+  Risk: No request-frequency limiting exists anywhere. Plan gating limits
+        usage (stories/month) but not request frequency. A bad actor can:
+        - Spam /api/user/chat to burn LLM credits
+        - Spam /api/user/audio/assemble to flood the queue
+        - Spam /api/user/stories to create hundreds of draft stories
+        - DDoS the database via rapid-fire API calls
+  Fix:  Add @upstash/ratelimit or similar middleware on:
+        - /api/user/chat (e.g., 20 requests/min)
+        - /api/user/stories POST (e.g., 5 requests/min)
+        - /api/user/audio/assemble (e.g., 3 requests/min)
+        - /api/auth/signup (e.g., 5 requests/min)
+
+[C-3] PROMPT INJECTION RISK IN CHAT API
+  File: src/app/api/user/chat/route.ts (line ~14)
+  Risk: User message content is passed directly into the SystemMessage
+        template without sanitization. A crafted message could:
+        - Hijack Maya's behavior and extract system prompts
+        - Override capture/progress instructions
+        - Make the AI output malicious content
+  Fix:  - Separate user messages from system context clearly
+        - Sanitize user input (strip control characters, limit length)
+        - Add output filtering to catch leaked system prompts
+        - Consider a content moderation layer
+
+
+================================================================================
+  HIGH ISSUES (7) — Fix before GA launch
+================================================================================
+
+[H-1] DOUBLE-CLICK RACE CONDITION ON STORY GENERATION
+  File: src/app/api/user/stories/[id]/generate/route.ts (~line 125)
+  Risk: getServerSession + prisma.findUnique happen before the optimistic
+        version lock. A rapid double-click passes the initial status check
+        before the first request commits the version bump. Results in:
+        - Duplicate LLM API calls (double token spend)
+        - Corrupted story_text_draft from interleaved responses
+  Fix:  Use prisma.$transaction with an atomic status check:
+          await prisma.$transaction(async (tx) => {
+            const story = await tx.story.findUnique({ where: { id } });
+            if (story.status !== 'draft') throw new Error('Already generating');
+            await tx.story.update({ where: { id }, data: { status: 'generating' } });
+          });
+        Also disable the generate button in the UI after first click.
+
+[H-2] localAudioCache MEMORY LEAK IN MIXING SERVER
+  File: mixing-server/src/assemble.ts (line 14)
+  Risk: The Map<string, string> storing R2 key → local temp path grows
+        indefinitely. On R2 upload success, entries are cleaned after 5min
+        via setTimeout. On failure, after 2hrs. But during long uptime,
+        the Map accumulates thousands of string entries. If the process
+        restarts before timeouts fire, temp files also persist on disk.
+  Fix:  Add a periodic pruning interval on server start:
+          setInterval(() => {
+            for (const [key, path] of localAudioCache.entries()) {
+              if (!fs.existsSync(path)) localAudioCache.delete(key);
+            }
+          }, 30 * 60 * 1000); // every 30 min
+
+[H-3] STUCK STATE: BULLMQ + REDIS CONNECTION FAILURE
+  File: mixing-server/src/assemble-queue.ts (line 82)
+  Risk: If Redis goes down mid-job, the story status remains at whatever
+        state it was in. The status is only reset to 'draft' on the final
+        failed attempt. Users see no progress and no error. No mechanism
+        exists to detect and recover stories stuck in processing.
+  Fix:  - Set story status to 'awaited_voice_generation' BEFORE enqueuing
+        - Add a cron job or periodic check for stories stuck in
+          'awaited_voice_generation' for more than 30 minutes
+        - Auto-reset them to 'draft' and notify the user
+
+[H-4] VOICE REFINEMENT RACE CONDITION IN INTAKE
+  File: src/app/(authenticated)/user/goal-intake-ai/page.tsx (~line 1666)
+  Risk: When user speaks via Web Speech API, the raw transcript is sent to
+        /api/user/chat/refine-voice for cleanup. If the user hits "Send"
+        before the refinement API returns, the raw (unrefined) transcript
+        with filler words and bad punctuation is submitted to the chat.
+  Fix:  - Set a `isRefining` state flag when refinement starts
+        - Disable the Send button while isRefining === true
+        - Show a brief "Polishing your words..." indicator
+        - Only enable Send after refinement completes or times out
+
+[H-5] NO EMAIL RETRY LOGIC
+  File: src/lib/email.ts
+  Risk: If the SMTP server is temporarily unavailable, email sends fail
+        silently. Welcome emails, drip campaign emails (Day 1, Day 2,
+        Day 7), and survey emails are permanently lost with no retry.
+  Fix:  Wrap sendMail in a retry loop:
+          async function sendWithRetry(options, maxRetries = 3) {
+            for (let i = 0; i < maxRetries; i++) {
+              try { return await transporter.sendMail(options); }
+              catch (err) {
+                if (i === maxRetries - 1) throw err;
+                await sleep(1000 * Math.pow(2, i));
+              }
+            }
+          }
+
+[H-6] SILENT appLog FAILURES
+  File: src/lib/app-logger.ts (line 43)
+  Risk: The appLog function catches database errors and only logs to
+        console.error. If the database is down (the most likely time you
+        NEED logging), critical errors like payment failures, auth issues,
+        and generation crashes are silently lost.
+  Fix:  Add a fallback mechanism:
+        - Write to a local log file as secondary
+        - Or buffer in-memory and flush when DB recovers
+        - Or forward to an external service (e.g., Sentry, Datadog)
+
+[H-7] JWT CALLBACK HITS DATABASE ON EVERY REQUEST
+  File: src/lib/auth.ts (~line 61, noted as TODO in code)
+  Risk: The jwt callback in NextAuth refreshes user data (plan, isActive,
+        role) from the database on every single HTTP request. Under 100+
+        concurrent users, this creates thousands of DB queries/minute for
+        session validation alone.
+  Fix:  Cache user data in the JWT token itself. Only refresh from DB:
+        - Every 5 minutes (add a `lastRefreshed` timestamp to token)
+        - On specific actions (plan change, role change, login)
+        - When user explicitly refreshes their session
+
+
+================================================================================
+  MEDIUM ISSUES (6) — Fix soon after launch
+================================================================================
+
+[M-1] PROMPT TRUNCATION RISK IN STORY GENERATION
+  File: src/lib/story-utils.ts (~line 221)
+  Risk: The buildStoryPrompt function heavily warns the LLM not to run out
+        of tokens before writing Block D (Close/Sleep Seeding). This
+        suggests truncation is a known failure mode. Users could receive
+        stories without the closing hypnotic anchoring section.
+  Fix:  Add server-side validation after generation:
+        - Check for Block D markers or closing keywords
+        - If missing, auto-regenerate with a shorter word target
+        - Log truncation events for monitoring
+
+[M-2] 50-SECOND TIMEOUT ON ASSEMBLE API ROUTE
+  File: src/app/api/user/audio/assemble/route.ts (~line 51)
+  Risk: AbortSignal.timeout(50000) on the Next.js → mixing server proxy.
+        Full assembly (TTS + 8D + mastering) for a 3000-word story commonly
+        exceeds 50 seconds. The API returns an error to the frontend, but
+        the BullMQ job continues in the background. Users see "failed" even
+        though audio will eventually be ready.
+  Fix:  The route already returns 202 for queued jobs. Ensure:
+        - Frontend handles 202 correctly and polls /assemble/status
+        - Increase timeout to 120s for the initial fast-path check
+        - Add clear UI messaging: "Your audio is being created..."
+
+[M-3] MIX RACE CONDITION AFTER ASSEMBLE
+  File: mixing-server/src/index.ts (~line 255)
+  Risk: If /mix is called immediately after /assemble, the voice file may
+        not be in R2 yet. There's a local cache fallback and a retryable
+        409 (AUDIO_NOT_READY), but the frontend may not retry automatically.
+  Fix:  - Add automatic retry in the frontend with exponential backoff
+        - Show user-friendly message: "Audio is still processing..."
+        - Consider adding a "ready" webhook/socket event
+
+[M-4] AI TAG LEAKAGE IN CHAT UI
+  File: src/app/(authenticated)/user/goal-intake-ai/page.tsx
+  Risk: The LLM communicates metadata via CAPTURE and PROGRESS JSON blocks
+        that are stripped by regex. If the LLM deviates from the expected
+        format (extra whitespace, nested braces, split across lines), raw
+        JSON leaks into the visible chat.
+  Fix:  Add a catch-all sanitizer as a final pass:
+        - Strip any {...} blocks that look like JSON
+        - Strip any remaining [UPPERCASE_TAG] patterns
+        - Log leaked tags for prompt improvement
+
+[M-5] NO EXPLICIT "FAILED" STORY STATUS
+  File: prisma/schema.prisma (StoryStatus enum)
+  Risk: StoryStatus only has: draft, approved, awaited_voice_generation,
+        audio_ready. There's no "generation_failed" or "audio_failed" state.
+        When generation fails, the story is reset to 'draft', which is
+        ambiguous — the user can't tell if it's a new story or a failed one.
+  Fix:  Add to the StoryStatus enum:
+          generation_failed
+          audio_failed
+        Set these on final failure. Show appropriate UI messaging.
+
+[M-6] TEMP FILE CLEANUP ON MIXING SERVER CRASH
+  File: mixing-server/src/assemble.ts
+  Risk: Temp files are cleaned up via setTimeout (5min or 2hr). If the
+        server crashes or restarts before timers fire, temp files persist
+        in os.tmpdir() indefinitely, eventually filling disk.
+  Fix:  Add a startup cleanup sweep:
+          const tmpDir = os.tmpdir();
+          const staleFiles = fs.readdirSync(tmpDir)
+            .filter(f => f.startsWith('fish-') || f.startsWith('local-audio-')
+                      || f.startsWith('hrtf-'));
+          for (const f of staleFiles) {
+            fs.rmSync(path.join(tmpDir, f), { recursive: true, force: true });
+          }
+
+
+================================================================================
+  LOW ISSUES (4) — Nice to have improvements
+================================================================================
+
+[L-1] HARDCODED AUDIO PROCESSING CONSTANTS
+  File: mixing-server/src/assemble.ts (line 17+)
+  Risk: CHUNK_CHARS, EIGHT_D_PRIMARY_HZ, EIGHT_D_SECONDARY_HZ, etc. are
+        env-configurable but lack documentation or admin UI for tuning.
+        Changing the "vibe" requires redeployment.
+  Fix:  Add admin UI controls or a config file for audio tuning params.
+
+[L-2] VOICE INPUT IS CHROME-ONLY
+  File: src/app/(authenticated)/user/goal-intake-ai/page.tsx
+  Risk: webkitSpeechRecognition is only available in Chromium browsers.
+        Firefox and Safari users get no voice input with no explanation.
+  Fix:  Add feature detection:
+          if (!('webkitSpeechRecognition' in window)) {
+            // Show: "Voice input is only available in Chrome. Please type."
+          }
+
+[L-3] VERBOSE MIDDLEWARE LOGGING IN PRODUCTION
+  File: src/proxy.ts (lines 47+)
+  Risk: console.log('[MIDDLEWARE] Processing:', pathname) and
+        console.log('[AUTH DEBUG] Token exists:') fire on every page
+        navigation in production, adding log noise and minor overhead.
+  Fix:  Gate behind a DEBUG environment variable:
+          if (process.env.DEBUG_AUTH) console.log(...)
+
+[L-4] MISSING SCHEMA VALIDATION ON API INPUTS
+  File: Various API routes (chat, stories, audio)
+  Risk: Most routes check for key existence but don't validate types,
+        lengths, or structures. Malformed JSON payloads could cause
+        unexpected behavior deep in the pipeline.
+  Fix:  Add Zod schemas for critical POST endpoints:
+        - /api/user/chat (validate messages array structure)
+        - /api/user/stories (validate goal_intake_json shape)
+        - /api/user/audio/assemble (validate storyId format)
+
+
+================================================================================
+  STABLE FLOWS (No action needed)
+================================================================================
+
+  [OK] Story text generation — LLM fallback chain is robust
+  [OK] Audio assembly pipeline — BullMQ + retry + fallback at every stage
+  [OK] 8D spatial audio — HRTF → FFmpeg apulsator fallback is reliable
+  [OK] Background music mixing — Cache-aware, retryable on timing issues
+  [OK] R2 storage + streaming — Local fallback covers upload latency
+  [OK] Stripe payments — Signature verified, plan provisioning works
+  [OK] Auth flow — JWT + middleware + role enforcement solid
+  [OK] Admin dashboard — Real-time Socket.IO logs, role-gated
+  [OK] Database schema — Good indexes, cascading deletes, proper constraints
+  [OK] Graceful shutdown — SIGTERM/SIGINT handlers for queue workers
+
+
+================================================================================
+  RECOMMENDED FIX ORDER
+================================================================================
+
+  Phase 1 (Before Production):
+    C-1  Mixing server auth bypass
+    C-2  API rate limiting
+    C-3  Prompt injection sanitization
+
+  Phase 2 (Before GA):
+    H-1  Double-click race condition
+    H-3  Stuck state detection
+    H-4  Voice refinement race
+    H-6  Silent appLog fallback
+    H-7  JWT caching (DB pressure)
+
+  Phase 3 (Post-Launch):
+    H-2  localAudioCache pruning
+    H-5  Email retry logic
+    M-1  through M-6
+    L-1  through L-4
+
+================================================================================
