@@ -138,6 +138,7 @@ const AudioReadyContent: React.FC = () => {
   const [isServerMixing, setIsServerMixing] = useState(false);
   const [mixingTrackId, setMixingTrackId] = useState<string | null>(null);
   const [is8DEnhancing, setIs8DEnhancing] = useState(false);
+  const [enhance8DProgress, setEnhance8DProgress] = useState("");
   const [availableSoundscapes, setAvailableSoundscapes] = useState<any[]>([]);
   const [selectedSoundscapeId, setSelectedSoundscapeId] = useState<
     string | null
@@ -533,59 +534,63 @@ const AudioReadyContent: React.FC = () => {
   const handleEnhance8D = async () => {
     if (!story?.id || is8DEnhancing) return;
     setIs8DEnhancing(true);
+    setEnhance8DProgress("Sending to audio engine…");
     globalPause();
     try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 90000); // 90s client timeout
-
-      let data: any = null;
-      try {
-        const res = await fetch("/api/user/audio/enhance-8d", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ storyId: story.id }),
-          signal: controller.signal,
-        });
-        clearTimeout(timeout);
-        data = await res.json();
-        if (!res.ok) {
-          showToast(data.error || "8D enhancement failed. Please try again.", "error");
-          return;
-        }
-      } catch (fetchErr: any) {
-        clearTimeout(timeout);
-        // Request timed out or network error — poll story to check if it succeeded
-        console.warn("[8D] Request timed out, polling for completion...");
-        const polled = await pollFor8DCompletion(story.id, story.audio_url);
-        if (polled) {
-          data = polled;
-        } else {
-          showToast("8D enhancement is still processing. Refresh in a moment.", "info");
-          return;
-        }
+      // Fire the request — API returns 202 immediately (processing happens on mixing server)
+      const res = await fetch("/api/user/audio/enhance-8d", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ storyId: story.id }),
+      });
+      const data = await res.json();
+      if (!res.ok && res.status !== 202) {
+        showToast(data.error || "8D enhancement failed. Please try again.", "error");
+        return;
       }
 
-      // Update story with new 8D audio URL
-      setStory((prev: any) => ({
-        ...prev,
-        audio_url: data.audio_url,
-        audio_r2_key: data.audio_r2_key,
-      }));
-      setPendingAutoplay(true);
-      setGlobalAudio({ ...story, audio_url: data.audio_url });
-      showToast("8D Audio enhancement applied ✓", "success");
+      setEnhance8DProgress("Applying HRTF spatial processing…");
+
+      // Poll until the audio URL changes (mixing server updates DB when done)
+      const result = await pollFor8DCompletion(story.id, story.audio_url);
+      if (result) {
+        setStory((prev: any) => ({
+          ...prev,
+          audio_url: result.audio_url,
+          audio_r2_key: result.audio_r2_key,
+        }));
+        setPendingAutoplay(true);
+        setGlobalAudio({ ...story, audio_url: result.audio_url });
+        showToast("8D Audio enhancement applied ✓", "success");
+      } else {
+        showToast("8D enhancement is still processing. Please refresh in a moment.", "info");
+      }
     } catch (err) {
       console.error("8D enhancement failed:", err);
       showToast("Something went wrong. Please try again.", "error");
     } finally {
       setIs8DEnhancing(false);
+      setEnhance8DProgress("");
     }
   };
 
-  /** Poll story until audio_url changes (8D completed) or give up after 90s */
+  /** Poll story until audio_url changes (8D completed) or give up after 3 min */
   const pollFor8DCompletion = async (sid: string, originalUrl: string): Promise<any | null> => {
-    const MAX_ATTEMPTS = 18; // 18 × 5s = 90s
+    const MAX_ATTEMPTS = 36; // 36 × 5s = 3 min
+    const progressMessages = [
+      "Applying HRTF spatial processing…",
+      "Rendering binaural audio chunks…",
+      "Rendering binaural audio chunks…",
+      "Encoding high-quality stereo output…",
+      "Encoding high-quality stereo output…",
+      "Uploading enhanced audio…",
+      "Almost done…",
+    ];
     for (let i = 0; i < MAX_ATTEMPTS; i++) {
+      // Update progress message at key milestones
+      const msgIdx = Math.min(Math.floor(i / 5), progressMessages.length - 1);
+      setEnhance8DProgress(progressMessages[msgIdx]);
+
       await new Promise((r) => setTimeout(r, 5000));
       try {
         const res = await fetch(`/api/user/stories/${sid}`);
@@ -1033,43 +1038,7 @@ const AudioReadyContent: React.FC = () => {
         </div>
       )}
 
-      {/* Full-screen loader while 8D enhancement is in progress */}
-      {is8DEnhancing && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.7)",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "14px",
-            zIndex: 9999,
-          }}
-        >
-          <span
-            style={{
-              display: "inline-block",
-              width: 36,
-              height: 36,
-              border: "3px solid rgba(255,255,255,0.15)",
-              borderTop: "3px solid #8b5cf6",
-              borderRadius: "50%",
-              animation: "spin 0.8s linear infinite",
-            }}
-          />
-          <span
-            style={{
-              fontSize: "0.9rem",
-              color: "rgba(255,255,255,0.8)",
-              fontFamily: "var(--sans)",
-            }}
-          >
-            Enhancing with 8D spatial audio — please wait…
-          </span>
-        </div>
-      )}
+
 
       <div className={styles.page}>
         {/* CELEBRATION */}
@@ -1410,46 +1379,61 @@ const AudioReadyContent: React.FC = () => {
                       <div
                         style={{ display: "flex", gap: "6px", flexShrink: 0 }}
                       >
-                        <button
-                          onClick={() => setShowBgPicker(true)}
-                          disabled={isServerMixing}
-                          style={{
-                            background: "rgba(255,255,255,0.06)",
-                            border: "1px solid var(--border)",
-                            borderRadius: "8px",
-                            padding: "0.45rem 0.9rem",
-                            fontSize: "0.72rem",
-                            color: "var(--accent)",
-                            cursor: isServerMixing ? "default" : "pointer",
-                            opacity: isServerMixing ? 0.5 : 1,
-                            fontFamily: "var(--sans)",
-                            fontWeight: 500,
-                            whiteSpace: "nowrap",
-                            transition: "all 0.2s",
-                          }}
-                        >
-                          Change
-                        </button>
-                        <button
-                          onClick={() => handleServerUnmix()}
-                          disabled={isServerMixing}
-                          style={{
-                            background: "rgba(255,255,255,0.06)",
-                            border: "1px solid var(--border)",
-                            borderRadius: "8px",
-                            padding: "0.45rem 0.9rem",
-                            fontSize: "0.72rem",
-                            color: "rgba(255,255,255,0.5)",
-                            cursor: isServerMixing ? "default" : "pointer",
-                            opacity: isServerMixing ? 0.5 : 1,
-                            fontFamily: "var(--sans)",
-                            fontWeight: 500,
-                            whiteSpace: "nowrap",
-                            transition: "all 0.2s",
-                          }}
-                        >
-                          Remove
-                        </button>
+                        {is8DAudio ? (
+                          <span
+                            style={{
+                              fontSize: "0.62rem",
+                              color: "rgba(139,92,246,0.8)",
+                              padding: "0.45rem 0.6rem",
+                              fontFamily: "var(--sans)",
+                            }}
+                          >
+                            🔒 8D applied
+                          </span>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => setShowBgPicker(true)}
+                              disabled={isServerMixing}
+                              style={{
+                                background: "rgba(255,255,255,0.06)",
+                                border: "1px solid var(--border)",
+                                borderRadius: "8px",
+                                padding: "0.45rem 0.9rem",
+                                fontSize: "0.72rem",
+                                color: "var(--accent)",
+                                cursor: isServerMixing ? "default" : "pointer",
+                                opacity: isServerMixing ? 0.5 : 1,
+                                fontFamily: "var(--sans)",
+                                fontWeight: 500,
+                                whiteSpace: "nowrap",
+                                transition: "all 0.2s",
+                              }}
+                            >
+                              Change
+                            </button>
+                            <button
+                              onClick={() => handleServerUnmix()}
+                              disabled={isServerMixing}
+                              style={{
+                                background: "rgba(255,255,255,0.06)",
+                                border: "1px solid var(--border)",
+                                borderRadius: "8px",
+                                padding: "0.45rem 0.9rem",
+                                fontSize: "0.72rem",
+                                color: "rgba(255,255,255,0.5)",
+                                cursor: isServerMixing ? "default" : "pointer",
+                                opacity: isServerMixing ? 0.5 : 1,
+                                fontFamily: "var(--sans)",
+                                fontWeight: 500,
+                                whiteSpace: "nowrap",
+                                transition: "all 0.2s",
+                              }}
+                            >
+                              Remove
+                            </button>
+                          </>
+                        )}
                       </div>
                     </div>
                   );
@@ -1993,50 +1977,83 @@ const AudioReadyContent: React.FC = () => {
 
           {/* Enhance with 8D — only shown if audio is NOT already 8D */}
           {!is8DAudio && (
-            <div className={styles.downloadCard} style={{ borderColor: "rgba(99, 102, 241, 0.3)" }}>
-              <div className={`${styles.dlIcon}`} style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)" }}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M3 18v-6a9 9 0 0 1 18 0v6" />
-                  <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z" />
-                </svg>
-              </div>
-              <div className={styles.dlInfo}>
-                <div className={styles.dlTitle}>Enhance with 8D Audio</div>
-                <div className={styles.dlSub}>
-                  Immersive spatial sound that moves around you
+            <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+              <div className={styles.downloadCard} style={{ borderColor: is8DEnhancing ? "rgba(139, 92, 246, 0.5)" : "rgba(99, 102, 241, 0.3)", borderBottomLeftRadius: is8DEnhancing ? 0 : undefined, borderBottomRightRadius: is8DEnhancing ? 0 : undefined }}>
+                <div className={`${styles.dlIcon}`} style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)" }}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M3 18v-6a9 9 0 0 1 18 0v6" />
+                    <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z" />
+                  </svg>
                 </div>
+                <div className={styles.dlInfo}>
+                  <div className={styles.dlTitle}>Enhance with 8D Audio</div>
+                  <div className={styles.dlSub}>
+                    Immersive spatial sound that moves around you
+                  </div>
+                </div>
+                <button
+                  className={styles.dlBtn}
+                  onClick={handleEnhance8D}
+                  disabled={is8DEnhancing}
+                  style={{
+                    background: is8DEnhancing ? "rgba(99,102,241,0.3)" : "linear-gradient(135deg, #6366f1, #8b5cf6)",
+                    color: "#fff",
+                    border: "none",
+                    opacity: is8DEnhancing ? 0.7 : 1,
+                    cursor: is8DEnhancing ? "default" : "pointer",
+                  }}
+                >
+                  {is8DEnhancing ? (
+                    <>
+                      <span
+                        style={{
+                          display: "inline-block",
+                          width: 14,
+                          height: 14,
+                          border: "2px solid rgba(255,255,255,0.3)",
+                          borderTop: "2px solid #fff",
+                          borderRadius: "50%",
+                          animation: "spin 0.8s linear infinite",
+                        }}
+                      />
+                      Processing
+                    </>
+                  ) : (
+                    <>🎧 Enhance</>
+                  )}
+                </button>
               </div>
-              <button
-                className={styles.dlBtn}
-                onClick={handleEnhance8D}
-                disabled={is8DEnhancing}
-                style={{
-                  background: is8DEnhancing ? "rgba(99,102,241,0.3)" : "linear-gradient(135deg, #6366f1, #8b5cf6)",
-                  color: "#fff",
-                  border: "none",
-                  opacity: is8DEnhancing ? 0.7 : 1,
-                  cursor: is8DEnhancing ? "default" : "pointer",
-                }}
-              >
-                {is8DEnhancing ? (
-                  <>
-                    <span
-                      style={{
-                        display: "inline-block",
-                        width: 14,
-                        height: 14,
-                        border: "2px solid rgba(255,255,255,0.3)",
-                        borderTop: "2px solid #fff",
-                        borderRadius: "50%",
-                        animation: "spin 0.8s linear infinite",
-                      }}
-                    />
-                    Enhancing…
-                  </>
-                ) : (
-                  <>🎧 Enhance</>
-                )}
-              </button>
+              {/* Inline non-blocking progress bar */}
+              {is8DEnhancing && (
+                <div
+                  style={{
+                    background: "rgba(99, 102, 241, 0.08)",
+                    border: "1px solid rgba(139, 92, 246, 0.5)",
+                    borderTop: "none",
+                    borderRadius: "0 0 12px 12px",
+                    padding: "10px 16px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
+                  }}
+                >
+                  <span
+                    style={{
+                      display: "inline-block",
+                      width: 14,
+                      height: 14,
+                      border: "2px solid rgba(139,92,246,0.2)",
+                      borderTop: "2px solid #8b5cf6",
+                      borderRadius: "50%",
+                      animation: "spin 0.8s linear infinite",
+                      flexShrink: 0,
+                    }}
+                  />
+                  <span style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.7)", fontFamily: "var(--sans)" }}>
+                    {enhance8DProgress || "Starting enhancement…"}
+                  </span>
+                </div>
+              )}
             </div>
           )}
 

@@ -200,7 +200,7 @@ app.post('/mix', requireAuth, async (req, res) => {
       return;
     }
 
-    const voiceKey = story.voice_only_r2_key || story.audio_r2_key;
+    const voiceKey = story.audio_r2_key || story.voice_only_r2_key;
     if (!voiceKey) {
       res.status(400).json({ error: 'Story has no voice audio to mix' });
       return;
@@ -415,14 +415,24 @@ app.post('/unmix', requireAuth, async (req, res) => {
       return;
     }
 
+    // If the combined audio was 8D-enhanced, we cannot separate voice from bg
+    // because the 8D processing was applied to the mixed audio.
+    if (story.combined_audio_key && /binaural_8d/i.test(story.combined_audio_key)) {
+      res.status(400).json({
+        error: 'Cannot remove background music — 8D enhancement was applied to the combined audio. To get voice-only, remove 8D first by regenerating your story.',
+        code: 'CANNOT_UNMIX_8D',
+      });
+      return;
+    }
+
     // Delete combined file from R2
     if (story.combined_audio_key) {
       await deleteFromR2(story.combined_audio_key);
       console.log(`[unmix] Deleted combined: ${story.combined_audio_key}`);
     }
 
-    // Restore voice-only as the primary audio
-    const voiceKey = story.voice_only_r2_key || story.audio_r2_key;
+    // Restore the primary audio (which may be 8D-enhanced)
+    const voiceKey = story.audio_r2_key || story.voice_only_r2_key;
     const audioUrl = voiceKey
       ? `/api/user/audio/stream?key=${encodeURIComponent(voiceKey)}`
       : story.audio_url;
@@ -447,14 +457,8 @@ app.post('/unmix', requireAuth, async (req, res) => {
 // Apply 8D spatial audio to a story's voice audio.
 // Body: { storyId }
 //
-// Flow:
-//   1. Look up Story → get voice audio key (voice_only_r2_key or audio_r2_key)
-//   2. Download voice from R2
-//   3. Apply 8D audio processing via FFmpeg
-//   4. Upload 8D version to R2 with binaural_8d prefix
-//   5. Delete old audio_r2_key from R2 (the non-8D version)
-//   6. Update Story record with new audio_r2_key + audio_url
-//   7. Return the new audio URL / key
+// Returns 202 immediately after validation. Processing runs in background.
+// Updates Story DB record when complete. Client polls story for new audio_url.
 app.post('/enhance-8d', requireAuth, async (req, res) => {
   const { storyId } = req.body;
 
@@ -470,80 +474,90 @@ app.post('/enhance-8d', requireAuth, async (req, res) => {
       return;
     }
 
-    // Use the current audio key (prefer voice_only_r2_key for clean source)
-    const sourceKey = story.audio_r2_key || story.voice_only_r2_key;
+    // Use the current audio: if background music is applied, enhance the combined version
+    // so the 8D effect covers both voice + background together.
+    const sourceKey = story.combined_audio_key || story.audio_r2_key || story.voice_only_r2_key;
     if (!sourceKey) {
       res.status(400).json({ error: 'Story has no audio to enhance' });
       return;
     }
 
     // Check if already 8D enhanced
-    if (/binaural_8d/i.test(sourceKey)) {
+    if (/binaural_8d/i.test(sourceKey) || /binaural_8d/i.test(story.audio_r2_key || '')) {
       res.status(400).json({ error: 'Audio is already 8D enhanced' });
       return;
     }
 
-    console.log(`[enhance-8d] Starting: story=${storyId} source=${sourceKey}`);
-
-    // Download voice from R2
-    let voiceBuffer: Buffer;
-    try {
-      voiceBuffer = await downloadFromR2(sourceKey);
-    } catch (dlErr: any) {
-      const localPath = localAudioCache.get(sourceKey);
-      if (localPath && fs.existsSync(localPath)) {
-        voiceBuffer = fs.readFileSync(localPath);
-      } else {
-        res.status(409).json({
-          error: 'Audio file not yet available. Please wait a moment and try again.',
-          code: 'AUDIO_NOT_READY',
-          retryable: true,
-        });
-        return;
-      }
-    }
-
-    console.log(`[enhance-8d] Downloaded source=${voiceBuffer.length}B`);
-
-    // Apply true HRTF 8D spatial audio (node-web-audio-api PannerNode)
-    const enhanced8DBuffer = await apply8DWithHRTF(voiceBuffer, 'story', true);
-    console.log(`[enhance-8d] HRTF 8D applied: ${voiceBuffer.length}B → ${enhanced8DBuffer.length}B`);
-
-    // Build the new R2 key with binaural_8d identifier
-    const new8DKey = `user_${story.userId}/stories/${storyId}/binaural_8d_${Date.now()}.mp3`;
-
-    // Upload 8D version to R2
-    await uploadToR2(new8DKey, enhanced8DBuffer, 'audio/mpeg');
-    console.log(`[enhance-8d] Uploaded to R2: ${new8DKey}`);
-
-    // Delete the old non-8D audio from R2
-    if (sourceKey && sourceKey !== story.voice_only_r2_key) {
-      await deleteFromR2(sourceKey);
-      console.log(`[enhance-8d] Deleted old key: ${sourceKey}`);
-    }
-
-    // Update the audio URL
-    const audioUrl = `/api/user/audio/stream?key=${encodeURIComponent(new8DKey)}`;
-
-    await prisma.story.update({
-      where: { id: storyId },
-      data: {
-        audio_r2_key: new8DKey,
-        audio_url: audioUrl,
-      },
-    });
-
-    console.log(`[enhance-8d] Done — story=${storyId} new key=${new8DKey}`);
-
-    res.json({
+    // ── Return 202 immediately — process in background ──────────────────
+    res.status(202).json({
       success: true,
-      audio_r2_key: new8DKey,
-      audio_url: audioUrl,
+      status: 'processing',
+      message: '8D enhancement accepted. Processing in background.',
     });
+
+    // ── Background processing (runs after response is sent) ─────────────
+    (async () => {
+      try {
+        console.log(`[enhance-8d] Starting: story=${storyId} source=${sourceKey}`);
+
+        // Download voice from R2
+        let voiceBuffer: Buffer;
+        try {
+          voiceBuffer = await downloadFromR2(sourceKey);
+        } catch (dlErr: any) {
+          const localPath = localAudioCache.get(sourceKey);
+          if (localPath && fs.existsSync(localPath)) {
+            voiceBuffer = fs.readFileSync(localPath);
+          } else {
+            console.error(`[enhance-8d] Audio not available: ${sourceKey}`);
+            return;
+          }
+        }
+
+        console.log(`[enhance-8d] Downloaded source=${voiceBuffer.length}B`);
+
+        // Apply true HRTF 8D spatial audio (node-web-audio-api PannerNode)
+        const enhanced8DBuffer = await apply8DWithHRTF(voiceBuffer, 'story', true);
+        console.log(`[enhance-8d] HRTF 8D applied: ${voiceBuffer.length}B → ${enhanced8DBuffer.length}B`);
+
+        // Build the new R2 key with binaural_8d identifier
+        const new8DKey = `user_${story.userId}/stories/${storyId}/binaural_8d_${Date.now()}.mp3`;
+
+        // Upload 8D version to R2
+        await uploadToR2(new8DKey, enhanced8DBuffer, 'audio/mpeg');
+        console.log(`[enhance-8d] Uploaded to R2: ${new8DKey}`);
+
+        // Delete the old non-8D audio from R2
+        if (sourceKey && sourceKey !== story.voice_only_r2_key) {
+          await deleteFromR2(sourceKey);
+          console.log(`[enhance-8d] Deleted old key: ${sourceKey}`);
+        }
+
+        // Update the audio URL in DB — this is what the client polls for
+        const audioUrl = `/api/user/audio/stream?key=${encodeURIComponent(new8DKey)}`;
+        const updateData: any = {
+          audio_r2_key: new8DKey,
+          audio_url: audioUrl,
+        };
+        // If we enhanced the combined (voice+bg) audio, update combined_audio_key too
+        // so that the bg music state stays consistent.
+        if (story.combined_audio_key && sourceKey === story.combined_audio_key) {
+          updateData.combined_audio_key = new8DKey;
+        }
+        await prisma.story.update({
+          where: { id: storyId },
+          data: updateData,
+        });
+
+        console.log(`[enhance-8d] ✅ Done — story=${storyId} new key=${new8DKey}`);
+      } catch (err: any) {
+        console.error(`[enhance-8d] ❌ Background processing failed for story=${storyId}:`, err.message);
+      }
+    })();
   } catch (err: any) {
-    console.error('[enhance-8d] Error:', err);
+    console.error('[enhance-8d] Validation error:', err);
     res.status(500).json({
-      error: 'Failed to apply 8D enhancement. Please try again.',
+      error: 'Failed to start 8D enhancement. Please try again.',
       code: 'ENHANCE_FAILED',
     });
   }

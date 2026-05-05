@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
-export const maxDuration = 300;
+export const maxDuration = 30;
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
@@ -14,12 +14,10 @@ const API_SECRET = process.env.MIXING_API_SECRET || '';
  * POST /api/user/audio/enhance-8d
  * Body: { storyId }
  *
- * Sends the 8D enhancement request to the mixing server which:
- *   1. Downloads voice from R2
- *   2. Applies 8D spatial audio processing
- *   3. Uploads the 8D version back to R2
- *   4. Deletes the old non-8D audio from R2
- *   5. Updates the story audio URL
+ * Fire-and-forget: sends the 8D enhancement request to the mixing server
+ * and returns immediately with 202 Accepted. The mixing server processes
+ * in the background and updates the DB when done. The client polls
+ * GET /api/user/stories/:id to detect when audio_url changes.
  */
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -40,13 +38,19 @@ export async function POST(req: NextRequest) {
   // Verify the user owns this story
   const story = await prisma.story.findUnique({
     where: { id: storyId },
-    select: { userId: true },
+    select: { userId: true, audio_r2_key: true },
   });
   if (!story || story.userId !== session.user.id) {
     return NextResponse.json({ error: 'Story not found' }, { status: 404 });
   }
 
+  // Check if already 8D enhanced
+  if (story.audio_r2_key && /binaural_8d/i.test(story.audio_r2_key)) {
+    return NextResponse.json({ error: 'Audio is already 8D enhanced' }, { status: 400 });
+  }
+
   try {
+    // Mixing server validates and returns 202 instantly, then processes in background
     const enhanceRes = await fetch(`${MIXING_SERVER}/enhance-8d`, {
       method: 'POST',
       headers: {
@@ -54,23 +58,23 @@ export async function POST(req: NextRequest) {
         'x-api-secret': API_SECRET,
       },
       body: JSON.stringify({ storyId }),
-      signal: AbortSignal.timeout(240000), // 4 min — HRTF processing is CPU-intensive
+      signal: AbortSignal.timeout(10000), // 10s — only waiting for validation, not processing
     });
 
     const data = await enhanceRes.json();
 
-    if (!enhanceRes.ok) {
+    if (!enhanceRes.ok && enhanceRes.status !== 202) {
       return NextResponse.json(
         { error: data.error || '8D enhancement failed' },
         { status: enhanceRes.status }
       );
     }
 
-    return NextResponse.json(data);
+    return NextResponse.json(data, { status: 202 });
   } catch (err: any) {
     console.error('[api/enhance-8d] Error calling mixing server:', err);
     return NextResponse.json(
-      { error: 'Mixing server unavailable' },
+      { error: 'Mixing server unavailable. Please try again.' },
       { status: 502 }
     );
   }
