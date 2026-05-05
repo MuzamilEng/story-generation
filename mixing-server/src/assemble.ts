@@ -558,7 +558,7 @@ async function finalMasterWithFade(inputBuffer: Buffer, fadeSecs = 2.5): Promise
 // Uses node-web-audio-api OfflineAudioContext with HRTF PannerNode.
 // Processes in 120-second chunks so peak RAM stays under ~50 MB/chunk.
 // Falls back to FFmpeg apulsator (apply8DAudio) if the native module is unavailable.
-async function apply8DWithHRTF(inputBuffer: Buffer, profile: 'intro' | 'story' = 'story'): Promise<Buffer> {
+export async function apply8DWithHRTF(inputBuffer: Buffer, profile: 'intro' | 'story' = 'story', skipNarrationFilters = false): Promise<Buffer> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let OfflineAudioContext: any;
   try {
@@ -566,8 +566,8 @@ async function apply8DWithHRTF(inputBuffer: Buffer, profile: 'intro' | 'story' =
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     ({ OfflineAudioContext } = require('node-web-audio-api') as { OfflineAudioContext: any });
   } catch {
-    console.warn('[8D-HRTF] node-web-audio-api unavailable — falling back to combined FFmpeg pass');
-    return postProcessAndSpatialize(inputBuffer, profile);
+    console.warn('[8D-HRTF] node-web-audio-api unavailable — falling back to FFmpeg pass');
+    return skipNarrationFilters ? apply8DAudio(inputBuffer, profile) : postProcessAndSpatialize(inputBuffer, profile);
   }
 
   const SAMPLE_RATE = 48000;
@@ -580,9 +580,9 @@ async function apply8DWithHRTF(inputBuffer: Buffer, profile: 'intro' | 'story' =
   const rawStereoPath = path.join(tmpDir, 'stereo.raw');
 
   try {
-    console.log(`[8D-HRTF] Decoding ${profile} audio to PCM (with narration filters)...`);
-    // Apply narration warmth filters during decode — eliminates separate postProcess pass
-    const pcm         = await decodeMp3ToMonoPcm(inputBuffer, SAMPLE_RATE, true);
+    const applyNarration = !skipNarrationFilters;
+    console.log(`[8D-HRTF] Decoding ${profile} audio to PCM (narration filters=${applyNarration})...`);
+    const pcm         = await decodeMp3ToMonoPcm(inputBuffer, SAMPLE_RATE, applyNarration);
     const totalFrames = pcm.length;
     const chunkFrames = CHUNK_SECS * SAMPLE_RATE;
     const numChunks   = Math.ceil(totalFrames / chunkFrames);
@@ -652,8 +652,8 @@ async function apply8DWithHRTF(inputBuffer: Buffer, profile: 'intro' | 'story' =
     return mp3;
 
   } catch (err) {
-    console.error('[8D-HRTF] Render failed, falling back to combined FFmpeg pass:', (err as Error).message);
-    return postProcessAndSpatialize(inputBuffer, profile);
+    console.error('[8D-HRTF] Render failed, falling back to FFmpeg pass:', (err as Error).message);
+    return skipNarrationFilters ? apply8DAudio(inputBuffer, profile) : postProcessAndSpatialize(inputBuffer, profile);
   } finally {
     try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
   }
@@ -981,7 +981,7 @@ function sanitizeForTTS(text: string): string {
 
 // Generate audio for a single chunk using Fish Audio.
 // sem is acquired by the caller before this runs so concurrency is controlled outside.
-async function generateFishAudioTTS(voiceId: string, text: string): Promise<Buffer | null> {
+async function generateFishAudioTTS(voiceId: string, text: string, speed = 0.92): Promise<Buffer | null> {
   const key = process.env.FISH_AUDIO_API;
   if (!key || !voiceId) return null;
 
@@ -1010,7 +1010,7 @@ async function generateFishAudioTTS(voiceId: string, text: string): Promise<Buff
           repetition_penalty: 1.05,
           max_new_tokens: 4096,
           condition_on_previous_chunks: true,
-          prosody: { speed: 0.92, volume: 0, normalize_loudness: true },
+          prosody: { speed, volume: 0, normalize_loudness: true },
         }),
         signal: AbortSignal.timeout(60000), // 60s timeout per TTS request
       });
@@ -1050,9 +1050,9 @@ async function generateFishAudioTTS(voiceId: string, text: string): Promise<Buff
 }
 
 // Generate all chunks in parallel (up to FISH_CONCURRENCY at a time) and concat MP3 buffers
-async function generateParallel(voiceId: string, text: string): Promise<Buffer> {
+async function generateParallel(voiceId: string, text: string, speed = 0.92): Promise<Buffer> {
   const chunks = splitIntoChunks(text);
-  console.log(`[assemble] Splitting into ${chunks.length} chunk(s) (~${CHUNK_CHARS} chars each), concurrency=${FISH_CONCURRENCY}`);
+  console.log(`[assemble] Splitting into ${chunks.length} chunk(s) (~${CHUNK_CHARS} chars each), concurrency=${FISH_CONCURRENCY}, speed=${speed}`);
 
   const sem = makeSemaphore(FISH_CONCURRENCY);
   const buffers = new Array<Buffer>(chunks.length);
@@ -1066,7 +1066,7 @@ async function generateParallel(voiceId: string, text: string): Promise<Buffer> 
       let buf: Buffer | null = null;
       const CHUNK_RETRIES = 3;
       for (let attempt = 1; attempt <= CHUNK_RETRIES; attempt++) {
-        buf = await generateFishAudioTTS(voiceId, chunk);
+        buf = await generateFishAudioTTS(voiceId, chunk, speed);
         if (buf && buf.length >= 1000) break;
         if (attempt < CHUNK_RETRIES) {
           const delay = 1000 * Math.pow(2, attempt - 1);
@@ -1116,7 +1116,6 @@ export async function assembleStoryAudio(storyId: string, userId: string): Promi
         id: true,
         voice_model_id: true,
         soundscape: true,
-        binaural_enabled: true,
       },
     }),
     prisma.story.findUnique({ where: { id: storyId } }),
@@ -1166,8 +1165,8 @@ export async function assembleStoryAudio(storyId: string, userId: string): Promi
   if (introSanitized) {
     ttsPromises.push(
       (async () => {
-        console.log(`[assemble] Generating INTRO bus audio (${introSanitized.length} chars)...`);
-        introBusBuffer = await generateParallel(selectedVoiceId, introSanitized);
+        console.log(`[assemble] Generating INTRO bus audio (${introSanitized.length} chars, speed=0.89)...`);
+        introBusBuffer = await generateParallel(selectedVoiceId, introSanitized, 0.89);
         if (!introBusBuffer || introBusBuffer.length === 0) throw new Error('Failed to generate intro audio');
         console.log(`[assemble] Intro bus raw: ${introBusBuffer.length} bytes`);
         mark('tts_intro');
@@ -1193,35 +1192,25 @@ export async function assembleStoryAudio(storyId: string, userId: string): Promi
   // ── POST-PROCESS EACH BUS (in parallel) ────────────────────────────────
   const postProcessPromises: Promise<void>[] = [];
 
-  // Intro: warm narration + optional 8D spatial
+  // Intro: warm narration + 8D spatial (always applied)
   if (introBusBuffer.length > 0) {
     postProcessPromises.push(
       (async () => {
-        if (user.binaural_enabled) {
-          // Combined single-pass: narration warmth + 8D spatial (saves one full encode/decode cycle)
-          console.log('[assemble] Post-processing + spatializing INTRO bus (combined pass)...');
-          introBusBuffer = await postProcessAndSpatialize(introBusBuffer, 'intro');
-        } else {
-          console.log(`[assemble] Post-processing INTRO bus (centered, no 8D)...`);
-          introBusBuffer = await postProcessNarration(introBusBuffer);
-        }
+        // Combined single-pass: narration warmth + 8D spatial (saves one full encode/decode cycle)
+        console.log('[assemble] Post-processing + spatializing INTRO bus (combined pass)...');
+        introBusBuffer = await postProcessAndSpatialize(introBusBuffer, 'intro');
       })()
     );
   }
 
-  // Story: warm narration + 8D spatial if enabled
+  // Story: warm narration + 8D spatial (always applied)
   if (storyBusBuffer.length > 0) {
     postProcessPromises.push(
       (async () => {
-        if (user.binaural_enabled) {
-          // Try true HRTF path first (node-web-audio-api with integrated narration filters)
-          // Falls back to combined FFmpeg pass if HRTF module unavailable
-          console.log(`[assemble] Post-processing + spatializing STORY bus...`);
-          storyBusBuffer = await apply8DWithHRTF(storyBusBuffer, 'story');
-        } else {
-          console.log(`[assemble] Post-processing STORY bus (no 8D)...`);
-          storyBusBuffer = await postProcessNarration(storyBusBuffer);
-        }
+        // Combined single-pass FFmpeg: narration warmth + apulsator 8D spatial
+        // (HRTF PannerNode via node-web-audio-api lacks proper HRIR data — inaudible)
+        console.log(`[assemble] Post-processing + spatializing STORY bus (combined pass)...`);
+        storyBusBuffer = await postProcessAndSpatialize(storyBusBuffer, 'story');
         mark('postprocess');
       })()
     );
@@ -1236,9 +1225,8 @@ export async function assembleStoryAudio(storyId: string, userId: string): Promi
 
   if (introBusBuffer.length > 0) {
     parts.push({ buffer: introBusBuffer, label: 'intro' });
-    // Add a brief silence gap between intro and story for smooth transition
-    const silenceChannels = user.binaural_enabled ? 2 as const : 1 as const;
-    const silenceGap = await generateSilence(2, silenceChannels);
+    // Add a brief stereo silence gap between intro and story for smooth transition
+    const silenceGap = await generateSilence(2, 2);
     parts.push({ buffer: silenceGap, label: 'silence-gap' });
   }
 
@@ -1254,7 +1242,7 @@ export async function assembleStoryAudio(storyId: string, userId: string): Promi
   console.log(`[assemble] Applying final mastering (loudnorm -16 LUFS + fade-out)...`);
   finalBuffer = await finalMasterWithFade(finalBuffer);
   mark('mastering');
-  console.log(`[assemble] Final audio: ${finalBuffer.length} bytes, 8D=${!!user.binaural_enabled}`);
+  console.log(`[assemble] Final audio: ${finalBuffer.length} bytes, 8D=always`);
 
   const duration = await getAudioDurationSecs(finalBuffer, 'mp3');
   const rawAudioKey = `user_${user.id}/stories/${story.id}/fish_raw_${Date.now()}.mp3`;

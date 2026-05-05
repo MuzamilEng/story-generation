@@ -10,7 +10,7 @@ import {
   initAssembleWorker,
   waitForAssembleResult,
 } from './assemble-queue';
-import { localAudioCache, apply8DAudio } from './assemble';
+import { localAudioCache, apply8DAudio, apply8DWithHRTF } from './assemble';
 import fs from 'fs';
 import path from 'path';
 
@@ -505,9 +505,9 @@ app.post('/enhance-8d', requireAuth, async (req, res) => {
 
     console.log(`[enhance-8d] Downloaded source=${voiceBuffer.length}B`);
 
-    // Apply 8D spatial audio
-    const enhanced8DBuffer = await apply8DAudio(voiceBuffer, 'story');
-    console.log(`[enhance-8d] 8D applied: ${voiceBuffer.length}B → ${enhanced8DBuffer.length}B`);
+    // Apply true HRTF 8D spatial audio (node-web-audio-api PannerNode)
+    const enhanced8DBuffer = await apply8DWithHRTF(voiceBuffer, 'story', true);
+    console.log(`[enhance-8d] HRTF 8D applied: ${voiceBuffer.length}B → ${enhanced8DBuffer.length}B`);
 
     // Build the new R2 key with binaural_8d identifier
     const new8DKey = `user_${story.userId}/stories/${storyId}/binaural_8d_${Date.now()}.mp3`;
