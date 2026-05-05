@@ -654,7 +654,7 @@ const AudioReadyContent: React.FC = () => {
   }, [isServerMixing]);
 
   // Detect if the current audio is already 8D enhanced
-  const is8DAudio = /binaural_8d/i.test(story?.audio_url || "");
+  const is8DAudio = /binaural_8d/i.test(story?.audio_url || "") || /binaural_8d/i.test(story?.audio_r2_key || "") || /binaural_8d/i.test(story?.combined_audio_key || "");
 
   // Always use DB-stored duration as the authoritative source.
   const dbDuration = story?.audio_duration_secs ?? 0;
