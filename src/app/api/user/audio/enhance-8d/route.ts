@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
-export const maxDuration = 120;
+export const maxDuration = 300;
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
@@ -54,6 +54,7 @@ export async function POST(req: NextRequest) {
         'x-api-secret': API_SECRET,
       },
       body: JSON.stringify({ storyId }),
+      signal: AbortSignal.timeout(240000), // 4 min — HRTF processing is CPU-intensive
     });
 
     const data = await enhanceRes.json();

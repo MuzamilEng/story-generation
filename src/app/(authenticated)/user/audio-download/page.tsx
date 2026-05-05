@@ -535,16 +535,36 @@ const AudioReadyContent: React.FC = () => {
     setIs8DEnhancing(true);
     globalPause();
     try {
-      const res = await fetch("/api/user/audio/enhance-8d", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ storyId: story.id }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        showToast(data.error || "8D enhancement failed. Please try again.", "error");
-        return;
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 90000); // 90s client timeout
+
+      let data: any = null;
+      try {
+        const res = await fetch("/api/user/audio/enhance-8d", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ storyId: story.id }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
+        data = await res.json();
+        if (!res.ok) {
+          showToast(data.error || "8D enhancement failed. Please try again.", "error");
+          return;
+        }
+      } catch (fetchErr: any) {
+        clearTimeout(timeout);
+        // Request timed out or network error — poll story to check if it succeeded
+        console.warn("[8D] Request timed out, polling for completion...");
+        const polled = await pollFor8DCompletion(story.id, story.audio_url);
+        if (polled) {
+          data = polled;
+        } else {
+          showToast("8D enhancement is still processing. Refresh in a moment.", "info");
+          return;
+        }
       }
+
       // Update story with new 8D audio URL
       setStory((prev: any) => ({
         ...prev,
@@ -560,6 +580,24 @@ const AudioReadyContent: React.FC = () => {
     } finally {
       setIs8DEnhancing(false);
     }
+  };
+
+  /** Poll story until audio_url changes (8D completed) or give up after 90s */
+  const pollFor8DCompletion = async (sid: string, originalUrl: string): Promise<any | null> => {
+    const MAX_ATTEMPTS = 18; // 18 × 5s = 90s
+    for (let i = 0; i < MAX_ATTEMPTS; i++) {
+      await new Promise((r) => setTimeout(r, 5000));
+      try {
+        const res = await fetch(`/api/user/stories/${sid}`);
+        if (res.ok) {
+          const storyData = await res.json();
+          if (storyData.audio_url && storyData.audio_url !== originalUrl) {
+            return { audio_url: storyData.audio_url, audio_r2_key: storyData.audio_r2_key };
+          }
+        }
+      } catch {}
+    }
+    return null;
   };
 
   /** Toggle preview playback for a soundscape track (capped at 45s) */
