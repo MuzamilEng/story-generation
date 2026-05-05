@@ -1192,25 +1192,22 @@ export async function assembleStoryAudio(storyId: string, userId: string): Promi
   // ── POST-PROCESS EACH BUS (in parallel) ────────────────────────────────
   const postProcessPromises: Promise<void>[] = [];
 
-  // Intro: warm narration + 8D spatial (always applied)
+  // Intro: warm narration post-processing (8D is applied separately via /enhance-8d)
   if (introBusBuffer.length > 0) {
     postProcessPromises.push(
       (async () => {
-        // Combined single-pass: narration warmth + 8D spatial (saves one full encode/decode cycle)
-        console.log('[assemble] Post-processing + spatializing INTRO bus (combined pass)...');
-        introBusBuffer = await postProcessAndSpatialize(introBusBuffer, 'intro');
+        console.log('[assemble] Post-processing INTRO bus (narration warmth)...');
+        introBusBuffer = await postProcessNarration(introBusBuffer);
       })()
     );
   }
 
-  // Story: warm narration + 8D spatial (always applied)
+  // Story: warm narration post-processing (8D is applied separately via /enhance-8d)
   if (storyBusBuffer.length > 0) {
     postProcessPromises.push(
       (async () => {
-        // Combined single-pass FFmpeg: narration warmth + apulsator 8D spatial
-        // (HRTF PannerNode via node-web-audio-api lacks proper HRIR data — inaudible)
-        console.log(`[assemble] Post-processing + spatializing STORY bus (combined pass)...`);
-        storyBusBuffer = await postProcessAndSpatialize(storyBusBuffer, 'story');
+        console.log(`[assemble] Post-processing STORY bus (narration warmth)...`);
+        storyBusBuffer = await postProcessNarration(storyBusBuffer);
         mark('postprocess');
       })()
     );
@@ -1225,8 +1222,8 @@ export async function assembleStoryAudio(storyId: string, userId: string): Promi
 
   if (introBusBuffer.length > 0) {
     parts.push({ buffer: introBusBuffer, label: 'intro' });
-    // Add a brief stereo silence gap between intro and story for smooth transition
-    const silenceGap = await generateSilence(2, 2);
+    // Add a brief silence gap between intro and story for smooth transition
+    const silenceGap = await generateSilence(2, 1);
     parts.push({ buffer: silenceGap, label: 'silence-gap' });
   }
 
@@ -1242,7 +1239,7 @@ export async function assembleStoryAudio(storyId: string, userId: string): Promi
   console.log(`[assemble] Applying final mastering (loudnorm -16 LUFS + fade-out)...`);
   finalBuffer = await finalMasterWithFade(finalBuffer);
   mark('mastering');
-  console.log(`[assemble] Final audio: ${finalBuffer.length} bytes, 8D=always`);
+  console.log(`[assemble] Final audio: ${finalBuffer.length} bytes`);
 
   const duration = await getAudioDurationSecs(finalBuffer, 'mp3');
   const rawAudioKey = `user_${user.id}/stories/${story.id}/fish_raw_${Date.now()}.mp3`;
