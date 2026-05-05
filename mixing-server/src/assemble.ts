@@ -302,7 +302,7 @@ async function postProcessAndSpatialize(inputBuffer: Buffer, profile: 'intro' | 
 
 // Apply premium 8D binaural effect — deep immersive spatial audio
 // Maximum quality: 320kbps stereo, rich multi-layer spatial processing
-async function apply8DAudio(inputBuffer: Buffer, profile: 'intro' | 'story' = 'story'): Promise<Buffer> {
+export async function apply8DAudio(inputBuffer: Buffer, profile: 'intro' | 'story' = 'story'): Promise<Buffer> {
   const tmpDir = path.join(os.tmpdir(), `fish-8d-${randomUUID()}`);
   fs.mkdirSync(tmpDir, { recursive: true });
   const inPath = path.join(tmpDir, 'in.mp3');

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { UserRole } from "@/lib/roles";
 import { format } from "date-fns";
 import { useGlobalUI } from "@/components/ui/global-ui-context";
+import styles from "./page.module.css";
 
 interface User {
   id: string;
@@ -45,6 +46,12 @@ export default function UserManagement() {
   const [openActionMenuUserId, setOpenActionMenuUserId] = useState<string | null>(null);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Email compose modal
+  const [emailModalTarget, setEmailModalTarget] = useState<User | "all" | null>(null);
+  const [emailSubject, setEmailSubject] = useState("");
+  const [emailBody, setEmailBody] = useState("");
+  const [emailSending, setEmailSending] = useState(false);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
@@ -320,335 +327,227 @@ export default function UserManagement() {
 
   if (loading) {
     return (
-      <div style={{ textAlign: "center", padding: "64px", color: "rgba(255, 255, 255, 0.4)" }}>
-        Loading users...
+      <div className={styles.loadingContainer}>
+        <div className={styles.spinnerWrapper}>
+          <div className={styles.spinner} />
+          <span className={styles.srOnly}>Loading users...</span>
+        </div>
       </div>
     );
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "32px", color: "#fff" }}>
-      <div>
-        <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: "clamp(1.4rem, 5vw, 2.5rem)", fontWeight: 700, marginBottom: "8px" }}>
-          User <em>Management</em>
-        </h2>
-        <p style={{ fontSize: "0.95rem", color: "rgba(255, 255, 255, 0.55)" }}>
-          Manage user accounts, roles, and platform permissions.
-        </p>
-      </div>
-
-      <div
-        style={{
-          width: "100%",
-          backgroundColor: "rgba(255, 255, 255, 0.04)",
-          border: "1px solid rgba(255, 255, 255, 0.08)",
-          borderRadius: "20px",
-          overflow: "visible",
-          boxShadow: "0 12px 40px rgba(0,0,0,0.2)",
-        }}
-      >
-        <div style={{ padding: "24px", borderBottom: "1px solid rgba(255, 255, 255, 0.06)" }}>
-          <h3 style={{ fontSize: "1.2rem", fontWeight: 600, fontFamily: "'Fraunces', serif" }}>Member Directory</h3>
-          <p style={{ fontSize: "0.85rem", color: "rgba(255, 255, 255, 0.45)" }}>
-            Review all registered users and their session status.
+    <div className={styles.pageRoot}>
+      {/* Header Section */}
+      <div className={styles.headerSection}>
+        <div>
+          <h1 className={styles.pageTitle}>
+            User Management
+          </h1>
+          <p className={styles.pageSubtitle}>
+            Manage user accounts, roles, and platform permissions.
           </p>
         </div>
+        <button
+          onClick={() => {
+            setEmailSubject("");
+            setEmailBody("");
+            setEmailModalTarget("all");
+          }}
+          className={styles.emailAllButton}
+        >
+          <svg className={styles.smallIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+          </svg>
+          Email All Users
+        </button>
+      </div>
 
-        <div style={{ overflowX: "auto", overflowY: "visible", position: "relative", zIndex: 1 }}>
-          <table
-            style={{
-              width: "100%",
-              minWidth: "100%",
-              borderCollapse: "collapse",
-              fontSize: "0.9rem",
-            }}
-          >
+      {/* Users Table Card */}
+      <div className={styles.card}>
+        <div className={styles.cardHeader}>
+          <h2 className={styles.cardTitle}>Member Directory</h2>
+          <p className={styles.cardDescription}>Review all registered users and their session status.</p>
+        </div>
+
+        <div className={styles.tableScroll}>
+          <table className={styles.usersTable}>
             <thead>
-              <tr
-                style={{ 
-                  borderBottom: "1px solid rgba(255, 255, 255, 0.08)", 
-                  textAlign: "left",
-                  backgroundColor: "rgba(255, 255, 255, 0.02)"
-                }}
-              >
-                <th style={{ padding: "16px 20px", fontWeight: 500, color: "rgba(255, 255, 255, 0.35)", textTransform: "uppercase", fontSize: "0.7rem", letterSpacing: "0.05em" }}>Name</th>
-                <th style={{ padding: "16px 20px", fontWeight: 500, color: "rgba(255, 255, 255, 0.35)", textTransform: "uppercase", fontSize: "0.7rem", letterSpacing: "0.05em" }}>Email</th>
-                <th style={{ padding: "16px 20px", fontWeight: 500, color: "rgba(255, 255, 255, 0.35)", textTransform: "uppercase", fontSize: "0.7rem", letterSpacing: "0.05em" }}>Role</th>
-                <th style={{ padding: "16px 20px", fontWeight: 500, color: "rgba(255, 255, 255, 0.35)", textTransform: "uppercase", fontSize: "0.7rem", letterSpacing: "0.05em" }}>Status</th>
-                <th style={{ padding: "16px 20px", fontWeight: 500, color: "rgba(255, 255, 255, 0.35)", textTransform: "uppercase", fontSize: "0.7rem", letterSpacing: "0.05em" }}>Payment</th>
-                <th style={{ padding: "16px 20px", fontWeight: 500, color: "rgba(255, 255, 255, 0.35)", textTransform: "uppercase", fontSize: "0.7rem", letterSpacing: "0.05em" }}>Stories</th>
-                <th style={{ padding: "16px 20px", fontWeight: 500, color: "rgba(255, 255, 255, 0.35)", textTransform: "uppercase", fontSize: "0.7rem", letterSpacing: "0.05em" }}>Joined</th>
-                <th style={{ padding: "16px 20px", fontWeight: 500, color: "rgba(255, 255, 255, 0.35)", textTransform: "uppercase", fontSize: "0.7rem", letterSpacing: "0.05em" }}>Actions</th>
+              <tr className={styles.tableHeadRow}>
+                <th className={styles.tableHeadCell}>Name</th>
+                <th className={styles.tableHeadCell}>Email</th>
+                <th className={styles.tableHeadCell}>Role</th>
+                <th className={styles.tableHeadCell}>Status</th>
+                <th className={styles.tableHeadCell}>Payment</th>
+                <th className={styles.tableHeadCell}>Stories</th>
+                <th className={styles.tableHeadCell}>Joined</th>
+                <th className={styles.tableHeadCell}>Actions</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className={styles.tableBody}>
               {users.map((user, index) => {
-                const openUpward = index >= users.length - 2;
+                const openUpward = users.length > 2 && index >= users.length - 2;
                 return (
-                <tr key={user.id} style={{ borderBottom: "1px solid rgba(255, 255, 255, 0.04)", transition: "background-color 0.15s" }}>
-                  <td style={{ padding: "16px 20px", fontWeight: 500, color: "#fff" }}>
-                    {user.name || "N/A"}
-                  </td>
-                  <td style={{ padding: "16px 20px", color: "rgba(255, 255, 255, 0.6)" }}>{user.email}</td>
-                  <td style={{ padding: "16px 20px" }}>
-                    <select
-                      value={user.role}
-                      onChange={(e) =>
-                        updateUserRole(user.id, e.target.value as UserRole)
-                      }
-                      style={{
-                        padding: "6px 12px",
-                        borderRadius: "8px",
-                        border: "1px solid rgba(255, 255, 255, 0.1)",
-                        backgroundColor: "rgba(255, 255, 255, 0.05)",
-                        color: "#fff",
-                        fontSize: "0.85rem",
-                        outline: "none"
-                      }}
-                    >
-                      <option value={UserRole.USER}>User</option>
-                      <option value={UserRole.MODERATOR}>Moderator</option>
-                      <option value={UserRole.ADMIN}>Admin</option>
-                    </select>
-                  </td>
-                  <td style={{ padding: "16px 20px" }}>
-                    <span
-                      style={{
-                        padding: "4px 10px",
-                        borderRadius: "99px",
-                        fontSize: "0.7rem",
-                        fontWeight: 600,
-                        backgroundColor: user.isActive ? "rgba(82, 183, 136, 0.1)" : "rgba(255, 255, 255, 0.05)",
-                        color: user.isActive ? "#52b788" : "rgba(255, 255, 255, 0.4)",
-                        textTransform: "uppercase",
-                        letterSpacing: "0.03em"
-                      }}
-                    >
-                      {user.isActive ? "Active" : "Inactive"}
-                    </span>
-                  </td>
-                  <td style={{ padding: "16px 20px", minWidth: "220px" }}>
-                    <div style={{ display: "grid", gap: "6px" }}>
-                      {user.hasStripeSubscription ? (
-                        <>
-                          <span
-                            style={{
-                              display: "inline-flex",
-                              width: "fit-content",
-                              padding: "4px 10px",
-                              borderRadius: "999px",
-                              backgroundColor: user.stripeCancelAtPeriodEnd ? "rgba(232, 168, 56, 0.12)" : "rgba(82, 183, 136, 0.12)",
-                              color: user.stripeCancelAtPeriodEnd ? "#e8a838" : "#52b788",
-                              fontSize: "0.68rem",
-                              fontWeight: 700,
-                              textTransform: "uppercase",
-                              letterSpacing: "0.06em",
-                            }}
-                          >
-                            {user.stripeCancelAtPeriodEnd ? "Stripe Canceling" : "Stripe Active"}
-                          </span>
-                          <span style={{ fontSize: "0.72rem", color: "rgba(255,255,255,0.55)", lineHeight: 1.4 }}>
-                            Subscription: {user.stripeSubscriptionId ? `${user.stripeSubscriptionId.slice(0, 10)}...` : "n/a"}
-                          </span>
-                          <span style={{ fontSize: "0.72rem", color: "rgba(255,255,255,0.55)", lineHeight: 1.4 }}>
-                            {user.stripeCurrentPeriodEnd
-                              ? `${user.stripeCancelAtPeriodEnd ? "Ends" : "Renews"}: ${format(new Date(user.stripeCurrentPeriodEnd), "MMM dd, yyyy")}`
-                              : "Billing date unavailable"}
-                          </span>
-                        </>
-                      ) : user.isBetaUser ? (
-                        <>
-                          <span
-                            style={{
-                              display: "inline-flex",
-                              width: "fit-content",
-                              padding: "4px 10px",
-                              borderRadius: "999px",
-                              backgroundColor: "rgba(201, 168, 76, 0.12)",
-                              color: "#d8ba64",
-                              fontSize: "0.68rem",
-                              fontWeight: 700,
-                              textTransform: "uppercase",
-                              letterSpacing: "0.06em",
-                            }}
-                          >
-                            Beta Access
-                          </span>
-                          <span style={{ fontSize: "0.72rem", color: "rgba(255,255,255,0.55)", lineHeight: 1.4 }}>
-                            No Stripe billing
-                          </span>
-                          <span style={{ fontSize: "0.72rem", color: "rgba(255,255,255,0.55)", lineHeight: 1.4 }}>
-                            {user.betaExpiresAt
-                              ? `Expires: ${format(new Date(user.betaExpiresAt), "MMM dd, yyyy")}`
-                              : "Expiry unavailable"}
-                          </span>
-                        </>
-                      ) : (
-                        <>
-                          <span style={{ fontSize: "0.72rem", color: "rgba(255,255,255,0.55)", lineHeight: 1.4 }}>
-                            No active payment data
-                          </span>
-                          <span style={{ fontSize: "0.72rem", color: "rgba(255,255,255,0.4)", lineHeight: 1.4 }}>
-                            Manual or free access only
-                          </span>
-                        </>
-                      )}
-                    </div>
-                  </td>
-                  <td style={{ padding: "16px 20px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                      <span style={{ color: "rgba(255, 255, 255, 0.8)", fontWeight: 600 }}>{user.storyCount}</span>
-                    </div>
-                  </td>
-                  <td style={{ padding: "16px 20px", color: "rgba(255, 255, 255, 0.4)", whiteSpace: "nowrap", minWidth: "130px" }}>
-                    {format(new Date(user.createdAt), "MMM dd, yyyy")}
-                  </td>
-                  <td style={{ padding: "16px 20px", position: "relative" }}>
-                    <div style={{ position: "relative", width: "fit-content", marginLeft: "auto" }} data-action-menu-root="true">
-                      <button
-                        data-action-trigger="true"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setOpenActionMenuUserId((current) => (current === user.id ? null : user.id));
-                        }}
-                        style={{
-                          listStyle: "none",
-                          cursor: "pointer",
-                          width: "28px",
-                          height: "28px",
-                          borderRadius: "8px",
-                          border: "1px solid rgba(255,255,255,0.1)",
-                          display: "grid",
-                          placeItems: "center",
-                          color: "rgba(255,255,255,0.75)",
-                          backgroundColor: "rgba(255,255,255,0.08)",
-                          userSelect: "none",
-                          transition: "all 0.2s ease",
-                          position: "relative",
-                          zIndex: 21000,
-                        }}
+                  <tr key={user.id} className={styles.tableRow}>
+                    <td className={styles.nameCell}>
+                      {user.name || "—"}
+                    </td>
+                    <td className={styles.emailCell}>{user.email}</td>
+                    <td className={styles.tableCell}>
+                      <select
+                        value={user.role}
+                        onChange={(e) => updateUserRole(user.id, e.target.value as UserRole)}
+                        className={styles.roleSelect}
                       >
-                        ...
-                      </button>
-                      {openActionMenuUserId === user.id && (
-                        <div
-                          data-action-menu="true"
-                          onClick={(e) => e.stopPropagation()}
-                          style={{
-                            position: "absolute",
-                            right: 0,
-                            top: openUpward ? "auto" : "34px",
-                            bottom: openUpward ? "34px" : "auto",
-                            minWidth: "180px",
-                            background: "linear-gradient(180deg, rgba(17, 20, 30, 0.98), rgba(10, 12, 18, 0.98))",
-                            border: "1px solid rgba(255,255,255,0.14)",
-                            borderRadius: "12px",
-                            padding: "10px",
-                            zIndex: 21000,
-                            display: "grid",
-                            gap: "6px",
-                            boxShadow: "0 14px 34px rgba(0,0,0,0.45)",
-                            animation: "actionMenuIn 160ms ease-out",
-                            transformOrigin: openUpward ? "bottom right" : "top right",
-                          }}
-                        >
-                        {user.storyCount > 0 && (
-                          <button
-                            onClick={() => {
-                              setOpenActionMenuUserId(null);
-                              router.push(`/admin/users/${user.id}/stories`);
-                            }}
-                            style={{
-                              padding: "8px 10px",
-                              borderRadius: "8px",
-                              border: "1px solid rgba(255, 255, 255, 0.1)",
-                              backgroundColor: "rgba(255, 255, 255, 0.06)",
-                              color: "rgba(255, 255, 255, 0.82)",
-                              cursor: "pointer",
-                              fontSize: "0.75rem",
-                              fontWeight: 500,
-                              textAlign: "left",
-                            }}
-                          >
-                            Review Stories
-                          </button>
+                        <option value={UserRole.USER}>User</option>
+                        <option value={UserRole.MODERATOR}>Moderator</option>
+                        <option value={UserRole.ADMIN}>Admin</option>
+                      </select>
+                    </td>
+                    <td className={styles.tableCell}>
+                      <span className={`${styles.statusBadge} ${
+                        user.isActive
+                          ? styles.statusActive
+                          : styles.statusInactive
+                      }`}>
+                        {user.isActive ? "Active" : "Inactive"}
+                      </span>
+                    </td>
+                    <td className={styles.paymentCell}>
+                      <div className={styles.paymentStack}>
+                        {user.hasStripeSubscription ? (
+                          <>
+                            <span className={`${styles.paymentBadge} ${
+                              user.stripeCancelAtPeriodEnd
+                                ? styles.paymentStripeCanceling
+                                : styles.paymentStripeActive
+                            }`}>
+                              {user.stripeCancelAtPeriodEnd ? "Stripe Canceling" : "Stripe Active"}
+                            </span>
+                            <div className={styles.paymentMeta}>
+                              {user.stripeSubscriptionId ? `${user.stripeSubscriptionId.slice(0, 10)}...` : "n/a"}
+                            </div>
+                            <div className={styles.paymentMeta}>
+                              {user.stripeCurrentPeriodEnd
+                                ? `${user.stripeCancelAtPeriodEnd ? "Ends" : "Renews"}: ${format(new Date(user.stripeCurrentPeriodEnd), "MMM dd, yyyy")}`
+                                : "Billing date unavailable"}
+                            </div>
+                          </>
+                        ) : user.isBetaUser ? (
+                          <>
+                            <span className={`${styles.paymentBadge} ${styles.paymentBeta}`}>
+                              Beta Access
+                            </span>
+                            <div className={styles.paymentMeta}>No Stripe billing</div>
+                            <div className={styles.paymentMeta}>
+                              {user.betaExpiresAt
+                                ? `Expires: ${format(new Date(user.betaExpiresAt), "MMM dd, yyyy")}`
+                                : "Expiry unavailable"}
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className={styles.paymentMeta}>No active payment data</div>
+                            <div className={styles.paymentMetaMuted}>Manual or free access only</div>
+                          </>
                         )}
+                      </div>
+                    </td>
+                    <td className={styles.tableCell}>
+                      <div className={styles.storyMeta}>
+                        <span className={styles.storyCount}>{user.storyCount}</span>
+                      </div>
+                    </td>
+                    <td className={styles.joinedCell}>
+                      {format(new Date(user.createdAt), "MMM dd, yyyy")}
+                    </td>
+                    <td className={styles.actionsCell}>
+                      <div className={styles.actionMenuRoot} data-action-menu-root="true">
                         <button
-                          onClick={() => {
-                            setOpenActionMenuUserId(null);
-                            setSelectedUserId(user.id);
+                          data-action-trigger="true"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOpenActionMenuUserId((current) => (current === user.id ? null : user.id));
                           }}
-                          style={{
-                            padding: "8px 10px",
-                            borderRadius: "8px",
-                            border: "1px solid rgba(255, 255, 255, 0.1)",
-                            backgroundColor: "rgba(255, 255, 255, 0.06)",
-                            color: "rgba(255, 255, 255, 0.82)",
-                            cursor: "pointer",
-                            fontSize: "0.75rem",
-                            fontWeight: 500,
-                            textAlign: "left",
-                          }}
+                          className={styles.actionTriggerButton}
                         >
-                          Subscription Control
+                          <svg className={styles.smallIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                          </svg>
                         </button>
-                        <button
-                          onClick={() => {
-                            setOpenActionMenuUserId(null);
-                            toggleUserStatus(user.id, user.isActive);
-                          }}
-                          style={{
-                            padding: "8px 10px",
-                            borderRadius: "8px",
-                            border: "1px solid rgba(255, 255, 255, 0.1)",
-                            backgroundColor: "transparent",
-                            color: user.isActive ? "rgba(255, 107, 107, 0.9)" : "#52b788",
-                            cursor: "pointer",
-                            fontSize: "0.75rem",
-                            fontWeight: 500,
-                            textAlign: "left",
-                          }}
-                        >
-                          {user.isActive ? "Deactivate Account" : "Enable Account"}
-                        </button>
-                        </div>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              )})}
+                        {openActionMenuUserId === user.id && (
+                          <div
+                            data-action-menu="true"
+                            onClick={(e) => e.stopPropagation()}
+                            className={`${styles.actionMenu} ${
+                              openUpward ? styles.actionMenuUpward : styles.actionMenuDownward
+                            }`}
+                          >
+                            {user.storyCount > 0 && (
+                              <button
+                                onClick={() => {
+                                  setOpenActionMenuUserId(null);
+                                  router.push(`/admin/users/${user.id}/stories`);
+                                }}
+                                className={styles.actionMenuButton}
+                              >
+                                Review Stories
+                              </button>
+                            )}
+                            <button
+                              onClick={() => {
+                                setOpenActionMenuUserId(null);
+                                setSelectedUserId(user.id);
+                              }}
+                              className={styles.actionMenuButton}
+                            >
+                              Subscription Control
+                            </button>
+                            <button
+                              onClick={() => {
+                                setOpenActionMenuUserId(null);
+                                setEmailSubject("");
+                                setEmailBody("");
+                                setEmailModalTarget(user);
+                              }}
+                              className={styles.actionMenuButton}
+                            >
+                              Send Email
+                            </button>
+                            <button
+                              onClick={() => {
+                                setOpenActionMenuUserId(null);
+                                toggleUserStatus(user.id, user.isActive);
+                              }}
+                              className={`${styles.actionMenuButton} ${
+                                user.isActive
+                                  ? styles.actionDangerButton
+                                  : styles.actionSuccessButton
+                              }`}
+                            >
+                              {user.isActive ? "Deactivate Account" : "Enable Account"}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
 
         {/* Pagination */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            padding: "16px 24px",
-            borderTop: "1px solid rgba(255, 255, 255, 0.06)",
-            fontSize: "0.85rem",
-            color: "rgba(255, 255, 255, 0.45)",
-          }}
-        >
-          <span>
+        <div className={styles.paginationBar}>
+          <span className={styles.paginationText}>
             Showing {(page - 1) * limit + 1}–{Math.min(page * limit, total)} of {total} users
           </span>
-          <div style={{ display: "flex", gap: "8px" }}>
+          <div className={styles.paginationControls}>
             <button
               disabled={page <= 1}
               onClick={() => setPage(page - 1)}
-              style={{
-                padding: "6px 14px",
-                borderRadius: "8px",
-                border: "1px solid rgba(255, 255, 255, 0.1)",
-                backgroundColor: "rgba(255, 255, 255, 0.05)",
-                color: page <= 1 ? "rgba(255,255,255,0.2)" : "#fff",
-                cursor: page <= 1 ? "not-allowed" : "pointer",
-                fontSize: "0.8rem",
-              }}
+              className={styles.paginationButton}
             >
               Previous
             </button>
@@ -656,17 +555,11 @@ export default function UserManagement() {
               <button
                 key={p}
                 onClick={() => setPage(p)}
-                style={{
-                  padding: "6px 12px",
-                  borderRadius: "8px",
-                  border: "1px solid",
-                  borderColor: p === page ? "#52b788" : "rgba(255, 255, 255, 0.1)",
-                  backgroundColor: p === page ? "rgba(82, 183, 136, 0.15)" : "rgba(255, 255, 255, 0.05)",
-                  color: p === page ? "#52b788" : "rgba(255, 255, 255, 0.6)",
-                  cursor: "pointer",
-                  fontSize: "0.8rem",
-                  fontWeight: p === page ? 600 : 400,
-                }}
+                className={`${styles.pageNumberButton} ${
+                  p === page
+                    ? styles.paginationButtonActive
+                    : styles.paginationButtonInactive
+                }`}
               >
                 {p}
               </button>
@@ -674,15 +567,7 @@ export default function UserManagement() {
             <button
               disabled={page >= totalPages}
               onClick={() => setPage(page + 1)}
-              style={{
-                padding: "6px 14px",
-                borderRadius: "8px",
-                border: "1px solid rgba(255, 255, 255, 0.1)",
-                backgroundColor: "rgba(255, 255, 255, 0.05)",
-                color: page >= totalPages ? "rgba(255,255,255,0.2)" : "#fff",
-                cursor: page >= totalPages ? "not-allowed" : "pointer",
-                fontSize: "0.8rem",
-              }}
+              className={styles.paginationButton}
             >
               Next
             </button>
@@ -690,174 +575,95 @@ export default function UserManagement() {
         </div>
       </div>
 
+      {/* Subscription Control Modal */}
       {selectedUser && (
         <div
           onClick={() => setSelectedUserId(null)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            backgroundColor: "rgba(5, 8, 14, 0.68)",
-            backdropFilter: "blur(2px)",
-            zIndex: 12000,
-            display: "grid",
-            placeItems: "center",
-            padding: "20px",
-            animation: "modalOverlayFadeIn 180ms ease-out",
-          }}
+          className={`${styles.overlay} ${styles.subscriptionOverlay}`}
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            style={{
-              width: "min(760px, 100%)",
-              borderRadius: "18px",
-              border: "1px solid rgba(97, 191, 149, 0.34)",
-              background: "radial-gradient(circle at top right, rgba(63, 160, 117, 0.28), transparent 38%), linear-gradient(180deg, rgba(9, 24, 19, 0.98), rgba(7, 16, 14, 0.99))",
-              boxShadow: "0 24px 64px rgba(0,0,0,0.55)",
-              overflow: "hidden",
-              animation: "modalPanelIn 220ms cubic-bezier(0.22, 1, 0.36, 1)",
-            }}
+            className={`${styles.modalCard} ${styles.subscriptionModalCard}`}
           >
-            <div
-              style={{
-                padding: "18px 22px",
-                borderBottom: "1px solid rgba(97, 196, 152, 0.3)",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                background: "linear-gradient(90deg, rgba(52, 151, 109, 0.24), rgba(12, 45, 32, 0.06))",
-              }}
-            >
+            <div className={`${styles.modalHeader} ${styles.modalHeaderGreen}`}>
               <div>
-                <h3 style={{ margin: 0, fontSize: "1.05rem", color: "#ecfff6" }}>Subscription Control</h3>
-                <p style={{ margin: "4px 0 0", fontSize: "0.8rem", color: "rgba(200, 244, 222, 0.78)" }}>
+                <h3 className={`${styles.modalTitle} ${styles.modalTitleGreen}`}>Subscription Control</h3>
+                <p className={`${styles.modalSubtitle} ${styles.modalSubtitleGreen}`}>
                   {selectedUser.name || "User"} • {selectedUser.email}
                 </p>
               </div>
               <button
                 onClick={() => setSelectedUserId(null)}
-                style={{
-                  border: "1px solid rgba(116, 208, 166, 0.4)",
-                  backgroundColor: "rgba(47, 122, 90, 0.26)",
-                  color: "#dcfff0",
-                  borderRadius: "8px",
-                  padding: "6px 10px",
-                  cursor: "pointer",
-                  fontSize: "0.8rem",
-                }}
+                className={`${styles.modalCloseButton} ${styles.modalCloseButtonGreen}`}
               >
                 Close
               </button>
             </div>
 
-            <div style={{ padding: "18px 20px", display: "grid", gap: "12px" }}>
-              <div
-                style={{
-                  display: "grid",
-                  gap: "8px",
-                  padding: "12px",
-                  borderRadius: "12px",
-                  border: "1px solid rgba(92, 194, 149, 0.33)",
-                  background: "linear-gradient(180deg, rgba(29, 88, 63, 0.32), rgba(20, 61, 45, 0.34))",
-                }}
-              >
-                <span style={{ fontSize: "0.72rem", textTransform: "uppercase", letterSpacing: "0.06em", color: "rgba(188, 247, 216, 0.88)" }}>
-                  Plan Control
-                </span>
-              <select
-                value={selectedUser.plan}
-                disabled={selectedUser.hasStripeSubscription}
-                onChange={(e) => updateUserPlan(selectedUser.id, e.target.value as User["plan"])}
-                style={{
-                  padding: "10px 12px",
-                  borderRadius: "10px",
-                  border: "1px solid rgba(108, 208, 166, 0.38)",
-                  backgroundColor: selectedUser.hasStripeSubscription ? "rgba(24, 56, 43, 0.56)" : "rgba(33, 94, 68, 0.52)",
-                  color: selectedUser.hasStripeSubscription ? "rgba(198, 241, 221, 0.62)" : "#ecfff6",
-                  outline: "none",
-                  fontSize: "0.9rem",
-                }}
-              >
-                <option value="free">Explorer</option>
-                <option value="activator">Activator</option>
-                <option value="manifester">Manifester</option>
-                <option value="amplifier">Amplifier</option>
-              </select>
+            <div className={styles.modalBody}>
+              {/* Plan Control Section */}
+              <div className={styles.controlSection}>
+                <span className={styles.controlLabel}>Plan Control</span>
+                <select
+                  value={selectedUser.plan}
+                  disabled={selectedUser.hasStripeSubscription}
+                  onChange={(e) => updateUserPlan(selectedUser.id, e.target.value as User["plan"])}
+                  className={styles.controlSelect}
+                >
+                  <option value="free">Explorer</option>
+                  <option value="activator">Activator</option>
+                  <option value="manifester">Manifester</option>
+                  <option value="amplifier">Amplifier</option>
+                </select>
               </div>
 
-              <div
-                style={{
-                  display: "grid",
-                  gap: "8px",
-                  padding: "12px",
-                  borderRadius: "12px",
-                  border: "1px solid rgba(84, 170, 129, 0.34)",
-                  background: "linear-gradient(180deg, rgba(30, 76, 55, 0.3), rgba(18, 53, 39, 0.32))",
-                }}
-              >
-                <span style={{ fontSize: "0.72rem", textTransform: "uppercase", letterSpacing: "0.06em", color: "rgba(172, 236, 202, 0.88)" }}>
-                  Beta Control
-                </span>
-              <select
-                defaultValue=""
-                disabled={
-                  assigningBetaUserId === selectedUser.id ||
-                  updatingBetaCodeId === selectedUser.activeBetaCodeId
-                }
-                onChange={(e) => handleSubscriptionOptionChange(selectedUser, e.target.value, e.target)}
-                style={{
-                  padding: "10px 12px",
-                  borderRadius: "10px",
-                  border: "1px solid rgba(98, 196, 154, 0.4)",
-                  backgroundColor: "rgba(33, 88, 63, 0.5)",
-                  color: "#ebfff5",
-                  outline: "none",
-                  fontSize: "0.9rem",
-                }}
-              >
-                <option value="">Subscription & Beta Options</option>
-                <option value="meta_plan" disabled>Plan: {planLabels[selectedUser.plan]}</option>
-                {selectedUser.hasStripeSubscription ? (
-                  <option value="meta_stripe" disabled>Stripe-managed subscription</option>
-                ) : (
-                  <option value="assign_beta">Assign 2-Month Beta</option>
-                )}
-                {(selectedUser.isBetaUser || Boolean(selectedUser.activeBetaCodeId)) && (
-                  <>
-                    <option value="meta_beta" disabled>
-                      {selectedUser.activeBetaCode ? `Beta Code: ${selectedUser.activeBetaCode}` : "Beta Access: Enabled"}
-                    </option>
-                    {selectedUser.betaExpiresAt && (
-                      <option value="meta_expiry" disabled>
-                        Expires: {format(new Date(selectedUser.betaExpiresAt), "MMM dd, yyyy")}
+              {/* Beta Control Section */}
+              <div className={styles.controlSection}>
+                <span className={styles.controlLabel}>Beta Control</span>
+                <select
+                  defaultValue=""
+                  disabled={
+                    assigningBetaUserId === selectedUser.id ||
+                    updatingBetaCodeId === selectedUser.activeBetaCodeId
+                  }
+                  onChange={(e) => handleSubscriptionOptionChange(selectedUser, e.target.value, e.target)}
+                  className={styles.controlSelect}
+                >
+                  <option value="">Subscription & Beta Options</option>
+                  <option value="meta_plan" disabled>Plan: {planLabels[selectedUser.plan]}</option>
+                  {selectedUser.hasStripeSubscription ? (
+                    <option value="meta_stripe" disabled>Stripe-managed subscription</option>
+                  ) : (
+                    <option value="assign_beta">Assign 2-Month Beta</option>
+                  )}
+                  {(selectedUser.isBetaUser || Boolean(selectedUser.activeBetaCodeId)) && (
+                    <>
+                      <option value="meta_beta" disabled>
+                        {selectedUser.activeBetaCode ? `Beta Code: ${selectedUser.activeBetaCode}` : "Beta Access: Enabled"}
                       </option>
-                    )}
-                    {selectedUser.activeBetaCodeId ? (
-                      <option value="toggle_beta">
-                        {selectedUser.activeBetaCodeIsActive ? "Deactivate Beta Code" : "Reactivate Beta Code"}
-                      </option>
-                    ) : (
-                      <option value="revoke_beta">Deactivate Beta Access</option>
-                    )}
-                  </>
-                )}
-              </select>
+                      {selectedUser.betaExpiresAt && (
+                        <option value="meta_expiry" disabled>
+                          Expires: {format(new Date(selectedUser.betaExpiresAt), "MMM dd, yyyy")}
+                        </option>
+                      )}
+                      {selectedUser.activeBetaCodeId ? (
+                        <option value="toggle_beta">
+                          {selectedUser.activeBetaCodeIsActive ? "Deactivate Beta Code" : "Reactivate Beta Code"}
+                        </option>
+                      ) : (
+                        <option value="revoke_beta">Deactivate Beta Access</option>
+                      )}
+                    </>
+                  )}
+                </select>
               </div>
 
-              <div
-                style={{
-                  fontSize: "0.82rem",
-                  color: "rgba(207, 247, 226, 0.92)",
-                  lineHeight: 1.5,
-                  padding: "10px 12px",
-                  borderRadius: "10px",
-                  border: selectedUser.hasStripeSubscription
-                    ? "1px solid rgba(103, 198, 154, 0.32)"
-                    : "1px solid rgba(88, 171, 132, 0.32)",
-                  backgroundColor: selectedUser.hasStripeSubscription
-                    ? "rgba(28, 80, 58, 0.24)"
-                    : "rgba(20, 66, 48, 0.24)",
-                }}
-              >
+              {/* Info Note */}
+              <div className={`${styles.infoNote} ${
+                selectedUser.hasStripeSubscription
+                  ? styles.infoNoteStripe
+                  : styles.infoNoteManual
+              }`}>
                 {selectedUser.hasStripeSubscription
                   ? "Stripe-managed user: plan edits are limited to avoid subscription conflicts."
                   : "Manual control mode: assign beta, reactivate/deactivate beta code, or switch plan."}
@@ -867,39 +673,104 @@ export default function UserManagement() {
         </div>
       )}
 
-      <style jsx>{`
-        @keyframes actionMenuIn {
-          from {
-            opacity: 0;
-            transform: translateY(8px) scale(0.98);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0) scale(1);
-          }
-        }
+      {/* Email Modal */}
+      {emailModalTarget !== null && (
+        <div
+          onClick={() => { if (!emailSending) setEmailModalTarget(null); }}
+          className={`${styles.overlay} ${styles.emailOverlay}`}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className={`${styles.modalCard} ${styles.emailModalCard}`}
+          >
+            <div className={`${styles.modalHeader} ${styles.modalHeaderAmber}`}>
+              <div>
+                <h3 className={`${styles.modalTitle} ${styles.modalTitleAmber}`}>
+                  {emailModalTarget === "all" ? "Email All Users" : `Email: ${(emailModalTarget as User).name || (emailModalTarget as User).email}`}
+                </h3>
+                <p className={`${styles.modalSubtitle} ${styles.modalSubtitleAmber}`}>
+                  {emailModalTarget === "all" ? "Sends to all active users" : (emailModalTarget as User).email}
+                </p>
+              </div>
+              <button
+                disabled={emailSending}
+                onClick={() => setEmailModalTarget(null)}
+                className={`${styles.modalCloseButton} ${styles.modalCloseButtonAmber}`}
+              >
+                Close
+              </button>
+            </div>
 
-        @keyframes modalOverlayFadeIn {
-          from {
-            opacity: 0;
-          }
-          to {
-            opacity: 1;
-          }
-        }
+            <div className={styles.modalBody}>
+              <div className={styles.emailFieldGroup}>
+                <label className={styles.emailLabel}>Subject</label>
+                <input
+                  type="text"
+                  value={emailSubject}
+                  onChange={(e) => setEmailSubject(e.target.value)}
+                  placeholder="Enter email subject…"
+                  disabled={emailSending}
+                  className={styles.emailInput}
+                />
+              </div>
 
-        @keyframes modalPanelIn {
-          from {
-            opacity: 0;
-            transform: translateY(16px) scale(0.98);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0) scale(1);
-          }
-        }
-      `}</style>
+              <div className={styles.emailFieldGroup}>
+                <label className={styles.emailLabel}>Message</label>
+                <textarea
+                  value={emailBody}
+                  onChange={(e) => setEmailBody(e.target.value)}
+                  placeholder="Write your message here. Each line break becomes a paragraph."
+                  rows={8}
+                  disabled={emailSending}
+                  className={styles.emailTextarea}
+                />
+              </div>
 
+              <button
+                disabled={emailSending || !emailSubject.trim() || !emailBody.trim()}
+                onClick={async () => {
+                  setEmailSending(true);
+                  try {
+                    const payload: { subject: string; message: string; userId?: string } = {
+                      subject: emailSubject.trim(),
+                      message: emailBody.trim(),
+                    };
+                    if (emailModalTarget !== "all") {
+                      payload.userId = (emailModalTarget as User).id;
+                    }
+                    const res = await fetch("/api/admin/email", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify(payload),
+                    });
+                    const data = await res.json();
+                    if (!res.ok) {
+                      showToast(data.error || "Failed to send email", "error");
+                    } else if (emailModalTarget === "all") {
+                      showToast(`Email sent to ${data.sent} user${data.sent !== 1 ? "s" : ""}${data.failed > 0 ? ` (${data.failed} failed)` : ""}`, "success");
+                      setEmailModalTarget(null);
+                    } else {
+                      showToast("Email sent successfully", "success");
+                      setEmailModalTarget(null);
+                    }
+                  } catch {
+                    showToast("Failed to send email", "error");
+                  } finally {
+                    setEmailSending(false);
+                  }
+                }}
+                className={styles.sendEmailButton}
+              >
+                {emailSending
+                  ? "Sending…"
+                  : emailModalTarget === "all"
+                  ? "Send to All Users"
+                  : "Send Email"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

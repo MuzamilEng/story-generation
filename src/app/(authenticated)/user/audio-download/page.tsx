@@ -137,6 +137,7 @@ const AudioReadyContent: React.FC = () => {
 
   const [isServerMixing, setIsServerMixing] = useState(false);
   const [mixingTrackId, setMixingTrackId] = useState<string | null>(null);
+  const [is8DEnhancing, setIs8DEnhancing] = useState(false);
   const [availableSoundscapes, setAvailableSoundscapes] = useState<any[]>([]);
   const [selectedSoundscapeId, setSelectedSoundscapeId] = useState<
     string | null
@@ -528,6 +529,39 @@ const AudioReadyContent: React.FC = () => {
     }
   };
 
+  /** Enhance voice with 8D spatial audio */
+  const handleEnhance8D = async () => {
+    if (!story?.id || is8DEnhancing) return;
+    setIs8DEnhancing(true);
+    globalPause();
+    try {
+      const res = await fetch("/api/user/audio/enhance-8d", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ storyId: story.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(data.error || "8D enhancement failed. Please try again.", "error");
+        return;
+      }
+      // Update story with new 8D audio URL
+      setStory((prev: any) => ({
+        ...prev,
+        audio_url: data.audio_url,
+        audio_r2_key: data.audio_r2_key,
+      }));
+      setPendingAutoplay(true);
+      setGlobalAudio({ ...story, audio_url: data.audio_url });
+      showToast("8D Audio enhancement applied ✓", "success");
+    } catch (err) {
+      console.error("8D enhancement failed:", err);
+      showToast("Something went wrong. Please try again.", "error");
+    } finally {
+      setIs8DEnhancing(false);
+    }
+  };
+
   /** Toggle preview playback for a soundscape track (capped at 45s) */
   const PREVIEW_MAX_SECS = 45;
   const togglePreview = (soundscape: any) => {
@@ -575,6 +609,9 @@ const AudioReadyContent: React.FC = () => {
       setPreviewingId(null);
     }
   }, [isServerMixing]);
+
+  // Detect if the current audio is already 8D enhanced
+  const is8DAudio = /binaural_8d/i.test(story?.audio_url || "");
 
   // Always use DB-stored duration as the authoritative source.
   const dbDuration = story?.audio_duration_secs ?? 0;
@@ -958,6 +995,44 @@ const AudioReadyContent: React.FC = () => {
         </div>
       )}
 
+      {/* Full-screen loader while 8D enhancement is in progress */}
+      {is8DEnhancing && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.7)",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "14px",
+            zIndex: 9999,
+          }}
+        >
+          <span
+            style={{
+              display: "inline-block",
+              width: 36,
+              height: 36,
+              border: "3px solid rgba(255,255,255,0.15)",
+              borderTop: "3px solid #8b5cf6",
+              borderRadius: "50%",
+              animation: "spin 0.8s linear infinite",
+            }}
+          />
+          <span
+            style={{
+              fontSize: "0.9rem",
+              color: "rgba(255,255,255,0.8)",
+              fontFamily: "var(--sans)",
+            }}
+          >
+            Enhancing with 8D spatial audio — please wait…
+          </span>
+        </div>
+      )}
+
       <div className={styles.page}>
         {/* CELEBRATION */}
         <div className={styles.celebrateHeader}>
@@ -1226,6 +1301,7 @@ const AudioReadyContent: React.FC = () => {
                         aria-label="Volume"
                       />
                     </div>
+
                   </div>
                 </>
               )}
@@ -1874,6 +1950,73 @@ const AudioReadyContent: React.FC = () => {
                 <DownloadIcon />
                 Download
               </button>
+            </div>
+          )}
+
+          {/* Enhance with 8D — only shown if audio is NOT already 8D */}
+          {!is8DAudio && (
+            <div className={styles.downloadCard} style={{ borderColor: "rgba(99, 102, 241, 0.3)" }}>
+              <div className={`${styles.dlIcon}`} style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)" }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M3 18v-6a9 9 0 0 1 18 0v6" />
+                  <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z" />
+                </svg>
+              </div>
+              <div className={styles.dlInfo}>
+                <div className={styles.dlTitle}>Enhance with 8D Audio</div>
+                <div className={styles.dlSub}>
+                  Immersive spatial sound that moves around you
+                </div>
+              </div>
+              <button
+                className={styles.dlBtn}
+                onClick={handleEnhance8D}
+                disabled={is8DEnhancing}
+                style={{
+                  background: is8DEnhancing ? "rgba(99,102,241,0.3)" : "linear-gradient(135deg, #6366f1, #8b5cf6)",
+                  color: "#fff",
+                  border: "none",
+                  opacity: is8DEnhancing ? 0.7 : 1,
+                  cursor: is8DEnhancing ? "default" : "pointer",
+                }}
+              >
+                {is8DEnhancing ? (
+                  <>
+                    <span
+                      style={{
+                        display: "inline-block",
+                        width: 14,
+                        height: 14,
+                        border: "2px solid rgba(255,255,255,0.3)",
+                        borderTop: "2px solid #fff",
+                        borderRadius: "50%",
+                        animation: "spin 0.8s linear infinite",
+                      }}
+                    />
+                    Enhancing…
+                  </>
+                ) : (
+                  <>🎧 Enhance</>
+                )}
+              </button>
+            </div>
+          )}
+
+          {/* Already 8D badge */}
+          {is8DAudio && (
+            <div className={styles.downloadCard} style={{ borderColor: "rgba(99, 102, 241, 0.3)", opacity: 0.8 }}>
+              <div className={`${styles.dlIcon}`} style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)" }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M3 18v-6a9 9 0 0 1 18 0v6" />
+                  <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z" />
+                </svg>
+              </div>
+              <div className={styles.dlInfo}>
+                <div className={styles.dlTitle}>8D Audio Enhanced ✓</div>
+                <div className={styles.dlSub}>
+                  Immersive spatial sound is active on this story
+                </div>
+              </div>
             </div>
           )}
 
