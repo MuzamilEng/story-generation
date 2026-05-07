@@ -22,7 +22,7 @@ const FISH_CONCURRENCY = Math.max(1, Number(process.env.FISH_TTS_CONCURRENCY ?? 
 // Target chars per chunk — larger chunks preserve prosody context for natural speech
 const CHUNK_CHARS = Math.max(200, Number(process.env.FISH_CHUNK_CHARS ?? 1200) || 1200);
 // TTS speed controls
-const INTRO_TTS_SPEED = Math.max(0.55, Math.min(1.0, Number(process.env.INTRO_TTS_SPEED ?? 0.72) || 0.72));
+const INTRO_TTS_SPEED = Math.max(0.5, Math.min(1.0, Number(process.env.INTRO_TTS_SPEED ?? 0.66) || 0.66));
 const STORY_TTS_SPEED = Math.max(0.7, Math.min(1.0, Number(process.env.STORY_TTS_SPEED ?? 0.92) || 0.92));
 // 8D tuning controls (defaults target stronger travel + reduced ear fatigue)
 const EIGHT_D_PRIMARY_HZ = Math.max(0.012, Number(process.env.EIGHT_D_PRIMARY_HZ ?? 0.028) || 0.028);
@@ -36,6 +36,30 @@ const INTRO_8D_PRIMARY_DEPTH = Math.min(0.85, Math.max(0.1, Number(process.env.I
 const STAIRCASE_8D_PRIMARY_HZ = Math.max(0.006, Number(process.env.STAIRCASE_8D_PRIMARY_HZ ?? 0.012) || 0.012);
 const STAIRCASE_8D_PRIMARY_DEPTH = Math.min(0.95, Math.max(0.3, Number(process.env.STAIRCASE_8D_PRIMARY_DEPTH ?? 0.93) || 0.93));
 const STAIRCASE_8D_SECONDARY_DEPTH = Math.min(0.6, Math.max(0.05, Number(process.env.STAIRCASE_8D_SECONDARY_DEPTH ?? 0.34) || 0.34));
+
+export type HrtfQuality = 'fast' | 'balanced' | 'deep';
+
+interface HrtfRenderOptions {
+  quality?: HrtfQuality;
+}
+
+function normalizeHrtfQuality(value: unknown): HrtfQuality {
+  const v = String(value ?? '').toLowerCase();
+  if (v === 'fast' || v === 'deep' || v === 'balanced') return v;
+  return 'balanced';
+}
+
+function getHrtfPerfSettings(quality: HrtfQuality): { chunkSecs: number; updatesPerSec: number } {
+  if (quality === 'fast') {
+    // Fewer motion updates and larger chunks to shorten render time.
+    return { chunkSecs: 180, updatesPerSec: 12 };
+  }
+  if (quality === 'deep') {
+    // Denser motion automation for the most vivid headphone movement.
+    return { chunkSecs: 90, updatesPerSec: 24 };
+  }
+  return { chunkSecs: 120, updatesPerSec: 18 };
+}
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -573,7 +597,12 @@ async function finalMasterWithFade(inputBuffer: Buffer, fadeSecs = 2.5): Promise
 // Uses node-web-audio-api OfflineAudioContext with HRTF PannerNode.
 // Processes in 120-second chunks so peak RAM stays under ~50 MB/chunk.
 // Falls back to FFmpeg apulsator (apply8DAudio) if the native module is unavailable.
-export async function apply8DWithHRTF(inputBuffer: Buffer, profile: 'intro' | 'story' = 'story', skipNarrationFilters = false): Promise<Buffer> {
+export async function apply8DWithHRTF(
+  inputBuffer: Buffer,
+  profile: 'intro' | 'story' = 'story',
+  skipNarrationFilters = false,
+  options: HrtfRenderOptions = {}
+): Promise<Buffer> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let OfflineAudioContext: any;
   try {
@@ -586,7 +615,9 @@ export async function apply8DWithHRTF(inputBuffer: Buffer, profile: 'intro' | 's
   }
 
   const SAMPLE_RATE = 48000;
-  const CHUNK_SECS  = 120; // 120 s windows — fewer chunks = less overhead (~50 MB peak RAM per chunk)
+  const quality = normalizeHrtfQuality(options.quality ?? process.env.HRTF_QUALITY);
+  const perf = getHrtfPerfSettings(quality);
+  const CHUNK_SECS = perf.chunkSecs;
   const orbitHz     = profile === 'intro' ? INTRO_8D_PRIMARY_HZ : EIGHT_D_PRIMARY_HZ;
   const radius      = profile === 'story' ? 2.5 : 1.5;
 
@@ -596,7 +627,7 @@ export async function apply8DWithHRTF(inputBuffer: Buffer, profile: 'intro' | 's
 
   try {
     const applyNarration = !skipNarrationFilters;
-    console.log(`[8D-HRTF] Decoding ${profile} audio to PCM (narration filters=${applyNarration})...`);
+    console.log(`[8D-HRTF] Decoding ${profile} audio to PCM (quality=${quality}, narration filters=${applyNarration})...`);
     const pcm         = await decodeMp3ToMonoPcm(inputBuffer, SAMPLE_RATE, applyNarration);
     const totalFrames = pcm.length;
     const chunkFrames = CHUNK_SECS * SAMPLE_RATE;
@@ -626,9 +657,9 @@ export async function apply8DWithHRTF(inputBuffer: Buffer, profile: 'intro' | 's
       panner.rolloffFactor  = 0.8;
       panner.coneInnerAngle = 360; // omnidirectional point source
 
-      // Schedule 20 position updates/sec for smooth orbit (reduced from 30 to cut CPU)
+      // Position updates are the main HRTF CPU cost; quality controls this density.
       const chunkDuration = chunkLen / SAMPLE_RATE;
-      const totalSteps    = Math.ceil(chunkDuration * 20);
+      const totalSteps    = Math.ceil(chunkDuration * perf.updatesPerSec);
 
       for (let s = 0; s <= totalSteps; s++) {
         const localT  = (s / totalSteps) * chunkDuration;
@@ -656,14 +687,14 @@ export async function apply8DWithHRTF(inputBuffer: Buffer, profile: 'intro' | 's
       }
       const chunkBuf = Buffer.from(interleaved.buffer);
       await new Promise<void>((res, rej) => writeStream.write(chunkBuf, (err) => err ? rej(err) : res()));
-      console.log(`[8D-HRTF] ${profile} chunk ${ci + 1}/${numChunks} rendered (${Math.round(chunkLen / SAMPLE_RATE)}s)`);
+      console.log(`[8D-HRTF] ${profile} chunk ${ci + 1}/${numChunks} rendered (${Math.round(chunkLen / SAMPLE_RATE)}s, quality=${quality})`);
     }
 
     await new Promise<void>((res) => writeStream.end(() => res()));
 
     console.log(`[8D-HRTF] Encoding ${profile} HRTF render to 320k MP3...`);
     const mp3 = await encodeRawStereoToMp3(rawStereoPath, SAMPLE_RATE);
-    console.log(`[8D-HRTF] ${profile}: ${(inputBuffer.length / 1024 / 1024).toFixed(1)}MB → ${(mp3.length / 1024 / 1024).toFixed(1)}MB (true HRTF PannerNode)`);
+    console.log(`[8D-HRTF] ${profile}: ${(inputBuffer.length / 1024 / 1024).toFixed(1)}MB → ${(mp3.length / 1024 / 1024).toFixed(1)}MB (true HRTF PannerNode, quality=${quality})`);
     return mp3;
 
   } catch (err) {

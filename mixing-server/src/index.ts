@@ -10,7 +10,7 @@ import {
   initAssembleWorker,
   waitForAssembleResult,
 } from './assemble-queue';
-import { localAudioCache, apply8DAudio, apply8DWithHRTF } from './assemble';
+import { localAudioCache, apply8DAudio, apply8DWithHRTF, HrtfQuality } from './assemble';
 import fs from 'fs';
 import path from 'path';
 
@@ -399,7 +399,7 @@ app.post('/enhance-voice', requireAuth, async (req, res) => {
 
 // ── POST /unmix ────────────────────────────────────────────────────────────
 // Revert to voice-only: remove combined audio, restore voice_only as primary
-// Body: { storyId }
+// Body: { storyId, quality?: 'fast' | 'balanced' | 'deep', profile?: 'story' | 'intro' }
 app.post('/unmix', requireAuth, async (req, res) => {
   const { storyId } = req.body;
 
@@ -460,10 +460,17 @@ app.post('/unmix', requireAuth, async (req, res) => {
 // Returns 202 immediately after validation. Processing runs in background.
 // Updates Story DB record when complete. Client polls story for new audio_url.
 app.post('/enhance-8d', requireAuth, async (req, res) => {
-  const { storyId } = req.body;
+  const { storyId, quality, profile } = req.body;
 
   if (!storyId) {
     res.status(400).json({ error: 'storyId is required' });
+    return;
+  }
+
+  const hrtfQuality = (String(quality || 'balanced').toLowerCase() as HrtfQuality);
+  const hrtfProfile = String(profile || 'story').toLowerCase() === 'intro' ? 'intro' : 'story';
+  if (!['fast', 'balanced', 'deep'].includes(hrtfQuality)) {
+    res.status(400).json({ error: 'quality must be one of: fast, balanced, deep' });
     return;
   }
 
@@ -492,13 +499,15 @@ app.post('/enhance-8d', requireAuth, async (req, res) => {
     res.status(202).json({
       success: true,
       status: 'processing',
+      quality: hrtfQuality,
+      profile: hrtfProfile,
       message: '8D enhancement accepted. Processing in background.',
     });
 
     // ── Background processing (runs after response is sent) ─────────────
     (async () => {
       try {
-        console.log(`[enhance-8d] Starting: story=${storyId} source=${sourceKey}`);
+        console.log(`[enhance-8d] Starting: story=${storyId} source=${sourceKey} quality=${hrtfQuality} profile=${hrtfProfile}`);
 
         // Download voice from R2
         let voiceBuffer: Buffer;
@@ -517,7 +526,7 @@ app.post('/enhance-8d', requireAuth, async (req, res) => {
         console.log(`[enhance-8d] Downloaded source=${voiceBuffer.length}B`);
 
         // Apply true HRTF 8D spatial audio (node-web-audio-api PannerNode)
-        const enhanced8DBuffer = await apply8DWithHRTF(voiceBuffer, 'story', true);
+        const enhanced8DBuffer = await apply8DWithHRTF(voiceBuffer, hrtfProfile, true, { quality: hrtfQuality });
         console.log(`[enhance-8d] HRTF 8D applied: ${voiceBuffer.length}B → ${enhanced8DBuffer.length}B`);
 
         // Build the new R2 key with binaural_8d identifier
