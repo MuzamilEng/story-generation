@@ -22,20 +22,20 @@ const FISH_CONCURRENCY = Math.max(1, Number(process.env.FISH_TTS_CONCURRENCY ?? 
 // Target chars per chunk — larger chunks preserve prosody context for natural speech
 const CHUNK_CHARS = Math.max(200, Number(process.env.FISH_CHUNK_CHARS ?? 1200) || 1200);
 // TTS speed controls
-const INTRO_TTS_SPEED = Math.max(0.6, Math.min(1.0, Number(process.env.INTRO_TTS_SPEED ?? 0.80) || 0.80));
+const INTRO_TTS_SPEED = Math.max(0.55, Math.min(1.0, Number(process.env.INTRO_TTS_SPEED ?? 0.72) || 0.72));
 const STORY_TTS_SPEED = Math.max(0.7, Math.min(1.0, Number(process.env.STORY_TTS_SPEED ?? 0.92) || 0.92));
 // 8D tuning controls (defaults target stronger travel + reduced ear fatigue)
-const EIGHT_D_PRIMARY_HZ = Math.max(0.015, Number(process.env.EIGHT_D_PRIMARY_HZ ?? 0.035) || 0.035);
-const EIGHT_D_SECONDARY_HZ = Math.max(0.03, Number(process.env.EIGHT_D_SECONDARY_HZ ?? 0.078) || 0.078);
-const EIGHT_D_PRIMARY_DEPTH = Math.min(0.99, Math.max(0.2, Number(process.env.EIGHT_D_PRIMARY_DEPTH ?? 0.82) || 0.82));
-const EIGHT_D_SECONDARY_DEPTH = Math.min(0.8, Math.max(0.05, Number(process.env.EIGHT_D_SECONDARY_DEPTH ?? 0.18) || 0.18));
+const EIGHT_D_PRIMARY_HZ = Math.max(0.012, Number(process.env.EIGHT_D_PRIMARY_HZ ?? 0.028) || 0.028);
+const EIGHT_D_SECONDARY_HZ = Math.max(0.02, Number(process.env.EIGHT_D_SECONDARY_HZ ?? 0.062) || 0.062);
+const EIGHT_D_PRIMARY_DEPTH = Math.min(0.99, Math.max(0.2, Number(process.env.EIGHT_D_PRIMARY_DEPTH ?? 0.88) || 0.88));
+const EIGHT_D_SECONDARY_DEPTH = Math.min(0.8, Math.max(0.05, Number(process.env.EIGHT_D_SECONDARY_DEPTH ?? 0.24) || 0.24));
 const EIGHT_D_FADE_IN_SECS = Math.max(0, Number(process.env.EIGHT_D_FADE_IN_SECS ?? 6) || 6);
-const INTRO_8D_PRIMARY_HZ = Math.max(0.01, Number(process.env.INTRO_8D_PRIMARY_HZ ?? 0.022) || 0.022);
-const INTRO_8D_PRIMARY_DEPTH = Math.min(0.85, Math.max(0.1, Number(process.env.INTRO_8D_PRIMARY_DEPTH ?? 0.45) || 0.45));
+const INTRO_8D_PRIMARY_HZ = Math.max(0.008, Number(process.env.INTRO_8D_PRIMARY_HZ ?? 0.018) || 0.018);
+const INTRO_8D_PRIMARY_DEPTH = Math.min(0.85, Math.max(0.1, Number(process.env.INTRO_8D_PRIMARY_DEPTH ?? 0.58) || 0.58));
 // Staircase/descent section: enhanced slow spatial movement
-const STAIRCASE_8D_PRIMARY_HZ = Math.max(0.008, Number(process.env.STAIRCASE_8D_PRIMARY_HZ ?? 0.018) || 0.018);
-const STAIRCASE_8D_PRIMARY_DEPTH = Math.min(0.95, Math.max(0.3, Number(process.env.STAIRCASE_8D_PRIMARY_DEPTH ?? 0.88) || 0.88));
-const STAIRCASE_8D_SECONDARY_DEPTH = Math.min(0.6, Math.max(0.05, Number(process.env.STAIRCASE_8D_SECONDARY_DEPTH ?? 0.28) || 0.28));
+const STAIRCASE_8D_PRIMARY_HZ = Math.max(0.006, Number(process.env.STAIRCASE_8D_PRIMARY_HZ ?? 0.012) || 0.012);
+const STAIRCASE_8D_PRIMARY_DEPTH = Math.min(0.95, Math.max(0.3, Number(process.env.STAIRCASE_8D_PRIMARY_DEPTH ?? 0.93) || 0.93));
+const STAIRCASE_8D_SECONDARY_DEPTH = Math.min(0.6, Math.max(0.05, Number(process.env.STAIRCASE_8D_SECONDARY_DEPTH ?? 0.34) || 0.34));
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -247,7 +247,8 @@ async function postProcessAndSpatialize(inputBuffer: Buffer, profile: 'intro' | 
   const primaryHz = isStaircase ? STAIRCASE_8D_PRIMARY_HZ : (isIntro ? INTRO_8D_PRIMARY_HZ : EIGHT_D_PRIMARY_HZ);
   const primaryDepth = isStaircase ? STAIRCASE_8D_PRIMARY_DEPTH : (isIntro ? INTRO_8D_PRIMARY_DEPTH : EIGHT_D_PRIMARY_DEPTH);
   const secondaryDepth = isStaircase ? STAIRCASE_8D_SECONDARY_DEPTH : (isIntro ? Math.min(0.12, EIGHT_D_SECONDARY_DEPTH) : EIGHT_D_SECONDARY_DEPTH);
-  const stereoWidth = isStaircase ? 1.3 : (isIntro ? 1.08 : 1.2);
+  const stereoWidth = isStaircase ? 1.36 : (isIntro ? 1.14 : 1.28);
+  const interauralDelayMs = isStaircase ? 14 : (isIntro ? 8 : 10);
   const reverbFilter = isStaircase
     ? "aecho=0.7:0.4:25'|'45'|'65:0.07'|'0.04'|'0.025"  // Deeper reverb for descent immersion
     : isIntro
@@ -274,7 +275,7 @@ async function postProcessAndSpatialize(inputBuffer: Buffer, profile: 'intro' | 
         'equalizer=f=7600:t=h:w=3200:g=-4.8',
         `apulsator=mode=sine:hz=${primaryHz}:amount=${primaryDepth}:offset_l=0:offset_r=0.5`,
         `apulsator=mode=sine:hz=${EIGHT_D_SECONDARY_HZ}:amount=${secondaryDepth}:offset_l=0.2:offset_r=0.7`,
-        "adelay=0'|'10",
+        `adelay=0'|'${interauralDelayMs}`,
         `extrastereo=m=${stereoWidth}`,
         reverbFilter,
         'acompressor=threshold=-23dB:ratio=2.2:attack=80:release=300:knee=4:makeup=1.2',
@@ -336,7 +337,8 @@ export async function apply8DAudio(inputBuffer: Buffer, profile: 'intro' | 'stor
   const primaryHz = isIntro ? INTRO_8D_PRIMARY_HZ : EIGHT_D_PRIMARY_HZ;
   const primaryDepth = isIntro ? INTRO_8D_PRIMARY_DEPTH : EIGHT_D_PRIMARY_DEPTH;
   const secondaryDepth = isIntro ? Math.min(0.12, EIGHT_D_SECONDARY_DEPTH) : EIGHT_D_SECONDARY_DEPTH;
-  const stereoWidth = isIntro ? 1.05 : 1.2;
+  const stereoWidth = isIntro ? 1.12 : 1.28;
+  const interauralDelayMs = isIntro ? 8 : 10;
   // Early reflections reverb — warmer and more natural than aecho comb filter
   // Uses short delays with low feedback for intimate room feel without metallic artifacts
   const reverbFilter = isIntro
@@ -363,7 +365,7 @@ export async function apply8DAudio(inputBuffer: Buffer, profile: 'intro' | 'stor
         // Secondary slower drift adds immersion without metallic shimmer
         `apulsator=mode=sine:hz=${EIGHT_D_SECONDARY_HZ}:amount=${secondaryDepth}:offset_l=0.2:offset_r=0.7`,
         // Subtle inter-aural time difference; kept modest to avoid comb harshness
-        "adelay=0'|'10",
+        `adelay=0'|'${interauralDelayMs}`,
         // Keep width controlled so movement remains natural and not phasey
         `extrastereo=m=${stereoWidth}`,
         // Early reflections for intimate room depth (no metallic comb artifacts)
@@ -994,19 +996,61 @@ function sanitizeForTTS(text: string): string {
 // Inserts longer ellipsis breaks to create a meditative, guided pacing.
 function addIntroPauses(text: string): string {
   return text
-    // Add a long pause after each sentence ending (. ! ?)
-    .replace(/([.!?])\s+/g, '$1 ...... ')
-    // Add pause after commas for slower phrasing
-    .replace(/,\s+/g, ', ... ')
+    // Add deep guided pacing after sentence endings.
+    .replace(/([.!?])\s+/g, '$1 ........ ')
+    // Add measured pauses after commas, colons, and semicolons.
+    .replace(/,\s+/g, ', .... ')
+    .replace(/(:|;)\s+/g, '$1 ..... ')
     // Add extra pause after newlines (paragraph breaks)
-    .replace(/\n\s*\n/g, '\n\n...... ')
+    .replace(/\n\s*\n/g, '\n\n........ ')
+    .replace(/\s{2,}/g, ' ')
     .trim();
 }
 
+const STAIRCASE_SECTION_PATTERN = /\b(staircase|stairs|steps?\s+down|descend|descent|going\s+deeper|deeper\s+and\s+deeper|counting\s+down|step\s+by\s+step|walking\s+down|spiral|downward)\b/i;
+
 // Detect if text contains staircase/descent hypnotic imagery
 function containsStaircaseSection(text: string): boolean {
-  const staircasePatterns = /\b(staircase|stairs|steps?\s+down|descend|descent|going\s+deeper|deeper\s+and\s+deeper|counting\s+down|step\s+by\s+step|walking\s+down|spiral|downward)\b/i;
-  return staircasePatterns.test(text);
+  return STAIRCASE_SECTION_PATTERN.test(text);
+}
+
+function splitStorySpatialSections(text: string): Array<{ label: string; profile: 'story' | 'staircase'; text: string }> {
+  const cleaned = text.trim();
+  if (!cleaned) return [];
+
+  const sentences = cleaned.split(/(?<=[.!?])\s+/).map((s) => s.trim()).filter(Boolean);
+  if (!sentences.length || !containsStaircaseSection(cleaned)) {
+    return [{ label: 'story', profile: 'story', text: cleaned }];
+  }
+
+  const staircaseIdxs: number[] = [];
+  for (let i = 0; i < sentences.length; i++) {
+    if (STAIRCASE_SECTION_PATTERN.test(sentences[i])) staircaseIdxs.push(i);
+  }
+
+  if (!staircaseIdxs.length) {
+    return [{ label: 'story', profile: 'story', text: cleaned }];
+  }
+
+  // Expand by nearby sentences so spatial deepening starts before and resolves after the cue.
+  const start = Math.max(0, staircaseIdxs[0] - 2);
+  const end = Math.min(sentences.length - 1, staircaseIdxs[staircaseIdxs.length - 1] + 2);
+  const sections: Array<{ label: string; profile: 'story' | 'staircase'; text: string }> = [];
+
+  if (start > 0) {
+    const lead = sentences.slice(0, start).join(' ').trim();
+    if (lead) sections.push({ label: 'story-lead', profile: 'story', text: lead });
+  }
+
+  const staircaseCore = sentences.slice(start, end + 1).join(' ').trim();
+  if (staircaseCore) sections.push({ label: 'staircase', profile: 'staircase', text: staircaseCore });
+
+  if (end < sentences.length - 1) {
+    const tail = sentences.slice(end + 1).join(' ').trim();
+    if (tail) sections.push({ label: 'story-tail', profile: 'story', text: tail });
+  }
+
+  return sections.length ? sections : [{ label: 'story', profile: 'story', text: cleaned }];
 }
 
 
@@ -1179,10 +1223,14 @@ export async function assembleStoryAudio(storyId: string, userId: string): Promi
   const { introText, storyText } = splitIntoBuses(fullText);
   const introSanitized = introText ? sanitizeForTTS(introText) : '';
   const storySanitized = sanitizeForTTS(storyText);
+  const storySpatialSections = splitStorySpatialSections(storySanitized);
 
   if (!storySanitized && !introSanitized) throw new Error('Story text is empty');
 
   console.log(`[assemble] Bus split — intro: ${introSanitized.length} chars, story: ${storySanitized.length} chars`);
+  if (storySpatialSections.length > 1 || storySpatialSections[0]?.profile === 'staircase') {
+    console.log(`[assemble] Story spatial sections: ${storySpatialSections.map(s => `${s.label}:${s.profile}:${s.text.length}`).join(', ')}`);
+  }
   mark('text_split');
   if (introSanitized) console.log(`[assemble] Intro preview: "${introSanitized.slice(0, 120).replace(/\n/g, ' ')}"`);
   console.log(`[assemble] Story preview: "${storySanitized.slice(0, 120).replace(/\n/g, ' ')}"`);
@@ -1191,6 +1239,7 @@ export async function assembleStoryAudio(storyId: string, userId: string): Promi
   // Generate intro and story TTS in parallel for better performance
   let introBusBuffer: Buffer = Buffer.alloc(0) as Buffer;
   let storyBusBuffer: Buffer = Buffer.alloc(0) as Buffer;
+  let storySectionBuffers: Array<{ label: string; profile: 'story' | 'staircase'; buffer: Buffer }> = [];
 
   const ttsPromises: Promise<void>[] = [];
 
@@ -1212,10 +1261,28 @@ export async function assembleStoryAudio(storyId: string, userId: string): Promi
   if (storySanitized) {
     ttsPromises.push(
       (async () => {
-        console.log(`[assemble] Generating STORY bus audio (${storySanitized.length} chars, speed=${STORY_TTS_SPEED})...`);
-        storyBusBuffer = await generateParallel(selectedVoiceId, storySanitized, STORY_TTS_SPEED);
+        console.log(`[assemble] Generating STORY bus audio across ${storySpatialSections.length} spatial section(s) (speed=${STORY_TTS_SPEED})...`);
+        for (const section of storySpatialSections) {
+          console.log(`[assemble] Generating ${section.label} (${section.profile}) section (${section.text.length} chars)...`);
+          const sectionBuffer = await generateParallel(selectedVoiceId, section.text, STORY_TTS_SPEED);
+          if (!sectionBuffer || sectionBuffer.length === 0) {
+            throw new Error(`Failed to generate story section audio: ${section.label}`);
+          }
+          storySectionBuffers.push({ label: section.label, profile: section.profile, buffer: sectionBuffer });
+          console.log(`[assemble] Story section ${section.label} raw: ${sectionBuffer.length} bytes`);
+        }
+
+        if (storySectionBuffers.length === 1) {
+          storyBusBuffer = storySectionBuffers[0].buffer;
+        } else {
+          storyBusBuffer = await concatAudioBuses(storySectionBuffers.map((s) => ({
+            buffer: s.buffer,
+            label: `story-raw-${s.label}`,
+          })));
+        }
+
         if (!storyBusBuffer || storyBusBuffer.length === 0) throw new Error('Failed to generate story audio');
-        console.log(`[assemble] Story bus raw: ${storyBusBuffer.length} bytes`);
+        console.log(`[assemble] Story bus raw (combined): ${storyBusBuffer.length} bytes`);
         mark('tts_story');
       })()
     );
@@ -1243,10 +1310,21 @@ export async function assembleStoryAudio(storyId: string, userId: string): Promi
   if (storyBusBuffer.length > 0) {
     postProcessPromises.push(
       (async () => {
-        const hasStaircase = containsStaircaseSection(storySanitized);
-        const storyProfile = hasStaircase ? 'staircase' : 'story';
-        console.log(`[assemble] Post-processing STORY bus (warmth + 8D spatial, profile=${storyProfile})...`);
-        storyBusBuffer = await postProcessAndSpatialize(storyBusBuffer, storyProfile as any);
+        if (storySectionBuffers.length > 1 || storySectionBuffers[0]?.profile === 'staircase') {
+          console.log('[assemble] Post-processing STORY sections with per-section spatial profiles...');
+          const processedSections = await Promise.all(storySectionBuffers.map(async (section) => {
+            const processed = await postProcessAndSpatialize(section.buffer, section.profile);
+            return { label: section.label, profile: section.profile, buffer: processed };
+          }));
+          storyBusBuffer = await concatAudioBuses(processedSections.map((s) => ({
+            buffer: s.buffer,
+            label: `story-spatial-${s.label}-${s.profile}`,
+          })));
+          console.log(`[assemble] Story sections spatialized: ${processedSections.map(s => `${s.label}:${s.profile}`).join(', ')}`);
+        } else {
+          console.log('[assemble] Post-processing STORY bus (warmth + 8D spatial, profile=story)...');
+          storyBusBuffer = await postProcessAndSpatialize(storyBusBuffer, 'story');
+        }
         mark('postprocess_story');
       })()
     );
